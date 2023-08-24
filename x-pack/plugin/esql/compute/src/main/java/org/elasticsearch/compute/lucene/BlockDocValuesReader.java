@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -78,7 +80,6 @@ public abstract class BlockDocValuesReader {
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
             return new BytesValuesReader(bytesValues);
         }
-        // TODO: Add support for geo_point and geo_shape
         if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {
@@ -130,6 +131,15 @@ public abstract class BlockDocValuesReader {
         }
         if (valuesSourceType instanceof NullValueSourceType) {
             return new NullValuesReader();
+        }
+        if (CoreValuesSourceType.GEOPOINT.equals(valuesSourceType)) {
+            ValuesSource.GeoPoint geoPointValueSource = (ValuesSource.GeoPoint) valuesSource;
+            MultiGeoPointValues multiGeoPointValues = geoPointValueSource.geoPointValues(leafReaderContext);
+            final GeoPointValues singleton = FieldData.unwrapSingleton(multiGeoPointValues);
+            if (singleton != null) {
+                return new GeoPointSingletonValuesReader(singleton);
+            }
+            return new GeoPointValuesReader(multiGeoPointValues);
         }
         throw new IllegalArgumentException("Field type [" + valuesSourceType.typeName() + "] is not supported");
     }
@@ -694,6 +704,127 @@ public abstract class BlockDocValuesReader {
         @Override
         public String toString() {
             return getClass().getSimpleName();
+        }
+    }
+
+    private static class GeoPointSingletonValuesReader extends BlockDocValuesReader {
+        private final GeoPointValues geoPointValues;
+        private int docID = -1;
+
+        GeoPointSingletonValuesReader(GeoPointValues geoPointValues) {
+            this.geoPointValues = geoPointValues;
+        }
+
+        @Override
+        public LongBlock.Builder builder(int positionCount) {
+            // TODO Does it make sense to have any ordering for encoded points?
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+        }
+
+        @Override
+        public LongBlock readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = builder(positionCount);
+            int lastDoc = -1;
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (doc < lastDoc) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                if (geoPointValues.advanceExact(doc)) {
+                    blockBuilder.appendLong(geoPointValues.pointValue().getEncoded());
+                } else {
+                    blockBuilder.appendNull();
+                }
+                lastDoc = doc;
+                this.docID = doc;
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            this.docID = docId;
+            LongBlock.Builder blockBuilder = (LongBlock.Builder) builder;
+            if (geoPointValues.advanceExact(this.docID)) {
+                blockBuilder.appendLong(geoPointValues.pointValue().getEncoded());
+            } else {
+                blockBuilder.appendNull();
+            }
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DoubleSingletonValuesReader";
+        }
+    }
+
+    private static class GeoPointValuesReader extends BlockDocValuesReader {
+        private final MultiGeoPointValues multiGeoPointValues;
+        private int docID = -1;
+
+        GeoPointValuesReader(MultiGeoPointValues multiGeoPointValues) {
+            this.multiGeoPointValues = multiGeoPointValues;
+        }
+
+        @Override
+        public LongBlock.Builder builder(int positionCount) {
+            // TODO Does it make sense to have any ordering for encoded points?
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+        }
+
+        @Override
+        public LongBlock readValues(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            var blockBuilder = builder(positionCount);
+            for (int i = 0; i < positionCount; i++) {
+                int doc = docs.getInt(i);
+                // docs within same block must be in order
+                if (doc < this.docID) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                read(doc, blockBuilder);
+            }
+            return blockBuilder.build();
+        }
+
+        @Override
+        public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
+            read(docId, (LongBlock.Builder) builder);
+        }
+
+        private void read(int doc, LongBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == multiGeoPointValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            int count = multiGeoPointValues.docValueCount();
+            if (count == 1) {
+                builder.appendLong(multiGeoPointValues.nextValue().getEncoded());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendLong(multiGeoPointValues.nextValue().getEncoded());
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public String toString() {
+            return "DoubleValuesReader";
         }
     }
 }

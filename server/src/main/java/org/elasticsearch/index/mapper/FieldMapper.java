@@ -166,7 +166,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * When the subobjects property is set to false, and we encounter an object while
      * parsing we need a way to understand if its fieldMapper is able to parse an object.
      * If that's the case we can provide the entire object to the FieldMapper otherwise its
-     * name becomes part of the dotted field name of each internal value.
+     * name becomes the part of the dotted field name of each internal value.
      */
     protected boolean supportsParsingObject() {
         return false;

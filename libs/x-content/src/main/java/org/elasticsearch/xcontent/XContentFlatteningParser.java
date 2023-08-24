@@ -22,7 +22,7 @@ public class XContentFlatteningParser extends XContentSubParser {
     @Override
     public String currentName() throws IOException {
         if (level() == 1) {
-            return String.format("%s%s%s", parentName, DELIMITER, delegate().currentName());
+            return new StringBuilder(parentName).append(DELIMITER).append(delegate().currentName()).toString();
         }
         return delegate().currentName();
     }

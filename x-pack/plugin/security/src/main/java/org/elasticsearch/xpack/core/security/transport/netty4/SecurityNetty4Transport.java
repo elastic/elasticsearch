@@ -40,6 +40,7 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -169,20 +170,27 @@ public class SecurityNetty4Transport extends Netty4Transport {
             this::inboundMessage
         ) {
             @Override
-            protected void headerReceived(Header header) {
+            protected void headerReceived(TcpChannel channel, Header header) {
                 if (isRemoteClusterServerChannel && header.isHandshake() == false) {
                     // eagerly (before buffering the full request) authenticate all request headers for this type of channel
-                    // authn is async
                     assert header.isRequest();
+                    // authn is mostly async, avoid buffering anymore data while authn is in progress
+                    boolean isNettyChannel = channel instanceof Netty4TcpChannel;
+                    if (isNettyChannel) {
+                        ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(false);
+                    }
                     // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
                     try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                         crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
                             // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                            if (isNettyChannel) {
+                                ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(true);
+                            }
                         }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));
                     }
                 }
                 // go on with the message parts
-                super.headerReceived(header);
+                super.headerReceived(channel, header);
             }
         };
     }

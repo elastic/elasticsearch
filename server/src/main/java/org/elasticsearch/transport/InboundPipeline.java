@@ -111,7 +111,7 @@ public class InboundPipeline implements Releasable {
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
-                headerReceived((Header) fragment);
+                headerReceived(channel, (Header) fragment);
             } else if (fragment instanceof Compression.Scheme) {
                 assert aggregator.isAggregating();
                 aggregator.updateCompressionScheme((Compression.Scheme) fragment);
@@ -135,7 +135,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    protected void headerReceived(Header header) {
+    protected void headerReceived(TcpChannel channel, Header header) {
         assert aggregator.isAggregating() == false;
         aggregator.headerReceived(header);
     }

@@ -8,14 +8,19 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -27,20 +32,49 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class IndexResponse extends DocWriteResponse {
 
+    private List<String> executedPipelines = null;
+
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
     }
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
+            executedPipelines = in.readList(StreamInput::readString);
+        }
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
+        this(shardId, id, seqNo, primaryTerm, version, created, null);
     }
 
-    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+    public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created,
+                         List<String> executedPipelines) {
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, executedPipelines);
+    }
+
+    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result,
+                          List<String> executedPipelines) {
         super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+        this.executedPipelines = executedPipelines;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+            out.writeCollection(executedPipelines, StreamOutput::writeString);
+        }
+    }
+
+    @Override
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
+        if (executedPipelines != null) {
+            builder.array("executed_pipelines", executedPipelines.toArray());
+        }
+        return builder;
     }
 
     private static Result assertCreatedOrUpdated(Result result) {
@@ -92,7 +126,7 @@ public class IndexResponse extends DocWriteResponse {
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result);
+            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result, null);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

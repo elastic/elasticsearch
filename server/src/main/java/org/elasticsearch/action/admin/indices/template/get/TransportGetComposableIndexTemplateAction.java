@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,6 +34,8 @@ import java.util.Map;
 public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetComposableIndexTemplateAction.class);
 
     private final ClusterSettings clusterSettings;
 
@@ -69,6 +73,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ClusterState state,
         ActionListener<GetComposableIndexTemplateAction.Response> listener
     ) {
+        logger.info("**** I am getting!!!");
         Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
         Map<String, ComposableIndexTemplate> results;
         // If we did not ask for a specific name, then we return all templates

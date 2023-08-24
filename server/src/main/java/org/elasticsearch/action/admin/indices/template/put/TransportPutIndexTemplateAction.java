@@ -76,6 +76,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) throws IOException {
+        logger.info("***** I am putting!!! " + request.name());
         String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";

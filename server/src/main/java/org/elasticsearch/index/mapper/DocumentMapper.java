@@ -40,7 +40,7 @@ public class DocumentMapper {
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
 
-        assert isSyntheticSourceMalformed(source, version) != false || mapping.toCompressedXContent().equals(source)
+        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
@@ -51,8 +51,8 @@ public class DocumentMapper {
      */
     boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
         return sourceMapper().isSynthetic()
-                && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-                && version.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0);
+            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
+            && version.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0);
     }
 
     public Mapping mapping() {

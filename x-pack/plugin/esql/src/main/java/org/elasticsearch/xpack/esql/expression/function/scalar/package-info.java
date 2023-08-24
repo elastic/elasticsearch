@@ -39,8 +39,9 @@
  *     </li>
  *     <li>
  *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
- *         via Gradle:
+ *         from within Intellij or, alternatively, via Gradle:
  *         {@code ./gradlew -p x-pack/plugin/esql test --tests "org.elasticsearch.xpack.esql.CsvTests"}
+ *         IntelliJ will take a few minutes to compile everything but the test itself should take only a few seconds.
  *         This is a fast path to running ESQL's integration tests.
  *     </li>
  *     <li>

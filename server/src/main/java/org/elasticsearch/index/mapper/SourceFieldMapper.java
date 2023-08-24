@@ -185,7 +185,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
-            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT :  TSDB_NO_SYNTHETIC
+            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_NO_SYNTHETIC
             : DEFAULT,
         c -> new Builder(c.getIndexSettings().getMode())
     );

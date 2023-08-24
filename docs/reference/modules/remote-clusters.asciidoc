@@ -41,9 +41,10 @@ with either of the connection modes.
 
 API key based security model::
 beta:[]
-Uses an API key to authenticate and authorize cross-cluster operations to a 
-remote cluster. This model offers administrators of both the local and the 
-remote cluster fine-grained access controls. <<remote-clusters-api-key>>.
+For clusters on version 8.10 or later, you can use an API key to authenticate
+and authorize cross-cluster operations to a remote cluster. This model offers
+administrators of both the local and the remote cluster fine-grained access
+controls. <<remote-clusters-api-key>>.
 
 Certificate based security model::
 Uses mutual TLS authentication for cross-cluster operations. User authentication

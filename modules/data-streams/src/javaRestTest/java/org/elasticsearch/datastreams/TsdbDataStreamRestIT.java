@@ -226,55 +226,56 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
     public void testTsbdDataStreamComponentTemplateWithAllSettingsAndMappings() throws Exception {
         // Different component and index template. All settings and mapping are in component template.
         final String COMPONENT_TEMPLATE_WITH_SETTINGS_AND_MAPPINGS = """
-        {
-            "template": {
-                "settings":{
-                    "index": {
-                        "mode": "time_series",
-                        "routing_path": ["metricset", "k8s.pod.uid"]
-                    }
-                },
-                "mappings":{
-                    "dynamic_templates": [
-                        {
-                            "labels": {
-                                "path_match": "pod.labels.*",
-                                "mapping": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
+            {
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "time_series",
+                            "routing_path": ["metricset", "k8s.pod.uid"]
+                        }
+                    },
+                    "mappings":{
+                        "dynamic_templates": [
+                            {
+                                "labels": {
+                                    "path_match": "pod.labels.*",
+                                    "mapping": {
+                                        "type": "keyword",
+                                        "time_series_dimension": true
+                                    }
                                 }
                             }
-                        }
-                    ],
-                    "properties": {
-                        "@timestamp" : {
-                            "type": "date"
-                        },
-                        "metricset": {
-                            "type": "keyword",
-                            "time_series_dimension": true
-                        },
-                        "k8s": {
-                            "properties": {
-                                "pod": {
-                                    "properties": {
-                                        "uid": {
-                                            "type": "keyword",
-                                            "time_series_dimension": true
-                                        },
-                                        "name": {
-                                            "type": "keyword"
-                                        },
-                                        "ip": {
-                                            "type": "ip"
-                                        },
-                                        "network": {
-                                            "properties": {
-                                                "tx": {
-                                                    "type": "long"
-                                                },
-                                                "rx": {
-                                                    "type": "long"
+                        ],
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "metricset": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            },
+                            "k8s": {
+                                "properties": {
+                                    "pod": {
+                                        "properties": {
+                                            "uid": {
+                                                "type": "keyword",
+                                                "time_series_dimension": true
+                                            },
+                                            "name": {
+                                                "type": "keyword"
+                                            },
+                                            "ip": {
+                                                "type": "ip"
+                                            },
+                                            "network": {
+                                                "properties": {
+                                                    "tx": {
+                                                        "type": "long"
+                                                    },
+                                                    "rx": {
+                                                        "type": "long"
+                                                    }
                                                 }
                                             }
                                         }
@@ -285,15 +286,14 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                     }
                 }
             }
-        }
-        """;
+            """;
         final String DELEGATE_TEMPLATE = """
-        {
-            "index_patterns": ["k8s*"],
-            "composed_of": ["custom_template"],
-            "data_stream": {
-            }
-        }""";
+            {
+                "index_patterns": ["k8s*"],
+                "composed_of": ["custom_template"],
+                "data_stream": {
+                }
+            }""";
 
         // Delete and add new the templates:
         var deleteRequest = new Request("DELETE", "/_index_template/1");

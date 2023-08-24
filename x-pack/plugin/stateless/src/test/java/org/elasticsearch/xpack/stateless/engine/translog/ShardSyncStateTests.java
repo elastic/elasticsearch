@@ -130,6 +130,59 @@ public class ShardSyncStateTests extends ESTestCase {
         assertTrue(activeTranslogFile.hasReferences());
     }
 
+    public void testActiveTranslogFileCannotBeQueuedAfterShardClose() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 20);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
+        ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
+
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
+            @Override
+            protected void closeInternal() {}
+        };
+
+        boolean nodeClosing = randomBoolean();
+
+        shardSyncState.close(nodeClosing);
+
+        shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
+
+        if (nodeClosing) {
+            assertTrue(activeTranslogFile.hasReferences());
+        } else {
+            assertFalse(activeTranslogFile.hasReferences());
+        }
+    }
+
+    public void testActiveTranslogFileCannotBeQueuedWithDifferentPrimaryTerm() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(1, 20);
+        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
+        ShardSyncState.SyncMarker syncMarker = shardSyncState.pollBufferForSync().syncMarker();
+
+        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
+            2,
+            "",
+            Collections.singleton(shardId)
+        ) {
+            @Override
+            protected void closeInternal() {}
+        };
+
+        shardSyncState.markSyncFinished(
+            activeTranslogFile,
+            new ShardSyncState.SyncMarker(syncMarker.primaryTerm() - 1, syncMarker.location())
+        );
+
+        assertFalse(activeTranslogFile.hasReferences());
+    }
+
     private static ShardSyncState getShardSyncState(ShardId shardId, long primaryTerm) {
         ShardSyncState shardSyncState = new ShardSyncState(shardId, primaryTerm, () -> primaryTerm, null, BigArrays.NON_RECYCLING_INSTANCE);
         return shardSyncState;

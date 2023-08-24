@@ -33,6 +33,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 class ShardSyncState {
@@ -49,7 +50,7 @@ class ShardSyncState {
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
     private final Object bufferLock = new Object();
     private BufferState bufferState = null;
-    private volatile boolean isClosed = false;
+    private final AtomicReference<State> state = new AtomicReference<>(State.OPEN);
 
     ShardSyncState(ShardId shardId, long primaryTerm, LongSupplier currentPrimaryTerm, ThreadContext threadContext, BigArrays bigArrays) {
         this.shardId = shardId;
@@ -73,7 +74,7 @@ class ShardSyncState {
         if (processedLocationCopy.compareTo(syncedLocation) > 0) {
             ensureSynced(processedLocationCopy, listener);
         } else {
-            if (isClosed) {
+            if (state.get() != State.OPEN) {
                 listener.onFailure(alreadyClosedException(shardId));
             } else {
                 listener.onResponse(null);
@@ -86,7 +87,7 @@ class ShardSyncState {
         boolean alreadyClosed = false;
         if (location.compareTo(syncedLocation) > 0) {
             synchronized (listeners) {
-                if (isClosed) {
+                if (state.get() != State.OPEN) {
                     alreadyClosed = true;
                 } else if (location.compareTo(syncedLocation) > 0) {
                     ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
@@ -112,13 +113,22 @@ class ShardSyncState {
         if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
             assert syncMarker.location().compareTo(syncedLocation) > 0;
             syncedLocation = syncMarker.location();
-        }
-        synchronized (referencedTranslogFiles) {
-            if (markedTranslogStartFile > translogFile.generation()) {
-                translogFile.decRef();
-            } else {
-                referencedTranslogFiles.add(translogFile);
+            synchronized (referencedTranslogFiles) {
+                if (markedTranslogStartFile > translogFile.generation()) {
+                    translogFile.decRef();
+                } else {
+                    switch (state.get()) {
+                        // Add if the shard is open. Decrement if shard is closed. Ignore is node is closing.
+                        case OPEN -> referencedTranslogFiles.add(translogFile);
+                        case CLOSED -> translogFile.decRef();
+                        case CLOSED_NODE_STOPPING -> {
+                        }
+                    }
+                }
             }
+        } else {
+            // Just decrement since this was sync was generated in a different primary term
+            translogFile.decRef();
         }
     }
 
@@ -151,7 +161,7 @@ class ShardSyncState {
 
     public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
         synchronized (bufferLock) {
-            if (isClosed) {
+            if (state.get() != State.OPEN) {
                 throw alreadyClosedException(shardId);
             }
             Translog.Location newProcessedLocation = new Translog.Location(
@@ -186,7 +196,11 @@ class ShardSyncState {
 
     public void close(boolean nodeStopping) {
         final ArrayList<ActionListener<Void>> toComplete;
-        isClosed = true;
+        if (nodeStopping) {
+            state.set(State.CLOSED_NODE_STOPPING);
+        } else {
+            state.set(State.CLOSED);
+        }
         synchronized (listeners) {
             toComplete = new ArrayList<>(listeners);
             listeners.clear();
@@ -197,9 +211,11 @@ class ShardSyncState {
         }
 
         // Release all of referenced translog files if the indice service is not stopped.
-        if (nodeStopping == false) {
-            releaseReferencedTranslogFiles(Long.MAX_VALUE);
-            assert referencedTranslogFiles.peek() == null : "concurrent addition of translog file unexpected during close";
+        synchronized (referencedTranslogFiles) {
+            if (nodeStopping == false) {
+                releaseReferencedTranslogFiles(Long.MAX_VALUE);
+                assert referencedTranslogFiles.peek() == null : "concurrent addition of translog file unexpected during close";
+            }
         }
 
         ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
@@ -275,4 +291,10 @@ class ShardSyncState {
     }
 
     record SyncMarker(long primaryTerm, Translog.Location location) {}
+
+    private enum State {
+        OPEN,
+        CLOSED,
+        CLOSED_NODE_STOPPING
+    }
 }

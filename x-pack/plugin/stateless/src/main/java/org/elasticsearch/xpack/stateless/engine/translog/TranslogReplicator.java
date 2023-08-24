@@ -543,10 +543,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata compoundTranslog) {
             super(compoundTranslog.generation(), compoundTranslog.name(), compoundTranslog.syncedLocations().keySet());
-            int toInc = compoundTranslog.syncedLocations().size() - 1;
-            for (int i = 0; i < toInc; ++i) {
-                incRef();
-            }
         }
 
         @Override
@@ -622,17 +618,20 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     if (validateGeneration >= task.validateGeneration) {
                         task.completedSyncs.forEach(sync -> {
                             BlobTranslogFile translogFile = new BlobTranslogFileImpl(sync);
-                            activeTranslogFiles.add(translogFile);
-                            for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : sync.syncedLocations().entrySet()) {
-                                ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
-                                // If the shard sync state has been deregistered we can just ignore
-                                if (shardSyncState != null) {
-                                    ShardSyncState.SyncMarker syncMarker = entry.getValue();
-                                    shardSyncState.markSyncFinished(translogFile, syncMarker);
-                                    modifiedShardSyncedLocations.add(shardSyncState);
-                                } else {
-                                    // dec translog file
+                            try {
+                                activeTranslogFiles.add(translogFile);
+                                for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : sync.syncedLocations().entrySet()) {
+                                    ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
+                                    // If the shard sync state has been deregistered we can just ignore
+                                    if (shardSyncState != null) {
+                                        ShardSyncState.SyncMarker syncMarker = entry.getValue();
+                                        translogFile.incRef();
+                                        shardSyncState.markSyncFinished(translogFile, syncMarker);
+                                        modifiedShardSyncedLocations.add(shardSyncState);
+                                    }
                                 }
+                            } finally {
+                                translogFile.decRef();
                             }
                         });
                         iterator.remove();

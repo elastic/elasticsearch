@@ -475,6 +475,30 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
+    public void testFlatteringParserObject() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        generateRandomObjectWithSubObject(builder);
+        String content = Strings.toString(builder);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("parent", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        XContentParser subParser = new FlatteringXContentParser(parser, parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child1", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        String secondChildName = subParser.currentName();
+        assertEquals("parent.child2", secondChildName);
+        assertEquals(XContentParser.Token.START_OBJECT, subParser.nextToken());
+        XContentParser subSubParser = new FlatteringXContentParser(subParser, secondChildName);
+        assertEquals(XContentParser.Token.FIELD_NAME, subSubParser.nextToken());
+        assertEquals("parent.child2.grandChild", subSubParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subSubParser.nextToken());
+
+    }
+
     public void testSubParserArray() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfArrayElements = randomInt(10);
@@ -561,6 +585,19 @@ public class XContentParserTests extends ESTestCase {
         int numberOfTokens = generateRandomObject(builder, 0);
         builder.field("last_field", "bar").endObject();
         return numberOfTokens;
+    }
+
+    private static void generateRandomObjectWithSubObject(XContentBuilder builder) throws IOException {
+        builder.startObject()
+            .field("parent")
+            .startObject()
+            .field("child1", 1)
+            .field("child2")
+            .startObject()
+            .field("grandChild", 1)
+            .endObject()
+            .endObject()
+            .endObject();
     }
 
     public static int generateRandomObject(XContentBuilder builder, int level) throws IOException {

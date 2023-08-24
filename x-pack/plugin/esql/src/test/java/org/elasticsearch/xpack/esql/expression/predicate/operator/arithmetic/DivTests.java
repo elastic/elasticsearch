@@ -73,7 +73,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             ),
             new TestCaseSupplier(
                 "1d / 0d",
@@ -82,7 +83,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             ),
             new TestCaseSupplier(
                 "0 / 0",
@@ -91,7 +93,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.INTEGER,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             ),
             new TestCaseSupplier(
                 "1 / 0",
@@ -100,7 +103,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.INTEGER,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             ),
             new TestCaseSupplier(
                 "1L / 0L",
@@ -109,7 +113,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.LONG,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             ),
             new TestCaseSupplier(
                 "0L / 0L",
@@ -118,7 +123,8 @@ public class DivTests extends AbstractArithmeticTestCase {
                     "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataTypes.LONG,
                     equalTo(null)
-                )
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: Division by zero")
             )
 
             /*, new TestCaseSupplier("ULong / ULong", () -> {

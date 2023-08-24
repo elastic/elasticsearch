@@ -169,9 +169,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
         ) {
             @Override
             protected void headerReceived(Header header) {
-                // TODO maybe stash the thread context
-                if (isRemoteClusterServerChannel) {
+                if (isRemoteClusterServerChannel && header.isRequest() && header.isHandshake() == false) {
+                    assert header.needsToReadVariableHeader() == false;
                     // start authn asynchronously
+                    // TODO maybe stash the thread context
                     crossClusterAccessAuthenticationService.tryAuthenticate(header.getRequestHeaders(), ActionListener.wrap(aVoid -> {
                         // NOOP
                     }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))));

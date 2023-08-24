@@ -49,7 +49,7 @@ public class Header {
         return requestId;
     }
 
-    boolean isRequest() {
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
@@ -61,7 +61,7 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
+    public boolean isHandshake() {
         return TransportStatus.isHandshake(status);
     }
 
@@ -82,7 +82,7 @@ public class Header {
         return allHeaders == null ? null : allHeaders.v1();
     }
 
-    boolean needsToReadVariableHeader() {
+    public boolean needsToReadVariableHeader() {
         return headers == null;
     }
 

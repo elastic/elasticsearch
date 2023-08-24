@@ -43,6 +43,7 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -894,7 +895,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         Supplier<SearchSourceBuilder> newSearchSourceBuilder = () -> {
             SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
             searchSourceBuilder.collapse(null);
-            searchSourceBuilder.sort((List) null);
+            searchSourceBuilder.sort((List<SortBuilder<?>>) null);
             searchSourceBuilder.profile(false);
             return searchSourceBuilder;
         };

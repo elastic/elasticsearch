@@ -396,7 +396,7 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            if (canToBeFlatten(context, fieldMapper)) {
+            if (shouldFlattenObject(context, fieldMapper)) {
                 // we pass the mapper's simpleName as parentName to the new DocumentParserContext
                 String currentFieldName = fieldMapper.simpleName();
                 context.path().remove();
@@ -423,7 +423,7 @@ public final class DocumentParser {
         }
     }
 
-    private static boolean canToBeFlatten(DocumentParserContext context, FieldMapper fieldMapper) {
+    private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
         return context.parser().currentToken() == XContentParser.Token.START_OBJECT
             && context.parent().subobjects() == false
             && fieldMapper.supportsParsingObject() == false;

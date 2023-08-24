@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -103,6 +102,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1940,7 +1940,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
                     )
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(),
@@ -2073,7 +2073,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
                     )
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(),
@@ -2130,7 +2130,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
                     )
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(),
@@ -2185,7 +2185,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
                     )
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(),
@@ -2261,7 +2261,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
                     )
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                         .numberOfShards(1)
                         .numberOfReplicas(0)
                         .build(),
@@ -2618,7 +2618,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     private ClusterState mockMetadataWithIndex(String indexName) {
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
-            Settings.builder().put("index.version.created", Version.CURRENT).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
         ).numberOfShards(1).numberOfReplicas(0).build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
         return mockClusterState(metadata);

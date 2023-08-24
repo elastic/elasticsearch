@@ -93,6 +93,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 "id": "node-0",
                 "name": "",
                 "transport_address": "%s",
+                "roles": [],
                 "weight_ranking": 3
               },
               "can_remain_on_current_node": "yes",
@@ -123,6 +124,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                                 "id": "node-0",
                                 "name": "",
                                 "transport_address": "%s",
+                                "roles": [],
                                 "weight_ranking": 3
                               },
                               "can_remain_on_current_node": "yes",

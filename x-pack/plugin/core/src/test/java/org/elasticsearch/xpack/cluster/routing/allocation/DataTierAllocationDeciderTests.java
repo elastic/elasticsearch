@@ -47,6 +47,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -205,27 +206,53 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     public void testTierNodesPresent() {
         DiscoveryNodes nodes = DiscoveryNodes.builder().build();
 
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_content", nodes, irrelevantNodeIds(nodes)));
 
         nodes = DiscoveryNodes.builder().add(WARM_NODE).add(CONTENT_NODE).build();
 
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
-        assertFalse(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, irrelevantNodeIds(nodes)));
+        assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_content", nodes, irrelevantNodeIds(nodes)));
 
         nodes = DiscoveryNodes.builder().add(DATA_NODE).build();
 
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_hot", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_warm", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_cold", nodes));
-        assertTrue(DataTierAllocationDecider.tierNodesPresent("data_content", nodes));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, irrelevantNodeIds(nodes)));
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_content", nodes, irrelevantNodeIds(nodes)));
+    }
+
+    public void testTierNodesPresentWithRelevantNodeShutdowns() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(DATA_NODE).build();
+
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId())));
+        assertFalse(
+            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
+        );
+
+        assertTrue(
+            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
+        );
+        assertFalse(
+            DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                "data_warm",
+                nodes,
+                Set.of(HOT_NODE.getId(), WARM_NODE.getId(), DATA_NODE.getId())
+            )
+        );
+
+        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, Set.of(HOT_NODE.getId())));
+        assertFalse(
+            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
+        );
+
     }
 
     public void testTierNodesPresentDesiredNodes() {
@@ -848,6 +875,17 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             case 3 -> randomRestartInCluster(currentNodes);
             default -> throw new AssertionError("not all randomization branches covered in test");
         };
+    }
+
+    private Set<String> irrelevantNodeIds(DiscoveryNodes currentNodes) {
+        Set<String> nodeIds = new HashSet<>();
+        int numIds = randomIntBetween(0, 10);
+        for (int i = 0; i < numIds; i++) {
+            nodeIds.add(
+                randomValueOtherThanMany((val) -> currentNodes.nodeExists(val) || nodeIds.contains(val), () -> randomAlphaOfLength(10))
+            );
+        }
+        return nodeIds;
     }
 
     private NodesShutdownMetadata randomRemovalNotInCluster(DiscoveryNodes currentNodes) {

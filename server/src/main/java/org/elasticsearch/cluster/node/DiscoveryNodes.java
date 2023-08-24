@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
 
-    private final Set<String> availableRoles;
+    private final Map<String, Set<String>> rolesToNodes;
 
     private DiscoveryNodes(
         long nodeLeftGeneration,
@@ -81,7 +82,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
-        Set<String> availableRoles
+        Map<String, Set<String>> rolesToNodes
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -99,7 +100,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.availableRoles = availableRoles;
+        this.rolesToNodes = rolesToNodes;
     }
 
     public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
@@ -117,7 +118,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
-            availableRoles
+            rolesToNodes
         );
     }
 
@@ -150,14 +151,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Checks if any node has the role with the given {@code roleName}. Note that a role will not be available if all nodes with that role
-     * are marked as shutting down for removal, even if some of those nodes are still online and members of the cluster.
+     * Gets a {@link Map} of node roles to node IDs which have those roles.
      *
-     * @param roleName name to check
-     * @return true if any available node has the role of the given name
+     * @return {@link Map} of node roles to node IDs which have those roles.
      */
-    public boolean isRoleAvailable(String roleName) {
-        return availableRoles.contains(roleName);
+    public Map<String, Set<String>> getRolesToNodes() {
+        return rolesToNodes;
     }
 
     /**
@@ -877,12 +876,21 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
-                dataNodes.values()
-                    .stream()
-                    .flatMap(n -> n.getRoles().stream())
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toUnmodifiableSet())
+                computeRolesToNodesMap(dataNodes)
             );
+        }
+
+        private static Map<String, Set<String>> computeRolesToNodesMap(final Map<String, DiscoveryNode> dataNodes) {
+            Map<String, Set<String>> rolesToNodes = new HashMap<>();
+            for (var node : dataNodes.values()) {
+                for (var role : node.getRoles()) {
+                    rolesToNodes.computeIfAbsent(role.roleName(), (key) -> new HashSet<>()).add(node.getId());
+                }
+            }
+            for (var entry : rolesToNodes.entrySet()) {
+                entry.setValue(Collections.unmodifiableSet(entry.getValue()));
+            }
+            return rolesToNodes;
         }
 
         public boolean isLocalNodeElectedMaster() {

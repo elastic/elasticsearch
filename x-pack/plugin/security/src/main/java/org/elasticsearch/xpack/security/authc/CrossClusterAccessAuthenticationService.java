@@ -157,7 +157,7 @@ public class CrossClusterAccessAuthenticationService {
     public ApiKeyService.ApiKeyCredentials extractApiKeyCredentialsFromHeaders(Map<String, String> headers) {
         try {
             apiKeyService.ensureEnabled();
-            final String credentials = headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
+            final String credentials = headers == null ? null : headers.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
             if (credentials == null) {
                 throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
             }

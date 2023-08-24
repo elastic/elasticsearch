@@ -54,7 +54,7 @@ cluster.
 
 * {ccs-cap} requires different security privileges on the local cluster and
 remote cluster. See <<remote-clusters-privileges-ccs>> and
-<<clusters-privileges-ccs-kibana>>.
+<<remote-clusters>>.
 
 [discrete]
 [[ccs-example]]

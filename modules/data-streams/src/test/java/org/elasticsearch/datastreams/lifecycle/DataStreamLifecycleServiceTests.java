@@ -1063,8 +1063,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStream,
             List.of(downsampleMeta.getIndex())
         );
-        // the source index is affected as the delete request is triggered for the source index (that's not part of the data stream anymore)
-        assertThat(affectedIndices, is(Set.of(firstGenIndex)));
+        assertThat(affectedIndices, is(Set.of(downsampleMeta.getIndex())));
         assertThat(clientSeenRequests.size(), is(4));
         assertThat(clientSeenRequests.get(3), instanceOf(DeleteIndexRequest.class));
 

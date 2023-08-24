@@ -370,8 +370,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> affectedIndices = new HashSet<>();
         Metadata metadata = state.metadata();
         for (Index index : targetIndices) {
-            IndexMetadata backingIndex = metadata.index(index);
-            assert backingIndex != null : "the data stream backing indices must exist";
+            IndexMetadata backingIndexMeta = metadata.index(index);
+            assert backingIndexMeta != null : "the data stream backing indices must exist";
             List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
                 metadata::index,
@@ -382,19 +382,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             String indexName = index.getName();
-            IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
-            String backingIndexDownsamplingSource = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndex.getSettings());
+            IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndexMeta.getSettings());
+            String backingIndexDownsamplingSource = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndexMeta.getSettings());
 
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
             if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
-                continue;
             } else if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
                 && backingIndexDownsamplingStatus.equals(SUCCESS)) {
                     // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
-                    Map<String, String> lifecycleMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                    Map<String, String> lifecycleMetadata = backingIndexMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
 
                     // TODO document that we don't handle downsample indices that were added to the data stream manually (because we
                     // TODO currently can't reliably identify the source index to delete when multiple rounds of donwsampling are
@@ -403,20 +402,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
                         IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
                         if (downsampleSourceIndex != null) {
-                            affectedIndices.add(downsampleSourceIndex.getIndex());
+                            // we mark the backing index as affected as we don't want subsequent operations that might change its state to
+                            // be performed, as we might lose the way to identify that we must delete its replacement source index
+                            affectedIndices.add(index);
                             // delete downsampling source index (that's not part of the data stream anymore) before doing any more
                             // downsampling
                             deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
-                            continue;
                         }
                     }
                 }
 
-            // this index has matching downsample rounds and is read-only, so let's wait for an in-progress downsampling operation
-            // to succeed or trigger the last matching round
-            affectedIndices.addAll(
-                checkEarlyRoundsForMaintenanceOrDownsampleLastRound(dataStream, backingIndex, downsamplingRounds, metadata)
-            );
+            if (affectedIndices.contains(index) == false) {
+                // we're not performing any operation for this index which means that it:
+                // - has matching downsample rounds
+                // - is read-only
+                // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
+                affectedIndices.addAll(
+                    checkEarlyRoundsForMaintenanceOrDownsampleLastRound(dataStream, backingIndexMeta, downsamplingRounds, metadata)
+                );
+            }
         }
 
         return affectedIndices;

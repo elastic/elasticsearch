@@ -135,7 +135,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
         @Override
         protected void doExecute(Task task, MasterHistoryAction.Request request, ActionListener<Response> listener) {
-            listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getNodes()));
+            listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getRawNodes()));
         }
     }
 

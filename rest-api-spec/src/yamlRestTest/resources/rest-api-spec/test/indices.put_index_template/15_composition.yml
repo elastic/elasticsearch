@@ -353,8 +353,8 @@
 ---
 "Composable index templates that include subobjects: false at root":
   - skip:
-      version: ' - 8.9.2'
-      reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.9.1'
+      version: ' - 8.10.1'
+      reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.10.0'
       features: allowed_warnings
 
   - do:
@@ -400,8 +400,8 @@
 ---
 "Composable index templates that include subobjects: false on arbitrary field":
   - skip:
-      version: ' - 8.9.2'
-      reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.9.1'
+      version: ' - 8.10.1'
+      reason: 'https://github.com/elastic/elasticsearch/issues/96768 fixed after 8.10.0'
       features: allowed_warnings
 
   - do:

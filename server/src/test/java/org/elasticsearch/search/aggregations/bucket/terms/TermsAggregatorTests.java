@@ -219,7 +219,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
 
         try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
@@ -1261,7 +1261,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 final Directory dir;
                 try (IndexReader reader = createIndexWithLongs()) {
                     dir = ((DirectoryReader) reader).directory();
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, searcher));
                 }
@@ -1272,7 +1272,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 final Directory dir;
                 try (IndexReader reader = createIndexWithDoubles()) {
                     dir = ((DirectoryReader) reader).directory();
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
                     aggs.add(buildInternalAggregation(aggregationBuilder, fieldType, searcher));
                 }

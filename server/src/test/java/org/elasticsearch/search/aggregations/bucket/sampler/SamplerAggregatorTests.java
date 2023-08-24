@@ -121,7 +121,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
             writer.addDocument(new Document());
 
             try (IndexReader reader = DirectoryReader.open(writer)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 QueryBuilder[] filters = new QueryBuilder[] { new MatchAllQueryBuilder(), new MatchNoneQueryBuilder() };
                 FiltersAggregationBuilder samplerParent = new FiltersAggregationBuilder("filters", filters);

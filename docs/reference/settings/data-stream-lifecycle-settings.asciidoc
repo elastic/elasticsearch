@@ -1,6 +1,5 @@
 [role="xpack"]
 [[data-stream-lifecycle-settings]]
-ifeval::["{release-state}"=="unreleased"]
 === Data stream lifecycle settings in {es}
 [subs="attributes"]
 ++++
@@ -50,4 +49,3 @@ If specified, this is the timestamp used to calculate the backing index generati
 setting if you create a backing index that contains older data and want to ensure that the retention period or
 other parts of the lifecycle will be applied based on the data's original timestamp and not the timestamp they got
 indexed. Specified as a Unix epoch value in milliseconds.
-endif::[]

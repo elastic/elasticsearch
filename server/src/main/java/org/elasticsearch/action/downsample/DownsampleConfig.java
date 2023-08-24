@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.downsample;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -234,5 +235,29 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         }
         rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
         return rounding.build().prepareForUnknown();
+    }
+
+    /**
+     * Generates a downsample index name in the format
+     * prefix-fixedInterval-baseIndexName
+     *
+     * Note that this looks for the base index name of the provided index metadata via the
+     * {@link IndexMetadata#INDEX_DOWNSAMPLE_SOURCE_NAME_KEY} setting. This means that in case
+     * the provided index was already downsampled, we'll use the original source index (of the
+     * current provided downsample index) as the base index name.
+     */
+    public static String generateDownsampleIndexName(
+        String prefix,
+        IndexMetadata sourceIndexMetadata,
+        DateHistogramInterval fixedInterval
+    ) {
+        String downsampleSourceName = sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        String sourceIndexName;
+        if (downsampleSourceName != null) {
+            sourceIndexName = downsampleSourceName;
+        } else {
+            sourceIndexName = sourceIndexMetadata.getIndex().getName();
+        }
+        return prefix + fixedInterval + "-" + sourceIndexName;
     }
 }

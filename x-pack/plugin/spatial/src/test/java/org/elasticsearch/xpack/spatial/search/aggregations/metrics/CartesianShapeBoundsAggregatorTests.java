@@ -75,7 +75,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -105,7 +105,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
@@ -140,7 +140,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .missing(missingVal);
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(bounds.top, equalTo(y));
                 assertThat(bounds.bottom, equalTo(y));
@@ -168,7 +168,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
             CartesianBoundsAggregationBuilder aggBuilder = new CartesianBoundsAggregationBuilder("my_agg").field("field")
                 .missing("invalid");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 IllegalArgumentException exception = expectThrows(
                     IllegalArgumentException.class,
                     () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType))
@@ -256,7 +256,7 @@ public class CartesianShapeBoundsAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap()
         );
         try (IndexReader reader = w.getReader()) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             InternalCartesianBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
             assertThat(description + ": top", bounds.top, closeTo(points.top, GEOHASH_TOLERANCE));
             assertThat(description + ": bottom", bounds.bottom, closeTo(points.bottom, GEOHASH_TOLERANCE));

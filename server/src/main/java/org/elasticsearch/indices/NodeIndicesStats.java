@@ -257,7 +257,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                             ChunkedToXContentHelper.startArray(entry.getKey().getName()),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
-                                indexShardStats -> Iterators.<ToXContent>concat(
+                                indexShardStats -> Iterators.concat(
                                     Iterators.single(
                                         (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
                                     ),

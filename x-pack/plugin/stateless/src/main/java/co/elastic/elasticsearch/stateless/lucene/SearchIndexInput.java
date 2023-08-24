@@ -34,11 +34,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
-public class SearchIndexInput extends BlobCacheBufferedIndexInput {
+public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private static final Logger logger = LogManager.getLogger(SearchIndexInput.class);
 
@@ -89,6 +90,26 @@ public class SearchIndexInput extends BlobCacheBufferedIndexInput {
     public IndexInput slice(String sliceDescription, long offset, long length) {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
         return new SearchIndexInput(sliceDescription, cacheFile, context, blobContainer, cacheService, length, this.offset + offset);
+    }
+
+    @Override
+    public SearchIndexInput clone() {
+        SearchIndexInput searchIndexInput = new SearchIndexInput(
+            "(clone of) " + toString(),
+            cacheFile,
+            context,
+            blobContainer,
+            cacheService,
+            length,
+            offset
+        );
+        try {
+            searchIndexInput.seek(getFilePointer());
+        } catch (IOException e) {
+            assert false : e;
+            throw new UncheckedIOException(e);
+        }
+        return searchIndexInput;
     }
 
     private long getAbsolutePosition() {
@@ -198,4 +219,8 @@ public class SearchIndexInput extends BlobCacheBufferedIndexInput {
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
+    // for tests only
+    SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile() {
+        return cacheFile;
+    }
 }

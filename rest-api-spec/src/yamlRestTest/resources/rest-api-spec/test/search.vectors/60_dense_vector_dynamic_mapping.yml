@@ -75,6 +75,9 @@ setup:
             k: 10
             num_candidates: 128
 
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1"}
+
 ---
 "Fields with explicit float mappings still map to float":
 

@@ -293,7 +293,7 @@ public abstract class DocumentParserContext {
         fieldsAppliedFromTemplates.add(fieldName);
     }
 
-    public boolean fieldAppliedFromTemplate(String name) {
+    public boolean isFieldAppliedFromTemplate(String name) {
         return fieldsAppliedFromTemplates.contains(name);
     }
 
@@ -560,7 +560,7 @@ public abstract class DocumentParserContext {
             Map<String, Long> dynamicDenseVectorFieldNameToDimCount = dynamicMappers.stream()
                 .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
                 .map(NumberFieldMapper.class::cast)
-                .filter(m -> "float".equals(m.typeName()) && fieldAppliedFromTemplate(m.name()) == false)
+                .filter(m -> "float".equals(m.typeName()) && isFieldAppliedFromTemplate(m.name()) == false)
                 .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
                 .entrySet()
                 .stream()

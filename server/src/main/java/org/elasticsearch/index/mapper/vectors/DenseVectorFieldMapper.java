@@ -74,6 +74,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion DOT_PRODUCT_AUTO_NORMALIZED = IndexVersion.V_8_11_0;
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -170,15 +171,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, IndexVersion indexVersionCreated, int dims) {
             super(name);
 
-            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
-            if (indexedByDefault == false) {
-                throw new UnsupportedOperationException("Dynamic dim size is not supported for index version " + indexVersionCreated);
+            final boolean dynamicallyMapDenseVectorVersion = indexVersionCreated.onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION);
+            if (dynamicallyMapDenseVectorVersion == false) {
+                throw new UnsupportedOperationException(
+                    "Dynamic mapping of dense vectors is not supported for index version " + indexVersionCreated
+                );
             }
-
             this.indexVersionCreated = indexVersionCreated;
-
             this.dims.setValue(dims);
-
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
             this.indexed.alwaysSerialize();
 

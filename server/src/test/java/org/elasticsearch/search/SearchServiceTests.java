@@ -178,12 +178,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Override
-    protected boolean enableConcurrentSearch() {
-        // we don't test search concurrency specifically but we want to verify default behaviour hence we disable it.
-        return false;
-    }
-
     @Before
     public void resetCount() {
         numWrapInvocations = new AtomicInteger(0);
@@ -2081,12 +2075,23 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
                 ContextIndexSearcher searcher = searchContext.searcher();
                 assertNotNull(searcher.getExecutor());
+
+                final int maxPoolSize = executor.getMaximumPoolSize();
+                assertEquals(
+                    "Sanity check to ensure this isn't the default of 1 when pool size is unset",
+                    configuredMaxPoolSize,
+                    maxPoolSize
+                );
+
+                final int expectedSlices = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), maxPoolSize, 1).length;
+                assertNotEquals("Sanity check to ensure this isn't the default of 1 when pool size is unset", 1, expectedSlices);
+
                 final long priorExecutorTaskCount = executor.getCompletedTaskCount();
                 searcher.search(termQuery, new TotalHitCountCollectorManager());
                 assertBusy(
                     () -> assertEquals(
-                        "The number of slices should be 1 as QUERY parallel collection is disabled by default.",
-                        1,
+                        "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
+                        expectedSlices,
                         executor.getCompletedTaskCount() - priorExecutorTaskCount
                     )
                 );
@@ -2124,9 +2129,30 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 ClusterUpdateSettingsResponse response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true).build())
+                    .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
+                {
+                    SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
+                    ContextIndexSearcher searcher = searchContext.searcher();
+                    assertNotNull(searcher.getExecutor());
+                    final long priorExecutorTaskCount = executor.getCompletedTaskCount();
+                    searcher.search(termQuery, new TotalHitCountCollectorManager());
+                    assertBusy(
+                        () -> assertEquals(
+                            "The number of slices should be 1 when QUERY parallel collection is disabled.",
+                            1,
+                            executor.getCompletedTaskCount() - priorExecutorTaskCount
+                        )
+                    );
+                }
+            } finally {
+                // Reset to the original default setting and check to ensure it takes effect.
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
+                    .get();
                 {
                     SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
                     ContextIndexSearcher searcher = searchContext.searcher();
@@ -2152,27 +2178,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         () -> assertEquals(
                             "QUERY supports parallel collection when enabled, so the number of slices should be > 1.",
                             expectedSlices,
-                            executor.getCompletedTaskCount() - priorExecutorTaskCount
-                        )
-                    );
-                }
-            } finally {
-                // Reset to the original default setting.
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
-                    .get();
-                {
-                    SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.QUERY, true);
-                    ContextIndexSearcher searcher = searchContext.searcher();
-                    assertNotNull(searcher.getExecutor());
-                    final long priorExecutorTaskCount = executor.getCompletedTaskCount();
-                    searcher.search(termQuery, new TotalHitCountCollectorManager());
-                    assertBusy(
-                        () -> assertEquals(
-                            "The number of slices should be 1 for Query when QUERY_PHASE_PARALLEL_COLLECTION_ENABLED is disabled.",
-                            1,
                             executor.getCompletedTaskCount() - priorExecutorTaskCount
                         )
                     );

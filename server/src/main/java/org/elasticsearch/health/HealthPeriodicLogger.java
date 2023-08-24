@@ -189,7 +189,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
 
         final Map<String, Object> result = new HashMap<>();
-        // This flag is used to filter this log lines for analysis
+        // This flag is used to filter this log line for analysis
         result.put("elasticsearch.health_overview", true);
 
         // overall status

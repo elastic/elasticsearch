@@ -39,19 +39,20 @@ public class DocumentMapper {
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
-        if (sourceMapper().isSynthetic()
-            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersion.V_8_10_0)) {
-            /*
-             * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
-             * This got restored in v.8.9 (and patched in v.8.8) to avoid confusion. The change is only restricted to
-             * mapping printout, it has no functional effect as the synthetic source already applies.
-             */
-        } else {
-            assert mapping.toCompressedXContent().equals(source)
-                : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
 
-        }
+        assert isSyntheticSourceMalformed(source, version) != false || mapping.toCompressedXContent().equals(source)
+            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+    }
+
+    /**
+     * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
+     * This got restored in v.8.9 (and patched in v.8.8) to avoid confusion. The change is only restricted to
+     * mapping printout, it has no functional effect as the synthetic source already applies.
+     */
+    boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
+        return sourceMapper().isSynthetic()
+                && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
+                && version.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0);
     }
 
     public Mapping mapping() {

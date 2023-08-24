@@ -133,6 +133,8 @@ class LinearProgrammingPlanSolver {
         Node n,
         Map<Tuple<AssignmentPlan.Deployment, Node>, Double> weights
     ) {
+        // TODO: instead of m.memoryBytes() it should be m.perDeploymentMemoryBytes()
+        // TODO: replce normalizedMemoryPerModel.get(m) with m.perDeploymentMemoryBytes() or something similar
         return (1 + weights.get(Tuple.tuple(m, n)) - (m.memoryBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1 * normalizedMemoryPerModel
             .get(m) / maxNodeCores;
     }
@@ -185,6 +187,8 @@ class LinearProgrammingPlanSolver {
     }
 
     private double descendingSizeAnyFitsModelOrder(AssignmentPlan.Deployment m) {
+        // L94: dsaf_model_order
+        // TODO: replace normalizedMemoryPerModel.get(m) with m.minimumMemoryRequired
         return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
     }
 
@@ -273,6 +277,8 @@ class LinearProgrammingPlanSolver {
 
         for (AssignmentPlan.Deployment m : deployments) {
             for (Node n : nodes) {
+                // QUESTION: ModelPriority[m] is ignored?
+                // COMMENT: in Python it is thread_vars[m][n]
                 Variable allocationVar = model.addVariable("allocations_of_model_" + m.id() + "_on_node_" + n.id())
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
                                     // infeasible solutions
@@ -295,6 +301,7 @@ class LinearProgrammingPlanSolver {
         for (Node n : nodes) {
             // Allocations should not use more cores than the node has.
             // We multiply the allocation variables with the threads per allocation for each model to find the total number of cores used.
+            // L683: pulp.lpSum([thread_vars[m][n] for m in Models]) <= NodeCores[n]
             model.addExpression("threads_on_node_" + n.id() + "_not_more_than_cores")
                 .upper(coresPerNode.get(n))
                 .setLinearFactors(varsForNode(n, allocationVars), Access1D.wrap(threadsPerAllocationPerModel));
@@ -306,7 +313,12 @@ class LinearProgrammingPlanSolver {
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
             deployments.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
+                // L690:  pulp.lpSum([thread_vars[m][n] for n in Nodes]) <= ModelThreads[m],
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
+                // L699: StaticModelMemory[m] / NodeCores[n] * thread_vars[m][n]
+                // + DynamicModelMemory[m] * thread_vars[m][n]
+                // TODO: replace normalizedMemoryPerModel.get(m) with m.perDeploymentMemoryBytes() or something similar
+                // Add m.perAllocationMemoryBytes() to the constraint
                 modelMemories.add(normalizedMemoryPerModel.get(m) * m.threadsPerAllocation() / (double) coresPerNode.get(n));
             });
             model.addExpression("used_memory_on_node_" + n.id() + "_not_more_than_available")

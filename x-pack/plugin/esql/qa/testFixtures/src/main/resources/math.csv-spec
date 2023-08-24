@@ -942,6 +942,18 @@ a:double
 // end::floor-result[]
 ;
 
+ceil
+// tag::ceil[]
+ROW a=1.8 | EVAL a=CEIL(a)
+// end::ceil[]
+;
+
+// tag::ceil-result[]
+a:double
+2
+// end::ceil-result[]
+;
+
 sqrt
 // tag::sqrt[]
 ROW d = 100.0

@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFlatteningParser;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -329,11 +330,14 @@ public final class DocumentParser {
                     parseArray(context, currentFieldName);
                     break;
                 case VALUE_NULL:
-                    parseNullValue(context, context.path().dottedFieldName(currentFieldName));
+                    // parseNullValue(context, context.path().dottedFieldName(currentFieldName));
+                    parseNullValue(context, currentFieldName);
                     break;
                 default:
                     if (token.isValue()) {
-                        parseValue(context, context.path().dottedFieldName(currentFieldName));
+                        // parseValue(context, context.path().dottedFieldName(currentFieldName));
+
+                        parseValue(context, currentFieldName);
                     }
                     break;
             }
@@ -393,15 +397,21 @@ public final class DocumentParser {
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            context = context.createChildContext(objectMapper);
+            if ((context.parser() instanceof XContentFlatteningParser) == false) {
+                context = context.createChildContext(objectMapper);
+            }
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (canToBeFlatten(context, fieldMapper)) {
-                // remove the last path and add it as suffix to the dottedFieldName
+                // // remove the last path and add it as suffix to the dottedFieldName
                 String suffix = context.path().remove();
-                context.path().addDottedFieldName(suffix);
-                parseObjectOrNested(context);
-                context.path().removeDottedFieldName();
+                // context.path().addDottedFieldName(suffix);
+                // parseObjectOrNested(context);
+                // context.path().removeDottedFieldName();
+                // context.path().add(suffix);
+
+                DocumentParserContext childContext = context.switchParser(new XContentFlatteningParser(context.parser(), suffix));
+                parseObjectOrNested(childContext);
                 context.path().add(suffix);
             } else {
                 fieldMapper.parse(context);
@@ -468,26 +478,27 @@ public final class DocumentParser {
             context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
-            if (context.parent().subobjects()) {
-                parseObjectDynamic(context, currentFieldName);
-            } else {
-                boolean hasDynamicTemplate = false;
-                if (context.dynamic() == ObjectMapper.Dynamic.TRUE) {
-                    DynamicTemplate template = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
-                    if (template != null) {
-                        hasDynamicTemplate = true;
-                    }
-                }
-                if (hasDynamicTemplate) {
-                    parseObjectDynamic(context, currentFieldName);
-                } else {
-                    // with subobjects:false no further actions are needed for the object
-                    // we are parsing except storing its name as dotted field name prefix.
-                    context.path().addDottedFieldName(currentFieldName);
-                    parseObjectOrNested(context);
-                    context.path().removeDottedFieldName();
-                }
-            }
+            parseObjectDynamic(context, currentFieldName);
+            // if (context.parent().subobjects()) {
+            // parseObjectDynamic(context, currentFieldName);
+            // } else {
+            // boolean hasDynamicTemplate = false;
+            // if (context.dynamic() == ObjectMapper.Dynamic.TRUE) {
+            // DynamicTemplate template = context.findDynamicTemplate(currentFieldName, DynamicTemplate.XContentFieldType.OBJECT);
+            // if (template != null) {
+            // hasDynamicTemplate = true;
+            // }
+            // }
+            // if (hasDynamicTemplate) {
+            // parseObjectDynamic(context, currentFieldName);
+            // } else {
+            // // with subobjects:false no further actions are needed for the object
+            // // we are parsing except storing its name as dotted field name prefix.
+            // context.path().addDottedFieldName(currentFieldName);
+            // parseObjectOrNested(context);
+            // context.path().removeDottedFieldName();
+            // }
+            // }
         }
     }
 
@@ -505,8 +516,9 @@ public final class DocumentParser {
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
+                Explicit<Boolean> subobjects = context.parent().subobjects() ? Explicit.EXPLICIT_TRUE : Explicit.EXPLICIT_FALSE;
+                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName, subobjects);
+                // context.addDynamicMapper(dynamicObjectMapper);
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -520,15 +532,39 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add subobject ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
+
+                    // context = context.switchParser(new XContentFlatteningParser(context.parser(), currentFieldName));
+                    // context.path().setWithinLeafObject(true);
+                    // ObjectMapper flattenObjectMapper = new FlattenObjectMapper(
+                    // currentFieldName,
+                    // context.path().pathAsText(currentFieldName),
+                    // Explicit.EXPLICIT_FALSE
+                    //
+                    // );
+                    XContentParser parser = context.parser();
+                    parseObjectOrField(
+                        context.switchParser(new XContentFlatteningParser(context.parser(), currentFieldName)),
+                        dynamicObjectMapper
                     );
+                    // parseObjectOrField(context, dynamicObjectMapper);
+                    context.switchParser(parser);
+                    // context.path().setWithinLeafObject(false);
+                    return;
+                    // parseObjectOrNested(childContext);
+                    // return;
+                    // new DocumentParserContext(context.mappingLookup(),)
+                    // throw new DocumentParsingException(
+                    // context.parser().getTokenLocation(),
+                    // "Tried to add subobject ["
+                    // + dynamicObjectMapper.simpleName()
+                    // + "] to object ["
+                    // + context.parent().name()
+                    // + "] which does not support subobjects"
+                    // );
                 }
+
+            } else if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
+                context.addDynamicMapper(dynamicObjectMapper);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
@@ -600,12 +636,14 @@ public final class DocumentParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                parseNullValue(context, context.path().dottedFieldName(lastFieldName));
+                parseNullValue(context, lastFieldName);
+                // parseNullValue(context, context.path().dottedFieldName(lastFieldName));
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
-                parseValue(context, context.path().dottedFieldName(lastFieldName));
+                parseValue(context, lastFieldName);
+                // parseValue(context, context.path().dottedFieldName(lastFieldName));
             }
         }
     }

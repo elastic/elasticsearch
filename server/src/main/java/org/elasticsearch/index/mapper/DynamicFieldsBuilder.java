@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedRunnable;
@@ -158,11 +159,11 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
+    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name, Explicit<Boolean> subobjects) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+            : new ObjectMapper.Builder(name, subobjects).enabled(ObjectMapper.Defaults.ENABLED)
                 .build(context.createDynamicMapperBuilderContext());
     }
 

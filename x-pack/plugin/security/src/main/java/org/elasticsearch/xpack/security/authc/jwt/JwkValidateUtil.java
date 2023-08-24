@@ -44,25 +44,32 @@ public class JwkValidateUtil {
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
     static JwkSetLoader.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
-        JwtUtil.TraceBuffer tracer = new JwtUtil.TraceBuffer(logger);
-        tracer.append("Filtering [{}] JWKs for the following algorithms [{}].", jwks.size(), String.join(",", algs));
+        try (JwtUtil.TraceBuffer tracer = new JwtUtil.TraceBuffer(logger)) {
+            tracer.append("Filtering [{}] JWKs for the following algorithms [{}].", jwks.size(), String.join(",", algs));
 
-        final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
-        final List<JWK> jwksSig = jwks.stream().filter(keyUsePredicate).toList();
-        tracer.append("[{}] remaining JWKs after KeyUse [SIGNATURE] filter.", jwksSig.size());
+            final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
+            final List<JWK> jwksSig = jwks.stream().filter(keyUsePredicate).toList();
+            tracer.append("[{}] remaining JWKs after KeyUse [SIGNATURE] filter.", jwksSig.size());
 
-        final Predicate<JWK> keyOpPredicate = j -> ((j.getKeyOperations() == null) || (j.getKeyOperations().contains(KeyOperation.VERIFY)));
-        final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
-        tracer.append("[{}] remaining JWKs after KeyOperation [VERIFY] filter.", jwksVerify.size());
+            final Predicate<JWK> keyOpPredicate = j -> ((j.getKeyOperations() == null)
+                || (j.getKeyOperations().contains(KeyOperation.VERIFY)));
+            final List<JWK> jwksVerify = jwksSig.stream().filter(keyOpPredicate).toList();
+            tracer.append("[{}] remaining JWKs after KeyOperation [VERIFY] filter.", jwksVerify.size());
 
-        final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a, tracer)))).toList();
-        tracer.append("[{}] remaining JWKs after algorithms name [{}] filter.", jwksFiltered.size(), String.join(",", algs));
+            final List<JWK> jwksFiltered = jwksVerify.stream().filter(j -> (algs.stream().anyMatch(a -> isMatch(j, a, tracer)))).toList();
+            tracer.append("[{}] remaining JWKs after algorithms name filter.", jwksFiltered.size());
 
-        final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a, tracer)))).toList();
-        tracer.append("[{}] remaining JWKs after configured algorithms [{}] filter.", jwksFiltered.size(), String.join(",", algsFiltered));
-        tracer.flush();
+            final List<String> algsFiltered = algs.stream()
+                .filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a, tracer))))
+                .toList();
+            tracer.append(
+                "[{}] remaining JWKs after configured algorithms [{}] filter.",
+                jwksFiltered.size(),
+                String.join(",", algsFiltered)
+            );
 
-        return new JwkSetLoader.JwksAlgs(jwksFiltered, algsFiltered);
+            return new JwkSetLoader.JwksAlgs(jwksFiltered, algsFiltered);
+        }
     }
 
     /**

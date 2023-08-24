@@ -289,13 +289,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // Validate JWT: Extract JWT and claims set, and validate JWT.
             jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
-                logger.debug(
-                    "Realm [{}] JWT validation success for token=[{}] with header [{}] and claimSet [{}]",
-                    name(),
-                    tokenPrincipal,
-                    jwtAuthenticationToken.getSignedJWT().getHeader(),
-                    jwtAuthenticationToken.getJWTClaimsSet()
-                );
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Realm [{}] JWT validation success for token=[{}] with header [{}] and claimSet [{}]",
+                        name(),
+                        tokenPrincipal,
+                        jwtAuthenticationToken.getSignedJWT().getHeader(),
+                        jwtAuthenticationToken.getJWTClaimsSet()
+                    );
+                }
                 processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
             }, ex -> {
                 final String msg = "Realm ["

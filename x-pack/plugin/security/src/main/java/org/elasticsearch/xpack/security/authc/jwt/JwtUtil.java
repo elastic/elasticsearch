@@ -351,18 +351,20 @@ public class JwtUtil {
 
     /**
      * Helper class to consolidate multiple trace level statements to a single trace statement with lazy evaluation.
-     * If trace level is not enabled, then no work is performed. This class is not threadsafe.
+     * If trace level is not enabled, then no work is performed. This class is not threadsafe and is not intended for a long lifecycle.
      */
-    public static class TraceBuffer {
+    public static class TraceBuffer implements AutoCloseable {
         private final Logger logger;
-        List<Object> params = new ArrayList<>();
-        StringBuilder builder = new StringBuilder();
+        private final List<Object> params = new ArrayList<>();
+        private final StringBuilder builder = new StringBuilder();
+        boolean closed = false;
 
         public TraceBuffer(Logger logger) {
             this.logger = logger;
         }
 
         public void append(String s, Object... args) {
+            assert closed == false;
             if (logger.isTraceEnabled()) {
                 builder.append(s).append(" ");
                 List<Object> resolved = Arrays.stream(args).map(x -> (x instanceof Supplier) ? ((Supplier<?>) x).get() : x).toList();
@@ -372,11 +374,18 @@ public class JwtUtil {
 
         @SuppressLoggerChecks(reason = "builds the tracer dynamically")
         public void flush() {
-            if (logger.isTraceEnabled()) {
+            assert closed == false;
+            if (logger.isTraceEnabled() && builder.isEmpty() == false) {
                 logger.trace(builder.toString(), params.toArray());
-                params = new ArrayList<>();
-                builder = new StringBuilder();
+                params.clear();
+                builder.setLength(0); // does not guarantee contents available for GC, don't overly reuse a single instance of this class
             }
+        }
+
+        @Override
+        public void close() {
+            flush();
+            closed = true;
         }
     }
 }

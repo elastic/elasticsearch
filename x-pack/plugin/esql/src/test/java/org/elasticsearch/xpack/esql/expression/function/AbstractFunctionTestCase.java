@@ -30,6 +30,7 @@ import org.hamcrest.Matcher;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -84,12 +85,33 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          */
         private Matcher<Object> matcher;
 
+        /**
+         * Warnings this test is expected to produce
+         */
+        private String[] expectedWarnings;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
             this.source = Source.EMPTY;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType;
             this.matcher = matcher;
+            this.expectedWarnings = null;
+        }
+
+        public TestCase(
+            List<TypedData> data,
+            String evaluatorToString,
+            DataType expectedType,
+            Matcher<Object> matcher,
+            String... expectedWarnings
+        ) {
+            this.source = Source.EMPTY;
+            this.data = data;
+            this.evaluatorToString = evaluatorToString;
+            this.expectedType = expectedType;
+            this.matcher = matcher;
+            this.expectedWarnings = expectedWarnings;
         }
 
         public Source getSource() {
@@ -114,6 +136,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         public Matcher<Object> getMatcher() {
             return matcher;
+        }
+
+        public TestCase withWarning(String warning) {
+            if (expectedWarnings != null) {
+                String[] newWarngings = Arrays.copyOf(this.expectedWarnings, this.expectedWarnings.length + 1);
+                newWarngings[this.expectedWarnings.length] = warning;
+                return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, newWarngings);
+            }
+            return new TestCase(this.data, this.evaluatorToString, this.expectedType, this.matcher, warning);
         }
     }
 
@@ -237,6 +268,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
         assertThat(result, not(equalTo(Double.NaN)));
+        if (testCase.expectedWarnings != null) {
+            assertWarnings(testCase.expectedWarnings);
+        }
     }
 
     public final void testSimpleWithNulls() {
@@ -300,6 +334,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(e.dataType(), equalTo(testCase.expectedType));
         assertTrue(e.foldable());
         assertThat(e.fold(), testCase.getMatcher());
+        if (testCase.expectedWarnings != null) {
+            assertWarnings(testCase.expectedWarnings);
+        }
     }
 
     public void testSerializationOfSimple() {

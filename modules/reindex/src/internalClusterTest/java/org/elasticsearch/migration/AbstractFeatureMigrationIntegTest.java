@@ -120,10 +120,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
     static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
-    public static final SystemIndexDescriptor KIBANA_MOCK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".kibana_*")
-        .setDescription("Kibana saved objects system index")
-        .setAliasName(".kibana")
+    public static final SystemIndexDescriptor ALLOW_TEMPLATES_MOCK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(".allow_templates_*")
+        .setDescription("A system index that allows user templates")
+        .setAliasName(".allow_templates")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
@@ -179,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
@@ -281,7 +281,13 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED, KIBANA_MOCK_INDEX_DESCRIPTOR);
+            return Arrays.asList(
+                INTERNAL_MANAGED,
+                INTERNAL_UNMANAGED,
+                EXTERNAL_MANAGED,
+                EXTERNAL_UNMANAGED,
+                ALLOW_TEMPLATES_MOCK_INDEX_DESCRIPTOR
+            );
         }
 
         @Override

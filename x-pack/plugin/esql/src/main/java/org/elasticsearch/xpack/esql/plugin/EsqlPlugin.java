@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -65,11 +64,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
-    /**
-     * The first version for ESQL. It's actual value is certainly wrong and will need to be
-     * updated when we merge.
-     */
-    public static final TransportVersion TRANSPORT_MINIMUM_VERSION = TransportVersion.V_8_8_0;
 
     public static final String ESQL_THREAD_POOL_NAME = "esql";
 

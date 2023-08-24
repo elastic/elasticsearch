@@ -42,10 +42,8 @@ public final class ContentPath {
         path = newPath;
     }
 
-    public String remove() {
-        String removedPath = path[--index];
-        path[index] = null;
-        return removedPath;
+    public void remove() {
+        path[--index] = null;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {

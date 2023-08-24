@@ -25,7 +25,7 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("foo");
         String[] path = contentPath.getPath();
         assertEquals("foo", path[0]);
-        assertEquals("foo", contentPath.remove());
+        contentPath.remove();
         assertNull(path[0]);
         assertEquals(0, contentPath.length());
         String pathAsText = contentPath.pathAsText("bar");
@@ -35,7 +35,7 @@ public class ContentPathTests extends ESTestCase {
     public void testRemovePathException() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
-        assertEquals("foo", contentPath.remove());
+        contentPath.remove();
         expectThrows(IndexOutOfBoundsException.class, contentPath::remove);
     }
 
@@ -70,8 +70,8 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("bar");
         contentPath.add("baz");
         assertEquals(3, contentPath.length());
-        assertEquals("baz", contentPath.remove());
-        assertEquals("bar", contentPath.remove());
+        contentPath.remove();
+        contentPath.remove();
         assertEquals(1, contentPath.length());
     }
 
@@ -87,8 +87,8 @@ public class ContentPathTests extends ESTestCase {
         contentPath.add("foo");
         contentPath.add("bar");
         contentPath.add("baz");
-        assertEquals("baz", contentPath.remove());
-        assertEquals("bar", contentPath.remove());
+        contentPath.remove();
+        contentPath.remove();
         assertEquals("foo.qux", contentPath.pathAsText("qux"));
     }
 
@@ -96,7 +96,7 @@ public class ContentPathTests extends ESTestCase {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.add("bar");
-        assertEquals("bar", contentPath.remove());
+        contentPath.remove();
         contentPath.add("baz");
         assertEquals("foo.baz.qux", contentPath.pathAsText("qux"));
     }

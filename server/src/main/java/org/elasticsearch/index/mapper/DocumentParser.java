@@ -400,10 +400,11 @@ public final class DocumentParser {
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (canToBeFlatten(context, fieldMapper)) {
-                // remove the last path and add it as parentName to the new DocumentParserContext
-                String parentName = context.path().remove();
-                parseObjectOrNested(context.createFlattenContext(parentName));
-                context.path().add(parentName);
+                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
+                String currentFieldName = fieldMapper.simpleName();
+                context.path().remove();
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                context.path().add(currentFieldName);
             } else {
                 fieldMapper.parse(context);
             }

@@ -131,6 +131,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
     }
 
     @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.cluster.coordination.ElectionSchedulerFactory:INFO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98772")
     public void testRetriesOnCorrectSchedule() {
         final Builder settingsBuilder = Settings.builder();
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
@@ -39,11 +40,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 
 /**
  * A parser for documents
  */
 public final class DocumentParser {
+
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
 
     private final XContentParserConfiguration parserConfiguration;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
@@ -138,8 +145,6 @@ public final class DocumentParser {
             }
 
             executeIndexTimeScripts(context);
-
-            context.postProcessDynamicMappers();
 
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
@@ -589,6 +594,44 @@ public final class DocumentParser {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
             }
+        }
+        postProcessDynamicMappers(context);
+    }
+
+    private static void postProcessDynamicMappers(DocumentParserContext context) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            List<Mapper> postProcessedMappers = new ArrayList<>();
+
+            Map<String, Long> dynamicDenseVectorFieldNameToDimCount = context.getDynamicMappers().stream()
+                .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
+                .map(NumberFieldMapper.class::cast)
+                .filter(m -> "float".equals(m.typeName()) && context.isFieldAppliedFromTemplate(m.name()) == false)
+                .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
+                return;
+            }
+
+            for (Mapper mapper : context.getDynamicMappers()) {
+                if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
+                    int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
+                    DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                        mapper.name(),
+                        context.indexSettings().getIndexVersionCreated(),
+                        size
+                    );
+
+                    DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());
+                    postProcessedMappers.add(denseVectorFieldMapper);
+                } else {
+                    postProcessedMappers.add(mapper);
+                }
+            }
+            context.setDynamicMappers(postProcessedMappers);
         }
     }
 

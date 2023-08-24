@@ -482,7 +482,8 @@ public class XContentParserTests extends ESTestCase {
                 "child1" : 1,
                 "child2": {
                   "grandChild" : 1
-                }
+                },
+                "child3" : 1
               }
             }
             """;
@@ -503,6 +504,10 @@ public class XContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.FIELD_NAME, subSubParser.nextToken());
         assertEquals("parent.child2.grandChild", subSubParser.currentName());
         assertEquals(XContentParser.Token.VALUE_NUMBER, subSubParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, subSubParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child3", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
 
     }
 

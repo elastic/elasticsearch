@@ -563,7 +563,10 @@ public class Security extends Plugin
     }
 
     Security(Settings settings, List<SecurityExtension> extensions) {
-        // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
+        // Note: The settings that are passed in here might not be the final values - things like Plugin.additionalSettings()
+        // will be called after the plugins are constructed, and may introduce new setting values.
+        // Accordingly we should avoid using this settings object for very much and mostly rely on Environment.setting() as provided
+        // to createComponents.
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);

@@ -46,13 +46,13 @@ public class DocumentMapper {
 
     /**
      * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
-     * This got restored in v.8.9 (and patched in v.8.8) to avoid confusion. The change is only restricted to
-     * mapping printout, it has no functional effect as the synthetic source already applies.
+     * This got restored in v.8.10 to avoid confusion. The change is only restricted to mapping printout, it has no
+     * functional effect as the synthetic source already applies.
      */
     boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
         return sourceMapper().isSynthetic()
             && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0);
+            && version.onOrBefore(IndexVersion.V_8_10_0);
     }
 
     public Mapping mapping() {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -160,7 +161,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        throw new EsqlUnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

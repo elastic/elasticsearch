@@ -28,6 +28,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
@@ -175,7 +176,10 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testPlainTextEmptyCursorWithoutColumns() {
-        assertEquals(StringUtils.EMPTY, PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), false)));
+        assertEquals(
+            StringUtils.EMPTY,
+            getTextBodyContent(PLAIN_TEXT.format(req(), new EsqlQueryResponse(emptyList(), emptyList(), false)))
+        );
     }
 
     private static EsqlQueryResponse emptyData() {
@@ -227,6 +231,6 @@ public class TextFormatTests extends ESTestCase {
     }
 
     private String format(TextFormat format, RestRequest request, EsqlQueryResponse response) {
-        return format.format(request, response);
+        return getTextBodyContent(format.format(request, response));
     }
 }

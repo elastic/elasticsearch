@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -116,6 +117,12 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("state", "default:true;alias:st;desc:shard state")
             .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
             .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
+            .addCell(
+                "dataset",
+                request.getRestApiVersion() == RestApiVersion.V_7
+                    ? "default:false;text-align:right;desc:total size of dataset"
+                    : "text-align:right;desc:total size of dataset"
+            )
             .addCell("ip", "default:true;desc:ip of node where it lives")
             .addCell("id", "default:false;desc:unique id of node where it lives")
             .addCell("node", "default:true;alias:n;desc:name of node where it lives");
@@ -287,6 +294,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getTotalDataSetSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();

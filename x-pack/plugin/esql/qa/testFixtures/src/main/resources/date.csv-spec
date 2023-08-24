@@ -453,3 +453,93 @@ emp_no:integer  |  birth_date:datetime       | birth_month:keyword
 10049           |  null                      | null
 10050           |  1958-05-21T00:00:00.000Z  | May
 ;
+
+datePlusPeriod
+row dt = to_dt("2100-01-01T01:01:01.000Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day;
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.000Z |2104-04-16T01:01:01.000Z
+;
+ 
+datePlusDuration
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T00:00:00.000Z |2100-01-01T01:01:01.001Z
+;
+
+dateMinusPeriod
+row dt = to_dt("2104-04-16T01:01:01.000Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day;
+
+dt:datetime              |minus:datetime
+2104-04-16T01:01:01.000Z |2100-01-01T01:01:01.000Z
+;
+ 
+dateMinusDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |minus:datetime
+2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
+datePlusPeriodAndDuration
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T00:00:00.000Z |2104-04-16T01:01:01.001Z
+;
+
+dateMinusPeriodAndDuration
+row dt = to_dt("2104-04-16T01:01:01.001Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |minus:datetime
+2104-04-16T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
+datePlusPeriodMinusDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.001Z |2104-04-16T00:00:00.000Z
+;
+
+datePlusDurationMinusPeriod
+row dt = to_dt("2104-04-16T00:00:00.000Z")
+| eval plus = dt - 4 years - 3 months - 2 weeks - 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2104-04-16T00:00:00.000Z |2100-01-01T01:01:01.001Z
+;
+
+fieldDateMathSimple
+from employees
+| eval bd = birth_date + 1 year - 1 millisecond
+| keep birth_date, bd
+| limit 5;
+
+birth_date:datetime      |bd:datetime           
+1953-09-02T00:00:00.000Z |1954-09-01T23:59:59.999Z
+1964-06-02T00:00:00.000Z |1965-06-01T23:59:59.999Z
+1959-12-03T00:00:00.000Z |1960-12-02T23:59:59.999Z
+1954-05-01T00:00:00.000Z |1955-04-30T23:59:59.999Z
+1955-01-21T00:00:00.000Z |1956-01-20T23:59:59.999Z
+;
+
+fieldDateMath
+from employees
+| eval bd = birth_date + 1 year - 1 millisecond
+| eval bd = date_trunc(1 day, bd)
+| eval bd = bd + 1 day - 1 year
+| where birth_date != bd
+| stats c = count(bd);
+
+c:long
+0
+;

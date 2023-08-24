@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -19,6 +20,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
     protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
@@ -78,6 +80,15 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
             assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
             return;
         }
+        if (lhsType == DataTypes.DATETIME && EsqlDataTypes.isTemporalAmount(rhsType)
+            || EsqlDataTypes.isTemporalAmount(lhsType) && rhsType == DataTypes.DATETIME) {
+            assertTrue(op.toString(), op.typeResolved().resolved());
+            assertTrue(op.toString(), EsqlDataTypes.isTemporalAmount(lhsType) || EsqlDataTypes.isTemporalAmount(rhsType));
+            assertFalse(op.toString(), EsqlDataTypes.isTemporalAmount(lhsType) && EsqlDataTypes.isTemporalAmount(rhsType));
+            assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
+            assertThat(op.toString(), op.getClass(), oneOf(Add.class, Sub.class));
+            return;
+        }
         assertFalse(op.toString(), op.typeResolved().resolved());
         if (op instanceof Mul) {
             // TODO why is mul different?
@@ -87,6 +98,17 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
                 equalTo(String.format(Locale.ROOT, "[*] has arguments with incompatible types [%s] and [%s]", lhsType, rhsType))
             );
             return;
+        }
+        if (op instanceof DateTimeArithmeticOperation && (EsqlDataTypes.isDateTime(lhsType) || EsqlDataTypes.isDateTime(rhsType))) {
+            assertThat(
+                op.toString(),
+                op.typeResolved().message(),
+                equalTo(
+                    String.format(Locale.ROOT, "[%s] has arguments with incompatible types [%s] and [%s]", op.symbol(), lhsType, rhsType)
+                )
+            );
+            return;
+
         }
         assertThat(
             op.toString(),
@@ -114,6 +136,9 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
         }
         if (lhsType == DataTypes.NULL || rhsType == DataTypes.NULL) {
             return DataTypes.NULL;
+        }
+        if (EsqlDataTypes.isDateTime(lhsType)) {
+            return DataTypes.DATETIME;
         }
         throw new UnsupportedOperationException();
     }

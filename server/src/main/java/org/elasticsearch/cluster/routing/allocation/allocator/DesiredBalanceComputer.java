@@ -330,9 +330,7 @@ public class DesiredBalanceComputer {
         iterations.inc(i);
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
-        for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
-        }
+        collectShardAssignments(routingNodes, assignments);
 
         for (var shard : routingNodes.unassigned().ignored()) {
             var info = shard.unassignedInfo();
@@ -360,6 +358,12 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments);
+    }
+
+    private static void collectShardAssignments(RoutingNodes routingNodes, HashMap<ShardId, ShardAssignment> assignments) {
+        for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
+            assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
+        }
     }
 
     private record ShardRoutings(List<ShardRouting> unassigned, List<ShardRouting> assigned) {

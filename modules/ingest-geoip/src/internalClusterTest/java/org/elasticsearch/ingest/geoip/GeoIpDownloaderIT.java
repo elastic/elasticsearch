@@ -294,18 +294,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
             assertNotNull(task.getState());
-            putGeoIpPipeline(pipelineId); // This is to work around the race condition described in #92888
         });
         putNonGeoipPipeline(pipelineId);
         assertNotNull(getTask().getState()); // removing all geoip processors should not result in the task being stopped
-        putGeoIpPipeline();
         assertBusy(() -> {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(
                 Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb"),
                 state.getDatabases().keySet()
             );
-        }, 2, TimeUnit.MINUTES);
+        });
     }
 
     public void testDoNotDownloadDatabaseOnPipelineCreation() throws Exception {

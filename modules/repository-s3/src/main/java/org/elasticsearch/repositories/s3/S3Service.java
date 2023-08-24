@@ -27,11 +27,14 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 
 import java.io.Closeable;
@@ -51,6 +54,12 @@ import static java.util.Collections.emptyMap;
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
+    private static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
+        "repository_s3.compare_and_exchange.time_to_live",
+        StoreHeartbeatService.HEARTBEAT_FREQUENCY,
+        Setting.Property.NodeScope
+    );
+
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -69,13 +78,16 @@ class S3Service implements Closeable {
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
-    S3Service(Environment environment) {
+    final TimeValue compareAndExchangeTimeToLive;
+
+    S3Service(Environment environment, Settings nodeSettings) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
             System::getenv,
             System::getProperty,
             Clock.systemUTC()
         );
+        compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
     }
 
     /**

@@ -904,7 +904,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(topN2.child(), EsRelation.class);
     }
 
-    public void testPruneRedundantSortClauses() {
+    public void testDontPruneSameFieldDifferentDirectionSortClauses() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort salary nulls last, emp_no desc nulls first
@@ -935,13 +935,74 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
                     Order.OrderDirection.DESC,
                     Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
                 )
             )
         );
         assertThat(topN.child().collect(OrderBy.class::isInstance), is(emptyList()));
     }
 
-    public void testPruneRedundantSortClausesUsingAlias() {
+    public void testPruneRedundantSortClauses() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort salary desc nulls last, emp_no desc nulls first
+            | where salary > 2
+            | eval e = emp_no * 2
+            | keep salary, emp_no, e
+            | sort e, emp_no desc, salary desc, emp_no desc nulls last""");
+
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(
+            topN.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new ReferenceAttribute(EMPTY, "e", INTEGER, null, Nullability.TRUE, null, false),
+                    Order.OrderDirection.ASC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "salary", mapping.get("salary")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.LAST
+                )
+            )
+        );
+        assertThat(topN.child().collect(OrderBy.class::isInstance), is(emptyList()));
+    }
+
+    public void testDontPruneSameFieldDifferentDirectionSortClauses_UsingAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no desc
@@ -959,6 +1020,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
                     Order.OrderDirection.ASC,
                     Order.NullsPosition.LAST
+                ),
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
+                )
+            )
+        );
+    }
+
+    public void testPruneRedundantSortClausesUsingAlias() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no desc
+            | rename emp_no as e
+            | keep e
+            | sort e desc""");
+
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(
+            topN.order(),
+            contains(
+                new Order(
+                    EMPTY,
+                    new FieldAttribute(EMPTY, "emp_no", mapping.get("emp_no")),
+                    Order.OrderDirection.DESC,
+                    Order.NullsPosition.FIRST
                 )
             )
         );

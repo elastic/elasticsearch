@@ -757,11 +757,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(OrderBy plan) {
-            var referencedAttributes = new ExpressionSet<Attribute>();
+            var referencedAttributes = new ExpressionSet<Order>();
             var order = new ArrayList<Order>();
             for (Order o : plan.order()) {
-                Attribute a = (Attribute) o.child();
-                if (referencedAttributes.add(a)) {
+                if (referencedAttributes.add(o)) {
                     order.add(o);
                 }
             }

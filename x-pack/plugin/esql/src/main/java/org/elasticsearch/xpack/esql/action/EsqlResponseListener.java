@@ -59,7 +59,10 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
     public RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws Exception {
         RestResponse restResponse;
         if (mediaType instanceof TextFormat format) {
-            restResponse = new RestResponse(RestStatus.OK, format.contentType(restRequest), format.format(restRequest, esqlResponse));
+            restResponse = RestResponse.chunked(
+                RestStatus.OK,
+                ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse))
+            );
         } else {
             restResponse = RestResponse.chunked(
                 RestStatus.OK,

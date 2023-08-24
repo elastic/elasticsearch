@@ -41,19 +41,19 @@ explanations for shard allocations in the cluster. For unassigned shards,
 the explain API provides an explanation for why the shard is unassigned.
 For assigned shards, the explain API provides an explanation for why the
 shard is remaining on its current node and has not moved or rebalanced to
-another node. This API can be very useful when attempting to diagnose why a 
-shard is unassigned or why a shard continues to remain on its current node when 
+another node. This API can be very useful when attempting to diagnose why a
+shard is unassigned or why a shard continues to remain on its current node when
 you might expect otherwise.
 
 [[cluster-allocation-explain-api-query-params]]
 ==== {api-query-parms-title}
 
 `include_disk_info`::
-    (Optional, Boolean) If `true`, returns information about disk usage and 
+    (Optional, Boolean) If `true`, returns information about disk usage and
     shard sizes. Defaults to `false`.
-    
+
 `include_yes_decisions`::
-    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation. 
+    (Optional, Boolean) If `true`, returns 'YES' decisions in explanation.
     Defaults to `false`.
 
 [[cluster-allocation-explain-api-request-body]]
@@ -65,15 +65,15 @@ you might expect otherwise.
     parameter.
 
 `index`::
-    (Optional, string) Specifies the name of the index that you would like an 
+    (Optional, string) Specifies the name of the index that you would like an
     explanation for.
 
 `primary`::
-    (Optional, Boolean) If `true`, returns explanation for the primary shard 
+    (Optional, Boolean) If `true`, returns explanation for the primary shard
     for the given shard ID.
 
 `shard`::
-    (Optional, integer) Specifies the ID of the shard that you would like an 
+    (Optional, integer) Specifies the ID of the shard that you would like an
     explanation for.
 
 [[cluster-allocation-explain-api-examples]]
@@ -130,6 +130,7 @@ node.
       "node_id" : "8qt2rY-pT6KNZB3-hGfLnw",
       "node_name" : "node-0",
       "transport_address" : "127.0.0.1:9401",
+      "roles" : ["data", "data_cold", "data_content", "data_frozen", "data_hot", "data_warm", "ingest", "master", "ml", "remote_cluster_client", "transform"],
       "node_attributes" : {},
       "node_decision" : "no",                     <4>
       "weight_ranking" : 1,
@@ -147,6 +148,7 @@ node.
 // TESTRESPONSE[s/"at" : "[^"]*"/"at" : $body.$_path/]
 // TESTRESPONSE[s/"node_id" : "[^"]*"/"node_id" : $body.$_path/]
 // TESTRESPONSE[s/"transport_address" : "[^"]*"/"transport_address" : $body.$_path/]
+// TESTRESPONSE[s/"roles" : \[("[a-z_]*",)*("[a-z_]*")\]/"roles" : $body.$_path/]
 // TESTRESPONSE[s/"node_attributes" : \{\}/"node_attributes" : $body.$_path/]
 
 <1> The current state of the shard.
@@ -207,12 +209,14 @@ unassigned due to <<delayed-allocation,delayed allocation>>.
       "node_id" : "pmnHu_ooQWCPEFobZGbpWw",
       "node_name" : "node_t2",
       "transport_address" : "127.0.0.1:9402",
+      "roles" : ["data_content", "data_hot"],
       "node_decision" : "yes"
     },
     {
       "node_id" : "3sULLVJrRneSg0EfBB-2Ew",
       "node_name" : "node_t0",
       "transport_address" : "127.0.0.1:9400",
+      "roles" : ["data_content", "data_hot"],
       "node_decision" : "no",
       "store" : {                                 <3>
         "matching_size" : "4.2kb",
@@ -251,7 +255,8 @@ and must be reallocated.
   "current_node" : {
     "id" : "8lWJeJ7tSoui0bxrwuNhTA",
     "name" : "node_t1",
-    "transport_address" : "127.0.0.1:9401"
+    "transport_address" : "127.0.0.1:9401",
+    "roles" : ["data_content", "data_hot"]
   },
   "can_remain_on_current_node" : "no",            <1>
   "can_remain_decisions" : [                      <2>
@@ -268,6 +273,7 @@ and must be reallocated.
       "node_id" : "_P8olZS8Twax9u6ioN-GGA",
       "node_name" : "node_t0",
       "transport_address" : "127.0.0.1:9400",
+      "roles" : ["data_content", "data_hot"],
       "node_decision" : "no",
       "weight_ranking" : 1,
       "deciders" : [
@@ -302,6 +308,7 @@ cluster balance.
     "id" : "wLzJm4N4RymDkBYxwWoJsg",
     "name" : "node_t0",
     "transport_address" : "127.0.0.1:9400",
+    "roles" : ["data_content", "data_hot"],
     "weight_ranking" : 1
   },
   "can_remain_on_current_node" : "yes",
@@ -313,6 +320,7 @@ cluster balance.
       "node_id" : "oE3EGFc8QN-Tdi5FFEprIA",
       "node_name" : "node_t1",
       "transport_address" : "127.0.0.1:9401",
+      "roles" : ["data_content", "data_hot"],
       "node_decision" : "worse_balance",          <3>
       "weight_ranking" : 1
     }

@@ -177,7 +177,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
-        try (S3Service s3Service = new S3Service(Mockito.mock(Environment.class))) {
+        try (S3Service s3Service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY)) {
             AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
             assertThat(other.getSignerRegionOverride(), is(region));
         }

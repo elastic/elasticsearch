@@ -500,11 +500,10 @@ public class XContentParserTests extends ESTestCase {
         String secondChildName = subParser.currentName();
         assertEquals("parent.child2", secondChildName);
         assertEquals(XContentParser.Token.START_OBJECT, subParser.nextToken());
-        XContentParser subSubParser = new FlatteningXContentParser(subParser, secondChildName);
-        assertEquals(XContentParser.Token.FIELD_NAME, subSubParser.nextToken());
-        assertEquals("parent.child2.grandChild", subSubParser.currentName());
-        assertEquals(XContentParser.Token.VALUE_NUMBER, subSubParser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, subSubParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("grandChild", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, subParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
         assertEquals("parent.child3", subParser.currentName());
         assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());

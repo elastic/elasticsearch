@@ -618,4 +618,4 @@ geo_point:
   - match: { columns.0.name: location }
   - match: { columns.0.type: geo_point }
   - length: { values: 1 }
-  - match: { values.0.0: { "type": "point", "coordinates": [ 1, -1 ] } }
+  - match: { values.0.0: { type: "point", coordinates: [ 1, -1 ] } }

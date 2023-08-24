@@ -931,7 +931,7 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     public void testPartialResult() throws Exception {
-        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("[error_query] is only available in snapshot builds", Build.CURRENT.isSnapshot());
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity("""
             {

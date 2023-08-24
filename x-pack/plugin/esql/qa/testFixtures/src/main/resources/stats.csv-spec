@@ -472,3 +472,11 @@ from employees | stats min(salary), max(salary), c = count(salary);
 min(salary):i | max(salary):i | c:l
 25324         | 74999         | 100
 ;
+
+statsWithLiterals
+from employees | limit 10 | eval x = 1 | stats c = count(x)
+;
+
+c:l
+10
+;

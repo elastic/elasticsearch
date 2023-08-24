@@ -1242,13 +1242,9 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach((k, v) -> {
-                    ors.add(
-                        v.size() == 1
-                            ? createEquals(k, v, finalZoneId)
-                            : createIn(k, new ArrayList<>(v), finalZoneId)
-                    );
-                });
+                found.forEach(
+                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                );
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order

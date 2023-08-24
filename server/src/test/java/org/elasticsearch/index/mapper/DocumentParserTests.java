@@ -20,7 +20,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -2531,12 +2530,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
         Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper newDocMapper = new DocumentMapper(
-            mapperService.documentParser(),
-            newMapping,
-            newMapping.toCompressedXContent(),
-            IndexVersion.current()
-        );
+        DocumentMapper newDocMapper = new DocumentMapper(mapperService.documentParser(), newMapping, newMapping.toCompressedXContent());
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {
               "foo" : {

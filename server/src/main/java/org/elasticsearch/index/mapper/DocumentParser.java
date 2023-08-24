@@ -602,7 +602,8 @@ public final class DocumentParser {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             List<Mapper> postProcessedMappers = new ArrayList<>();
 
-            Map<String, Long> dynamicDenseVectorFieldNameToDimCount = context.getDynamicMappers().stream()
+            Map<String, Long> dynamicDenseVectorFieldNameToDimCount = context.getDynamicMappers()
+                .stream()
                 .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
                 .map(NumberFieldMapper.class::cast)
                 .filter(m -> "float".equals(m.typeName()) && context.isFieldAppliedFromTemplate(m.name()) == false)

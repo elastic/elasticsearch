@@ -38,9 +38,10 @@
  *         Open Elasticsearch in IntelliJ.
  *     </li>
  *     <li>
- *         Open {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java}
- *         and run it. IntelliJ will take a few minutes to compile everything but the test itself
- *         should take only a few seconds. This is a fast path to running ESQL's integration tests.
+ *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
+ *         via Gradle:
+ *         {@code ./gradlew -p x-pack/plugin/esql test --tests "org.elasticsearch.xpack.esql.CsvTests"}
+ *         This is a fast path to running ESQL's integration tests.
  *     </li>
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}

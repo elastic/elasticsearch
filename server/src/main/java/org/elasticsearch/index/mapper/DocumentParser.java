@@ -330,13 +330,10 @@ public final class DocumentParser {
                     parseArray(context, currentFieldName);
                     break;
                 case VALUE_NULL:
-                    // parseNullValue(context, context.path().dottedFieldName(currentFieldName));
                     parseNullValue(context, currentFieldName);
                     break;
                 default:
                     if (token.isValue()) {
-                        // parseValue(context, context.path().dottedFieldName(currentFieldName));
-
                         parseValue(context, currentFieldName);
                     }
                     break;
@@ -403,13 +400,8 @@ public final class DocumentParser {
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (canToBeFlatten(context, fieldMapper)) {
-                // // remove the last path and add it as suffix to the dottedFieldName
+                // remove the last path and add it as suffix to the dottedFieldName
                 String suffix = context.path().remove();
-                // context.path().addDottedFieldName(suffix);
-                // parseObjectOrNested(context);
-                // context.path().removeDottedFieldName();
-                // context.path().add(suffix);
-
                 DocumentParserContext childContext = context.switchParser(new XContentFlatteningParser(context.parser(), suffix));
                 parseObjectOrNested(childContext);
                 context.path().add(suffix);
@@ -595,13 +587,11 @@ public final class DocumentParser {
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, lastFieldName);
-                // parseNullValue(context, context.path().dottedFieldName(lastFieldName));
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
-                // parseValue(context, context.path().dottedFieldName(lastFieldName));
             }
         }
     }

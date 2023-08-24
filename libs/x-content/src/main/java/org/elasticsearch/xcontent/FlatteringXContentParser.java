@@ -32,7 +32,7 @@ public class FlatteringXContentParser extends XContentSubParser {
     /**
      * Retrieves the name of the current field being parsed. If the current parsing level is 1,
      * the returned field name will be constructed by prepending the parent name to the
-     * delegate's currentFieldName. otherwise just delegate.
+     * delegate's currentFieldName, otherwise just delegate.
      *
      * @return The current field name, potentially modified by prepending the parent name as a prefix.
      * @throws IOException If an I/O error occurs during parsing.

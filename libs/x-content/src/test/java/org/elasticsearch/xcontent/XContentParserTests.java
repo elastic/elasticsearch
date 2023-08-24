@@ -476,9 +476,16 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testFlatteringParserObject() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        generateRandomObjectWithSubObject(builder);
-        String content = Strings.toString(builder);
+        String content = """
+            {
+              "parent": {
+                "child1" : 1,
+                "child2": {
+                  "grandChild" : 1
+                }
+              }
+            }
+            """;
         XContentParser parser = createParser(JsonXContent.jsonXContent, content);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -585,19 +592,6 @@ public class XContentParserTests extends ESTestCase {
         int numberOfTokens = generateRandomObject(builder, 0);
         builder.field("last_field", "bar").endObject();
         return numberOfTokens;
-    }
-
-    private static void generateRandomObjectWithSubObject(XContentBuilder builder) throws IOException {
-        builder.startObject()
-            .field("parent")
-            .startObject()
-            .field("child1", 1)
-            .field("child2")
-            .startObject()
-            .field("grandChild", 1)
-            .endObject()
-            .endObject()
-            .endObject();
     }
 
     public static int generateRandomObject(XContentBuilder builder, int level) throws IOException {

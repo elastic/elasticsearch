@@ -574,13 +574,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public String toString() {
-            return "ProfileSecuredRequestHandler{"
-                + "action='"
-                + action
-                + '\''
-                + ", forceExecution="
-                + forceExecution
-                + '}';
+            return "ProfileSecuredRequestHandler{" + "action='" + action + '\'' + ", forceExecution=" + forceExecution + '}';
         }
 
         @Override

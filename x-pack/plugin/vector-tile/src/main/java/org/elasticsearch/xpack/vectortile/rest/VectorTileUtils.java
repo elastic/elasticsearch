@@ -64,10 +64,6 @@ class VectorTileUtils {
             // guard for null values
             return;
         }
-        if (value instanceof Map<?, ?> map) {
-            // maps should have been flattened already in Maps#flatten but still contains the original maps
-            return;
-        }
         if (value instanceof Byte || value instanceof Short) {
             // mvt does not support byte and short data types
             value = ((Number) value).intValue();

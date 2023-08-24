@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -264,6 +265,7 @@ public final class PlanNamedTypes {
             // EsFields
             of(EsField.class, EsField.class, PlanNamedTypes::writeEsField, PlanNamedTypes::readEsField),
             of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
+            of(EsField.class, InvalidMappedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
             of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
             of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
             of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
@@ -890,6 +892,15 @@ public final class PlanNamedTypes {
         out.writeString(dateEsField.getName());
         out.writeMap(dateEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
         out.writeBoolean(dateEsField.isAggregatable());
+    }
+
+    static InvalidMappedField readInvalidMappedField(PlanStreamInput in) throws IOException {
+        return new InvalidMappedField(in.readString(), in.readString());
+    }
+
+    static void writeInvalidMappedField(PlanStreamOutput out, InvalidMappedField field) throws IOException {
+        out.writeString(field.getName());
+        out.writeString(field.errorMessage());
     }
 
     static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {

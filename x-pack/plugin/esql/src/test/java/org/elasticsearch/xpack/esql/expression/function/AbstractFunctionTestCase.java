@@ -7,6 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import net.nextencia.rrdiagram.grammar.model.GrammarToRRDiagram;
+import net.nextencia.rrdiagram.grammar.model.Repetition;
+import net.nextencia.rrdiagram.grammar.model.Rule;
+import net.nextencia.rrdiagram.grammar.model.Sequence;
+import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagram;
+
+import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagramToSVG;
+
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -14,24 +22,37 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -339,5 +360,117 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public void testSerializationOfSimple() {
         assertSerialization(buildFieldExpression(testCase));
+    }
+
+    private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
+
+    @BeforeClass
+    public static void clearSignatures() {
+        signatures.clear();
+    }
+
+    @After
+    public void trackSignature() {
+        signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
+    }
+
+    @AfterClass
+    public static void renderSignature() throws IOException {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
+            return;
+        }
+
+        List<net.nextencia.rrdiagram.grammar.model.Expression> expressions = new ArrayList<>();
+        expressions.add(new net.nextencia.rrdiagram.grammar.model.SpecialSequence(functionName().toUpperCase(Locale.ROOT)));
+        expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal("("));
+        boolean first = true;
+        for (String arg : ShowFunctions.signature(definition)) {
+            if (first) {
+                first = false;
+            } else {
+                expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(","));
+            }
+            if (arg.endsWith("...")) {
+                expressions.add(
+                    new Repetition(new net.nextencia.rrdiagram.grammar.model.Literal(arg.substring(0, arg.length() - 3)), 0, null)
+                );
+            } else {
+                expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(arg));
+            }
+        }
+        expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(")"));
+        net.nextencia.rrdiagram.grammar.model.Expression rr = new Sequence(
+            expressions.toArray(net.nextencia.rrdiagram.grammar.model.Expression[]::new)
+        );
+        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("test", rr));
+        RRDiagramToSVG toSvg = new RRDiagramToSVG();
+        toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
+        toSvg.setLiteralFillColor(toSvg.getSpecialSequenceFillColor());
+        String rendered = toSvg.convert(rrDiagram);
+        LogManager.getLogger(getTestClass()).info("Writing function signature");
+        writeToTempDir("signature", rendered, "svg");
+    }
+
+    @AfterClass
+    public static void renderTable() throws IOException {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+            return;
+        }
+
+        StringBuilder header = new StringBuilder();
+        for (String arg : ShowFunctions.signature(definition)) {
+            header.append(arg).append(" | ");
+        }
+        header.append("result");
+
+        List<String> table = new ArrayList<>();
+        for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
+            StringBuilder b = new StringBuilder();
+            for (DataType arg : sig.getKey()) {
+                b.append(arg.typeName()).append(" | ");
+            }
+            b.append(sig.getValue().typeName());
+            table.add(b.toString());
+        }
+        Collections.sort(table);
+
+        String rendered = """
+            [%header.monospaced.styled,format=dsv,separator=|]
+            |===
+            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
+        LogManager.getLogger(getTestClass()).info("Writing function types:\n{}", rendered);
+        writeToTempDir("types", rendered, "asciidoc");
+    }
+
+    private static FunctionDefinition definition() {
+        String name = functionName();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        if (registry.functionExists(name)) {
+            return registry.resolveFunction(name);
+        }
+        return null;
+    }
+
+    private static String functionName() {
+        return getTestClass().getSimpleName().replace("Tests", "").toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Write some text to a tempdir so we can copy it to the docs later.
+     * <p>
+     *     We need to write to a tempdir instead of the docs because the tests
+     *     don't have write permission to the docs.
+     * </p>
+     */
+    private static void writeToTempDir(String subdir, String str, String extension) throws IOException {
+        // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
+        Files.createDirectories(dir);
+        Path file = dir.resolve(functionName() + "." + extension);
+        Files.writeString(file, str);
     }
 }

@@ -158,8 +158,8 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
     public static class Response extends BaseTasksResponse implements ToXContentObject {
         private final QueryPage<TransformStats> transformsStats;
 
-        public Response(List<TransformStats> transformStateAndStats, long count) {
-            this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
+        public Response(List<TransformStats> transformStateAndStats) {
+            this(new QueryPage<>(transformStateAndStats, transformStateAndStats.size(), TransformField.TRANSFORMS));
         }
 
         public Response(

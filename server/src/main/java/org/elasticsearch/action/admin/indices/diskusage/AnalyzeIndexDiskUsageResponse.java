@@ -43,7 +43,7 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
         out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
-    Map<String, IndexDiskUsageStats> getStats() {
+    public Map<String, IndexDiskUsageStats> getStats() {
         return stats;
     }
 

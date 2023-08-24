@@ -45,6 +45,7 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -101,7 +102,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        assertThat(loggerResults.size(), equalTo(results.size() + 1));
+        assertThat(loggerResults.size(), equalTo(results.size() + 2));
 
         // test indicator status
         assertThat(loggerResults.get(makeHealthStatusString("network_latency")), equalTo("green"));
@@ -110,6 +111,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // test calculated overall status
         assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
+
+        // test the flag the signals that this is the status overview
+        assertThat(loggerResults.get("elasticsearch.health_overview"), is(true));
 
         // test empty results
         {

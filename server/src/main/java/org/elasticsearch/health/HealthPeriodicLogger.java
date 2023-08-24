@@ -189,18 +189,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
 
         final Map<String, Object> result = new HashMap<>();
+        // This flag is used to filter this log lines for analysis
+        result.put("elasticsearch.health_overview", true);
 
         // overall status
         final HealthStatus status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
         result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
 
         // top-level status for each indicator
-        indicatorResults.forEach((indicatorResult) -> {
-            result.put(
+        indicatorResults.forEach(
+            (indicatorResult) -> result.put(
                 String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
                 indicatorResult.status().xContentValue()
-            );
-        });
+            )
+        );
 
         return result;
     }
@@ -209,7 +211,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * Handle the result of the Health Service getHealth call
      */
     // default visibility for testing purposes
-    final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<List<HealthIndicatorResult>>() {
+    final ActionListener<List<HealthIndicatorResult>> resultsListener = new ActionListener<>() {
         @Override
         public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
             try {

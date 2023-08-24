@@ -1,0 +1,5 @@
+pr: 98814
+summary: RCS 2.0 Drop invalid connections to the fulfiling cluster node
+area: "Authentication, Network"
+type: enhancement
+issues: []

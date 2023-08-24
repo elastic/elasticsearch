@@ -402,8 +402,9 @@ public final class DocumentParser {
             if (canToBeFlatten(context, fieldMapper)) {
                 // remove the last path and add it as suffix to the dottedFieldName
                 String suffix = context.path().remove();
-                DocumentParserContext childContext = context.switchParser(new XContentFlatteningParser(context.parser(), suffix));
-                parseObjectOrNested(childContext);
+                // DocumentParserContextcontext.createFlattenContext(suffix);
+                // DocumentParserContext childContext = context.switchParser(new XContentFlatteningParser(context.parser(), suffix));
+                parseObjectOrNested(context.createFlattenContext(suffix));
                 context.path().add(suffix);
             } else {
                 fieldMapper.parse(context);
@@ -503,12 +504,7 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    XContentParser parser = context.parser();
-                    parseObjectOrField(
-                        context.switchParser(new XContentFlatteningParser(context.parser(), currentFieldName)),
-                        dynamicObjectMapper
-                    );
-                    context.switchParser(parser);
+                    parseObjectOrField(context.createFlattenContext(currentFieldName), dynamicObjectMapper);
                     return;
                 }
 

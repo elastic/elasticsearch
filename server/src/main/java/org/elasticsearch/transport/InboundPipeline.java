@@ -16,7 +16,6 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -30,7 +29,7 @@ public class InboundPipeline implements Releasable {
     private final InboundDecoder decoder;
     private final InboundAggregator aggregator;
     private final BiConsumer<TcpChannel, InboundMessage> messageHandler;
-    protected final AtomicReference<Exception> uncaughtExceptionReference = new AtomicReference<>();
+    private Exception uncaughtException;
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
@@ -55,14 +54,13 @@ public class InboundPipeline implements Releasable {
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
-        Exception uncaughtException = uncaughtExceptionReference.get();
         if (uncaughtException != null) {
             throw new IllegalStateException("Pipeline state corrupted by uncaught exception", uncaughtException);
         }
         try {
             doHandleBytes(channel, reference);
         } catch (Exception e) {
-            uncaughtExceptionReference.set(e);
+            uncaughtException = e;
             throw e;
         }
     }
@@ -111,7 +109,7 @@ public class InboundPipeline implements Releasable {
     private void forwardFragments(TcpChannel channel, ArrayList<Object> fragments) throws IOException {
         for (Object fragment : fragments) {
             if (fragment instanceof Header) {
-                headerReceived(channel, (Header) fragment);
+                headerReceived((Header) fragment);
             } else if (fragment instanceof Compression.Scheme) {
                 assert aggregator.isAggregating();
                 aggregator.updateCompressionScheme((Compression.Scheme) fragment);
@@ -135,7 +133,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    protected void headerReceived(TcpChannel channel, Header header) {
+    protected void headerReceived(Header header) {
         assert aggregator.isAggregating() == false;
         aggregator.headerReceived(header);
     }

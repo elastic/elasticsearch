@@ -210,48 +210,6 @@ salary:integer | s:long
 73851          | 1330201
 ;
 
-isFiniteFalse
-row d = 1.0 | eval s = is_finite(d/0);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isFiniteTrue
-row d = 1.0 | eval s = is_finite(d);
-
-d:double | s:boolean
-1.0      | true
-;
-
-isInfiniteFalse
-row d = 1.0 | eval s = is_infinite(d);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isInfiniteTrue
-row d = 1.0/0 | eval s = is_infinite(d);
-
-d:double | s:boolean
-Infinity | true
-;
-
-isNaN
-row d = 1.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-1.0      | false
-;
-
-isNaNTrue
-row d = 0.0/0.0 | eval s = is_nan(d);
-
-d:double | s:boolean
-NaN      | true
-;
-
 log10
 // tag::log10[]
 ROW d = 1000.0 
@@ -266,39 +224,26 @@ d: double | s:double
 ;
 
 log10ofNegative
-row d = -1.0 | eval s = is_nan(log10(d));
+row d = -1.0 | eval s = log10(d) IS NULL;
 
 d:double | s:boolean
 -1.0     | true
 ;
 
-log10ofNan
-row d = 0.0/0.0 | eval s = is_nan(log10(d));
-
-d:double | s:boolean
-NaN      | true
-;
-
 log10ofZero
-row d = 0.0 |eval s = is_infinite(log10(d));
+row d = 0.0 |eval s = log10(d) IS NULL;
 
 d:double | s:boolean
 0.0     | true
 ;
 
 log10ofNegativeZero
-row d = -0.0 |eval s = is_infinite(log10(d));
+row d = -0.0 |eval s = log10(d) IS NULL;
 
 d:double | s:boolean
 -0.0     | true
 ;
 
-log10ofInfinite
-row d = 1/0.0 | eval s = is_infinite(log10(d));
-
-d:double | s:boolean
-Infinity | true
-;
 
 log10ofLong
 row l = to_long(1000000000000) | eval s = log10(l);

@@ -147,7 +147,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanAutoExpandToNodeThatIsNotShuttingDown() {
-        ClusterState state = prepareState(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE));
+        ClusterState state = prepareState(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE), "other-node-id");
         RoutingAllocation allocation = createRoutingAllocation(state);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -156,7 +156,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCannotAutoExpandToRemovingNode() {
-        ClusterState state = prepareState(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE));
+        ClusterState state = prepareState(SingleNodeShutdownMetadata.Type.REMOVE);
         RoutingAllocation allocation = createRoutingAllocation(state);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -197,7 +197,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, createRoutingAllocation(state)),
             Decision.Type.NO,
-            "node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"
+            "node [" + DATA_NODE.getId() + "] is preparing for removal from the cluster"
         );
         decision = decider.shouldAutoExpandToNode(indexMetadata, replacementNode, createRoutingAllocation(state));
         assertThat(decision.type(), equalTo(Decision.Type.YES));

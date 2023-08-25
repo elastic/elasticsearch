@@ -202,6 +202,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
             .settings(
                 Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -289,6 +290,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
             .settings(
                 Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -424,7 +426,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         assertThatDecision(
             decider.shouldAutoExpandToNode(indexMetadata, NODE_C, allocation),
             Decision.Type.YES,
-            "none of the ongoing node replacements relate to the allocation of this shard"
+            "node is not part of a node replacement, so shards may be auto expanded onto it"
         );
     }
 

@@ -5,7 +5,7 @@
 You can apply IP filtering to application clients, node clients, or transport
 clients, remote cluster clients, in addition to other nodes that are attempting to join the cluster.
 
-If a node's IP address is on the blacklist, the {es} {security-features} allow
+If a node's IP address is on the denylist, the {es} {security-features} allow
 the connection to {es} but it is be dropped immediately and no requests are
 processed.
 
@@ -116,8 +116,9 @@ xpack.security.http.filter.deny: _all
 
 beta::[]
 
-// TODO: fix the link to new page of API key based remote clusters
-You may want to have different IP filtering for the remote cluster server interface.
+If other clusters connect <<remote-clusters-api-key,using API key
+authentication>> for {ccs} or {ccr}, you may want to have different IP filtering
+for the remote cluster server interface.
 
 [source,yaml]
 --------------------------------------------------

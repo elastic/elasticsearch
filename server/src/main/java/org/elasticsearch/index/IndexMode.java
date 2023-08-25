@@ -132,12 +132,18 @@ public enum IndexMode {
                 }
             }
             checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            checkSetting(settings, IndexSettings.TIME_SERIES_START_TIME);
-            checkSetting(settings, IndexSettings.TIME_SERIES_END_TIME);
+            existsSetting(settings, IndexSettings.TIME_SERIES_START_TIME);
+            existsSetting(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
+            }
+        }
+
+        private static void existsSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (settings.containsKey(setting) == false) {
                 throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +39,10 @@ public class TimeSeriesIndexIT extends AbstractRollingTestCase {
     );
 
     public void testTimeSeriesIndexSettings() throws IOException {
+        assumeTrue(
+            "Fix for time series indices required settings introduced in 8.11",
+            UPGRADE_FROM_VERSION.between(Version.V_8_7_0, Version.V_8_11_0)
+        );
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createTimeSeriesIndex(INDEX_NAME);
             assertIndexExists(INDEX_NAME);
@@ -47,13 +52,15 @@ public class TimeSeriesIndexIT extends AbstractRollingTestCase {
             assertSearch(INDEX_NAME);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             assertIndexExists(INDEX_NAME);
-            assertDocCount(client(), INDEX_NAME, 5);
             assertSearch(INDEX_NAME);
-            indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 1);
             if (lastIndexedDoc == 5) {
+                assertDocCount(client(), INDEX_NAME, 5);
+                indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 1);
                 assertDocCount(client(), INDEX_NAME, 6);
                 lastIndexedDoc = 6;
             } else if (lastIndexedDoc == 6) {
+                assertDocCount(client(), INDEX_NAME, 6);
+                indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 1);
                 assertDocCount(client(), INDEX_NAME, 7);
                 lastIndexedDoc = 7;
             }

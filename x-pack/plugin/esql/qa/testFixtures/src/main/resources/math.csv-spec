@@ -48,7 +48,7 @@ divLongByZero
 row max = 9223372036854775807 | eval div = max / 0 | keep div;
 
 warning:Line 1:44: evaluation of [max / 0] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:java.lang.ArithmeticException: Division by zero
 
 div:long
 null
@@ -224,24 +224,33 @@ d: double | s:double
 ;
 
 log10ofNegative
-row d = -1.0 | eval s = log10(d) IS NULL;
+row d = -1.0 | eval s = log10(d);
 
-d:double | s:boolean
--1.0     | true
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: log of non-positive number
+
+d:double | s:double
+-1.0     | null
 ;
 
 log10ofZero
-row d = 0.0 |eval s = log10(d) IS NULL;
+row d = 0.0 |eval s = log10(d);
 
-d:double | s:boolean
-0.0     | true
+warning:Line 1:23: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: log of non-positive number
+
+d:double | s:double
+0.0     | null
 ;
 
 log10ofNegativeZero
-row d = -0.0 |eval s = log10(d) IS NULL;
+row d = -0.0 |eval s = log10(d);
 
-d:double | s:boolean
--0.0     | true
+warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: log of non-positive number
+
+d:double | s:double
+-0.0     | null
 ;
 
 
@@ -921,17 +930,13 @@ l:ul                  | s:double
 ;
 
 sqrtOfNegative
-row d = -1.0 | eval s = is_nan(sqrt(d));
+row d = -1.0 | eval s = sqrt(d);
 
-d:double | s:boolean
--1.0     | true
-;
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: square root of negative number
 
-sqrtOfNan
-row d = 0.0/0.0 | eval s = is_nan(sqrt(d));
-
-d:double | s:boolean
-NaN      | true
+d:double | s:double
+-1.0     | null
 ;
 
 sqrtOfZero
@@ -946,13 +951,6 @@ row d = -0.0 |eval s = sqrt(d);
 
 d:double | s:double
 -0.0     | -0.0
-;
-
-sqrtOfInfinite
-row d = 1/0.0 | eval s = is_infinite(sqrt(d));
-
-d:double | s:boolean
-Infinity | true
 ;
 
 least

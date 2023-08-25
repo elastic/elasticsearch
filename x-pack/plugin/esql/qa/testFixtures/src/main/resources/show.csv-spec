@@ -31,9 +31,6 @@ date_trunc               |date_trunc(arg1, arg2)
 e                        |e()
 floor                    |floor(arg1)
 greatest                 |greatest(arg1, arg2...)
-is_finite                |is_finite(arg1)
-is_infinite              |is_infinite(arg1)
-is_nan                   |is_nan(arg1)
 least                    |least(arg1, arg2...)
 length                   |length(arg1)
 log10                    |log10(arg1)
@@ -89,10 +86,26 @@ trim                     |trim(arg1)
 ;
 
 showFunctionsFiltered
-show functions | where starts_with(name, "is_");
+show functions | where starts_with(name, "to_");
 
   name:keyword           |           synopsis:keyword
-is_finite                |is_finite(arg1)
-is_infinite              |is_infinite(arg1)
-is_nan                   |is_nan(arg1)
+to_bool                  |to_bool(arg1)
+to_boolean               |to_boolean(arg1)
+to_datetime              |to_datetime(arg1)
+to_dbl                   |to_dbl(arg1)
+to_degrees               |to_degrees(arg1)
+to_double                |to_double(arg1)
+to_dt                    |to_dt(arg1)
+to_int                   |to_int(arg1)
+to_integer               |to_integer(arg1)
+to_ip                    |to_ip(arg1)
+to_long                  |to_long(arg1)
+to_radians               |to_radians(arg1)
+to_str                   |to_str(arg1)
+to_string                |to_string(arg1)
+to_ul                    |to_ul(arg1)
+to_ulong                 |to_ulong(arg1)
+to_unsigned_long         |to_unsigned_long(arg1)
+to_ver                   |to_ver(arg1)
+to_version               |to_version(arg1)
 ;

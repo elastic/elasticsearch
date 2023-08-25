@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -17,7 +15,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -41,13 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleIT.class);
-    public static final String FIELD_TIMESTAMP = "@timestamp";
-    public static final String FIELD_DIMENSION_1 = "dimension_kw";
-    public static final String FIELD_DIMENSION_2 = "dimension_long";
-    public static final String FIELD_METRIC_COUNTER = "counter";
     public static final int DOC_COUNT = 50_000;
-    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

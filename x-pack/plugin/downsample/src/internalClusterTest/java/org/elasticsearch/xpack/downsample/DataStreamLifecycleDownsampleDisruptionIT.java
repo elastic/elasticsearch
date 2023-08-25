@@ -9,19 +9,18 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -36,10 +35,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
 public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleDisruptionIT.class);
-    public static final int DOC_COUNT = 10_000;
+    public static final int DOC_COUNT = 50_000;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -78,6 +80,11 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
 
             client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
+            // DSL runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts
+            // downsampling. This sleep here tries to get as close as possible to having disruption during the downsample execution.
+            long sleepTime = randomLongBetween(3000, 4500);
+            logger.info("-> giving data stream lifecycle [{}] millis to make some progress before starting the disruption", sleepTime);
+            Thread.sleep(sleepTime);
             final CountDownLatch disruptionStart = new CountDownLatch(1);
             final CountDownLatch disruptionEnd = new CountDownLatch(1);
             final String sourceIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -114,28 +121,18 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             final String targetIndex = "downsample-1s-" + sourceIndex;
             assertBusy(() -> {
                 try {
-                    assertTargetIndex(cluster, targetIndex, indexedDocs);
+                    GetSettingsResponse getSettingsResponse = client().admin()
+                        .indices()
+                        .getSettings(new GetSettingsRequest().indices(targetIndex))
+                        .actionGet();
+                    Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
+                    assertThat(indexSettings, is(notNullValue()));
+                    assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
             }, 60, TimeUnit.SECONDS);
         }
-    }
-
-    private void assertTargetIndex(final InternalTestCluster cluster, final String targetIndex, int indexedDocs) {
-        final GetIndexResponse getIndexResponse = cluster.client()
-            .admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices(targetIndex))
-            .actionGet();
-        assertEquals(1, getIndexResponse.indices().length);
-        final SearchResponse targetIndexSearch = cluster.client()
-            .prepareSearch(targetIndex)
-            .setQuery(new MatchAllQueryBuilder())
-            .setSize(Math.min(DOC_COUNT, indexedDocs))
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .get();
-        assertTrue(targetIndexSearch.getHits().getHits().length > 0);
     }
 
     interface DisruptionListener {

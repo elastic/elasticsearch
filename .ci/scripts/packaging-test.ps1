@@ -1,5 +1,8 @@
 param($GradleTasks='destructiveDistroTest')
 
+# TODO remove this
+& bash.exe .\.ci\packer_cache.sh
+
 If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 {
     # Relaunch as an elevated process:

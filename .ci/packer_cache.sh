@@ -15,6 +15,30 @@ while [ -h "$SCRIPT" ]; do
   fi
 done
 
+# Windows-2012 base images have been broken for a long time, and they have a very old version of runbld
+# So, we're using the packer_cache script to update runbld to the latest version
+OS=$(uname -s)
+if [[ "$OS" == *"MINGW"* || "$OS" == *"MSYS"* ]]; then
+  RUNBLD_DIR='/c/Program Files/runbld/src/runbld-7.0.3'
+  RUNBLD="$RUNBLD_DIR/runbld"
+
+  # We only need to do this if 7.0.3 doesn't already exist
+  if [[ ! -f "$RUNBLD" ]]; then
+    mkdir -p "$RUNBLD_DIR"
+    curl -L -o "$RUNBLD" https://packages.elasticsearch.org.s3.amazonaws.com/infra/runbld-7.0.3
+
+    RUNBLD_HARDLINK_DIR='/c/Program Files/infra/bin'
+    RUNBLD_HARDLINK="$RUNBLD_HARDLINK_DIR/runbld"
+
+    rm -f "$RUNBLD_HARDLINK"
+    mkdir -p "$RUNBLD_HARDLINK_DIR"
+
+    fsutil hardlink create "$RUNBLD_HARDLINK" "$RUNBLD"
+  fi
+fi
+
+exit 0 # TODO remove this
+
 if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
   ## On ARM we use a different properties file for setting java home
   ## Also, we don't bother attempting to resolve dependencies for the 6.8 branch

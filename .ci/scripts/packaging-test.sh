@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# TODO remove this
+bash .ci/packer_cache.sh
+
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then

@@ -93,6 +93,26 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             );
         }
 
+        int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
+            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+                return (int) Math.max(
+                    Math.min(
+                        maxAllocations,
+                        Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), minimumMemoryRequiredBytes())
+                    ),
+                    0
+                );
+            }
+            return maxAllocations;
+        }
+
+        int findExcessAllocations(int maxAllocations, long availableMemoryBytes) {
+            if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+                return (int) Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes));
+            }
+            return maxAllocations;
+        }
+
         @Override
         public String toString() {
             return id

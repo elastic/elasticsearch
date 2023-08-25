@@ -135,9 +135,9 @@ class RandomizedAssignmentRounding {
                 for (AssignmentPlan.Deployment m : deployments) {
                     Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                     if (assignments.get(assignment) > 0) {
-                        // TODO: use m.memoryUsage(numberOfAllocations) instead of m.memoryBytes() here
-                        totalModelMemory += m.memoryBytes();
-                        maxTotalThreads += (int) Math.ceil(allocations.get(assignment)) * m.threadsPerAllocation();
+                        int roundedAllocations = (int) Math.ceil(allocations.get(assignment));
+                        totalModelMemory += m.estimateMemoryUsageBytes(roundedAllocations);
+                        maxTotalThreads += roundedAllocations * m.threadsPerAllocation();
                         assignedDeployments.add(m);
                     }
                 }
@@ -164,7 +164,6 @@ class RandomizedAssignmentRounding {
 
         private void assignModelToNode(Deployment m, Node n, int allocations) {
             Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
-            // TODO: Does it correspond to L248 in Python
             int assignedAllocations = Math.min(allocations, resourceTracker.remainingModelAllocations.get(m));
             assignments.put(assignment, 1.0);
             this.allocations.put(assignment, (double) assignedAllocations);
@@ -201,10 +200,12 @@ class RandomizedAssignmentRounding {
                 if (resourceTracker.remainingNodeCores.get(n) <= 0) {
                     break;
                 }
-                // TODO: add m.findThreadCount similar to L300 in Python
-                int extraAllocations = Math.min(
-                    resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
-                    resourceTracker.remainingModelAllocations.get(m)
+                int extraAllocations = m.findExcessAllocations(
+                    Math.min(
+                        resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
+                        resourceTracker.remainingModelAllocations.get(m)
+                    ),
+                    resourceTracker.remainingNodeMemory.get(n)
                 );
                 allocations.compute(Tuple.tuple(m, n), (k, v) -> v + extraAllocations);
                 resourceTracker.assign(m, n, extraAllocations);
@@ -214,8 +215,7 @@ class RandomizedAssignmentRounding {
         }
 
         private double remainingModelOrder(AssignmentPlan.Deployment m) {
-            // TODO: use m.minimumMemoryRequirement() instead of m.memoryBytes() here
-            return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -m.memoryBytes();
+            return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -m.minimumMemoryRequiredBytes();
         }
 
         private boolean hasSoftAssignments(Node n) {
@@ -279,16 +279,17 @@ class RandomizedAssignmentRounding {
                 int roundedAllocations = random.nextDouble() < roundUpProbability
                     ? (int) Math.ceil(allocations.get(assignment))
                     : (int) Math.floor(allocations.get(assignment));
-                // TODO: use m.memoryUsage(numberOfAllocations) or something similar instead of m.memoryBytes() here
-                if (m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)
+                if (m.estimateMemoryUsageBytes(roundedAllocations) > resourceTracker.remainingNodeMemory.get(n)
                     || m.threadsPerAllocation() > resourceTracker.remainingNodeCores.get(n)
                     || roundedAllocations == 0
                     || random.nextDouble() > assignments.get(assignment)) {
                     unassign(assignment);
                     assignUnderSubscribedNodes(Set.of(n));
                 } else {
-                    // TODO: add m.findThreadCount similar to L385 in Python
-                    roundedAllocations = Math.min(roundedAllocations, resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation());
+                    roundedAllocations = m.findOptimalAllocations(
+                        Math.min(roundedAllocations, resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation()),
+                        resourceTracker.remainingNodeMemory.get(n)
+                    );
                     assignModelToNode(m, n, roundedAllocations);
                     unassignOversizedModels(n);
                     assignExcessCores(n);
@@ -299,8 +300,8 @@ class RandomizedAssignmentRounding {
         private void unassignOversizedModels(Node n) {
             for (AssignmentPlan.Deployment m : deployments) {
                 Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
-                // TODO: use m.memoryUsage(numberOfAllocations) or something similar instead of m.memoryBytes() here
-                if (assignments.get(assignment) < 1.0 && m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)) {
+                int roundedAllocations = (int) Math.ceil(allocations.get(assignment));
+                if (assignments.get(assignment) < 1.0 && m.minimumMemoryRequiredBytes() > resourceTracker.remainingNodeMemory.get(n)) {
                     unassign(assignment);
                 }
             }
@@ -344,8 +345,7 @@ class RandomizedAssignmentRounding {
                 .toList()) {
                 for (Node n : nodes.stream()
                     .filter(
-                        // TODO: use m.memoryUsage(numberOfAllocations) or something similar instead of m.memoryBytes() here
-                        n -> resourceTracker.remainingNodeMemory.get(n) >= m.memoryBytes()
+                        n -> resourceTracker.remainingNodeMemory.get(n) >= m.minimumMemoryRequiredBytes()
                             && resourceTracker.remainingNodeCores.get(n) >= m.threadsPerAllocation()
                             && resultAllocations.get(Tuple.tuple(m, n)) == 0
                     )
@@ -361,10 +361,15 @@ class RandomizedAssignmentRounding {
                         )
                     )
                     .toList()) {
-                    // TODO: add m.findThreadCount similar to L153 in Python
                     int assigningAllocations = Math.min(
                         resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
-                        resourceTracker.remainingModelAllocations.get(m)
+                        Math.min(
+                            resourceTracker.remainingModelAllocations.get(m),
+                            m.findOptimalAllocations(
+                                resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
+                                resourceTracker.remainingModelAllocations.get(m)
+                            )
+                        )
                     );
                     resourceTracker.assign(m, n, assigningAllocations);
                     resultAllocations.put(Tuple.tuple(m, n), assigningAllocations);
@@ -434,8 +439,7 @@ class RandomizedAssignmentRounding {
         void assign(AssignmentPlan.Deployment m, Node n, int allocations) {
             if (assignments.contains(Tuple.tuple(m, n)) == false) {
                 assignments.add(Tuple.tuple(m, n));
-                // TODO: use m.memoryUsage(numberOfAllocations) or something similar instead of m.memoryBytes() here
-                remainingNodeMemory.compute(n, (k, v) -> v - m.memoryBytes());
+                remainingNodeMemory.compute(n, (k, v) -> v - m.estimateMemoryUsageBytes(allocations));
             }
             remainingNodeCores.compute(n, (k, v) -> v - allocations * m.threadsPerAllocation());
             remainingModelAllocations.compute(m, (k, v) -> v - allocations);

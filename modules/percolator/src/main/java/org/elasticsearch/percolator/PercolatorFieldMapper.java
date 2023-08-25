@@ -420,8 +420,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, clusterTransportVersion.get(), queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
-        Query query = queryBuilderForProcessing.toQuery(executionContext);
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(wrapAllEmptyTextFields(executionContext));
+        Query query = queryBuilderForProcessing.toQuery(wrapAllEmptyTextFields(executionContext));
         processQuery(query, context);
     }
 
@@ -569,5 +569,18 @@ public class PercolatorFieldMapper extends FieldMapper {
         System.arraycopy(minEncoded, 0, bytes, offset, minEncoded.length);
         System.arraycopy(maxEncoded, 0, bytes, BinaryRange.BYTES + offset, maxEncoded.length);
         return bytes;
+    }
+
+    // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+    // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+    // Consequently, we may erroneously skip expanding those term fields.
+    // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+    static SearchExecutionContext wrapAllEmptyTextFields(SearchExecutionContext searchExecutionContext) {
+        return new SearchExecutionContext(searchExecutionContext) {
+            @Override
+            public boolean fieldExistsInIndex(String fieldname) {
+                return true;
+            }
+        };
     }
 }

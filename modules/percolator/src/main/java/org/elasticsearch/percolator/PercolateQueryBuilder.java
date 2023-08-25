@@ -621,6 +621,15 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         return new SearchExecutionContext(delegate) {
 
             @Override
+            // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+            // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+            // Consequently, we may erroneously skip expanding those term fields.
+            // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+            public boolean fieldExistsInIndex(String fieldname) {
+                return true;
+            }
+
+            @Override
             public IndexReader getIndexReader() {
                 // The reader that matters in this context is not the reader of the shard but
                 // the reader of the MemoryIndex. We just use `null` for simplicity.

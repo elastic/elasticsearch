@@ -1,7 +1,7 @@
 param($GradleTasks='destructiveDistroTest')
 
 # TODO remove this
-& bash.exe .\.ci\packer_cache.sh
+& powershell .\.ci\packer_cache.ps1
 
 If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 {

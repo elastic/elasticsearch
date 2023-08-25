@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
@@ -61,6 +62,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         IndexMode.TIME_SERIES
     );
 
+    /*
+     * Synthetic source was added as the default for TSDB in v.8.7. The legacy field mapper below
+     * is used in bwc tests and mixed clusters containing time series indexes created in an earlier version.
+     */
+    private static final SourceFieldMapper TSDB_LEGACY_DEFAULT = new SourceFieldMapper(
+        null,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        IndexMode.TIME_SERIES
+    );
+
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
 
@@ -86,10 +99,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             .setMergeValidator(
                 (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
             );
+
+        /*
+         * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
+         * source mode.
+         */
         private final Parameter<Mode> mode = new Parameter<>(
             "mode",
             true,
-            () -> getIndexMode() == IndexMode.TIME_SERIES ? Mode.SYNTHETIC : null,
+            () -> null,
             (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
             m -> toType(m).enabled.explicit() ? null : toType(m).mode,
             (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -136,10 +154,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build() {
-            if (enabled.getValue().explicit() && mode.get() != null) {
+            if (enabled.getValue().explicit()) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     throw new MapperParsingException("Time series indices only support synthetic source");
-                } else {
+                }
+                if (mode.get() != null) {
                     throw new MapperParsingException("Cannot set both [mode] and [enabled] parameters");
                 }
             }
@@ -165,7 +184,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT,
+        c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
+            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
+            : DEFAULT,
         c -> new Builder(c.getIndexSettings().getMode())
     );
 
@@ -217,7 +238,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.sourceFilter = buildSourceFilter(includes, excludes);
         this.includes = includes;
         this.excludes = excludes;
-        if (this.sourceFilter != null && mode == Mode.SYNTHETIC) {
+        if (this.sourceFilter != null && (mode == Mode.SYNTHETIC || indexMode == IndexMode.TIME_SERIES)) {
             throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
         this.complete = stored() && sourceFilter == null;

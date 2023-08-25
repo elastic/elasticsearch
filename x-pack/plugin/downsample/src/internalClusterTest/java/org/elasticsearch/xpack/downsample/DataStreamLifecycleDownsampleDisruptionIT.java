@@ -1,0 +1,190 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.downsample;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
+public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleDisruptionIT.class);
+    public static final int DOC_COUNT = 10_000;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+        return settings.build();
+    }
+
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
+    public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
+        try (InternalTestCluster cluster = internalCluster()) {
+            final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
+            cluster.startDataOnlyNodes(3);
+            ensureStableCluster(cluster.size());
+            ensureGreen();
+
+            final String dataStreamName = "metrics-foo";
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .downsampling(
+                    new DataStreamLifecycle.Downsampling(
+                        List.of(
+                            new DataStreamLifecycle.Downsampling.Round(
+                                TimeValue.timeValueMillis(0),
+                                new DownsampleConfig(new DateHistogramInterval("1s"))
+                            )
+                        )
+                    )
+                )
+                .build();
+            int indexedDocs = DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+
+            client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+
+            final CountDownLatch disruptionStart = new CountDownLatch(1);
+            final CountDownLatch disruptionEnd = new CountDownLatch(1);
+            final String sourceIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
+                @Override
+                public void disruptionStart() {
+                    disruptionStart.countDown();
+                }
+
+                @Override
+                public void disruptionEnd() {
+                    disruptionEnd.countDown();
+                }
+            }, masterNodes.get(0), (ignored) -> {
+                try {
+                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
+                        @Override
+                        public boolean validateClusterForming() {
+                            return true;
+                        }
+                    });
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            })).start();
+
+            waitUntil(
+                () -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty(),
+                60,
+                TimeUnit.SECONDS
+            );
+            ensureStableCluster(cluster.numDataAndMasterNodes());
+
+            final String targetIndex = "downsample-1s-" + sourceIndex;
+            assertBusy(() -> {
+                try {
+                    assertTargetIndex(cluster, targetIndex, indexedDocs);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
+
+    private void assertTargetIndex(final InternalTestCluster cluster, final String targetIndex, int indexedDocs) {
+        final GetIndexResponse getIndexResponse = cluster.client()
+            .admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices(targetIndex))
+            .actionGet();
+        assertEquals(1, getIndexResponse.indices().length);
+        final SearchResponse targetIndexSearch = cluster.client()
+            .prepareSearch(targetIndex)
+            .setQuery(new MatchAllQueryBuilder())
+            .setSize(Math.min(DOC_COUNT, indexedDocs))
+            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
+            .get();
+        assertTrue(targetIndexSearch.getHits().getHits().length > 0);
+    }
+
+    interface DisruptionListener {
+        void disruptionStart();
+
+        void disruptionEnd();
+    }
+
+    private class Disruptor implements Runnable {
+        final InternalTestCluster cluster;
+        private final String sourceIndex;
+        private final DisruptionListener listener;
+        private final String clientNode;
+        private final Consumer<String> disruption;
+
+        private Disruptor(
+            final InternalTestCluster cluster,
+            final String sourceIndex,
+            final DisruptionListener listener,
+            final String clientNode,
+            final Consumer<String> disruption
+        ) {
+            this.cluster = cluster;
+            this.sourceIndex = sourceIndex;
+            this.listener = listener;
+            this.clientNode = clientNode;
+            this.disruption = disruption;
+        }
+
+        @Override
+        public void run() {
+            listener.disruptionStart();
+            try {
+                final String candidateNode = cluster.client(clientNode)
+                    .admin()
+                    .cluster()
+                    .prepareSearchShards(sourceIndex)
+                    .get()
+                    .getNodes()[0].getName();
+                logger.info("Candidate node [" + candidateNode + "]");
+                disruption.accept(candidateNode);
+                ensureGreen(sourceIndex);
+                ensureStableCluster(cluster.numDataAndMasterNodes(), clientNode);
+
+            } catch (Exception e) {
+                logger.error("Ignoring Error while injecting disruption [" + e.getMessage() + "]");
+            } finally {
+                listener.disruptionEnd();
+            }
+        }
+    }
+}

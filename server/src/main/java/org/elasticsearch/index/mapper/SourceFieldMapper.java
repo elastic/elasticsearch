@@ -66,7 +66,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      * Synthetic source was added as the default for TSDB in v.8.7. The legacy field mapper below
      * is used in bwc tests and mixed clusters containing time series indexes created in an earlier version.
      */
-    private static final SourceFieldMapper TSDB_NO_SYNTHETIC = new SourceFieldMapper(
+    private static final SourceFieldMapper TSDB_LEGACY_DEFAULT = new SourceFieldMapper(
         null,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
@@ -185,7 +185,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
-            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_NO_SYNTHETIC
+            ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
             : DEFAULT,
         c -> new Builder(c.getIndexSettings().getMode())
     );

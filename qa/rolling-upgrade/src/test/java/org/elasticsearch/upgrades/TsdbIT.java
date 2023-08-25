@@ -126,67 +126,123 @@ public class TsdbIT extends AbstractRollingTestCase {
             "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
             UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
         );
+        String dataStreamName = "k8s";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             final String INDEX_TEMPLATE = """
                 {
-                    "index_patterns": ["k8s*"],
+                    "index_patterns": ["$PATTERN"],
                     "template": $TEMPLATE,
                     "data_stream": {
                     }
                 }""";
             // Add composable index template
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/1");
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE));
+            String templateName = "1";
+            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
+            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
             assertOK(client().performRequest(putIndexTemplateRequest));
 
-            var bulkRequest = new Request("POST", "/k8s/_bulk");
-            bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
-            bulkRequest.addParameter("refresh", "true");
-            var response = client().performRequest(bulkRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-
-            var dataStreams = getDataStream();
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("1"));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-            String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-            assertThat(firstBackingIndex, backingIndexEqualTo("k8s", 1));
-            assertSearch(8);
+            performOldClustertOperations(templateName, dataStreamName);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            ensureHealth("k8s", request -> request.addParameter("wait_for_status", "yellow"));
-            if (FIRST_MIXED_ROUND) {
-                indexDoc();
-            }
-            assertSearch(9);
+            performMixedClusterOperations(dataStreamName);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            ensureGreen("k8s");
-            var rolloverRequest = new Request("POST", "/k8s/_rollover");
-            assertOK(client().performRequest(rolloverRequest));
-
-            var dataStreams = getDataStream();
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
-            String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
-            assertThat(secondBackingIndex, backingIndexEqualTo("k8s", 2));
-            indexDoc();
-            assertSearch(10);
+            performUpgradedClusterOperations(dataStreamName);
         }
     }
 
-    private static void indexDoc() throws IOException {
-        var indexRequest = new Request("POST", "/k8s/_doc");
+    // This causes rollover to fail with: backing index [.ds-test-with-component-template-2023.08.25-000001] with range
+    // [-9999-01-01T00:00:00.000Z TO 9999-12-31T23:59:59.999Z] is overlapping with backing index [.ds-test-with-component-template-
+    // 2023.08.25-000002] with range [2023-08-25T05:54:36.000Z TO 2023-08-25T09:54:36.000Z]"
+    // (The fix is that upon upgrading the invalid tsdb data stream be downgraded)
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98833")
+    public void testTsdbDataStreamWithComponentTemplate() throws Exception {
+        assumeTrue(
+            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+        );
+        String dataStreamName = "test-with-component-template";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            final String COMPONENT_TEMPLATE = """
+                    {
+                        "template": $TEMPLATE
+                    }
+                """;
+            var putComponentTemplate = new Request("POST", "/_component_template/1");
+            String template = TEMPLATE.replace("\"time_series\"", "\"time_series\", \"routing_path\": [\"k8s.pod.uid\"]");
+            putComponentTemplate.setJsonEntity(COMPONENT_TEMPLATE.replace("$TEMPLATE", template));
+            assertOK(client().performRequest(putComponentTemplate));
+            final String INDEX_TEMPLATE = """
+                {
+                    "index_patterns": ["$PATTERN"],
+                    "composed_of": ["1"],
+                    "data_stream": {
+                    }
+                }""";
+            // Add composable index template
+            String templateName = "2";
+            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
+            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$PATTERN", dataStreamName));
+            assertOK(client().performRequest(putIndexTemplateRequest));
+
+            performOldClustertOperations(templateName, dataStreamName);
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            performMixedClusterOperations(dataStreamName);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            performUpgradedClusterOperations(dataStreamName);
+        }
+    }
+
+    private void performUpgradedClusterOperations(String dataStreamName) throws IOException {
+        ensureGreen(dataStreamName);
+        var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+        assertOK(client().performRequest(rolloverRequest));
+
+        var dataStreams = getDataStream(dataStreamName);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
+        String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
+        assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
+        indexDoc(dataStreamName);
+        assertSearch(dataStreamName, 10);
+    }
+
+    private static void performMixedClusterOperations(String dataStreamName) throws IOException {
+        ensureHealth(dataStreamName, request -> request.addParameter("wait_for_status", "yellow"));
+        if (FIRST_MIXED_ROUND) {
+            indexDoc(dataStreamName);
+        }
+        assertSearch(dataStreamName, 9);
+    }
+
+    private static void performOldClustertOperations(String templateName, String dataStreamName) throws IOException {
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
+        bulkRequest.addParameter("refresh", "true");
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+
+        var dataStreams = getDataStream(dataStreamName);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateName));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+        assertThat(firstBackingIndex, backingIndexEqualTo(dataStreamName, 1));
+        assertSearch(dataStreamName, 8);
+    }
+
+    private static void indexDoc(String dataStreamName) throws IOException {
+        var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(Instant.now())));
         var response = client().performRequest(indexRequest);
         assertOK(response);
     }
 
-    private static void assertSearch(int expectedHitCount) throws IOException {
-        var searchRequest = new Request("GET", "k8s/_search");
+    private static void assertSearch(String dataStreamName, int expectedHitCount) throws IOException {
+        var searchRequest = new Request("GET", dataStreamName + "/_search");
         var response = client().performRequest(searchRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
@@ -197,8 +253,8 @@ public class TsdbIT extends AbstractRollingTestCase {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
-    private static Map<String, Object> getDataStream() throws IOException {
-        var getDataStreamsRequest = new Request("GET", "/_data_stream");
+    private static Map<String, Object> getDataStream(String dataStreamName) throws IOException {
+        var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
         var response = client().performRequest(getDataStreamsRequest);
         assertOK(response);
         return entityAsMap(response);

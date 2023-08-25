@@ -99,7 +99,7 @@ public class MapsTests extends ESTestCase {
         assertMapEntriesAndImmutability(map, entries);
     }
 
-    public void testDeepEquals() {
+    public void testDeepEqualsMapsWithArrayValues() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
         final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
@@ -125,7 +125,7 @@ public class MapsTests extends ESTestCase {
         assertFalse(Maps.deepEquals(map, mapModified));
     }
 
-    public void testDeepEqualsMapsSimple() {
+    public void testDeepEqualsMapsWithMapValuesSimple() {
         Map<String, Map<String, int[]>> m1 = Map.of("a", Map.of("b", new int[] { 1 }));
         Map<String, Map<String, int[]>> m2 = Map.of("a", Map.of("b", new int[] { 1 }));
         assertTrue(Maps.deepEquals(m1, m2));

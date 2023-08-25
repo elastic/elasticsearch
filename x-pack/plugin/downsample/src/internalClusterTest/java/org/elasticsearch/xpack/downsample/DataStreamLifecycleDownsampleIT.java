@@ -9,57 +9,34 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -103,8 +80,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
             .build();
 
-        putTSDBIndexTemplate("metrics-foo*", lifecycle);
-        indexDocuments(dataStreamName);
+        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
         String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
@@ -166,9 +142,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
                 )
             )
             .build();
-
-        putTSDBIndexTemplate("metrics-bar*", lifecycle);
-        indexDocuments(dataStreamName);
+        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
         String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
@@ -227,8 +201,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
             .build();
 
-        putTSDBIndexTemplate("metrics-baz*", lifecycle);
-        indexDocuments(dataStreamName);
+        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
         String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
@@ -300,116 +273,5 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             assertThat(backingIndices.get(0).getName(), is(thirtySecondsDownsampleIndex));
         }, 30, TimeUnit.SECONDS);
-    }
-
-    private static void putTSDBIndexTemplate(String pattern, DataStreamLifecycle lifecycle) throws IOException {
-        Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
-
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
-
-        mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
-        mapping.startObject(FIELD_DIMENSION_2).field("type", "long").field("time_series_dimension", true).endObject();
-
-        mapping.startObject(FIELD_METRIC_COUNTER)
-            .field("type", "double") /* numeric label indexed as a metric */
-            .field("time_series_metric", "counter")
-            .endObject();
-
-        mapping.endObject().endObject().endObject();
-
-        putComposableIndexTemplate(
-            "id1",
-            CompressedXContent.fromJSON(Strings.toString(mapping)),
-            List.of(pattern),
-            settings.build(),
-            null,
-            lifecycle
-        );
-    }
-
-    private void indexDocuments(String dataStreamName) {
-        final Supplier<XContentBuilder> sourceSupplier = () -> {
-            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), System.currentTimeMillis());
-            double counterValue = DATE_FORMATTER.parseMillis(ts);
-            final List<String> dimensionValues = new ArrayList<>(5);
-            for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                dimensionValues.add(randomAlphaOfLength(6));
-            }
-            try {
-                return XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(FIELD_TIMESTAMP, ts)
-                    .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                    .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
-                    .field(FIELD_METRIC_COUNTER, counterValue)
-                    .endObject();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        };
-        bulkIndex(dataStreamName, sourceSupplier, DOC_COUNT);
-    }
-
-    private String randomDateForInterval(final DateHistogramInterval interval, final long startTime) {
-        long endTime = startTime + 10 * interval.estimateMillis();
-        return randomDateForRange(startTime, endTime);
-    }
-
-    private String randomDateForRange(long start, long end) {
-        return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
-    }
-
-    private int bulkIndex(String dataStreamName, Supplier<XContentBuilder> docSourceSupplier, int docCount) {
-        BulkRequestBuilder bulkRequestBuilder = internalCluster().client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-            XContentBuilder source = docSourceSupplier.get();
-            indexRequest.source(source);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        int duplicates = 0;
-        for (BulkItemResponse response : bulkResponse.getItems()) {
-            if (response.isFailed()) {
-                if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
-                    // A duplicate event was created by random generator. We should not fail for this
-                    // reason.
-                    logger.debug("-> failed to insert a duplicate: [{}]", response.getFailureMessage());
-                    duplicates++;
-                } else {
-                    fail("Failed to index data: " + bulkResponse.buildFailureMessage());
-                }
-            }
-        }
-        int docsIndexed = docCount - duplicates;
-        logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
-        return docsIndexed;
-    }
-
-    static void putComposableIndexTemplate(
-        String id,
-        @Nullable CompressedXContent mappings,
-        List<String> patterns,
-        @Nullable Settings settings,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
-    ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
-        request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : mappings, null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
-        );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 }

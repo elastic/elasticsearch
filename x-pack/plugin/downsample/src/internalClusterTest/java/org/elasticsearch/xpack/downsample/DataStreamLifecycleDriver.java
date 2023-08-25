@@ -60,7 +60,7 @@ public class DataStreamLifecycleDriver {
 
     public static int setupDataStreamAndIngestDocs(Client client, String dataStreamName, DataStreamLifecycle lifecycle, int docCount)
         throws IOException {
-        putTSDBIndexTemplate(client, "metrics-foo*", lifecycle);
+        putTSDBIndexTemplate(client, dataStreamName + "*", lifecycle);
         return indexDocuments(client, dataStreamName, docCount);
     }
 
@@ -92,7 +92,7 @@ public class DataStreamLifecycleDriver {
         );
     }
 
-    static void putComposableIndexTemplate(
+    private static void putComposableIndexTemplate(
         Client client,
         String id,
         @Nullable CompressedXContent mappings,

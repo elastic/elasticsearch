@@ -45,12 +45,11 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
@@ -94,17 +93,17 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public String[] listAll() throws IOException {
-        final Set<String> localFiles;
+        final String[] localFiles;
         synchronized (this) {
             if (this.localFiles.isEmpty()) {
                 // we haven't written anything yet, fallback on the empty directory
                 return EmptyDirectory.INSTANCE.listAll();
             }
             // need to be synchronized since rename() is a two-step operation
-            localFiles = new HashSet<>(this.localFiles.keySet());
+            localFiles = this.localFiles.keySet().toArray(String[]::new);
         }
-
-        return localFiles.stream().sorted(String::compareTo).toArray(String[]::new);
+        Arrays.sort(localFiles);
+        return localFiles;
     }
 
     @Override

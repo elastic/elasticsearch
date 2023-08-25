@@ -21,13 +21,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -330,8 +330,7 @@ public class DesiredBalanceComputer {
         }
         iterations.inc(i);
 
-        final var assignments = new HashMap<ShardId, ShardAssignment>();
-        collectShardAssignments(routingNodes, assignments);
+        final var assignments = collectShardAssignments(routingNodes);
 
         for (var shard : routingNodes.unassigned().ignored()) {
             var info = shard.unassignedInfo();
@@ -361,11 +360,14 @@ public class DesiredBalanceComputer {
         return new DesiredBalance(lastConvergedIndex, assignments);
     }
 
-    private static void collectShardAssignments(RoutingNodes routingNodes, HashMap<ShardId, ShardAssignment> assignments) {
-        assert routingNodes.getAssignedShards().values().stream().flatMap(Collection::stream).allMatch(ShardRouting::started) : assignments;
-        for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
-            assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
+    private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {
+        final var entries = routingNodes.getAssignedShards().entrySet();
+        assert entries.stream().flatMap(t -> t.getValue().stream()).allMatch(ShardRouting::started) : routingNodes;
+        final Map<ShardId, ShardAssignment> res = Maps.newHashMapWithExpectedSize(entries.size());
+        for (var shardAndAssignments : entries) {
+            res.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
         }
+        return res;
     }
 
     private record ShardRoutings(List<ShardRouting> unassigned, List<ShardRouting> assigned) {

@@ -514,7 +514,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * Used for searches that are either not cross-cluster or CCS with minimize_roundtrips=false.
+         * Used for searches that are either not cross-cluster.
          * For CCS minimize_roundtrips=true use {@code Clusters(OriginalIndices, Map<String, OriginalIndices>, boolean)}
          * @param total total number of clusters in the search
          * @param successful number of successful clusters in the search

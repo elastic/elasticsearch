@@ -1,0 +1,6 @@
+pr: 98899
+summary: Esql eager nans to nulls
+area: ES|QL
+type: enhancement
+issues:
+ - 98698

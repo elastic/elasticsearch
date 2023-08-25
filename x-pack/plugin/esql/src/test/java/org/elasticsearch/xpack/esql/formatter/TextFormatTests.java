@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -48,20 +50,30 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvEscaping() {
-        assertEquals("string", CSV.maybeEscape("string", CSV.delimiter()));
-        assertEquals("", CSV.maybeEscape("", CSV.delimiter()));
-        assertEquals("\"\"\"\"", CSV.maybeEscape("\"", CSV.delimiter()));
-        assertEquals("\"\"\",\"\"\"", CSV.maybeEscape("\",\"", CSV.delimiter()));
-        assertEquals("\"\"\"quo\"\"ted\"\"\"", CSV.maybeEscape("\"quo\"ted\"", CSV.delimiter()));
-        assertEquals("\"one;two\"", CSV.maybeEscape("one;two", ';'));
+        assertEscapedCorrectly("string", CSV, CSV.delimiter(), "string");
+        assertEscapedCorrectly("", CSV, CSV.delimiter(), "");
+        assertEscapedCorrectly("\"", CSV, CSV.delimiter(), "\"\"\"\"");
+        assertEscapedCorrectly("\",\"", CSV, CSV.delimiter(), "\"\"\",\"\"\"");
+        assertEscapedCorrectly("\"quo\"ted\"", CSV, CSV.delimiter(), "\"\"\"quo\"\"ted\"\"\"");
+        assertEscapedCorrectly("one;two", CSV, ';', "\"one;two\"");
     }
 
     public void testTsvEscaping() {
-        assertEquals("string", TSV.maybeEscape("string", null));
-        assertEquals("", TSV.maybeEscape("", null));
-        assertEquals("\"", TSV.maybeEscape("\"", null));
-        assertEquals("\\t", TSV.maybeEscape("\t", null));
-        assertEquals("\\n\"\\t", TSV.maybeEscape("\n\"\t", null));
+        assertEscapedCorrectly("string", TSV, null, "string");
+        assertEscapedCorrectly("", TSV, null, "");
+        assertEscapedCorrectly("\"", TSV, null, "\"");
+        assertEscapedCorrectly("\t", TSV, null, "\\t");
+        assertEscapedCorrectly("\n\"\t", TSV, null, "\\n\"\\t");
+    }
+
+    private static void assertEscapedCorrectly(String inputString, TextFormat format, Character delimiter, String expectedString) {
+        try (var writer = new StringWriter()) {
+            format.writeEscaped(inputString, delimiter, writer);
+            writer.flush();
+            assertEquals(expectedString, writer.toString());
+        } catch (IOException e) {
+            throw new AssertionError("impossible", e);
+        }
     }
 
     public void testCsvFormatWithEmptyData() {

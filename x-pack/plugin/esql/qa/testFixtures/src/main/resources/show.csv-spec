@@ -9,7 +9,7 @@ showFunctions
 show functions;
 
   name:keyword           |           synopsis:keyword
-abs                      |abs(arg1)
+abs                      |abs(n)
 acos                     |acos(arg1)
 asin                     |asin(arg1)
 atan                     |atan(arg1)

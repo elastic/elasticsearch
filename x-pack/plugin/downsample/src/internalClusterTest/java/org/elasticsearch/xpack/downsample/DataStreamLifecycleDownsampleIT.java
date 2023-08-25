@@ -70,7 +70,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public static final String FIELD_DIMENSION_1 = "dimension_kw";
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_METRIC_COUNTER = "counter";
-    public static final int DOC_COUNT = 1000;
+    public static final int DOC_COUNT = 50_000;
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     @Override

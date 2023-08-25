@@ -40,13 +40,13 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         var eval = field.get();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return () -> new SqrtDoubleEvaluator(eval);
+            return () -> new SqrtDoubleEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return () -> new SqrtIntEvaluator(eval);
+            return () -> new SqrtIntEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.LONG) {
-            return () -> new SqrtLongEvaluator(eval);
+            return () -> new SqrtLongEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return () -> new SqrtUnsignedLongEvaluator(eval);
@@ -55,13 +55,19 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = { ArithmeticException.class })
     static double process(double val) {
+        if (val < 0) {
+            throw new ArithmeticException("square root of negative number");
+        }
         return Math.sqrt(val);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static double process(long val) {
+        if (val < 0) {
+            throw new ArithmeticException("square root of negative number");
+        }
         return Math.sqrt(val);
     }
 
@@ -70,8 +76,11 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static double process(int val) {
+        if (val < 0) {
+            throw new ArithmeticException("square root of negative number");
+        }
         return Math.sqrt(val);
     }
 

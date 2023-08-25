@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -30,19 +29,62 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Sqrt of Double", () -> {
-            // TODO: include larger values here
-            double arg = randomDouble();
+            double arg;
+            if (randomBoolean()) {
+                arg = randomDouble();
+            } else {
+                arg = 1 / randomDouble();
+            }
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "SqrtDoubleEvaluator[val=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
                 equalTo(Math.sqrt(arg))
             );
+        }), new TestCaseSupplier("Sqrt of negative Double", () -> {
+            double arg = randomDoubleBetween(Double.NEGATIVE_INFINITY, -1, false);
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+                "SqrtDoubleEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("java.lang.ArithmeticException: square root of negative number");
+        }), new TestCaseSupplier("Sqrt of int", () -> {
+            int arg = randomIntBetween(0, Integer.MAX_VALUE);
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+                "SqrtIntEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(Math.sqrt(arg))
+            );
+        }), new TestCaseSupplier("Sqrt of negative int", () -> {
+            int arg = randomIntBetween(Integer.MIN_VALUE, -1);
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+                "SqrtIntEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("java.lang.ArithmeticException: square root of negative number");
+        }), new TestCaseSupplier("Sqrt of long", () -> {
+            long arg = randomLongBetween(0, Long.MAX_VALUE);
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.LONG, "arg")),
+                "SqrtLongEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(Math.sqrt(arg))
+            );
+        }), new TestCaseSupplier("Sqrt of negative long", () -> {
+            long arg = randomLongBetween(Long.MIN_VALUE, -1);
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.LONG, "arg")),
+                "SqrtLongEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("java.lang.ArithmeticException: square root of negative number");
         })));
-    }
-
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        return equalTo(Math.sqrt((Double) typedData.get(0).data()));
     }
 
     @Override

@@ -64,6 +64,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -71,6 +72,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -493,7 +495,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
                     // to kick off downsampling
                     affectedIndices.add(index);
-                    DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
+                    DownsampleAction.Request request =
+                        new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
                     transportActionsDeduplicator.executeOnce(
                         request,
                         new ErrorRecordingActionListener(indexName, errorStore),
@@ -839,12 +842,67 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         client.admin().indices().addBlock(addIndexBlockRequest, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
-                logger.info(
-                    "Data stream lifecycle service successfully added block [{}] for index index [{}]",
-                    addIndexBlockRequest.getBlock(),
-                    targetIndex
-                );
-                listener.onResponse(null);
+                if (addIndexBlockResponse.isAcknowledged()) {
+                    logger.info(
+                        "Data stream lifecycle service successfully added block [{}] for index index [{}]",
+                        addIndexBlockRequest.getBlock(),
+                        targetIndex
+                    );
+                    listener.onResponse(null);
+                } else {
+                    Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()
+                        .stream()
+                        .filter(blockResult -> blockResult.getIndex().getName().equals(targetIndex))
+                        .findAny();
+                    if (resultForTargetIndex.isEmpty()) {
+                        // blimey
+                        // this is weird, we don't have a result for our index, so let's treat this as a success and the next DSL run will
+                        // check if we need to retry adding the block for this index
+                        logger.trace(
+                            "Data stream lifecycle service received an unacknowledged response when attempting to add the "
+                                + "read-only block to index [{}], but the response didn't contain an explicit result for the index.",
+                            targetIndex
+                        );
+                        logger.error(
+                            "Data stream lifecycle service request to mark index [{}] as readonly was not acknowledged",
+                            targetIndex
+                        );
+                        listener.onFailure(
+                            new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
+                        );
+                    } else if (resultForTargetIndex.get().hasFailures()) {
+                        AddIndexBlockResponse.AddBlockResult blockResult = resultForTargetIndex.get();
+                        if (blockResult.getException() != null) {
+                            listener.onFailure(blockResult.getException());
+                        } else {
+                            List<AddIndexBlockResponse.AddBlockShardResult.Failure> shardFailures = new ArrayList<>(
+                                blockResult.getShards().length
+                            );
+                            for (AddIndexBlockResponse.AddBlockShardResult shard : blockResult.getShards()) {
+                                if (shard.hasFailures()) {
+                                    shardFailures.addAll(Arrays.asList(shard.getFailures()));
+                                }
+                            }
+                            assert shardFailures.isEmpty() == false
+                                : "The block response must have shard failures as the global "
+                                    + "exception is null. The block result is: "
+                                    + blockResult;
+                            String errorMessage = org.elasticsearch.common.Strings.collectionToDelimitedString(
+                                shardFailures.stream().map(org.elasticsearch.common.Strings::toString).collect(Collectors.toList()),
+                                ","
+                            );
+                            listener.onFailure(new ElasticsearchException(errorMessage));
+                        }
+                    } else {
+                        logger.error(
+                            "Data stream lifecycle service request to mark index [{}] as readonly was not acknowledged",
+                            targetIndex
+                        );
+                        listener.onFailure(
+                            new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
+                        );
+                    }
+                }
             }
 
             @Override
@@ -870,7 +928,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
+                if (acknowledgedResponse.isAcknowledged()) {
+                    logger.info("Data stream lifecycle successfully deleted index [{}] due to {}", targetIndex, reason);
+                } else {
+                    logger.trace(
+                        "The delete request for index [{}] was not acknowledged. Data stream lifecycle service will retry on the"
+                            + " next run if the index still exists",
+                        targetIndex
+                    );
+                }
                 listener.onResponse(null);
             }
 
@@ -907,6 +973,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         client.execute(DownsampleAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assert acknowledgedResponse.isAcknowledged() : "the downsample response is always acknowledged";
                 logger.info("Data stream lifecycle successfully downsampled index [{}] to index [{}]", sourceIndex, downsampleIndex);
                 listener.onResponse(null);
             }

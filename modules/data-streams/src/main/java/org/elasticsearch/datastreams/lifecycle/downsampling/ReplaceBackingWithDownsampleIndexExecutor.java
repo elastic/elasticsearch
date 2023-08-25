@@ -57,13 +57,21 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
         client.admin().indices().delete(new DeleteIndexRequest(task.getSourceBackingIndex()), new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                LOGGER.info(
-                    "Data stream lifecycle successfully deleted index [{}] due to being replaced by the downsampled index [{}] in"
-                        + " data stream [{}]",
-                    task.getSourceBackingIndex(),
-                    task.getDownsampleIndex(),
-                    task.getDataStreamName()
-                );
+                if (acknowledgedResponse.isAcknowledged()) {
+                    LOGGER.info(
+                        "Data stream lifecycle successfully deleted index [{}] due to being replaced by the downsampled index [{}] in"
+                            + " data stream [{}]",
+                        task.getSourceBackingIndex(),
+                        task.getDownsampleIndex(),
+                        task.getDataStreamName()
+                    );
+                } else {
+                    LOGGER.trace(
+                        "The delete request for index [{}] was not acknowledged. Data stream lifecycle service will retry on the"
+                            + " next run if the index still exists",
+                        task.getSourceBackingIndex()
+                    );
+                }
             }
 
             @Override

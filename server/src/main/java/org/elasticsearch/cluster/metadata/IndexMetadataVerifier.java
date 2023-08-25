@@ -18,6 +18,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -92,6 +93,9 @@ public class IndexMetadataVerifier {
         // invalid settings, since they are now removed the FilterAllocationDecider treats them as
         // regular attribute filters, and shards cannot be allocated.
         newMetadata = removeTierFiltering(newMetadata);
+        // Here we remove some invalid settings because of an issue with time series indices created
+        // without start and end time (see https://github.com/elastic/elasticsearch/issues/98833).
+        newMetadata = removeInvalidTimeSeriesIndexModeSettings(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
@@ -294,6 +298,25 @@ public class IndexMetadataVerifier {
             return indexMetadata;
         } else {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
+        }
+    }
+
+    /**
+     * @param indexMetadata The index metadata
+     * @return The index metadata without invalid settings
+     */
+    private static IndexMetadata removeInvalidTimeSeriesIndexModeSettings(final IndexMetadata indexMetadata) {
+        final Settings originalSettings = indexMetadata.getSettings();
+        if (IndexVersion.V_8_11_0.after(indexMetadata.getCreationVersion())
+            && indexMetadata.getIndexMode() == IndexMode.TIME_SERIES
+            && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
+            && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+            final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
+            settingsBuilder.remove(IndexSettings.MODE.getKey());
+            settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+            return IndexMetadata.builder(indexMetadata).settings(settingsBuilder.build()).build();
+        } else {
+            return indexMetadata;
         }
     }
 }

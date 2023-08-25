@@ -1,0 +1,130 @@
+---
+"create time series index without routing path":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.routing_path\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+
+---
+"create time series index without start and end time":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.time_series.start_time\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+
+---
+"create time series index without start time":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.time_series.start_time\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+
+---
+"create time series index without end time":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.time_series.end_time\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+
+---
+"create time series index with invalid start and end time":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      catch: /index.time_series.end_time must be larger than index.time_series.start_time/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-30T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+
+---
+"create time series index with all required settings":
+  - skip:
+      version: " - 8.10.99"
+      reason: fixed issue in 8.11.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              host:
+                type: keyword
+                time_series_dimension: true
+
+  - match: { acknowledged: true }

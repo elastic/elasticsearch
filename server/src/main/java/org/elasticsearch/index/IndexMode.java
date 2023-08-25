@@ -132,6 +132,8 @@ public enum IndexMode {
                 }
             }
             checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            checkSetting(settings, IndexSettings.TIME_SERIES_START_TIME);
+            checkSetting(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {

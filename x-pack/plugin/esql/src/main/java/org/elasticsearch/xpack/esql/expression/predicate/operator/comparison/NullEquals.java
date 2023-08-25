@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class NullEquals extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals {
     public NullEquals(Source source, Expression left, Expression right, ZoneId zoneId) {
@@ -23,10 +24,7 @@ public class NullEquals extends org.elasticsearch.xpack.ql.expression.predicate.
 
     @Override
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        if (e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return super.resolveInputType(e, paramOrdinal);
+        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
     }
 
     @Override

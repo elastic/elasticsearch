@@ -28,6 +28,30 @@ setup:
           - { "emp_no": 10, "name": "Jenny", "job": "IT Director", "tag": "foo bar" }
           - { "index": { } }
           - { "emp_no": 20, "name": "John", "job": "Payroll Specialist", "tag": "baz" }
+
+---
+"all":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | sort emp_no'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "job" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "job.raw" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "name" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "tag" }
+  - match: { columns.4.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "IT Director", "IT Director", "Jenny", "foo bar"] }
+  - match: { values.1: [ 20, "Payroll Specialist", "Payroll Specialist", "John", "baz"] }
+
+
 ---
 "filter by text":
   - do:
@@ -40,7 +64,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -59,7 +83,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -78,7 +102,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -97,7 +121,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "x" }
   - match: { columns.3.type: "text" }
 
@@ -116,7 +140,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -135,7 +159,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -154,7 +178,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -174,7 +198,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -195,7 +219,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 
@@ -215,7 +239,7 @@ setup:
   - match: { columns.1.name: "name" }
   - match: { columns.1.type: "keyword" }
   - match: { columns.2.name: "job" }
-  - match: { columns.2.type: "keyword" }
+  - match: { columns.2.type: "text" }
   - match: { columns.3.name: "tag" }
   - match: { columns.3.type: "text" }
 

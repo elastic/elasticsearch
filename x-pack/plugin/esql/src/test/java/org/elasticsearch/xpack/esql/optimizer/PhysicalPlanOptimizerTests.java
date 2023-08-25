@@ -156,7 +156,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         allFieldRowSize = mapping.values()
             .stream()
-            .mapToInt(f -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())))
+            .mapToInt(
+                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
+                    .values()
+                    .stream()
+                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
+                    .sum())
+            )
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
@@ -206,14 +212,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(
-            Sets.difference(allFieldsExcludingTextWithExact(mapping), Set.of("emp_no")),
-            Sets.newHashSet(names(restExtract.attributesToExtract()))
-        );
+        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
         assertEquals(Set.of("emp_no"), Sets.newHashSet(names(extract.attributesToExtract())));
 
         var query = as(extract.child(), EsQueryExec.class);
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES + allFieldRowSize));
+    }
+
+    private Set<String> allFields(Map<String, EsField> mapping) {
+        Set<String> result = new HashSet<>();
+        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
+            String key = entry.getKey();
+            result.add(key);
+            for (Map.Entry<String, EsField> sub : entry.getValue().getProperties().entrySet()) {
+                result.add(key + "." + sub.getKey());
+            }
+        }
+        return result;
     }
 
     public void testExactlyOneExtractorPerFieldWithPruning() {
@@ -233,31 +248,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(
-            Sets.difference(allFieldsExcludingTextWithExact(mapping), Set.of("emp_no")),
-            Sets.newHashSet(names(restExtract.attributesToExtract()))
-        );
+        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
         // An int for doc id and one for c
         assertThat(query.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
-    }
-
-    private Set<String> allFieldsExcludingTextWithExact(Map<String, EsField> mapping) {
-        Set<String> result = new HashSet<>();
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = entry.getKey();
-            EsField field = entry.getValue();
-            if (field.getDataType() != DataTypes.TEXT || field.getProperties().isEmpty()) {
-                result.add(name);
-            } else {
-                for (String s : entry.getValue().getProperties().keySet()) {
-                    result.add(entry.getKey() + "." + s);
-                }
-            }
-        }
-        return result;
     }
 
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
@@ -393,7 +389,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -423,7 +419,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -880,7 +876,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
 
         var source = source(extract.child());

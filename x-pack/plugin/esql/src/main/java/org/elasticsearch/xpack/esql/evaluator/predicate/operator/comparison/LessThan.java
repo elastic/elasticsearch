@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class LessThan extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan {
 
@@ -26,10 +27,7 @@ public class LessThan extends org.elasticsearch.xpack.ql.expression.predicate.op
 
     @Override
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        if (e instanceof FieldAttribute fa && fa.dataType() == DataTypes.TEXT) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return super.resolveInputType(e, paramOrdinal);
+        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
     }
 
     @Override

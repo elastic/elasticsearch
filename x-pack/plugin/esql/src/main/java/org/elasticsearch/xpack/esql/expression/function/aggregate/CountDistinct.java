@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFuncti
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 
@@ -59,7 +61,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = field().dataType() == DataTypes.TEXT ? TypeResolution.TYPE_RESOLVED : super.resolveType();
+        TypeResolution resolution = EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT);
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }

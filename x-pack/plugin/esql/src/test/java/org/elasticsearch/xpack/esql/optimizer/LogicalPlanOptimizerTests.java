@@ -1449,7 +1449,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(plan, Eval.class);
         var alias = as(eval.fields().get(0), Alias.class);
         var field = as(alias.child(), FieldAttribute.class);
-        assertThat(field.name(), equalTo("job.raw"));
+        assertThat(field.name(), equalTo("job"));
     }
 
     public void testReplaceSortWithExact() {

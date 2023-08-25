@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -88,11 +87,16 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch());
+        var substitutions = new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceFieldAttributesWithExactSubfield()
+        );
 
         var operators = new Batch<>(
             "Operator Optimization",
-            new ReplaceAttributesWithExact(),
             new CombineProjections(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
@@ -832,34 +836,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ReplaceAttributesWithExact extends OptimizerRules.OptimizerRule<LogicalPlan> {
+    private static class ReplaceFieldAttributesWithExactSubfield extends OptimizerRules.OptimizerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof LocalRelation || plan instanceof Drop) {
-                return plan;
-            } else if (plan instanceof Project proj) {
-                return plan.transformExpressionsOnlyUp(FieldAttribute.class, x -> toExactAlias(x, proj.projections()));
-            } else {
-                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceAttributesWithExact::toExact);
+            if (plan instanceof Filter || plan instanceof OrderBy || plan instanceof Aggregate) {
+                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceFieldAttributesWithExactSubfield::toExact);
             }
-        }
-
-        private NamedExpression toExactAlias(FieldAttribute e, List<? extends NamedExpression> projections) {
-
-            if (e.getExactInfo().hasExact() && e.exactAttribute() != e) {
-                FieldAttribute calculatedExact = toExact(e);
-
-                // avoid using multiple IDs just to load the same field twice
-                NamedExpression exact = projections.stream()
-                    .filter(x -> x.name().equals(calculatedExact.name()))
-                    .map(NamedExpression.class::cast)
-                    .findFirst()
-                    .orElse(calculatedExact);
-
-                return new Alias(e.source(), e.name(), exact);
-            }
-            return e;
+            return plan;
         }
 
         private static FieldAttribute toExact(FieldAttribute fa) {

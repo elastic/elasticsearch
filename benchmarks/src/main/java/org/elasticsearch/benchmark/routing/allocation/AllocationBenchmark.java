@@ -8,7 +8,6 @@
 package org.elasticsearch.benchmark.routing.allocation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -128,7 +128,7 @@ public class AllocationBenchmark {
         for (int i = 1; i <= numIndices; i++) {
             mb.put(
                 IndexMetadata.builder("test_" + i)
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(numShards)
                     .numberOfReplicas(numReplicas)
             );

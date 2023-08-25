@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /** Collector that controls the life cycle of an aggregation document collection. */
-public class AggregatorCollector implements Collector {
+public class AggregatorCollector implements TwoPhaseCollector {
     final Aggregator[] aggregators;
     final BucketCollector bucketCollector;
     final List<InternalAggregation> internalAggregations;
@@ -40,9 +40,8 @@ public class AggregatorCollector implements Collector {
         return bucketCollector.scoreMode();
     }
 
-    /** Should be call after collecting the documents. It generates the internal aggregations which are
-     * stored on {@code internalAggregations} */
-    public void finish() throws IOException {
+    @Override
+    public void doPostCollection() throws IOException {
         bucketCollector.postCollection();
         for (Aggregator aggregator : aggregators) {
             internalAggregations.add(aggregator.buildTopLevel());

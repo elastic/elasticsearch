@@ -10,8 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.sandbox.search.ProfilerCollector;
 import org.apache.lucene.search.Collector;
-import org.elasticsearch.search.aggregations.AggregatorCollector;
-import org.elasticsearch.search.query.QueryPhaseCollector;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ import java.util.List;
  * <p>
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector extends ProfilerCollector {
+public class InternalProfileCollector extends ProfilerCollector implements TwoPhaseCollector {
 
     private final InternalProfileCollector[] children;
     private final Collector wrappedCollector;
@@ -55,9 +54,16 @@ public class InternalProfileCollector extends ProfilerCollector {
     protected String deriveCollectorName(Collector c) {
         String s = c.getClass().getSimpleName();
 
+        // MultiCollector which wraps multiple BucketCollectors is generated
+        // via an anonymous class, so this corrects the lack of a name by
+        // asking the enclosingClass
+        if (s.equals("")) {
+            s = c.getClass().getEnclosingClass().getSimpleName();
+        }
+
         // Aggregation collector toString()'s include the user-defined agg name
         if (getReason().equals(CollectorResult.REASON_AGGREGATION) || getReason().equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
-            s += ": " + c;
+            s += ": [" + c + "]";
         }
         return s;
     }
@@ -71,13 +77,10 @@ public class InternalProfileCollector extends ProfilerCollector {
         return new CollectorResult(getName(), getReason(), getTime(), childResults);
     }
 
+    @Override
     public void doPostCollection() throws IOException {
-        if (wrappedCollector instanceof InternalProfileCollector profileCollector) {
-            profileCollector.doPostCollection();
-        } else if (wrappedCollector instanceof QueryPhaseCollector queryPhaseCollector) {
-            queryPhaseCollector.doPostCollection();
-        } else if (wrappedCollector instanceof AggregatorCollector aggsCollector) {
-            aggsCollector.finish();
+        if (wrappedCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+            twoPhaseCollector.doPostCollection();
         }
     }
 }

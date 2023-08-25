@@ -68,7 +68,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                     "retrying master election after [0] failed attempts"
                 )
             );
-            for (int i : new int[] { 10, 20, 1000 }) {
+            for (int i : new int[] { 10, 20, 990 }) {
+                // the test may stop after 1000 attempts, so might not report the 1000th failure; it definitely reports the 990th tho.
                 appender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         i + " retries message",

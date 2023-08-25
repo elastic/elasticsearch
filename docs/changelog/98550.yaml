@@ -1,0 +1,5 @@
+pr: 98550
+summary: Report a node's "roles" setting in the /_cluster/allocation/explain response
+area: Allocation
+type: enhancement
+issues: [97859]

@@ -20,7 +20,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -101,7 +100,9 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class MapperServiceTestCase extends ESTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
@@ -230,7 +231,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
-        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
+        settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }

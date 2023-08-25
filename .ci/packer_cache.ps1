@@ -3,9 +3,8 @@ $RUNBLD = Join-Path $RUNBLD_DIR 'runbld'
 
 # Check if 7.0.3 doesn't already exist
 if (-not (Test-Path $RUNBLD)) {
-  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
   New-Item -Path $RUNBLD_DIR -ItemType Directory -Force
-  Invoke-WebRequest -Uri 'https://packages.elasticsearch.org.s3.amazonaws.com/infra/runbld-7.0.3' -OutFile $RUNBLD
+  Invoke-WebRequest -Uri 'http://packages.elasticsearch.org.s3.amazonaws.com/infra/runbld-7.0.3' -OutFile $RUNBLD
 
   $RUNBLD_HARDLINK_DIR = 'C:\Program Files\infra\bin'
   $RUNBLD_HARDLINK = Join-Path $RUNBLD_HARDLINK_DIR 'runbld-test' # TODO remove -test suffix

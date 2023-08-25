@@ -62,8 +62,7 @@ export ELASTIC_PASSWORD="your_password"
 ----
 
 . (Optional) Open a new terminal and verify that you can connect to your {es}
-cluster by making an authenticated call. Enter the password for the `elastic`
-user when prompted:
+cluster by making an authenticated call.
 +
 [source,shell]
 ----

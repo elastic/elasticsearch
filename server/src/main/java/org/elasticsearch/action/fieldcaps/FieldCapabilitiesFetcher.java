@@ -58,11 +58,8 @@ class FieldCapabilitiesFetcher {
     ) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        if (alwaysMatches(indexFilter)) {
-            // no need to open a searcher if we aren't filtering
-            return doFetch(task, shardId, fieldPatterns, filters, fieldTypes, indexFilter, nowInMillis, runtimeFields, indexService, null);
-        }
-        try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
+        // no need to open a searcher if we aren't filtering
+        try (Engine.Searcher searcher = alwaysMatches(indexFilter) ? null : indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
             return doFetch(
                 task,
                 shardId,

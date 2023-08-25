@@ -55,15 +55,21 @@ sourceSets.main.java {
 }
 
 tasks.getByName('test') {
+  dependsOn 'cleanGeneratedDocs'
   finalizedBy 'copyGeneratedDocs'
 }
 
+tasks.register('cleanGeneratedDocs', Delete) {
+  delete "${projectDir}/build/testrun/test/temp/esql/functions"
+}
+
 tasks.register('copyGeneratedDocs', Sync) {
-  dependsOn "test"
+  dependsOn 'test'
   from "${projectDir}/build/testrun/test/temp/esql/functions"
   into "${rootDir}/docs/reference/esql/functions"
+  include '**/*.asciidoc', '**/*.svg'
   preserve {
-    include "*.asciidoc"
+    include '/*.asciidoc'
   }
 }
 

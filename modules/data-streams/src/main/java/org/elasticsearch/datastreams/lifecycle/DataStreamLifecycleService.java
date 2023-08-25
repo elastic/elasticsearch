@@ -495,8 +495,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
                     // to kick off downsampling
                     affectedIndices.add(index);
-                    DownsampleAction.Request request =
-                        new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
+                    DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
                     transportActionsDeduplicator.executeOnce(
                         request,
                         new ErrorRecordingActionListener(indexName, errorStore),

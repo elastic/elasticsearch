@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -110,9 +111,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public final Supplier<ExpressionEvaluator> toEvaluator(
-        java.util.function.Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator
-    ) {
+    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {

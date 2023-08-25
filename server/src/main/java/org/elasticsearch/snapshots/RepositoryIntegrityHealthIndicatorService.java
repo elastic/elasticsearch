@@ -73,7 +73,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        var snapshotMetadata = RepositoriesMetadata.get(clusterService.state());
+        var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
             return createIndicator(

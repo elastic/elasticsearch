@@ -80,18 +80,24 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
                 );
             }
         } else {
-            final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress = new HashMap<>();
-            for (List<SnapshotsInProgress.Entry> entriesForRepo : SnapshotsInProgress.get(state).entriesByRepo()) {
-                for (SnapshotsInProgress.Entry entry : entriesForRepo) {
-                    Map<String, Object> meta = entry.userMetadata();
-                    if (meta == null
-                        || meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
-                        || (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
-                        continue;
-                    }
+            final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress;
+            SnapshotsInProgress sip = state.custom(SnapshotsInProgress.TYPE);
+            if (sip == null) {
+                inProgress = Collections.emptyMap();
+            } else {
+                inProgress = new HashMap<>();
+                for (List<SnapshotsInProgress.Entry> entriesForRepo : sip.entriesByRepo()) {
+                    for (SnapshotsInProgress.Entry entry : entriesForRepo) {
+                        Map<String, Object> meta = entry.userMetadata();
+                        if (meta == null
+                            || meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
+                            || (meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String == false)) {
+                            continue;
+                        }
 
-                    String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
+                        String policyId = (String) meta.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+                        inProgress.put(policyId, SnapshotLifecyclePolicyItem.SnapshotInProgress.fromEntry(entry));
+                    }
                 }
             }
 

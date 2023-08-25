@@ -112,7 +112,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         assert task instanceof CancellableTask : task + " not cancellable";
         final CancellableTask cancellableTask = (CancellableTask) task;
 
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             request.repository(),

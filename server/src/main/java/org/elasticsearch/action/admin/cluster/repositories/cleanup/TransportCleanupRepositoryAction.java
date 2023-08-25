@@ -94,7 +94,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
             if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
-                final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(event.state());
+                final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state()
+                    .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
                 }
@@ -119,7 +120,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     }
 
     private static ClusterState removeInProgressCleanup(final ClusterState currentState) {
-        return RepositoryCleanupInProgress.get(currentState).hasCleanupInProgress()
+        return currentState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
             ? ClusterState.builder(currentState).putCustom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).build()
             : currentState;
     }
@@ -167,7 +168,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         SnapshotsService.ensureRepositoryExists(repositoryName, currentState);
-                        final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(currentState);
+                        final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
+                            RepositoryCleanupInProgress.TYPE,
+                            RepositoryCleanupInProgress.EMPTY
+                        );
                         if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                             throw new IllegalStateException(
                                 "Cannot cleanup ["
@@ -177,7 +181,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     + "]"
                             );
                         }
-                        final SnapshotDeletionsInProgress deletionsInProgress = SnapshotDeletionsInProgress.get(currentState);
+                        final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                            SnapshotDeletionsInProgress.TYPE,
+                            SnapshotDeletionsInProgress.EMPTY
+                        );
                         if (deletionsInProgress.hasDeletionsInProgress()) {
                             throw new IllegalStateException(
                                 "Cannot cleanup ["
@@ -187,7 +194,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     + "]"
                             );
                         }
-                        SnapshotsInProgress snapshots = SnapshotsInProgress.get(currentState);
+                        SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                         if (snapshots.isEmpty() == false) {
                             throw new IllegalStateException(
                                 "Cannot cleanup [" + repositoryName + "] - a snapshot is currently running in [" + snapshots + "]"

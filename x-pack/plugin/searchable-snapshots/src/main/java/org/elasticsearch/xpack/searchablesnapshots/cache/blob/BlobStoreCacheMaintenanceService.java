@@ -506,7 +506,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         final ClusterState state = clusterService.state();
                         // compute the list of existing searchable snapshots and repositories once
                         existingSnapshots = listSearchableSnapshots(state);
-                        existingRepositories = RepositoriesMetadata.get(state)
+                        existingRepositories = state.metadata()
+                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
                             .repositories()
                             .stream()
                             .map(RepositoryMetadata::name)

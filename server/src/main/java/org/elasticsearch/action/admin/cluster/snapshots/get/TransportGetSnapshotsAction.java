@@ -110,7 +110,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         getMultipleReposSnapshotInfo(
             request.isSingleRepositoryRequest() == false,
-            SnapshotsInProgress.get(state),
+            state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
             TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
             request.snapshots(),
             request.ignoreUnavailable(),

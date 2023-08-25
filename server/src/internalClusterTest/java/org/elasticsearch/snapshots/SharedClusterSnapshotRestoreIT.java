@@ -1102,7 +1102,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         waitForBlock(blockedNode, "test-repo");
 
         awaitClusterState(state -> {
-            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;

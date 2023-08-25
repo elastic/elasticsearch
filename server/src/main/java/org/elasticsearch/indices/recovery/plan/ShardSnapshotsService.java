@@ -77,8 +77,11 @@ public class ShardSnapshotsService {
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
         assert shardId != null : "ShardId was null but a value was expected";
 
-        List<String> repositories = RepositoriesMetadata.get(clusterService.state())
-            .repositories()
+        final RepositoriesMetadata currentReposMetadata = clusterService.state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+
+        List<String> repositories = currentReposMetadata.repositories()
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)

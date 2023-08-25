@@ -623,15 +623,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (bestEffortConsistency) {
-            long bestGenerationFromCS = bestGeneration(SnapshotsInProgress.get(state).forRepo(this.metadata.name()));
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.forRepo(this.metadata.name()));
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
             if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
-                bestGenerationFromCS = bestGeneration(SnapshotDeletionsInProgress.get(state).getEntries());
+                bestGenerationFromCS = bestGeneration(
+                    state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()
+                );
             }
             if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
-                bestGenerationFromCS = bestGeneration(RepositoryCleanupInProgress.get(state).entries());
+                bestGenerationFromCS = bestGeneration(
+                    state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries()
+                );
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.accumulateAndGet(finalBestGen, Math::max);
@@ -1836,7 +1841,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                             Metadata.builder(currentState.getMetadata())
                                                 .putCustom(
                                                     RepositoriesMetadata.TYPE,
-                                                    RepositoriesMetadata.get(currentState)
+                                                    currentState.metadata()
+                                                        .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
                                                         .withUpdatedGeneration(metadata.name(), repoData.getGenId(), repoData.getGenId())
                                                 )
                                         )
@@ -2058,7 +2064,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata state = RepositoriesMetadata.get(currentState);
+                    final RepositoriesMetadata state = currentState.metadata().custom(RepositoriesMetadata.TYPE);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
                         throw new IllegalStateException(
@@ -2227,7 +2233,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         Metadata.builder(currentState.getMetadata())
                             .putCustom(
                                 RepositoriesMetadata.TYPE,
-                                RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
+                                currentState.metadata()
+                                    .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                    .withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
                             .build()
                     )
@@ -2349,8 +2357,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(currentState)
-                        .withUpdatedGeneration(metadata.name(), newGen, newGen);
+                    final RepositoriesMetadata currentMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
+                    final RepositoriesMetadata withGenerations = currentMetadata.withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
@@ -2508,8 +2516,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotsInProgress updatedSnapshotsInProgress;
         boolean changedSnapshots = false;
         final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repoName)) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
             if (entry.repositoryStateId() == oldGen) {
                 snapshotEntries.add(entry.withRepoGen(newGen));
                 changedSnapshots = true;
@@ -2521,7 +2529,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotDeletionsInProgress updatedDeletionsInProgress;
         boolean changedDeletions = false;
         final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
-        for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(state).getEntries()) {
+        for (SnapshotDeletionsInProgress.Entry entry : state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+            .getEntries()) {
             if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
                 deletionEntries.add(entry.withRepoGen(newGen));
                 changedDeletions = true;
@@ -2534,7 +2543,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
-        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state).repository(metadata.name());
+        final RepositoryMetadata repositoryMetadata = state.getMetadata()
+            .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+            .repository(metadata.name());
         assert repositoryMetadata != null || lifecycle.stoppedOrClosed()
             : "did not find metadata for repo [" + metadata.name() + "] in state [" + lifecycleState() + "]";
         return repositoryMetadata;

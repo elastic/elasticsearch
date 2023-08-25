@@ -136,7 +136,10 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
 
     private static Iterator<String> getRequestedRepositories(GetShardSnapshotRequest request, ClusterState state) {
         if (request.getFromAllRepositories()) {
-            return Iterators.map(RepositoriesMetadata.get(state).repositories().iterator(), RepositoryMetadata::name);
+            return Iterators.map(
+                state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repositories().iterator(),
+                RepositoryMetadata::name
+            );
         } else {
             return request.getRepositories().iterator();
         }

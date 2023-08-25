@@ -87,7 +87,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
                 if (snapshots != null && snapshots.isEmpty() == false) {
                     final SnapshotsInProgress.Entry snapshotEntry = snapshots.forRepo(repoName).get(0);
                     if (snapshotEntry.state() == SnapshotsInProgress.State.SUCCESS) {
-                        final RepositoryMetadata metadata = RepositoriesMetadata.get(event.state()).repository(repoName);
+                        final RepositoriesMetadata repoMeta = event.state().metadata().custom(RepositoriesMetadata.TYPE);
+                        final RepositoryMetadata metadata = repoMeta.repository(repoName);
                         if (metadata.pendingGeneration() > snapshotEntry.repositoryStateId()) {
                             logger.info("--> starting disruption");
                             networkDisruption.startDisrupting();

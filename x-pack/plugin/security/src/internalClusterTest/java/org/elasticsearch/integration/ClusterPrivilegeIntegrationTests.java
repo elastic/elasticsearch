@@ -257,9 +257,10 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(
-                clusterAdmin().state(new ClusterStateRequest()).get().getState()
-            );
+            SnapshotsInProgress snapshotsInProgress = clusterAdmin().state(new ClusterStateRequest())
+                .get()
+                .getState()
+                .custom(SnapshotsInProgress.TYPE);
             assertTrue(snapshotsInProgress.isEmpty());
         });
     }

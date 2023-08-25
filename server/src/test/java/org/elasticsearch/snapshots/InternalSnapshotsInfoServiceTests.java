@@ -438,7 +438,9 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .build()
         );
 
-        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(RestoreInProgress.get(currentState));
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
+            currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
+        );
         final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));

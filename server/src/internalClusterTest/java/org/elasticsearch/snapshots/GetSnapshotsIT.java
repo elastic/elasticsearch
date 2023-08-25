@@ -182,7 +182,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
         awaitClusterState(
-            state -> SnapshotsInProgress.get(state)
+            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
                 .flatMap(s -> s.shards().entrySet().stream())
                 .allMatch(

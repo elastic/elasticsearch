@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
+import java.awt.FontFormatException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;

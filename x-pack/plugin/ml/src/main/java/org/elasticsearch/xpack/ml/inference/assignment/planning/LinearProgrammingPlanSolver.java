@@ -313,7 +313,7 @@ class LinearProgrammingPlanSolver {
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
             deployments.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
-                // L690:  pulp.lpSum([thread_vars[m][n] for n in Nodes]) <= ModelThreads[m],
+                // L690: pulp.lpSum([thread_vars[m][n] for n in Nodes]) <= ModelThreads[m],
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
                 // L699: StaticModelMemory[m] / NodeCores[n] * thread_vars[m][n]
                 // + DynamicModelMemory[m] * thread_vars[m][n]

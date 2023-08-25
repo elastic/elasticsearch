@@ -129,7 +129,9 @@ public class ZoneAwareAssignmentPlanner {
                     // Only force assigning at least once previously assigned models that have not had any allocation yet
                     (tryAssigningPreviouslyAssignedModels && modelIdToRemainingAllocations.get(m.id()) == m.allocations())
                         ? m.maxAssignedAllocations()
-                        : 0
+                        : 0,
+                    m.perDeploymentMemoryBytes(),
+                    m.perAllocationMemoryBytes()
                 )
             )
             .toList();
@@ -151,7 +153,9 @@ public class ZoneAwareAssignmentPlanner {
                     m.allocations(),
                     m.threadsPerAllocation(),
                     allocationsByNodeIdByModelId.get(m.id()),
-                    m.maxAssignedAllocations()
+                    m.maxAssignedAllocations(),
+                    m.perDeploymentMemoryBytes(),
+                    m.perAllocationMemoryBytes()
                 )
             )
             .toList();

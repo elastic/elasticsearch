@@ -116,7 +116,9 @@ public class AssignmentPlanner {
                     1,
                     m.threadsPerAllocation(),
                     m.currentAllocationsByNodeId(),
-                    m.maxAssignedAllocations()
+                    m.maxAssignedAllocations(),
+                    m.perDeploymentMemoryBytes(),
+                    m.perAllocationMemoryBytes()
                 )
             )
             .toList();
@@ -145,7 +147,9 @@ public class AssignmentPlanner {
                 m.allocations(),
                 m.threadsPerAllocation(),
                 currentAllocationsByNodeId,
-                m.maxAssignedAllocations()
+                m.maxAssignedAllocations(),
+                m.perDeploymentMemoryBytes(),
+                m.perAllocationMemoryBytes()
             );
         }).toList();
 

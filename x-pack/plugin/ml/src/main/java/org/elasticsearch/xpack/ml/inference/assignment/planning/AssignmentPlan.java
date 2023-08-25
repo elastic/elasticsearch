@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.util.ArrayList;
@@ -36,7 +37,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         int threadsPerAllocation,
         Map<String, Integer> currentAllocationsByNodeId,
         int maxAssignedAllocations,
-        Priority priority
+        Priority priority,
+        long perDeploymentMemoryBytes,
+        long perAllocationMemoryBytes
     ) {
 
         public Deployment(
@@ -45,9 +48,21 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             int allocations,
             int threadsPerAllocation,
             Map<String, Integer> currentAllocationsByNodeId,
-            int maxAssignedAllocations
+            int maxAssignedAllocations,
+            long perDeploymentMemoryBytes,
+            long perAllocationMemoryBytes
         ) {
-            this(id, memoryBytes, allocations, threadsPerAllocation, currentAllocationsByNodeId, maxAssignedAllocations, Priority.NORMAL);
+            this(
+                id,
+                memoryBytes,
+                allocations,
+                threadsPerAllocation,
+                currentAllocationsByNodeId,
+                maxAssignedAllocations,
+                Priority.NORMAL,
+                perDeploymentMemoryBytes,
+                perAllocationMemoryBytes
+            );
         }
 
         int getCurrentAssignedAllocations() {
@@ -56,6 +71,26 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         boolean hasEverBeenAllocated() {
             return maxAssignedAllocations > 0;
+        }
+
+        long estimateMemoryUsageBytes(int allocations) {
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                id,
+                memoryBytes,
+                perDeploymentMemoryBytes,
+                perAllocationMemoryBytes,
+                allocations
+            );
+        }
+
+        long minimumMemoryRequiredBytes() {
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                id,
+                memoryBytes,
+                perDeploymentMemoryBytes,
+                perAllocationMemoryBytes,
+                1
+            );
         }
 
         @Override

@@ -172,7 +172,9 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
                     currentAssignments,
-                    assignment.getMaxAssignedAllocations()
+                    assignment.getMaxAssignedAllocations(),
+                    assignment.getTaskParams().getPerDeploymentMemoryBytes(),
+                    assignment.getTaskParams().getPerAllocationMemoryBytes()
                 );
             })
             .forEach(planDeployments::add);
@@ -185,7 +187,9 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
                     Map.of(),
-                    0
+                    0,
+                    taskParams.getPerDeploymentMemoryBytes(),
+                    taskParams.getPerAllocationMemoryBytes()
                 )
             );
         }
@@ -222,7 +226,9 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getTaskParams().getThreadsPerAllocation(),
                     findFittingAssignments(assignment, assignableNodeIds, remainingNodeMemory),
                     assignment.getMaxAssignedAllocations(),
-                    Priority.LOW
+                    Priority.LOW,
+                    assignment.getTaskParams().getPerDeploymentMemoryBytes(),
+                    assignment.getTaskParams().getPerAllocationMemoryBytes()
                 )
             )
             .forEach(planDeployments::add);
@@ -236,7 +242,9 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.getThreadsPerAllocation(),
                     Map.of(),
                     0,
-                    Priority.LOW
+                    Priority.LOW,
+                    taskParams.getPerDeploymentMemoryBytes(),
+                    taskParams.getPerAllocationMemoryBytes()
                 )
             );
         }

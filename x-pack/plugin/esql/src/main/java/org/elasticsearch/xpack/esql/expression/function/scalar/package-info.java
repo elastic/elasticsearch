@@ -123,9 +123,11 @@
  *         asciidoc ceremony to make the result look right in the rendered docs.
  *     </li>
  *     <li>
- *         The unit tests should have auto-generated some docs for the syntax and allowed types of the new function, e.g.
+ *         Auto-generate a syntax diagram and a table with supported types by running
+ *         {@code ./gradlew x-pack:plugin:esql:copyGeneratedDocs}
+ *         The generated files can be found here
  *         {@code docs/reference/esql/functions/signature/myfunction.svg }
- *         and
+ *         and here
  *         {@code docs/reference/esql/functions/types/myfunction.asciidoc}
  *         Make sure to commit them and reference them in your doc file.
  *     </li>

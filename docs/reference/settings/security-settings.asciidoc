@@ -2609,7 +2609,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
 [discrete]
 [[ip-filtering-settings]]
-==== IP filtering settings
+=== IP filtering settings
 You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
@@ -2635,5 +2635,14 @@ List of IP addresses to allow for this profile.
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny for this profile.
+
+// TODO: fix the link to new page of API key based remote clusters
+`xpack.security.remote_cluster.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to allow just for the remote cluster server.
+
+`xpack.security.remote_cluster.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to deny just for the remote cluster server.
 
 include::security-hash-settings.asciidoc[]

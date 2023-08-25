@@ -418,8 +418,8 @@ nested fields:
 ---
 "Synthetic source":
   - skip:
-      version: " - 8.8.99"
-      reason: "Synthetic source appears in the mapping on 8.9 and after"
+      version: " - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on"
 
   - do:
       indices.create:

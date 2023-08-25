@@ -184,12 +184,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                             crossClusterAccessAuthenticationService.tryAuthenticate(
                                 header.getRequestHeaders(),
-                                ActionListener.wrap(aVoid -> {
+                                ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                                }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e))), () -> {
                                     if (isNettyChannel) {
                                         ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(true);
                                     }
-                                }, e -> uncaughtExceptionReference.set(new HeaderValidationException(header, e)))
+                                })
                             );
                         }
                     }

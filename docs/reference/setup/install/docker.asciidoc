@@ -136,8 +136,9 @@ The command prints the `elastic` user password and an enrollment token for {kib}
 endif::[]
 --
 
-. Copy the generated `elastic` password and enrollment token. These credentials are
-only shown at startup. You can regenerate the credentials using the following commands.
+. Copy the generated `elastic` password and enrollment token. These credentials
+are only shown when you start {es} for the first time. You can regenerate the
+credentials using the following commands.
 +
 --
 [source,sh,subs="attributes"]

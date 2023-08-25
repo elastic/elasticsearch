@@ -354,18 +354,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
-    private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
-
-    @BeforeClass
-    public static void clearSignatures() {
-        signatures.clear();
-    }
-
-    @After
-    public void trackSignature() {
-        signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
-    }
-
     @AfterClass
     public static void renderSignature() throws IOException {
         FunctionDefinition definition = definition();
@@ -379,8 +367,35 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("signature", rendered, "svg");
     }
 
+    /**
+     * Unique signatures encountered by this test.
+     * <p>
+     *     We clear this at the beginning of the test class with
+     *     {@link #clearSignatures} out of paranoia. It <strong>is</strong>
+     *     shared by many tests, after all.
+     * </p>
+     * <p>
+     *     After each test method we add the signature it operated on via
+     *     {@link #trackSignature}. Once the test class is done we render
+     *     all the unique signatures to a temp file with {@link #renderTypesTable}.
+     *     We use a temp file because that's all we're allowed to write to.
+     *     Gradle will move the files into the docs after this is done.
+     * </p>
+     */
+    private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
+
+    @BeforeClass
+    public static void clearSignatures() {
+        signatures.clear();
+    }
+
+    @After
+    public void trackSignature() {
+        signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
+    }
+
     @AfterClass
-    public static void renderTable() throws IOException {
+    public static void renderTypesTable() throws IOException {
         FunctionDefinition definition = definition();
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");

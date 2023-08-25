@@ -495,16 +495,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round so it's time
                     // to kick off downsampling
                     affectedIndices.add(index);
-                    DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, null, round.config());
-                    transportActionsDeduplicator.executeOnce(
-                        request,
-                        new ErrorRecordingActionListener(indexName, errorStore),
-                        (req, reqListener) -> downsampleIndex(request, reqListener)
-                    );
+                    downsampleIndexOnce(round, indexName, downsampleIndexName);
                 }
             }
         }
         return affectedIndices;
+    }
+
+    /**
+     * Issues a request downsample the source index to the downsample index for the specified round.
+     */
+    private void downsampleIndexOnce(DataStreamLifecycle.Downsampling.Round round, String sourceIndex, String downsampleIndexName) {
+        DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, downsampleIndexName, null, round.config());
+        transportActionsDeduplicator.executeOnce(
+            request,
+            new ErrorRecordingActionListener(sourceIndex, errorStore),
+            (req, reqListener) -> downsampleIndex(request, reqListener)
+        );
     }
 
     /**
@@ -555,6 +562,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     STARTED,
                     downsampleIndexName
                 );
+                // this request here might seem weird, but hear me out:
+                // if we triggered a downsample operation, and then had a master failover (so DSL starts from scratch)
+                // we can't really find out if the downsampling persistent task failed (if it was successful, no worries, the next case
+                // SUCCESS branch will catch it and we will cruise forward)
+                // if the downsampling persistent task failed, we will find out only via re-issuing the downsample request (and we will
+                // continue to re-issue the request until we get SUCCESS)
+                downsampleIndexOnce(currentRound, indexName, downsampleIndexName);
                 affectedIndices.add(backingIndex);
                 yield affectedIndices;
             }

@@ -7,7 +7,7 @@ if (-not (Test-Path $RUNBLD)) {
   Invoke-WebRequest -Uri 'http://packages.elasticsearch.org.s3.amazonaws.com/infra/runbld-7.0.3' -OutFile $RUNBLD
 
   $RUNBLD_HARDLINK_DIR = 'C:\Program Files\infra\bin'
-  $RUNBLD_HARDLINK = Join-Path $RUNBLD_HARDLINK_DIR 'runbld-test' # TODO remove -test suffix
+  $RUNBLD_HARDLINK = Join-Path $RUNBLD_HARDLINK_DIR 'runbld'
 
   Remove-Item -Path $RUNBLD_HARDLINK -Force
   New-Item -Path $RUNBLD_HARDLINK_DIR -ItemType Directory -Force

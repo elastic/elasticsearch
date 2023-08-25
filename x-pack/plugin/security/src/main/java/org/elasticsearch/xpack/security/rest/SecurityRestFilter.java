@@ -83,7 +83,7 @@ public class SecurityRestFilter extends AbstractDelegatingRestHandler implements
             if (secondaryAuthentication != null) {
                 logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
             }
-            workflowService.resolveWorkflowAndStoreInThreadContext(getDelegate(), threadContext);
+            workflowService.resolveWorkflowAndStoreInThreadContext(getConcreteRestHandler(), threadContext);
             doHandleRequest(request, channel, client);
         }, e -> handleException(request, channel, e)));
     }
@@ -91,7 +91,7 @@ public class SecurityRestFilter extends AbstractDelegatingRestHandler implements
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
         // operator privileges can short circuit to return a non-successful response
-        if (operatorPrivilegesService.checkRest(getDelegate(), request, channel, threadContext)) {
+        if (operatorPrivilegesService.checkRest(getConcreteRestHandler(), request, channel, threadContext)) {
             try {
                 getDelegate().handleRequest(request, channel, client);
             } catch (Exception e) {
@@ -118,7 +118,7 @@ public class SecurityRestFilter extends AbstractDelegatingRestHandler implements
     }
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) {
-        if (getDelegate() instanceof RestRequestFilter rrf) {
+        if (getConcreteRestHandler() instanceof RestRequestFilter rrf) {
             return rrf.getFilteredRequest(restRequest);
         }
         return restRequest;

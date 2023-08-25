@@ -7,13 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import net.nextencia.rrdiagram.grammar.model.GrammarToRRDiagram;
-import net.nextencia.rrdiagram.grammar.model.Repetition;
-import net.nextencia.rrdiagram.grammar.model.Rule;
-import net.nextencia.rrdiagram.grammar.model.Sequence;
-import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagram;
-import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagramToSVG;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -381,33 +374,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
-        List<net.nextencia.rrdiagram.grammar.model.Expression> expressions = new ArrayList<>();
-        expressions.add(new net.nextencia.rrdiagram.grammar.model.SpecialSequence(functionName().toUpperCase(Locale.ROOT)));
-        expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal("("));
-        boolean first = true;
-        for (String arg : ShowFunctions.signature(definition)) {
-            if (first) {
-                first = false;
-            } else {
-                expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(","));
-            }
-            if (arg.endsWith("...")) {
-                expressions.add(
-                    new Repetition(new net.nextencia.rrdiagram.grammar.model.Literal(arg.substring(0, arg.length() - 3)), 0, null)
-                );
-            } else {
-                expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(arg));
-            }
-        }
-        expressions.add(new net.nextencia.rrdiagram.grammar.model.Literal(")"));
-        net.nextencia.rrdiagram.grammar.model.Expression rr = new Sequence(
-            expressions.toArray(net.nextencia.rrdiagram.grammar.model.Expression[]::new)
-        );
-        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("test", rr));
-        RRDiagramToSVG toSvg = new RRDiagramToSVG();
-        toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
-        toSvg.setLiteralFillColor(toSvg.getSpecialSequenceFillColor());
-        String rendered = toSvg.convert(rrDiagram);
+        String rendered = RailRoadDiagram.functionSignature(definition);
         LogManager.getLogger(getTestClass()).info("Writing function signature");
         writeToTempDir("signature", rendered, "svg");
     }

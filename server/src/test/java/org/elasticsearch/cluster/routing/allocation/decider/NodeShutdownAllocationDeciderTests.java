@@ -140,14 +140,14 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster"));
     }
 
     public void testCanAutoExpandToNodeThatIsNotShuttingDown() {
-        ClusterState state = prepareState(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE), "other-node-id");
+        ClusterState state = prepareState(
+            randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE),
+            "other-node-id"
+        );
         RoutingAllocation allocation = createRoutingAllocation(state);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -173,10 +173,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         // should auto-expand when no shutdown
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, createRoutingAllocation(state));
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is not preparing for removal from the cluster"));
 
         // should auto-expand to source when shutdown/replacement entry is registered and node replacement has not started
         NodesShutdownMetadata shutdown = createNodesShutdownMetadata(SingleNodeShutdownMetadata.Type.REPLACE, DATA_NODE.getId());

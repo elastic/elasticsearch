@@ -63,7 +63,7 @@ GET my-index/_msearch/template
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<remote-clusters-security>>.
+or alias. For cross-cluster search, see <<remote-clusters>>.
 
 [[multi-search-template-api-path-params]]
 ==== {api-path-parms-title}

@@ -100,7 +100,7 @@ public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (Security.USER_PROFILE_COLLABORATION_FEATURE.check(licenseState)) {
             return null;
         } else {

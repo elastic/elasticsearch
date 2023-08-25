@@ -20,7 +20,6 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -412,15 +411,5 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
-    }
-
-    static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
-        PutDataStreamLifecycleAction.Request putDataLifecycleRequest = new PutDataStreamLifecycleAction.Request(
-            new String[] { dataStreamName },
-            dataRetention
-        );
-        AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest)
-            .actionGet();
-        assertThat(putDataLifecycleResponse.isAcknowledged(), equalTo(true));
     }
 }

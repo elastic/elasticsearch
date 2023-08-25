@@ -115,10 +115,12 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
                 if (sourceIndexMeta != null) {
                     // both indices exist, let's copy the origination date from the source index to the downsample index
                     Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+                    TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
+                    assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
                     IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
                         sourceIndexMeta,
                         downsampleIndexMeta,
-                        sourceParentDataStream
+                        generationLifecycleDate.millis()
                     );
 
                     newMetaData.put(updatedDownsampleMetadata, true);
@@ -131,9 +133,18 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
                 // data stream
                 if (dataStream != null
                     && dataStream.getIndices().stream().filter(index -> index.getName().equals(downsampleIndex)).findAny().isEmpty()) {
+                    Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+                    TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
+                    assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
+
+                    IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
+                        sourceIndexMeta,
+                        downsampleIndexMeta,
+                        generationLifecycleDate.millis()
+                    );
+                    newMetaData.put(updatedDownsampleMetadata, true);
                     // add downsample index to data stream
-                    Metadata.Builder newMetaData = Metadata.builder(state.metadata())
-                        .put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+                    newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
                     return ClusterState.builder(state).metadata(newMetaData).build();
                 }
             }
@@ -148,7 +159,11 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
      * that the source index is confingured in the
      * {@link org.elasticsearch.datastreams.DataStreamsPlugin#LIFECYCLE_CUSTOM_INDEX_METADATA_KEY} custom.
      */
-    private static IndexMetadata copyDataStreamLifecycleState(IndexMetadata source, IndexMetadata dest, DataStream sourceParentDataStream) {
+    private static IndexMetadata copyDataStreamLifecycleState(
+        IndexMetadata source,
+        IndexMetadata dest,
+        long sourceIndexGenerationTimeMillis
+    ) {
         IndexMetadata.Builder downsampleIndexBuilder = IndexMetadata.builder(dest);
         Map<String, String> lifecycleCustomMetadata = source.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         Map<String, String> newCustomMetadata = new HashMap<>();
@@ -159,13 +174,10 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
         downsampleIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, newCustomMetadata);
 
         if (IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.exists(dest.getSettings()) == false) {
-            TimeValue sourceGenerationTime = sourceParentDataStream.getGenerationLifecycleDate(source);
-            assert sourceGenerationTime != null : "the source index to replace must not be the write index of the data stream";
-
             downsampleIndexBuilder.settings(
                 Settings.builder()
                     .put(dest.getSettings())
-                    .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, sourceGenerationTime.millis())
+                    .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, sourceIndexGenerationTimeMillis)
                     .build()
             ).settingsVersion(dest.getSettingsVersion() + 1L);
         }

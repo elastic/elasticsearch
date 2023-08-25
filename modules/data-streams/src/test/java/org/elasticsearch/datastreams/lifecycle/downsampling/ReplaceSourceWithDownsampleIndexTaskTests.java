@@ -222,6 +222,17 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
+
+        // origination date and the lifecycle metadata is configured even if the source index is not part of the data stream anymore
+        IndexMetadata firstGenMeta = newState.metadata().index(firstGenIndex);
+        RolloverInfo rolloverInfo = firstGenMeta.getRolloverInfos().get(dataStreamName);
+        assertThat(rolloverInfo, is(notNullValue()));
+
+        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
+        // the donwsample index contains metadata to remember the index we downsampled from
+        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), is(notNullValue()));
+        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY).get(REPLACEMENT_SOURCE_INDEX), is(firstGenIndex));
     }
 
     public void testListenersIsNonConsideredInEquals() {

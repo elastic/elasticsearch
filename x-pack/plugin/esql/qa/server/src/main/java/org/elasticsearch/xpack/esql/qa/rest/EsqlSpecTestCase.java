@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -100,7 +101,32 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertNotNull(answer.get("values"));
         @SuppressWarnings("unchecked")
         List<List<Object>> actualValues = (List<List<Object>>) answer.get("values");
-        assertData(expectedColumnsWithValues, actualValues, LOGGER, value -> value == null ? "null" : value.toString());
+        assertData(expectedColumnsWithValues, actualValues, LOGGER, EsqlSpecTestCase::valueToString);
+    }
+
+    /**
+     * Unfortunately the GeoPoint.toString method returns the old format, but cannot be changed due to BWC.
+     * So we need to custom format GeoPoint as well as wrap Lists to ensure this custom conversion applies to multi-value fields
+     */
+    private static String valueToString(Object value) {
+        if (value == null) {
+            return "null";
+        } else if (value instanceof List<?> list) {
+            StringBuilder sb = new StringBuilder("[");
+            for (Object field : list) {
+                if (sb.length() > 1) {
+                    sb.append(", ");
+                }
+                sb.append(valueToString(field));
+            }
+            return sb.append("]").toString();
+        } else if (value instanceof GeoPoint geoPoint) {
+            // TODO: This knowledge should be in GeoPoint or at least that package
+            // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
+            return "POINT (" + geoPoint.getX() + " " + geoPoint.getY() + ")";
+        } else {
+            return value.toString();
+        }
     }
 
     private Throwable reworkException(Throwable th) {

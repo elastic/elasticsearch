@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
@@ -164,7 +165,9 @@ public record ColumnInfo(String name, String type) implements Writeable {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     // TODO Perhaps this is just a long for geo_point? And for more advanced types we need a new block type
-                    long encoded = ((LongVectorBlock) block).getLong(valueIndex);
+                    long encoded = (block instanceof LongVectorBlock)
+                        ? ((LongVectorBlock) block).getLong(valueIndex) // needed for single-value fields
+                        : ((LongArrayBlock) block).getLong(valueIndex); // needed when using multi-value fields
                     String wkt = SpatialUtils.geoPointAsString(SpatialUtils.longAsGeoPoint(encoded));
                     return builder.value(wkt);
                 }

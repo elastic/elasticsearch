@@ -74,10 +74,10 @@ public class TextFormatter {
             String name = response.columns().get(i).name();
             // left padding
             int leftPadding = (width[i] - name.length()) / 2;
-            writer.append(" ".repeat(Math.max(0, leftPadding)));
+            writePadding(leftPadding, writer);
             writer.append(name);
             // right padding
-            writer.append(" ".repeat(Math.max(0, width[i] - name.length() - leftPadding)));
+            writePadding(width[i] - name.length() - leftPadding, writer);
         }
         writer.append('\n');
 
@@ -100,7 +100,7 @@ public class TextFormatter {
                 if (string.length() <= width[i]) {
                     // Pad
                     writer.append(string);
-                    writer.append(" ".repeat(Math.max(0, width[i] - string.length())));
+                    writePadding(width[i] - string.length(), writer);
                 } else {
                     // Trim
                     writer.append(string, 0, width[i] - 1);
@@ -109,5 +109,17 @@ public class TextFormatter {
             }
             writer.append('\n');
         });
+    }
+
+    private static final String PADDING_64 = " ".repeat(64);
+
+    private static void writePadding(int padding, Writer writer) throws IOException {
+        while (padding > PADDING_64.length()) {
+            writer.append(PADDING_64);
+            padding -= PADDING_64.length();
+        }
+        if (padding > 0) {
+            writer.append(PADDING_64, 0, padding);
+        }
     }
 }

@@ -36,32 +36,26 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 equalTo(Math.floor(arg))
             );
-            }), new TestCaseSupplier("integer value", () -> {
-                int arg = randomInt();
-                return new TestCase(
-                    List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
-                    "Attribute[channel=0]",
-                    DataTypes.INTEGER,
-                    equalTo(arg)
-                );
-            }), new TestCaseSupplier("long value", () -> {
-                long arg = randomLong();
-                return new TestCase(
-                    List.of(new TypedData(arg, DataTypes.LONG, "arg")),
-                    "Attribute[channel=0]",
-                    DataTypes.LONG,
-                    equalTo(arg)
-                );
-            }), new TestCaseSupplier("unsigned long value", () -> {
-                long arg = randomLong();
-                return new TestCase(
-                    List.of(new TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
-                    "Attribute[channel=0]",
-                    DataTypes.UNSIGNED_LONG,
-                    equalTo(arg)
-                );
-            })
-        ));
+        }), new TestCaseSupplier("integer value", () -> {
+            int arg = randomInt();
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+                "Attribute[channel=0]",
+                DataTypes.INTEGER,
+                equalTo(arg)
+            );
+        }), new TestCaseSupplier("long value", () -> {
+            long arg = randomLong();
+            return new TestCase(List.of(new TypedData(arg, DataTypes.LONG, "arg")), "Attribute[channel=0]", DataTypes.LONG, equalTo(arg));
+        }), new TestCaseSupplier("unsigned long value", () -> {
+            long arg = randomLong();
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
+                "Attribute[channel=0]",
+                DataTypes.UNSIGNED_LONG,
+                equalTo(arg)
+            );
+        })));
     }
 
     @Override

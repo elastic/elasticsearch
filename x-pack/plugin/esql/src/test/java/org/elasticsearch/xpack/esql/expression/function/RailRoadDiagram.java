@@ -22,7 +22,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

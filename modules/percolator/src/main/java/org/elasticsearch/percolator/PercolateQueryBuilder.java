@@ -530,7 +530,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
-        PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
+        percolateShardContext = PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
@@ -619,15 +619,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     static SearchExecutionContext wrap(SearchExecutionContext delegate) {
         return new SearchExecutionContext(delegate) {
-
-            @Override
-            // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
-            // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
-            // Consequently, we may erroneously skip expanding those term fields.
-            // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
-            public boolean fieldExistsInIndex(String fieldname) {
-                return true;
-            }
 
             @Override
             public IndexReader getIndexReader() {

@@ -159,7 +159,16 @@ public class Maps {
 
             V v1 = e.getValue();
             V v2 = right.get(e.getKey());
-            if (Objects.deepEquals(v1, v2) == false) {
+            if (v1 instanceof Map && v2 instanceof Map) {
+                // if the values are both maps, then recursively compare them with Maps.deepEquals
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m1 = (Map<Object, Object>) v1;
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m2 = (Map<Object, Object>) v2;
+                if (Maps.deepEquals(m1, m2) == false) {
+                    return false;
+                }
+            } else if (Objects.deepEquals(v1, v2) == false) {
                 return false;
             }
         }

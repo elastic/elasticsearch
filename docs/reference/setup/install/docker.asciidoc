@@ -94,8 +94,8 @@ testing. You can then run additional Docker commands to add nodes to the test
 cluster.
 
 TIP: This setup doesn't run multiple {es} nodes or {kib} by default. To create a
-development cluster with multiple nodes and {kib}, use Docker Compose instead.
-See <<docker-compose-file>>.
+multi-node cluster with {kib}, use Docker Compose instead. See
+<<docker-compose-file>>.
 
 
 ===== Start a single-node cluster

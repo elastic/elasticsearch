@@ -33,18 +33,21 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private boolean profilingEnabled;
         private boolean resourceManagementEnabled;
         private boolean resourcesCreated;
+        private boolean anyResourceTooOld;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             profilingEnabled = in.readBoolean();
             resourceManagementEnabled = in.readBoolean();
             resourcesCreated = in.readBoolean();
+            anyResourceTooOld = in.readBoolean();
         }
 
-        public Response(boolean profilingEnabled, boolean resourceManagementEnabled, boolean resourcesCreated) {
+        public Response(boolean profilingEnabled, boolean resourceManagementEnabled, boolean resourcesCreated, boolean anyResourceTooOld) {
             this.profilingEnabled = profilingEnabled;
             this.resourceManagementEnabled = resourceManagementEnabled;
             this.resourcesCreated = resourcesCreated;
+            this.anyResourceTooOld = anyResourceTooOld;
         }
 
         @Override
@@ -52,7 +55,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             builder.startObject();
             builder.startObject("profiling").field("enabled", profilingEnabled).endObject();
             builder.startObject("resource_management").field("enabled", resourceManagementEnabled).endObject();
-            builder.startObject("resources").field("created", resourcesCreated).endObject();
+            builder.startObject("resources").field("created", resourcesCreated).field("too_old", anyResourceTooOld).endObject();
             builder.endObject();
             return builder;
         }
@@ -62,6 +65,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             out.writeBoolean(profilingEnabled);
             out.writeBoolean(resourceManagementEnabled);
             out.writeBoolean(resourcesCreated);
+            out.writeBoolean(anyResourceTooOld);
         }
 
         @Override
@@ -71,12 +75,13 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             Response response = (Response) o;
             return profilingEnabled == response.profilingEnabled
                 && resourceManagementEnabled == response.resourceManagementEnabled
-                && resourcesCreated == response.resourcesCreated;
+                && resourcesCreated == response.resourcesCreated
+                && anyResourceTooOld == response.anyResourceTooOld;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated);
+            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, anyResourceTooOld);
         }
 
         @Override

@@ -56,7 +56,6 @@ sourceSets.main.java {
 
 tasks.getByName('test') {
   dependsOn 'cleanGeneratedDocs'
-  finalizedBy 'copyGeneratedDocs'
 }
 
 tasks.register('cleanGeneratedDocs', Delete) {

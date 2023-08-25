@@ -99,6 +99,30 @@ public class MapsTests extends ESTestCase {
         assertMapEntriesAndImmutability(map, entries);
     }
 
+    public void testDeepEqualsMapsWithSimpleValues() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<Integer> valueGenerator = () -> randomInt(5);
+        final Map<String, Integer> map = randomMap(randomInt(5), keyGenerator, valueGenerator);
+        final Map<String, Integer> mapCopy = new HashMap<>(map);
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, Integer> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), valueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final int value = mapModified.get(randomKey);
+                mapModified.put(randomKey, randomValueOtherThanMany((v) -> v.equals(value), valueGenerator));
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), valueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
     public void testDeepEqualsMapsWithArrayValues() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();

@@ -103,8 +103,29 @@ public class TsdbIT extends AbstractRollingTestCase {
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4","ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
+    private static final String DOC = """
+        {
+            "@timestamp": "$time",
+            "metricset": "pod",
+            "k8s": {
+                "pod": {
+                    "name": "dog",
+                    "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9",
+                    "ip": "10.10.55.3",
+                    "network": {
+                        "tx": 1434595272,
+                        "rx": 530605511
+                    }
+                }
+            }
+        }
+        """;
+
     public void testTsdbDataStream() throws Exception {
-        assumeTrue("TSDB was GA-ed in 8.7.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0));
+        assumeTrue(
+            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+        );
         if (CLUSTER_TYPE == ClusterType.OLD) {
             final String INDEX_TEMPLATE = """
                 {
@@ -134,13 +155,15 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
             String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
             assertThat(firstBackingIndex, backingIndexEqualTo("k8s", 1));
+            assertSearch(8);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            var searchRequest = new Request("GET", "k8s/_search");
-            var response = client().performRequest(searchRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
+            ensureHealth("k8s", request -> request.addParameter("wait_for_status", "yellow"));
+            if (FIRST_MIXED_ROUND) {
+                indexDoc();
+            }
+            assertSearch(9);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            ensureGreen("k8s");
             var rolloverRequest = new Request("POST", "/k8s/_rollover");
             assertOK(client().performRequest(rolloverRequest));
 
@@ -149,13 +172,25 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
             String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
             assertThat(secondBackingIndex, backingIndexEqualTo("k8s", 2));
-
-            var searchRequest = new Request("GET", "k8s/_search");
-            var response = client().performRequest(searchRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
+            indexDoc();
+            assertSearch(10);
         }
+    }
+
+    private static void indexDoc() throws IOException {
+        var indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(Instant.now())));
+        var response = client().performRequest(indexRequest);
+        assertOK(response);
+    }
+
+    private static void assertSearch(int expectedHitCount) throws IOException {
+        var searchRequest = new Request("GET", "k8s/_search");
+        var response = client().performRequest(searchRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(expectedHitCount));
     }
 
     private static String formatInstant(Instant instant) {

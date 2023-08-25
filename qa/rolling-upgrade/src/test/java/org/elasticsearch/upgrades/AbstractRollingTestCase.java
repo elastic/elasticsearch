@@ -42,6 +42,11 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     }
 
     @Override
+    protected final boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected final boolean preserveReposUponCompletion() {
         return true;
     }

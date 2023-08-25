@@ -150,7 +150,7 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
      */
     private static IndexMetadata copyDataStreamLifecycleState(IndexMetadata source, IndexMetadata dest, DataStream sourceParentDataStream) {
         IndexMetadata.Builder downsampleIndexBuilder = IndexMetadata.builder(dest);
-        Map<String, String> lifecycleCustomMetadata = dest.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+        Map<String, String> lifecycleCustomMetadata = source.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         Map<String, String> newCustomMetadata = new HashMap<>();
         if (lifecycleCustomMetadata != null) {
             newCustomMetadata.putAll(lifecycleCustomMetadata);

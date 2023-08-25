@@ -35,15 +35,16 @@ public class RailRoadDiagram {
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
         boolean first = true;
-        for (String arg : ShowFunctions.signature(definition)) {
-            if (first) {
-                first = false;
-            } else {
-                expressions.add(new Syntax(","));
-            }
+        List<String> args = ShowFunctions.signature(definition);
+        for (String arg : args) {
             if (arg.endsWith("...")) {
-                expressions.add(new Repetition(new Literal(arg.substring(0, arg.length() - 3)), 0, null));
+                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
             } else {
+                if (first) {
+                    first = false;
+                } else {
+                    expressions.add(new Syntax(","));
+                }
                 expressions.add(new Literal(arg));
             }
         }
@@ -55,6 +56,9 @@ public class RailRoadDiagram {
         RRDiagramToSVG toSvg = new RRDiagramToSVG();
         toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
         toSvg.setLiteralFillColor(toSvg.getSpecialSequenceFillColor());
+        toSvg.setLiteralFont(toSvg.getLiteralFont().deriveFont(20.0F));
+        toSvg.setSpecialSequenceFont(toSvg.getSpecialSequenceFont().deriveFont(20.0F));
+        toSvg.setRuleFont(toSvg.getRuleFont().deriveFont(20.0F));
         return toSvg.convert(rrDiagram);
     }
 
@@ -93,6 +97,7 @@ public class RailRoadDiagram {
                             if (false == cssClass.equals(LITERAL_TEXT_CLASS)) {
                                 return svgContent.setCSSClass(cssClass, definition);
                             }
+                            svgContent.setCSSClass(cssClass, definition);
                             return svgContent.setCSSClass(SYNTAX_TEXT_CLASS, definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY));
                         }
 

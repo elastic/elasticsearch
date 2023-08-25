@@ -518,6 +518,18 @@ dt:datetime              |plus:datetime
 2104-04-16T00:00:00.000Z |2100-01-01T01:01:01.001Z
 ;
 
+dateMathOverflow
+row dt = to_dt(9223372036854775807)
+| eval plus = dt + 1 day
+| keep plus;  
+
+warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+
+plus:datetime      
+null           
+;
+
 fieldDateMathSimple
 from employees
 | eval bd = birth_date + 1 year - 1 millisecond
@@ -542,4 +554,27 @@ from employees
 
 c:long
 0
+;
+
+filteringWithDateMath
+from employees
+| where birth_date < to_dt("2023-08-25T11:25:41.052Z") - 70 years
+| keep birth_date;
+
+birth_date:datetime       
+1953-04-20T00:00:00.000Z
+1952-04-19T00:00:00.000Z
+1953-01-23T00:00:00.000Z
+1952-12-24T00:00:00.000Z
+1952-07-08T00:00:00.000Z
+1953-04-03T00:00:00.000Z
+1953-02-08T00:00:00.000Z
+1953-07-28T00:00:00.000Z
+1952-08-06T00:00:00.000Z
+1952-11-13T00:00:00.000Z
+1953-01-07T00:00:00.000Z
+1952-05-15T00:00:00.000Z
+1952-06-13T00:00:00.000Z
+1952-02-27T00:00:00.000Z
+1953-04-21T00:00:00.000Z
 ;

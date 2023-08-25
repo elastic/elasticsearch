@@ -39,7 +39,6 @@ import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;

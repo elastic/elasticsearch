@@ -263,7 +263,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         for (Phase phase : phasesWithSearchableSnapshotActions) {
             SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
-            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            if (RepositoriesMetadata.get(state).repository(repository) == null) {
                 throw new IllegalArgumentException(
                     "no such repository ["
                         + repository

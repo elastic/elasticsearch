@@ -1,5 +1,7 @@
 [[esql-ceil]]
 === `CEIL`
+[.text-center]
+image::signature/ceil.svg[]
 Round a number up to the nearest integer.
 
 [source.merge.styled,esql]
@@ -11,6 +13,10 @@ include::{esql-specs}/math.csv-spec[tag=ceil]
 include::{esql-specs}/math.csv-spec[tag=ceil-result]
 |===
 
-NOTE: This is a noop for `long` and `integer`. For `double` this picks the
-      the closest `double` value to the integer ala
+NOTE: This is a noop for `long` (including unsigned) and `integer`.
+      For `double` this picks the the closest `double` value to the integer ala
       {javadoc}/java.base/java/lang/Math.html#ceil(double)[Math.ceil].
+
+Supported types:
+
+include::types/ceil.asciidoc[]

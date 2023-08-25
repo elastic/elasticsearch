@@ -151,9 +151,20 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet()
-            .stream()
-            .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+
+        for (Map.Entry<K, V> e : left.entrySet()) {
+            if (right.containsKey(e.getKey()) == false) {
+                return false;
+            }
+
+            V v1 = e.getValue();
+            V v2 = right.get(e.getKey());
+            if (Objects.deepEquals(v1, v2) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

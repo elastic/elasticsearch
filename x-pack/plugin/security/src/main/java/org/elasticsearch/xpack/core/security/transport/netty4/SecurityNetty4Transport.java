@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.HeaderValidationException;
 import org.elasticsearch.transport.InboundAggregator;
 import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.InboundPipeline;
@@ -182,9 +183,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
                                 header.getRequestHeaders(),
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
-                                }, e -> channel.eventLoop().submit(() -> channel.pipeline().fireExceptionCaught(e))),
-                                    () -> channel.config().setAutoRead(true)
-                                )
+                                },
+                                    e -> channel.eventLoop()
+                                        .submit(() -> channel.pipeline().fireExceptionCaught(new HeaderValidationException(header, e)))
+                                ), () -> channel.config().setAutoRead(true))
                             );
                         }
                     }

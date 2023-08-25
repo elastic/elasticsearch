@@ -60,12 +60,13 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         }
 
         for (int position = 0; position < children().size(); position++) {
+            Expression child = children().get(position);
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = child.dataType();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
+                child,
                 t -> t == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
@@ -128,9 +129,6 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
             return () -> new LeastLongEvaluator(
                 suppliers.get().map(MvMinLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
-        }
-        if (dataType == NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT

@@ -1,7 +1,7 @@
 [[esql-abs]]
 === `ABS`
 [.text-center]
-image::signature/abs.svg[]
+image::esql/functions/signature/abs.svg[Embedded,opts=inline]
 
 Returns the absolute value.
 

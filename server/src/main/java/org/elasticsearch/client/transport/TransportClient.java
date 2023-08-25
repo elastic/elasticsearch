@@ -230,6 +230,7 @@ public abstract class TransportClient extends AbstractClient {
                 xContentRegistry,
                 networkService,
                 null,
+                (httpPreRequest, threadContext) -> {},
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
             final Transport transport = networkModule.getTransportSupplier().get();

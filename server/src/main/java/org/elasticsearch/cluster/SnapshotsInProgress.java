@@ -61,6 +61,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // keyed by repository name
     private final Map<String, ByRepo> entries;
 
+    public static SnapshotsInProgress get(ClusterState currentState) {
+        return currentState.custom(TYPE, EMPTY);
+    }
+
     public SnapshotsInProgress(StreamInput in) throws IOException {
         this(collectByRepo(in));
     }

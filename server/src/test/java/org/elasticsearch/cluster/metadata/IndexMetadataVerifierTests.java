@@ -132,6 +132,33 @@ public class IndexMetadataVerifierTests extends ESTestCase {
         service.verifyIndexMetadata(goodMeta, IndexVersion.MINIMUM_COMPATIBLE);
     }
 
+    public void testMissingTimeSeriesIndexStartAndEndTime() {
+        IndexMetadata src = newIndexMeta(
+            "foo",
+            Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field").build()
+        );
+        IndexMetadata dst = IndexMetadataVerifier.removeInvalidTimeSeriesIndexModeSettings(src);
+        assertNull(dst.getSettings().get("index.mode"));
+        assertNull(dst.getSettings().get("index.routing_path"));
+    }
+
+    public void testTimeSeriesIndexRequiredSettings() {
+        IndexMetadata src = newIndexMeta(
+            "foo",
+            Settings.builder()
+                .put("index.mode", "time_series")
+                .put("index.routing_path", "field")
+                .put("index.time_series.start_time", "2022-05-03T21:00:00Z")
+                .put("index.time_series.end_time", "2022-05-03T22:00:00Z")
+                .build()
+        );
+        IndexMetadata dst = IndexMetadataVerifier.removeInvalidTimeSeriesIndexModeSettings(src);
+        assertEquals("time_series", dst.getSettings().get("index.mode"));
+        assertEquals("field", dst.getSettings().get("index.routing_path"));
+        assertEquals("2022-05-03T21:00:00Z", dst.getSettings().get("index.time_series.start_time"));
+        assertEquals("2022-05-03T22:00:00Z", dst.getSettings().get("index.time_series.end_time"));
+    }
+
     private IndexMetadataVerifier getIndexMetadataVerifier() {
         return new IndexMetadataVerifier(
             Settings.EMPTY,

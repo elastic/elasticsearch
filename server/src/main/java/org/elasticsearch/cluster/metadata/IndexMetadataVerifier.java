@@ -305,7 +305,7 @@ public class IndexMetadataVerifier {
      * @param indexMetadata The index metadata
      * @return The index metadata without invalid settings
      */
-    private static IndexMetadata removeInvalidTimeSeriesIndexModeSettings(final IndexMetadata indexMetadata) {
+    static IndexMetadata removeInvalidTimeSeriesIndexModeSettings(final IndexMetadata indexMetadata) {
         final Settings originalSettings = indexMetadata.getSettings();
         if (IndexVersion.V_8_11_0.after(indexMetadata.getCreationVersion())
             && indexMetadata.getIndexMode() == IndexMode.TIME_SERIES

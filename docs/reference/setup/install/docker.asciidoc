@@ -220,6 +220,7 @@ endif::[]
 ----
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cat/nodes
 ----
+// NOTCONSOLE
 
 ===== Setting JVM heap size
 If you experience issues where the container where your first node is running

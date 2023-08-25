@@ -125,6 +125,12 @@ public class MapsTests extends ESTestCase {
         assertFalse(Maps.deepEquals(map, mapModified));
     }
 
+    public void testDeepEqualsMapsSimple() {
+        Map<String, Map<String, int[]>> m1 = Map.of("a", Map.of("b", new int[] { 1 }));
+        Map<String, Map<String, int[]>> m2 = Map.of("a", Map.of("b", new int[] { 1 }));
+        assertTrue(Maps.deepEquals(m1, m2));
+    }
+
     public void testCollectToUnmodifiableSortedMap() {
         SortedMap<String, String> canadianProvinces = Stream.of(
             new Tuple<>("ON", "Ontario"),

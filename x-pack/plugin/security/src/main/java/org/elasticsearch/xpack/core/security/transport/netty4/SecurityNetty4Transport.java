@@ -163,7 +163,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
         if (false == isRemoteClusterServerChannel) {
             return super.getInboundPipeline(channel, false);
         } else {
-            assert channel instanceof Netty4TcpChannel;
             return new InboundPipeline(
                 getStatsTracker(),
                 threadPool::relativeTimeInMillis,
@@ -177,7 +176,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                         // eagerly (before buffering the full request) authenticate all request headers for this type of channel
                         assert header.isRequest();
                         // authn is mostly async, avoid buffering anymore data while authn is in progress
-                        ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(false);
+                        channel.config().setAutoRead(false);
                         // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                             crossClusterAccessAuthenticationService.tryAuthenticate(
@@ -185,7 +184,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
                                 }, e -> channel.eventLoop().submit(() -> channel.pipeline().fireExceptionCaught(e))),
-                                    () -> ((Netty4TcpChannel) channel).getNettyChannel().config().setAutoRead(true)
+                                    () -> channel.config().setAutoRead(true)
                                 )
                             );
                         }

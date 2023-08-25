@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -361,6 +362,7 @@ public class DesiredBalanceComputer {
     }
 
     private static void collectShardAssignments(RoutingNodes routingNodes, HashMap<ShardId, ShardAssignment> assignments) {
+        assert routingNodes.getAssignedShards().values().stream().flatMap(Collection::stream).allMatch(ShardRouting::started) : assignments;
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {
             assignments.put(shardAndAssignments.getKey(), ShardAssignment.ofAssignedShards(shardAndAssignments.getValue()));
         }

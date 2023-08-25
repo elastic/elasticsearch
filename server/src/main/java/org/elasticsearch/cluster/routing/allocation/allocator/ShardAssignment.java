@@ -28,7 +28,6 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
     }
 
     public static ShardAssignment ofAssignedShards(List<ShardRouting> routings) {
-        assert routings.stream().allMatch(ShardRouting::started) : routings;
         var nodeIds = new LinkedHashSet<String>();
         for (ShardRouting routing : routings) {
             nodeIds.add(routing.currentNodeId());

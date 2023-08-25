@@ -56,6 +56,17 @@ public class TextFormatTests extends ESTestCase {
         assertEscapedCorrectly("\",\"", CSV, CSV.delimiter(), "\"\"\",\"\"\"");
         assertEscapedCorrectly("\"quo\"ted\"", CSV, CSV.delimiter(), "\"\"\"quo\"\"ted\"\"\"");
         assertEscapedCorrectly("one;two", CSV, ';', "\"one;two\"");
+        assertEscapedCorrectly("one\ntwo", CSV, CSV.delimiter(), "\"one\ntwo\"");
+        assertEscapedCorrectly("one\rtwo", CSV, CSV.delimiter(), "\"one\rtwo\"");
+
+        final String inputString = randomStringForEscaping();
+        final String expectedResult;
+        if (inputString.contains(",") || inputString.contains("\n") || inputString.contains("\r") || inputString.contains("\"")) {
+            expectedResult = "\"" + inputString.replaceAll("\"", "\"\"") + "\"";
+        } else {
+            expectedResult = inputString;
+        }
+        assertEscapedCorrectly(inputString, CSV, ',', expectedResult);
     }
 
     public void testTsvEscaping() {
@@ -64,6 +75,22 @@ public class TextFormatTests extends ESTestCase {
         assertEscapedCorrectly("\"", TSV, null, "\"");
         assertEscapedCorrectly("\t", TSV, null, "\\t");
         assertEscapedCorrectly("\n\"\t", TSV, null, "\\n\"\\t");
+
+        final var inputString = randomStringForEscaping();
+        final var expectedResult = new StringBuilder();
+        for (int i = 0; i < inputString.length(); i++) {
+            final var c = inputString.charAt(i);
+            switch (c) {
+                case '\n' -> expectedResult.append("\\n");
+                case '\t' -> expectedResult.append("\\t");
+                default -> expectedResult.append(c);
+            }
+        }
+        assertEscapedCorrectly(inputString, TSV, null, expectedResult.toString());
+    }
+
+    private static String randomStringForEscaping() {
+        return String.join("", randomList(20, () -> randomFrom("a", "b", ",", ";", "\n", "\r", "\t", "\"")));
     }
 
     private static void assertEscapedCorrectly(String inputString, TextFormat format, Character delimiter, String expectedString) {

@@ -25,10 +25,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -45,7 +47,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
-import static org.hamcrest.Matchers.aMapWithSize;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -510,10 +513,20 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
-        assertThat(diskUsageResponse.getStats(), aMapWithSize(1));
-        var indexDiskUsage = diskUsageResponse.getStats().get(indexName);
-        var fieldDiskUsage = indexDiskUsage.getFields().get("_id");
-        assertThat(fieldDiskUsage.getStoredFieldBytes(), greaterThanOrEqualTo(1L));
+        var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk()
+                                .entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", greaterThanOrEqualTo(1)))
+                        )
+                )
+        );
 
         // Check that the minimum retaining seqno has advanced, otherwise _id (and recovery source) doesn't get trimmed away.
         var finalIndexName = indexName;
@@ -542,10 +555,19 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
-        assertThat(diskUsageResponse.getStats(), aMapWithSize(1));
-        indexDiskUsage = diskUsageResponse.getStats().get(indexName);
-        fieldDiskUsage = indexDiskUsage.getFields().get("_id");
-        assertThat(fieldDiskUsage.getStoredFieldBytes(), equalTo(0L));
+        map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk().entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", equalTo(0)))
+                        )
+                )
+        );
 
         // Check the search api can synthesize _id
         var searchRequest = new SearchRequest(dataStreamName);

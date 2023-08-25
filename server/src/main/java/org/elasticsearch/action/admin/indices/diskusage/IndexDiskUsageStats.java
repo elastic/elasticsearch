@@ -73,7 +73,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return total;
     }
 
-    public Map<String, PerFieldDiskUsage> getFields() {
+    Map<String, PerFieldDiskUsage> getFields() {
         return fields;
     }
 

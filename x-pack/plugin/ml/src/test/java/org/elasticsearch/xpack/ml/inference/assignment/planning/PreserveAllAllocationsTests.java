@@ -24,8 +24,8 @@ public class PreserveAllAllocationsTests extends ESTestCase {
     public void testGivenNoPreviousAssignments() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        Deployment deployment1 = new Deployment("m_1", 30, 2, 1, Map.of(), 0);
-        Deployment deployment2 = new Deployment("m_2", 30, 2, 4, Map.of(), 0);
+        Deployment deployment1 = new Deployment("m_1", 30, 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", 30, 2, 4, Map.of(), 0, 0, 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(
             List.of(node1, node2),
             List.of(deployment1, deployment2)
@@ -41,8 +41,8 @@ public class PreserveAllAllocationsTests extends ESTestCase {
     public void testGivenPreviousAssignments() {
         Node node1 = new Node("n_1", 100, 8);
         Node node2 = new Node("n_2", 100, 8);
-        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 30, 2, 1, Map.of("n_1", 1), 1);
-        Deployment deployment2 = new Deployment("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2), 3);
+        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 30, 2, 1, Map.of("n_1", 1), 1, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(
             List.of(node1, node2),
             List.of(deployment1, deployment2)
@@ -92,7 +92,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {
         Node node = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment deployment = new Deployment("m_1", 30, 2, 2, Map.of("n_1", 2), 2);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", 30, 2, 2, Map.of("n_1", 2), 2, 0, 0);
         PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node), List.of(deployment));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(deployment)).build();

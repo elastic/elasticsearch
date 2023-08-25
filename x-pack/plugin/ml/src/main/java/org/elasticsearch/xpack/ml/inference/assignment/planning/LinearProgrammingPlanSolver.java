@@ -323,8 +323,8 @@ class LinearProgrammingPlanSolver {
                 // + DynamicModelMemory[m] * thread_vars[m][n]
                 // QUESTION: what to do with m.threadPerAllocation()?
                 modelMemories.add(
-                    normalizedMemoryPerModel.get(m) * m.threadsPerAllocation() / (double) coresPerNode.get(n)
-                        + normalizedMemoryPerAllocation.get(m)
+                    (normalizedMemoryPerModel.get(m) / (double) coresPerNode.get(n) + normalizedMemoryPerAllocation.get(m)) * m
+                        .threadsPerAllocation()
                 );
             });
             model.addExpression("used_memory_on_node_" + n.id() + "_not_more_than_available")

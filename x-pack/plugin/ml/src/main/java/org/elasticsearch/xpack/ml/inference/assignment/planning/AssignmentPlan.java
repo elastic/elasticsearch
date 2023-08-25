@@ -74,13 +74,18 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         long estimateMemoryUsageBytes(int allocations) {
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                id,
-                memoryBytes,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes,
-                allocations
-            );
+            if (perAllocationMemoryBytes > 0 && perDeploymentMemoryBytes > 0) {
+                // TODO: memoryBytes is not the same as totalDefinitionLength,
+                // which is actually required in estimateMemoryUsageBytes()
+                return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                    id,
+                    memoryBytes,
+                    perDeploymentMemoryBytes,
+                    perAllocationMemoryBytes,
+                    allocations
+                );
+            }
+            return memoryBytes;
         }
 
         long minimumMemoryRequiredBytes() {

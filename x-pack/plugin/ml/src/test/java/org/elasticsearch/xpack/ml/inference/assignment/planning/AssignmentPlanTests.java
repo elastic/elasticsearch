@@ -24,21 +24,21 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testBuilderCtor_GivenDuplicateNode() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, 0, 0);
 
         expectThrows(IllegalArgumentException.class, () -> AssignmentPlan.builder(List.of(n, n), List.of(m)));
     }
 
     public void testBuilderCtor_GivenDuplicateModel() {
         Node n = new Node("n_1", 100, 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, 0, 0);
 
         expectThrows(IllegalArgumentException.class, () -> AssignmentPlan.builder(List.of(n), List.of(m, m)));
     }
 
     public void testAssignModelToNode_GivenNoPreviousAssignment() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 1, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -63,7 +63,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNewPlanSatisfiesCurrentAssignment() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 1), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 1), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -83,7 +83,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyCurrentAssignment() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 2), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 2), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -103,7 +103,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenPreviouslyUnassignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 101, 2, 2, Map.of(), 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 101, 2, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
@@ -113,7 +113,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenPreviouslyAssignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 2, 2, Map.of("n_1", 1), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 2, 2, Map.of("n_1", 1), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         builder.assignModelToNode(m, n, 2);
@@ -126,7 +126,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndSingleThreadPerAllocation() {
         Node n = new Node("n_1", 100, 4);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 100, 5, 1, Map.of(), 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 100, 5, 1, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 5));
@@ -139,7 +139,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndMultipleThreadsPerAllocation() {
         Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of(), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 3));
@@ -152,7 +152,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenSameModelAssignedTwice() {
         Node n = new Node("n_1", 100, 8);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 60, 4, 2, Map.of(), 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 60, 4, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -186,7 +186,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenPreviouslyUnassignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of(), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -195,7 +195,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenPreviouslyAssignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 5);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of("n_1", 1), 0);
+        Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of("n_1", 1), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -204,7 +204,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenEnoughMemory() {
         Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of(), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of(), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -219,13 +219,13 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", 100, 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 2), 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 2), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planSatisfyingPreviousAssignments = builder.build();
         }
         {
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 3), 0);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 3), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planNotSatisfyingPreviousAssignments = builder.build();
@@ -239,7 +239,7 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan planWithMoreAllocations;
         AssignmentPlan planWithFewerAllocations;
         Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0, 0, 0);
 
         {
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
@@ -262,13 +262,13 @@ public class AssignmentPlanTests extends ESTestCase {
         Node n = new Node("n_1", 100, 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planUsingMoreMemory = builder.build();
         }
         {
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 99, 3, 2, Map.of("n_1", 1), 0);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 99, 3, 2, Map.of("n_1", 1), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planUsingLessMemory = builder.build();
@@ -281,9 +281,9 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testSatisfiesAllModels_GivenAllModelsAreSatisfied() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 0);
-        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 0);
-        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 0);
+        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 0, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 2)
@@ -296,9 +296,9 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testSatisfiesAllModels_GivenOneModelHasOneAllocationLess() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 0);
-        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 0);
-        Deployment deployment3 = new Deployment("m_3", 20, 4, 1, Map.of(), 0);
+        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", 20, 4, 1, Map.of(), 0, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 2)
@@ -311,9 +311,9 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testArePreviouslyAssignedModelsAssigned_GivenTrue() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 3);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", 30, 2, 1, Map.of(), 4);
-        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 0);
+        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 3, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", 30, 2, 1, Map.of(), 4, 0, 0);
+        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 0, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 1)
@@ -324,8 +324,8 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testArePreviouslyAssignedModelsAssigned_GivenFalse() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", 50, 1, 2, Map.of(), 3);
-        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 4);
+        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", 50, 1, 2, Map.of(), 3, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 4, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
             .assignModelToNode(deployment1, node1, 1)
             .build();
@@ -335,10 +335,10 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testCountPreviouslyAssignedThatAreStillAssigned() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 3);
-        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 4);
-        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 1);
-        AssignmentPlan.Deployment deployment4 = new AssignmentPlan.Deployment("m_4", 20, 4, 1, Map.of(), 0);
+        Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 50, 1, 2, Map.of(), 3, 0, 0);
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment("m_2", 30, 2, 1, Map.of(), 4, 0, 0);
+        AssignmentPlan.Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 20, 4, 1, Map.of(), 1, 0, 0);
+        AssignmentPlan.Deployment deployment4 = new AssignmentPlan.Deployment("m_4", 20, 4, 1, Map.of(), 0, 0, 0);
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2, deployment3, deployment4))
             .assignModelToNode(deployment1, node1, 1)
             .assignModelToNode(deployment2, node2, 1)

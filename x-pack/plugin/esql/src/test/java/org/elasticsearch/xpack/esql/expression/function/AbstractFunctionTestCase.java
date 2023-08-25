@@ -60,7 +60,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoubleFunction;
 import java.util.function.DoubleUnaryOperator;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -222,10 +226,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         /**
-         * Generate positive test cases for binary functions that operate on an {@code numeric}
+         * Generate positive test cases for unary functions that operate on an {@code numeric}
          * fields by casting them to {@link DataTypes#DOUBLE}s.
          */
         public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
+            // NOCOMMIT call forUnaryNumeric
             List<TestCaseSupplier> suppliers = new ArrayList<>();
             for (DataType type : EsqlDataTypes.types()) {
                 if (type.isNumeric() == false || EsqlDataTypes.isRepresentable(type) == false) {
@@ -303,6 +308,81 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             return suppliers;
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#INTEGER}.
+         */
+        public static void forUnaryInt(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            IntFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.INTEGER, expectedType, n -> expectedValue.apply(n.intValue()));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#LONG}.
+         */
+        public static void forUnaryLong(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            LongFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.LONG, expectedType, n -> expectedValue.apply(n.longValue()));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#UNSIGNED_LONG}.
+         */
+        public static void forUnaryUnsignedLong(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<BigInteger, Object> expectedValue
+        ) {
+            unaryNumeric(
+                suppliers,
+                expectedEvaluatorToString,
+                DataTypes.UNSIGNED_LONG,
+                expectedType,
+                n -> expectedValue.apply((BigInteger) n)
+            );
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#DOUBLE}.
+         */
+        public static void forUnaryDouble(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            DoubleFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.DOUBLE, expectedType, n -> expectedValue.apply(n.doubleValue()));
+        }
+
+        private static void unaryNumeric(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType inputType,
+            DataType expectedOutputType,
+            Function<Number, Object> expected
+        ) {
+            for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(inputType)) {
+                suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
+                    Number value = (Number) supplier.getValue().get();
+                    TypedData typed = new TypedData(
+                        // TODO there has to be a better way to handle unsigned long
+                        value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
+                        inputType,
+                        "value"
+                    );
+                    return new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
+                }));
+            }
         }
 
         private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(

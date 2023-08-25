@@ -1,5 +1,8 @@
 [[esql-e]]
 === `E`
+[.text-center]
+image::signature/e.svg[]
+
 {wikipedia}/E_(mathematical_constant)[Euler's number].
 
 [source.merge.styled,esql]

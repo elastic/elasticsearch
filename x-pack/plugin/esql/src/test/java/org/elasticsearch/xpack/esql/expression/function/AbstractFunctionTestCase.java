@@ -18,17 +18,17 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -41,9 +41,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
@@ -635,7 +635,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
 
-    return suppliers;
+        return suppliers;
 
     }
 
@@ -805,6 +805,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @After
     public void trackSignature() {
+        if (testCase.expectedTypeError != null) {
+            return;
+        }
+        if (testCase.getData().stream().anyMatch(t -> t.type == DataTypes.NULL)) {
+            return;
+        }
         signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
     }
 

@@ -105,7 +105,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     public void validate(DownsampleShardTaskParams params, ClusterState clusterState) {
         // This is just a pre-check, but doesn't prevent from avoiding from aborting the task when source index disappeared
         // after initial creation of the persistent task.
-        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId());
+        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
         if (indexShardRouting == null) {
             throw new ShardNotFoundException(params.shardId());
         }
@@ -122,10 +122,10 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // the downsampling task shard id.
         final ShardId shardId = params.shardId();
 
-        // If during re-assignment the source index disappeared, then we need to break out.
+        // If during re-assignment the source index was deleted, then we need to break out.
         // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
         // So let's return a node and then in the node operation we would just fail and stop this persistent task
-        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId());
+        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");

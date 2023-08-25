@@ -25,13 +25,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -85,34 +85,42 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         sharedRamBytesUsed = 0;
     }
 
+    private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
+        return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
+    }
+
+    private long getShareOfAdditionalRamBytesUsed(double cacheSize) {
+        // We also have some shared ram usage that we try to distribute proportionally to their number of cache entries of each shard.
+
+        if (shardStats.isEmpty()) {
+            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
+            // extend beyond the closing of all shards.
+            return 0L;
+        }
+
+        long totalSize = 0L;
+        int shardCount = 0;
+        for (final var stats : shardStats.values()) {
+            shardCount += 1;
+            totalSize += stats.cacheSize;
+        }
+
+        if (shardCount == 0) {
+            // no synchronization so iterating shardStats may have found no shards even though it was nonempty earlier
+            return 0L;
+        }
+
+        final double weight = totalSize == 0 ? 1d / shardCount : cacheSize / totalSize;
+        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+        assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
+        return additionalRamBytesUsed;
+    }
+
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard) {
-        final Map<ShardId, QueryCacheStats> stats = new HashMap<>();
-        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
-            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());
-        }
-        QueryCacheStats shardStats = new QueryCacheStats();
-        QueryCacheStats info = stats.get(shard);
-        if (info == null) {
-            info = new QueryCacheStats();
-        }
-        shardStats.add(info);
-
-        // We also have some shared ram usage that we try to distribute
-        // proportionally to their number of cache entries of each shard.
-        // Sometimes it's not possible to do this when there are no shard entries at all,
-        // which can happen as the shared ram usage can extend beyond the closing of all shards.
-        if (stats.isEmpty() == false) {
-            long totalSize = 0;
-            for (QueryCacheStats s : stats.values()) {
-                totalSize += s.getCacheSize();
-            }
-            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
-            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-            assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
-            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
-        }
-        return shardStats;
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
+        return queryCacheStats;
     }
 
     @Override

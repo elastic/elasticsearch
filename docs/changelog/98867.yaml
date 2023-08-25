@@ -1,0 +1,5 @@
+pr: 98867
+summary: Downgrade time series index if start and end time are missing
+area: TSDB
+type: bug
+issues: []

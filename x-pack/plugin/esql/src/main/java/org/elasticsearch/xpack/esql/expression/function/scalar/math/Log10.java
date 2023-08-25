@@ -40,38 +40,50 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
         var eval = field.get();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return () -> new Log10DoubleEvaluator(eval);
+            return () -> new Log10DoubleEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return () -> new Log10IntEvaluator(eval);
+            return () -> new Log10IntEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.LONG) {
-            return () -> new Log10LongEvaluator(eval);
+            return () -> new Log10LongEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return () -> new Log10UnsignedLongEvaluator(eval);
+            return () -> new Log10UnsignedLongEvaluator(source(), eval);
         }
 
         throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = { ArithmeticException.class })
     static double process(double val) {
+        if (val <= 0) {
+            throw new ArithmeticException("log of non-positive number");
+        }
         return Math.log10(val);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static double process(long val) {
+        if (val <= 0) {
+            throw new ArithmeticException("log of non-positive number");
+        }
         return Math.log10(val);
     }
 
-    @Evaluator(extraName = "UnsignedLong")
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = { ArithmeticException.class })
     static double processUnsignedLong(long val) {
+        if (val == 0) { // Can't be negative
+            throw new ArithmeticException("log of non-positive number");
+        }
         return Math.log10(NumericUtils.unsignedLongToDouble(val));
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static double process(int val) {
+        if (val <= 0) {
+            throw new ArithmeticException("log of non-positive number");
+        }
         return Math.log10(val);
     }
 

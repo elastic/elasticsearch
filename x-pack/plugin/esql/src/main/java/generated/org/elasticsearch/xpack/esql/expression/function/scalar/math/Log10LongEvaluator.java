@@ -4,24 +4,29 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log10}.
  * This class is generated. Do not edit it.
  */
 public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
-  public Log10LongEvaluator(EvalOperator.ExpressionEvaluator val) {
+  public Log10LongEvaluator(Source source, EvalOperator.ExpressionEvaluator val) {
+    this.warnings = new Warnings(source);
     this.val = val;
   }
 
@@ -36,7 +41,7 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
     if (valVector == null) {
       return eval(page.getPositionCount(), valBlock);
     }
-    return eval(page.getPositionCount(), valVector).asBlock();
+    return eval(page.getPositionCount(), valVector);
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
@@ -46,15 +51,25 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
         result.appendNull();
         continue position;
       }
-      result.appendDouble(Log10.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+      try {
+        result.appendDouble(Log10.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, LongVector valVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, LongVector valVector) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Log10.process(valVector.getLong(p)));
+      try {
+        result.appendDouble(Log10.process(valVector.getLong(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

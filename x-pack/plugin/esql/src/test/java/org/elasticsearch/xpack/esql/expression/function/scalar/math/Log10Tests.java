@@ -29,23 +29,64 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Log10 of Double", () -> {
-            // TODO: include larger values here
-            double arg = randomDouble();
+            double arg;
+            if (randomBoolean()) {
+                arg = randomDouble();
+            } else {
+                arg = 1 / randomDouble();
+            }
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "Log10DoubleEvaluator[val=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
                 equalTo(Math.log10(arg))
             );
-        }), new TestCaseSupplier("Log10(negative)", () -> {
-            double arg = randomIntBetween(Integer.MIN_VALUE, -1); // it's inclusive
+        }), new TestCaseSupplier("Log10(negative double)", () -> {
+            double arg = randomDoubleBetween(Double.NEGATIVE_INFINITY, 0, false);
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "Log10DoubleEvaluator[val=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
-                equalTo(Double.NaN)
-            );
-        })));
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("java.lang.ArithmeticException: log of non-positive number");
+        }), new TestCaseSupplier("Log10(negative integer)", () -> {
+            int arg = randomIntBetween(Integer.MIN_VALUE, -1); // it's inclusive
+            return new TestCase(
+                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+                "Log10IntEvaluator[val=Attribute[channel=0]]",
+                DataTypes.DOUBLE,
+                equalTo(null)
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("java.lang.ArithmeticException: log of non-positive number");
+        }), new TestCaseSupplier("Log10(integer)", () -> {
+                int arg = randomIntBetween(1, Integer.MAX_VALUE); // it's inclusive
+                return new TestCase(
+                    List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+                    "Log10IntEvaluator[val=Attribute[channel=0]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.log10(arg))
+                );
+            }), new TestCaseSupplier("Log10(long)", () -> {
+                long arg = randomLongBetween(1, Long.MAX_VALUE); // it's inclusive
+                return new TestCase(
+                    List.of(new TypedData(arg, DataTypes.LONG, "arg")),
+                    "Log10LongEvaluator[val=Attribute[channel=0]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.log10(arg))
+                );
+            }), new TestCaseSupplier("Log10(negative long)", () -> {
+                long arg = randomLongBetween(Long.MIN_VALUE, 0); // it's inclusive
+                return new TestCase(
+                    List.of(new TypedData(arg, DataTypes.LONG, "arg")),
+                    "Log10LongEvaluator[val=Attribute[channel=0]]",
+                    DataTypes.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: log of non-positive number");
+            })
+
+        ));
     }
 
     @Override

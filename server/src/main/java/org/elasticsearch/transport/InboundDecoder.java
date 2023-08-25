@@ -250,6 +250,8 @@ public class InboundDecoder implements Releasable {
     }
 
     public enum ChannelType {
-        SERVER, CLIENT, MIX
+        SERVER,
+        CLIENT,
+        MIX
     }
 }

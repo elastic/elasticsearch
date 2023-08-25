@@ -370,7 +370,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(
                 e.getCause().getCause().getMessage(),
-                containsString("[realm_type] requires [file] when [auth_type] is [realm] or not specified")
+                containsString("when [auth_type] is defined as [realm] then [realm_type] must be defined as [file] or [jwt]")
             );
         }
 
@@ -425,10 +425,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 e.getCause().getCause().getMessage(),
                 containsString("[realm_name] must be specified for realm types other than [_service_account,file,native,reserved]")
             );
-            assertThat(
-                e.getCause().getCause().getMessage(),
-                containsString("[realm_type] requires [file] when [auth_type] is [realm] or not specified")
-            );
+            assertThat(e.getCause().getCause().getMessage(), containsString("when [realm_type] is [jwt] the [realmName] must be se"));
         }
 
         config = """

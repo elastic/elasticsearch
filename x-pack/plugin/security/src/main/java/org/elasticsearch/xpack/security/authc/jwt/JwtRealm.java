@@ -419,7 +419,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         // User metadata: If enabled, extract metadata from JWT claims set. Use it in UserRoleMapper.UserData and User constructors.
-        final Map<String, Object> userMetadata = buildUserMetadata(claimsSet);
+        final Map<String, Object> userMetadata = buildUserMetadata(tokenPrincipal, claimsSet);
 
         // Role resolution: Handle role mapping in JWT Realm.
         final List<String> groups = claimParserGroups.getClaimValues(claimsSet);
@@ -466,12 +466,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     /**
      * Format and filter JWT contents as user metadata.
+     * @param tokenPrincipal The token principal that uniquely identifies this token. This is more unique than the {@link User} principal.
      * @param claimsSet Claims are supported. Claim keys are prefixed by "jwt_claim_".
      * @return Map of formatted and filtered values to be used as user metadata.
      */
-    private Map<String, Object> buildUserMetadata(JWTClaimsSet claimsSet) {
+    private Map<String, Object> buildUserMetadata(String tokenPrincipal, JWTClaimsSet claimsSet) {
         final HashMap<String, Object> metadata = new HashMap<>();
         metadata.put("jwt_token_type", jwtAuthenticator.getTokenType().value());
+        metadata.put("jwt_token_principal", tokenPrincipal);
         if (populateUserMetadata) {
             claimsSet.getClaims()
                 .entrySet()

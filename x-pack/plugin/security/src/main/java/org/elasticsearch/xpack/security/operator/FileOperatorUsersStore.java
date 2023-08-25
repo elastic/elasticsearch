@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
@@ -73,12 +74,17 @@ public class FileOperatorUsersStore {
         if (realm == null) {
             return false;
         }
+        // User principal is not unique enough for the JWT realm
+        final String username = JwtRealmSettings.TYPE.equals(realm.getType())
+            ? (String) authentication.getEffectiveSubject().getUser().metadata().get("jwt_token_principal")
+            : authentication.getEffectiveSubject().getUser().principal();
+
         // Validation per-group is done early and once. This allows this anyMatch to be agnostic to the specific rules
         // for any specific group. For example, token_source is not allowed to be null when authentication is done via a token but
         // null is allowed here for a generic anyMatch across any group. This safe because we require token_source to be configured
         // when auth_type is token.
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
-            final boolean match = group.usernames.contains(authentication.getEffectiveSubject().getUser().principal())
+            final boolean match = group.usernames.contains(username)
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()))
@@ -192,8 +198,13 @@ public class FileOperatorUsersStore {
                 }
             }
             if (authenticationType == Authentication.AuthenticationType.REALM) {
-                if (false == FileRealmSettings.TYPE.equals(realmType)) {
-                    validationException.addValidationError("[realm_type] requires [file] when [auth_type] is [realm] or not specified");
+                if (false == FileRealmSettings.TYPE.equals(realmType) && false == JwtRealmSettings.TYPE.equals(realmType)) {
+                    validationException.addValidationError(
+                        "when [auth_type] is defined as [realm] " + "then [realm_type] must be defined as [file] or [jwt]"
+                    );
+                }
+                if (JwtRealmSettings.TYPE.equals(realmType) && Strings.hasText(realmName) == false) {
+                    validationException.addValidationError("when [realm_type] is [jwt] the [realmName] must be set");
                 }
                 if (tokenNames != null) {
                     validationException.addValidationError("[token_names] is not valid when [realm_type] is [file]");

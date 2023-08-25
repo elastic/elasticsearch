@@ -420,10 +420,12 @@ role mapping:
 user's list of groups.
 
 `metadata`::
-(Optional, object) Additional metadata about the user, such as strings, integers,
-boolean values, and collections that are used as the {es} user's metadata.
-These values are key value pairs formatted as
-`metadata.jwt_claim_<key>` = `<value>`.
+(Optional, object) Additional metadata about the user derived from the JWT
+used to authenticate. These usable values are visible {es} from the result of
+the <<security-api-authenticate-request,/_security/_authenticate>> endpoint.
+Reference these value with a `metadata.` prefix. For example
+`metadata.jwt_token_principal` and `metadata.jwt_claim_<key>` where `key` is a claim
+from the JWT.
 
 [[jwt-authorization-delegation]]
 ===== Delegating JWT authorization to another realm

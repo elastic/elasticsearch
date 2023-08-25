@@ -22,6 +22,8 @@ public class TimeSeriesIndexIT extends AbstractRollingTestCase {
 
     private record DocumentHolder(String timestamp, String host, double gauge, long counter) {}
 
+    private int lastIndexedDoc = 0;
+
     private static final String INDEX_NAME = "test";
     private static final Instant NOW = Instant.ofEpochMilli(System.currentTimeMillis());
     private static final List<DocumentHolder> DOCUMENTS = List.of(
@@ -31,29 +33,37 @@ public class TimeSeriesIndexIT extends AbstractRollingTestCase {
         new DocumentHolder(NOW.plus(4, ChronoUnit.MINUTES).toString(), "host-a", 18.0, 10),
         new DocumentHolder(NOW.plus(5, ChronoUnit.MINUTES).toString(), "host-a", 19.0, 12),
         new DocumentHolder(NOW.plus(6, ChronoUnit.MINUTES).toString(), "host-a", 22.0, 20),
-        new DocumentHolder(NOW.plus(7, ChronoUnit.MINUTES).toString(), "host-a", 25.0, 30)
+        new DocumentHolder(NOW.plus(7, ChronoUnit.MINUTES).toString(), "host-a", 25.0, 30),
+        new DocumentHolder(NOW.plus(8, ChronoUnit.MINUTES).toString(), "host-a", 26.0, 31)
     );
 
     public void testTimeSeriesIndexSettings() throws IOException {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createTimeSeriesIndex(INDEX_NAME);
             assertIndexExists(INDEX_NAME);
-            indexDocuments(INDEX_NAME, 0, 5);
+            indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 5);
+            lastIndexedDoc = 5;
             assertDocCount(client(), INDEX_NAME, 5);
             assertSearch(INDEX_NAME);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             assertIndexExists(INDEX_NAME);
             assertDocCount(client(), INDEX_NAME, 5);
             assertSearch(INDEX_NAME);
-            indexDocuments(INDEX_NAME, 5, 6);
-            assertDocCount(client(), INDEX_NAME, 6);
+            indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 1);
+            if (lastIndexedDoc == 5) {
+                assertDocCount(client(), INDEX_NAME, 6);
+                lastIndexedDoc = 6;
+            } else if (lastIndexedDoc == 6) {
+                assertDocCount(client(), INDEX_NAME, 7);
+                lastIndexedDoc = 7;
+            }
             assertSearch(INDEX_NAME);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertIndexExists(INDEX_NAME);
-            assertDocCount(client(), INDEX_NAME, 6);
-            assertSearch(INDEX_NAME);
-            indexDocuments(INDEX_NAME, 6, 7);
             assertDocCount(client(), INDEX_NAME, 7);
+            assertSearch(INDEX_NAME);
+            indexDocuments(INDEX_NAME, lastIndexedDoc, lastIndexedDoc + 1);
+            assertDocCount(client(), INDEX_NAME, 8);
             assertSearch(INDEX_NAME);
         }
     }

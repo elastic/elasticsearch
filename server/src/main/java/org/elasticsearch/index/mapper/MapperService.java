@@ -348,13 +348,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false) {
+            if (Objects.equals(currentSource, newSource) == false
+                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
                 throw new IllegalStateException(
                     "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
                 );
             }
         }
         return true;
+
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxDoubleEvaluator;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Greatest extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Greatest(Source source, Expression first, List<Expression> rest) {
+    public Greatest(Source source, @Named("first") Expression first, @Named("rest") List<Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -60,12 +61,13 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         }
 
         for (int position = 0; position < children().size(); position++) {
+            Expression child = children().get(position);
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = child.dataType();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
+                child,
                 t -> t == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
@@ -128,9 +130,6 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             return () -> new GreatestLongEvaluator(
                 suppliers.get().map(MvMaxLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
             );
-        }
-        if (dataType == NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT

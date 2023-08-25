@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -226,5 +227,15 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         mapper = mapperService.documentMapper().sourceMapper();
         assertFalse(mapper.enabled());
         assertFalse(mapper.isSynthetic());
+    }
+
+    public void testSyntheticSourceInTimeSeries() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("time_series_dimension", true);
+        });
+        DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
+        assertTrue(mapper.sourceMapper().isSynthetic());
+        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
     }
 }

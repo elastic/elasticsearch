@@ -1056,7 +1056,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         awaitClusterState(
             logger,
             otherDataNode,
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+            state -> SnapshotsInProgress.get(state)
                 .forRepo(repoName)
                 .stream()
                 .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)

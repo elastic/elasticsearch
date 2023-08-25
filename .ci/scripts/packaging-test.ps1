@@ -7,9 +7,6 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit
 }
 
-# TODO remove this
-bash .buildkite/scripts/java8-windows.sh
-
 $AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw)
 $env:ES_BUILD_JAVA=$AppProps.ES_BUILD_JAVA
 $env:JAVA_TOOL_OPTIONS=''

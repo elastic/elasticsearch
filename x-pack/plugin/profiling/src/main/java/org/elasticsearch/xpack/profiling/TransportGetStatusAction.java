@@ -62,10 +62,10 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
         boolean resourcesCreated = templatesCreated && indicesCreated && dataStreamsCreated;
 
-        boolean indicesTooOld = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
-        boolean dataStreamsTooOld = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
-        boolean anyTooOld = indicesTooOld || dataStreamsTooOld;
-        listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyTooOld));
+        boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
+        boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
+        boolean anyPre891Data = indicesPre891 || dataStreamsPre891;
+        listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data));
     }
 
     private boolean getValue(ClusterState state, Setting<Boolean> setting) {

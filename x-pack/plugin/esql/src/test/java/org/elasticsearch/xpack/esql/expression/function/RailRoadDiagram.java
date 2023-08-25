@@ -22,7 +22,7 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
-import java.awt.*;
+import java.awt.Font;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -73,10 +73,14 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT);
 
         toSvg.setRuleFont(FONT);
-        return toSvg.convert(rrDiagram)
-            .replace(".c", "#guide .c")
-            .replace(".k", "#guide .k")
-            .replace(".s", "#guide .s");
+        /*
+         * "Tighten" the styles in the SVG so they beat the styles sitting in the
+         * main page. We need this because we're embedding the SVG into the page.
+         * We need to embed the SVG into the page so it can get fonts loaded in the
+         * primary stylesheet. We need to load a font so they images are consistent
+         * on all clients.
+         */
+        return toSvg.convert(rrDiagram).replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
     }
 
     /**

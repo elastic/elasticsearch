@@ -166,7 +166,8 @@ public class MetadataDataStreamsService {
                     dataStream.isSystem(),
                     dataStream.isAllowCustomRouting(),
                     dataStream.getIndexMode(),
-                    lifecycle
+                    lifecycle,
+                    List.of()
                 )
             );
         }

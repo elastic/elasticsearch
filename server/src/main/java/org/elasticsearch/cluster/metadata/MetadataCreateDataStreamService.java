@@ -277,7 +277,8 @@ public class MetadataCreateDataStreamService {
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
-            lifecycle == null ? DataStreamLifecycle.DEFAULT : lifecycle
+            lifecycle == null ? DataStreamLifecycle.DEFAULT : lifecycle,
+            List.of()
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

@@ -68,7 +68,7 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
-    public static final TransportVersion ADDED_FAILURE_STORE_TEMPLATE_OPTION = TransportVersion.V_8_500_069;
+    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersion.V_8_500_069;
 
     public static boolean isFailureStoreEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -108,6 +108,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
+    private final List<Index> failureStores;
 
     public DataStream(
         String name,
@@ -119,7 +120,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean system,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores
     ) {
         this(
             name,
@@ -132,7 +134,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             System::currentTimeMillis,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -148,7 +151,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier timeProvider,
         boolean allowCustomRouting,
         IndexMode indexMode,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -162,6 +166,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
         this.lifecycle = lifecycle;
+        this.failureStores = failureStores;
         assert assertConsistent(this.indices);
     }
 
@@ -177,7 +182,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null);
+        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null, List.of());
     }
 
     private static boolean assertConsistent(List<Index> indices) {
@@ -212,6 +217,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public long getGeneration() {
         return generation;
+    }
+
+    public List<Index> getFailureStores() {
+        return failureStores;
     }
 
     @Override
@@ -376,7 +385,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(name, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting, indexMode, lifecycle);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStores
+        );
     }
 
     /**
@@ -451,7 +472,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             system,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -494,7 +516,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             system,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -552,7 +575,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             system,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -568,7 +592,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             timeProvider,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -602,7 +627,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             system,
             allowCustomRouting,
             indexMode,
-            lifecycle
+            lifecycle,
+            failureStores
         );
     }
 
@@ -796,7 +822,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of()
         );
     }
 
@@ -828,6 +855,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
             out.writeOptionalWriteable(lifecycle);
         }
+        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
+            out.writeString(TIMESTAMP_FIELD_NAME);
+            out.writeList(failureStores);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -841,6 +872,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    public static final ParseField FAILURE_STORES_FIELD = new ParseField("failure_stores");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
@@ -855,7 +887,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null ? IndexMode.fromString((String) args[8]) : null,
-            (DataStreamLifecycle) args[9]
+            (DataStreamLifecycle) args[9],
+            DataStream.isFailureStoreEnabled() && args[10] != null ? (List<Index>) args[10] : List.of()
         )
     );
 
@@ -878,6 +911,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        if (DataStream.isFailureStoreEnabled()) {
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Index.fromXContent(p),
+                FAILURE_STORES_FIELD
+            );
+        }
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -902,6 +942,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
+        if (DataStream.isFailureStoreEnabled() && failureStores.isEmpty() == false) {
+            builder.xContentList(FAILURE_STORES_FIELD.getPreferredName(), failureStores);
+        }
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
         }
@@ -934,12 +977,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && replicated == that.replicated
             && allowCustomRouting == that.allowCustomRouting
             && indexMode == that.indexMode
-            && Objects.equals(lifecycle, that.lifecycle);
+            && Objects.equals(lifecycle, that.lifecycle)
+            && failureStores.equals(that.failureStores);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, generation, metadata, hidden, system, replicated, allowCustomRouting, indexMode, lifecycle);
+        return Objects.hash(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            system,
+            replicated,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStores
+        );
     }
 
     @Override

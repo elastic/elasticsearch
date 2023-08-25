@@ -421,7 +421,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TEMPLATE_OPTION)) {
+            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
                 failureStore = in.readBoolean();
             } else {
                 failureStore = false;
@@ -468,7 +468,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // See comment in constructor.
                 out.writeBoolean(false);
             }
-            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TEMPLATE_OPTION)) {
+            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
                 out.writeBoolean(failureStore);
             }
         }

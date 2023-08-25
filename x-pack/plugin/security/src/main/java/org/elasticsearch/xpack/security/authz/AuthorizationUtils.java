@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -46,6 +48,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public final class AuthorizationUtils {
 
+    private static final Logger logger = LogManager.getLogger(AuthorizationUtils.class);
     private static final Predicate<String> INTERNAL_PREDICATE = Automatons.predicate("internal:*");
 
     private AuthorizationUtils() {}
@@ -83,7 +86,13 @@ public final class AuthorizationUtils {
         // internal action should never be called by user code from a client
         final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
-            return true;
+            logger.info(
+                "Attempting to send as system user with action [{}], originatingAction [{}], authentication [{}]",
+                action,
+                originatingAction,
+                authentication
+            );
+            return false;
         }
 
         // either there was no originating action or the originating action was an internal action,

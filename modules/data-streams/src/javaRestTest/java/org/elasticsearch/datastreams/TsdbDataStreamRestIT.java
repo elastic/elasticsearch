@@ -235,17 +235,6 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                         }
                     },
                     "mappings":{
-                        "dynamic_templates": [
-                            {
-                                "labels": {
-                                    "path_match": "pod.labels.*",
-                                    "mapping": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                    }
-                                }
-                            }
-                        ],
                         "properties": {
                             "@timestamp" : {
                                 "type": "date"

@@ -131,7 +131,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
         }
 
-        final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+        final ShardRouting shardRouting = indexShardRouting.primaryShard();
         if (shardRouting.started() == false) {
             return NO_NODE_FOUND;
         }

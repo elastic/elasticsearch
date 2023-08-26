@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -139,7 +140,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(LTrim.class, LTrim::new, "ltrim"),
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Trim.class, Trim::new, "trim"),
-                def(StartsWith.class, StartsWith::new, "starts_with") },
+                def(StartsWith.class, StartsWith::new, "starts_with"),
+                def(Replace.class, Replace::new, "replace") },
             // date
             new FunctionDefinition[] {
                 def(DateExtract.class, DateExtract::new, "date_extract"),

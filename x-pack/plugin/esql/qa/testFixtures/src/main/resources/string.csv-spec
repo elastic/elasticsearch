@@ -700,3 +700,49 @@ Gateway     | instances
 Gateway     | instances   
 null        | null
 ;
+
+replace simple
+from employees | sort emp_no | limit 1 | eval name = replace(first_name, "Geo", "foo") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | foorgi
+;
+
+replace text
+from hosts | where host == "epsilon" | limit 1 | eval name = replace(host, "ep", "") | keep name;
+
+name:keyword
+silon
+;
+
+replace complex
+from employees | where emp_no <= 10010 | eval f_l = replace(replace(substring(last_name, 1, 20), "al", "AB"), "a", "Z")  | keep emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | FZcello
+10002 | Simmel    | Simmel
+10003 | Bamford   | BZmford
+10004 | Koblick   | Koblick
+10005 | Maliniak  | MABiniZk
+10006 | Preusig   | Preusig
+10007 | Zielinski | Zielinski
+10008 | Kalloufi  | KABloufi
+10009 | Peac      | PeZc
+10010 | Piveteau  | PiveteZu
+;
+
+replace complex2
+from employees | where emp_no <= 10010 | eval f_l = substring(replace(last_name, "a", "Z"), 1, 1)  | keep emp_no, last_name, f_l;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | F
+10002 | Simmel    | S
+10003 | Bamford   | B
+10004 | Koblick   | K
+10005 | Maliniak  | M
+10006 | Preusig   | P
+10007 | Zielinski | Z
+10008 | Kalloufi  | K
+10009 | Peac      | P
+10010 | Piveteau  | P
+;

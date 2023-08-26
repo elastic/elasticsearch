@@ -59,8 +59,9 @@
  *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. Modify those to look right
- *         and click {@code Build->Recompile 'FunctionName.java'} in IntelliJ. This should generate
- *         an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
+ *         and click {@code Build->Recompile 'FunctionName.java'} in IntelliJ or run the
+ *         {@code CsvTests} again.. This should generate an
+ *         {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
  *         calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
  *     <li>
  *         Once your evaluator is generated you can implement

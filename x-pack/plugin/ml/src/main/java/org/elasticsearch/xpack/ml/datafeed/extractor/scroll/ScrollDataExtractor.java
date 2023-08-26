@@ -171,6 +171,18 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     /**
+     * Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
+     */
+    private static class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
+        public ByteArrayInputStream resetThisAndGetByteArrayInputStream() {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(buf, 0, count);
+            buf = new byte[0];
+            count = 0;
+            return inputStream;
+        }
+    }
+
+    /**
      * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
      */
     private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
@@ -181,7 +193,7 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        BigBytesStreamOutput outputStream = new BigBytesStreamOutput();
+        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream();
 
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
@@ -206,7 +218,7 @@ class ScrollDataExtractor implements DataExtractor {
                 hits[i] = null;
             }
         }
-        return outputStream.resetAndGetInputStream();
+        return outputStream.resetThisAndGetByteArrayInputStream();
     }
 
     private InputStream continueScroll() throws IOException {

@@ -682,7 +682,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         Map<String, MappedFieldType> fieldTypeLookup = createFieldTypes(config);
         Directory dir = index(docs, fieldTypeLookup);
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 

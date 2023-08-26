@@ -192,7 +192,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 

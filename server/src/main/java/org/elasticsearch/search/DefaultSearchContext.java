@@ -17,14 +17,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -64,6 +67,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 final class DefaultSearchContext extends SearchContext {
@@ -136,10 +140,11 @@ final class DefaultSearchContext extends SearchContext {
         SearchShardTarget shardTarget,
         LongSupplier relativeTimeSupplier,
         TimeValue timeout,
-        int minimumDocsPerSlice,
         FetchPhase fetchPhase,
         boolean lowLevelCancellation,
-        boolean parallelize
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -150,19 +155,26 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-        this.searcher = new ContextIndexSearcher(
-            engineSearcher.getIndexReader(),
-            engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(),
-            engineSearcher.getQueryCachingPolicy(),
-            minimumDocsPerSlice,
-            lowLevelCancellation,
-            // TODO not set the for now, this needs a special thread pool and can be enabled after its introduction
-            // parallelize
-            // ? (EsThreadPoolExecutor) this.indexService.getThreadPool().executor(ThreadPool.Names.CONCURRENT_COLLECTION_TBD)
-            // : null,
-            null
-        );
+        if (executor == null) {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation
+            );
+        } else {
+            this.searcher = new ContextIndexSearcher(
+                engineSearcher.getIndexReader(),
+                engineSearcher.getSimilarity(),
+                engineSearcher.getQueryCache(),
+                engineSearcher.getQueryCachingPolicy(),
+                lowLevelCancellation,
+                executor,
+                maximumNumberOfSlices,
+                minimumDocsPerSlice
+            );
+        }
         releasables.addAll(List.of(engineSearcher, searcher));
 
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -805,5 +817,15 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
+        } else {
+            return IdLoader.fromLeafStoredFieldLoader();
+        }
     }
 }

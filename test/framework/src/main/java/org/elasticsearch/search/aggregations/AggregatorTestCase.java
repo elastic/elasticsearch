@@ -37,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -83,6 +82,7 @@ import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -159,7 +159,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -341,7 +340,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -364,6 +362,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
             searchExecutionContext,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
+            ClusterSettings.createBuiltInClusterSettings(),
             bytesToPreallocate,
             () -> query,
             null,
@@ -437,6 +436,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
         when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
+        when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         return new SubSearchContext(ctx);
     }
 
@@ -491,15 +491,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             } catch (CircuitBreakingException e) {
                 // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-            } catch (RuntimeException e) {
-                if (e.getCause() instanceof ExecutionException executionException) {
-                    if (executionException.getCause() instanceof CircuitBreakingException circuitBreakingException) {
-                        // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
-                        assertThat(circuitBreakingException.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-                        return;
-                    }
-                }
-                throw e;
             }
         }
     }
@@ -579,6 +570,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     root.preCollection();
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                    root.postCollection();
                 } else {
                     CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
                         @Override
@@ -594,14 +586,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             return null;
                         }
                     };
-                    if (aggTestConfig.builder().supportsConcurrentExecution()) {
+                    if (aggTestConfig.builder().supportsParallelCollection()) {
                         searcher.search(rewritten, collectorManager);
                     } else {
                         searcher.search(rewritten, collectorManager.newCollector());
                     }
                 }
                 for (C agg : aggregators) {
-                    agg.postCollection();
                     internalAggs.add(agg.buildTopLevel());
                 }
             } finally {
@@ -786,7 +777,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Aggregator aggregator = createAggregator(builder, context);
             aggregator.preCollection();
             searcher.search(context.query(), aggregator.asCollector());
-            aggregator.postCollection();
             InternalAggregation r = aggregator.buildTopLevel();
             r = r.reduce(
                 List.of(r),
@@ -919,20 +909,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sets the IndexSearcher to run on concurrent mode.
      */
     protected IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-        if (randomBoolean()) {
-            // this executes basic query checks and asserts that weights are normalized only once etc.
-            return new AssertingIndexSearcher(random(), indexReader);
-        } else {
-            return new ContextIndexSearcher(
-                indexReader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                1, // forces multiple slices
-                randomBoolean(),
-                this.threadPoolExecutor
-            );
-        }
+        return new ContextIndexSearcher(
+            indexReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            randomBoolean(),
+            this.threadPoolExecutor,
+            this.threadPoolExecutor.getMaximumPoolSize(),
+            1 // forces multiple slices
+        );
     }
 
     /**

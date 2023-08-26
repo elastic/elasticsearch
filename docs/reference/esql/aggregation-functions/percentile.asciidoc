@@ -1,0 +1,28 @@
+[[esql-agg-percentile]]
+=== `PERCENTILE`
+The value at which a certain percentage of observed values occur. For example,
+the 95th percentile is the value which is greater than 95% of the observed values and
+the 50th percentile is the <<esql-agg-median>>.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats_percentile.csv-spec[tag=percentile]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats_percentile.csv-spec[tag=percentile-result]
+|===
+
+[[esql-agg-percentile-approximate]]
+==== `PERCENTILE` is (usually) approximate
+
+include::../../aggregations/metrics/percentile-aggregation.asciidoc[tag=approximate]
+
+[WARNING]
+====
+`PERCENTILE` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====
+
+
+

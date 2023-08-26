@@ -540,8 +540,9 @@ public class BigArrays {
         if (size > PageCacheRecycler.BYTE_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
-            adjustBreaker(BigByteArray.estimateRamBytes(size), false);
-            return new BigByteArray(size, this, clearOnResize);
+            final long newSize = overSize(size, PageCacheRecycler.BYTE_PAGE_SIZE, 1);
+            adjustBreaker(BigByteArray.estimateRamBytes(newSize), false);
+            return new BigByteArray(newSize, this, clearOnResize);
         } else if (size >= PageCacheRecycler.BYTE_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
             return validate(new ByteArrayWrapper(this, page.v(), size, page, clearOnResize));

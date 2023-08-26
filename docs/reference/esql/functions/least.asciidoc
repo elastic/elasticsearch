@@ -1,5 +1,7 @@
 [[esql-least]]
 === `LEAST`
+[.text-center]
+image::esql/functions/signature/least.svg[Embedded,opts=inline]
 
 Returns the minimum value from many columns. This is similar to <<esql-mv_min>>
 except it's intended to run on multiple columns at once.

@@ -1,7 +1,7 @@
 [[esql-tau]]
 === `TAU`
 [.text-center]
-image::signature/tau.svg[]
+image::esql/functions/signature/tau.svg[Embedded,opts=inline]
 
 The https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
 

@@ -1,7 +1,7 @@
 [[esql-asin]]
 === `ASIN`
 [.text-center]
-image::signature/asin.svg[]
+image::esql/functions/signature/asin.svg[Embedded,opts=inline]
 
 Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[sine] trigonometric function.
 

@@ -1,7 +1,7 @@
 [[esql-sin]]
 === `SIN`
 [.text-center]
-image::signature/sin.svg[]
+image::esql/functions/signature/sin.svg[Embedded,opts=inline]
 
 https://en.wikipedia.org/wiki/Sine_and_cosine[Sine] trigonometric function.
 

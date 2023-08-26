@@ -1,7 +1,7 @@
 [[esql-atan]]
 === `ATAN`
 [.text-center]
-image::signature/atan.svg[]
+image::esql/functions/signature/atan.svg[Embedded,opts=inline]
 
 Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[tangent] trigonometric function.
 

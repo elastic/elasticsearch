@@ -1,7 +1,7 @@
 [[esql-acos]]
 === `ACOS`
 [.text-center]
-image::signature/acos.svg[]
+image::esql/functions/signature/acos.svg[Embedded,opts=inline]
 
 Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[cosine] trigonometric function.
 

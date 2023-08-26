@@ -1,7 +1,7 @@
 [[esql-tan]]
 === `TAN`
 [.text-center]
-image::signature/tan.svg[]
+image::esql/functions/signature/tan.svg[Embedded,opts=inline]
 
 https://en.wikipedia.org/wiki/Sine_and_cosine[Tangent] trigonometric function.
 

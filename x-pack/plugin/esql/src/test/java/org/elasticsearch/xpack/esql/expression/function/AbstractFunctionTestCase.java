@@ -902,14 +902,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
+        List<String> definedSignature = ShowFunctions.signature(definition);
         StringBuilder header = new StringBuilder();
-        for (String arg : ShowFunctions.signature(definition)) {
+        for (String arg : definedSignature) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
+            if (sig.getKey().size() != definedSignature.size()) {
+                // must be varargs
+                continue;
+            }
             StringBuilder b = new StringBuilder();
             for (DataType arg : sig.getKey()) {
                 b.append(arg.typeName()).append(" | ");

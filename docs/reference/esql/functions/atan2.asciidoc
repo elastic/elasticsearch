@@ -1,7 +1,7 @@
 [[esql-atan2]]
 === `ATAN2`
 [.text-center]
-image::signature/atan2.svg[]
+image::esql/functions/signature/atan2.svg[Embedded,opts=inline]
 
 The https://en.wikipedia.org/wiki/Atan2[angle] between the positive x-axis and the
 ray from the origin to the point (x , y) in the Cartesian plane.

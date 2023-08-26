@@ -1,7 +1,7 @@
 [[esql-cos]]
 === `COS`
 [.text-center]
-image::signature/cos.svg[]
+image::esql/functions/signature/cos.svg[Embedded,opts=inline]
 
 https://en.wikipedia.org/wiki/Sine_and_cosine[Cosine] trigonometric function.
 

@@ -1,7 +1,7 @@
 [[esql-tanh]]
 === `TANH`
 [.text-center]
-image::signature/tanh.svg[]
+image::esql/functions/signature/tanh.svg[Embedded,opts=inline]
 
 https://en.wikipedia.org/wiki/Hyperbolic_functions[Tangent] hyperbolic function.
 

@@ -445,6 +445,21 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
+    /**
+     * If this is a CCS search all the underlying Cluster search states will be evaluated.
+     * If it is a local-only search, the shards info and timedOut field of the SearchResponse will be examined.
+     *
+     * @return true if the search has partial results due to either failed shards, the search is still running
+     * or a search timed out.
+     */
+    public boolean hasPartialResults() {
+        if (clusters.hasClusterObjects()) {
+            return clusters.hasPartialResults();
+        } else {
+            return getFailedShards() > 0 || isTimedOut();
+        }
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
@@ -729,6 +744,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * This method should NOT be called for local-only, non-CCS searches. In that case,
+         * the Clusters object has no useful info and the _shards section of the SearchResponse
+         * should be used. Call the {@link SearchResponse#hasPartialResults} method instead.
+         *
          * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
          *              or any Cluster is marked as timedOut.
          */

@@ -99,7 +99,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
         AsyncSearchResponse asyncSearchResponse = client().execute(SubmitAsyncSearchAction.INSTANCE, submitAsyncSearchRequest).actionGet();
 
         assertFalse(asyncSearchResponse.isRunning());
-        assertFalse(asyncSearchResponse.isPartial());
+        assertTrue(asyncSearchResponse.isPartial());
         assertNull(asyncSearchResponse.getFailure());
         SearchResponse searchResponse = asyncSearchResponse.getSearchResponse();
         assertEquals(10, searchResponse.getTotalShards());

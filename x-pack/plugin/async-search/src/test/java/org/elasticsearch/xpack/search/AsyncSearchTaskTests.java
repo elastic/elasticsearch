@@ -310,7 +310,15 @@ public class AsyncSearchTaskTests extends ESTestCase {
         ((AsyncSearchTask.Listener) task.getProgressListener()).onResponse(
             newSearchResponse(totalShards, totalShards - numFetchFailures, numSkippedShards, shardSearchFailures)
         );
-        assertCompletionListeners(task, totalShards, totalShards - numFetchFailures, numSkippedShards, numFetchFailures, false, false);
+        assertCompletionListeners(
+            task,
+            totalShards,
+            totalShards - numFetchFailures,
+            numSkippedShards,
+            numFetchFailures,
+            numFetchFailures > 0,
+            false
+        );
     }
 
     public void testFatalFailureDuringFetch() throws InterruptedException {

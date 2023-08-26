@@ -119,15 +119,8 @@ class MutableSearchResponse {
 
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
-        this.isPartial = isPartialResponse(response);
+        this.isPartial = response.hasPartialResults();
         this.frozen = true;
-    }
-
-    private boolean isPartialResponse(SearchResponse response) {
-        if (response.getClusters() == null) {
-            return true;
-        }
-        return response.getClusters().hasPartialResults();
     }
 
     /**

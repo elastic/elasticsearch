@@ -31,6 +31,7 @@ dependencies {
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
+  testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":client:rest-high-level")
 }

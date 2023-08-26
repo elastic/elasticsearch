@@ -540,12 +540,11 @@ public class BigArrays {
         if (size > PageCacheRecycler.BYTE_PAGE_SIZE) {
             // when allocating big arrays, we want to first ensure we have the capacity by
             // checking with the circuit breaker before attempting to allocate
-            final long newSize = overSize(size, PageCacheRecycler.BYTE_PAGE_SIZE, 1);
-            adjustBreaker(BigByteArray.estimateRamBytes(newSize), false);
-            return new BigByteArray(newSize, this, clearOnResize);
+            adjustBreaker(BigByteArray.estimateRamBytes(size), false);
+            return new BigByteArray(size, this, clearOnResize);
         } else if (size >= PageCacheRecycler.BYTE_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
-            return validate(new ByteArrayWrapper(this, page.v(), page.v().length, page, clearOnResize));
+            return validate(new ByteArrayWrapper(this, page.v(), size, page, clearOnResize));
         } else {
             return validate(new ByteArrayWrapper(this, new byte[(int) size], size, null, clearOnResize));
         }
@@ -585,27 +584,17 @@ public class BigArrays {
 
     /** @see Arrays#hashCode(byte[]) */
     public static int hashCode(ByteArray array) {
-        if(array == null){
-            return 0;
-        }
-        return hashCode(array, array.size());
-    }
-
-
-    /** @see Arrays#hashCode(byte[]) */
-    public static int hashCode(ByteArray array, long size) {
         if (array == null) {
             return 0;
         }
 
         int hash = 1;
-        for (long i = 0; i < size; i++) {
+        for (long i = 0; i < array.size(); i++) {
             hash = 31 * hash + array.get(i);
         }
 
         return hash;
     }
-
 
     /** @see Arrays#equals(byte[], byte[]) */
     public static boolean equals(ByteArray array, ByteArray other) {

@@ -323,37 +323,13 @@ public class BigArraysTests extends ESTestCase {
         // assertEquals(emptyHash1, emptyHash3); -> fail (1 vs. 0)
 
         // large arrays should be different
-        final byte[] array1 = new byte[randomIntBetween(1, 1<<13)];
+        final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         random().nextBytes(array1);
         final int array1Hash = Arrays.hashCode(array1);
         final ByteArray array2 = byteArrayWithBytes(array1);
-        final int array2Hash = BigArrays.hashCode(array2, array1.length);
+        final int array2Hash = BigArrays.hashCode(array2);
         assertEquals(array1Hash, array2Hash);
         array2.close();
-        // we need to generate a large array to create BigByteArray instead of ByteArrayWrapper.
-        final byte[] array3 = new byte[randomIntBetween((1<<13)+200, 1<<14)];
-        random().nextBytes(array3);
-        final int array3Hash = Arrays.hashCode(array3);
-        final ByteArray array4 = byteArrayWithBytes(Arrays.copyOf(array3, array3.length-100));
-        for(int i = array3.length-100;i<array3.length;i++) {
-            bigArrays.grow(array4, array3.length - 99);
-            array4.set(i, array3[i]);
-        }
-        final int array4Hash = BigArrays.hashCode(array4, array3.length);
-        assertEquals(array3Hash, array4Hash);
-        array4.close();
-        final byte[] array5 = new byte[(1<<15) + 1]; // will need 3 pages.
-        random().nextBytes(array5);
-        final int array5Hash = Arrays.hashCode(array5);
-        ByteArray array6 = byteArrayWithBytes(Arrays.copyOf(array5, array5.length-100));
-        for(int i = array5.length-100;i<array5.length;i++) {
-            array6 = bigArrays.grow(array6, i+1);
-            array6.set(i, array5[i]);
-        }
-        final int array6Hash = BigArrays.hashCode(array6, array5.length);
-        assertEquals(array5Hash, array6Hash);
-
-        array6.close();
     }
 
     private ByteArray byteArrayWithBytes(byte[] bytes) {

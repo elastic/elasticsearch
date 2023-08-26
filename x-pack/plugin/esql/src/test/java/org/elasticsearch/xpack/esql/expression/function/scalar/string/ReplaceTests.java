@@ -44,7 +44,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     new TypedData(new BytesRef(oldStr), DataTypes.KEYWORD, "oldStr"),
                     new TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
                 ),
-                "ReplaceEvaluator[str=Attribute[channel=0], oldStr=Attribute[channel=1], newStr=Attribute[channel=2]]",
+                "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.replace(oldStr, newStr)))
             );
@@ -82,8 +82,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
 
     public void testReplaceRegex() {
         assertThat(process("what a nice day", "\\s+", "-"), equalTo("what-a-nice-day"));
-        assertThat(process("I love cats and cats are amazing.", "\\bcats\\b", "dogs"),
-            equalTo("I love dogs and dogs are amazing."));
+        assertThat(process("I love cats and cats are amazing.", "\\bcats\\b", "dogs"), equalTo("I love dogs and dogs are amazing."));
     }
 
     public void testInvalidRegex() {

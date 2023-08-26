@@ -1,0 +1,6 @@
+pr: 98913
+summary: Async-search is_partial=true when any shard search fails or times out
+area: Search
+type: bug
+issues:
+ - 98725

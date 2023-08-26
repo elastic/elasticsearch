@@ -568,6 +568,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // SUCCESS branch will catch it and we will cruise forward)
                 // if the downsampling persistent task failed, we will find out only via re-issuing the downsample request (and we will
                 // continue to re-issue the request until we get SUCCESS)
+
+                // NOTE that the downsample request is made through the deduplicator so it will only really be executed if
+                // there isn't one already in-flight. This can happen if a previous request timed-out, failed, or there was a
+                // master failover and data stream lifecycle needed to restart
                 downsampleIndexOnce(currentRound, indexName, downsampleIndexName);
                 affectedIndices.add(backingIndex);
                 yield affectedIndices;

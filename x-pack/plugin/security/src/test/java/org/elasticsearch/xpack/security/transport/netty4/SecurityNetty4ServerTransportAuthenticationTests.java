@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -88,7 +87,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             return null;
         }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
         remoteSecurityNetty4ServerTransport = new SecurityNetty4ServerTransport(
-                remoteSettings,
+            remoteSettings,
             TransportVersion.current(),
             threadPool,
             new NetworkService(List.of()),
@@ -101,8 +100,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             remoteCrossClusterAccessAuthenticationService
         );
         remoteTransportService = MockTransportService.createNewService(
-                remoteSettings,
-                remoteSecurityNetty4ServerTransport,
+            remoteSettings,
+            remoteSecurityNetty4ServerTransport,
             VersionInformation.CURRENT,
             threadPool,
             null,
@@ -147,8 +146,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                    RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
-                    randomAlphaOfLength(20)
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                randomAlphaOfLength(20)
             );
             localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
         }
@@ -184,11 +183,11 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 true,
                 ActionListener.wrap(connection -> {
                     localService.sendRequest(
-                            connection,
-                            "internal:action",
-                            new TestRequest("hello world"),
-                            TransportRequestOptions.EMPTY,
-                            transportResponseHandler
+                        connection,
+                        "internal:action",
+                        new TestRequest("hello world"),
+                        TransportRequestOptions.EMPTY,
+                        transportResponseHandler
                     );
                 }, e -> {})
             );
@@ -196,37 +195,37 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         }
     }
 
-//                    connection.sendRequest(
-//                        randomNonNegativeLong(),
-//                        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-//                        TransportRequest.Empty.INSTANCE,
-//                        TransportRequestOptions.of(null, TransportRequestOptions.Type.REG)
-//                    );
-//                    connection.getNode();
-//                    connection.isClosed();
-//            assertTrue(remoteClusterService.isRemoteNodeConnected("remote_security_server_transport", remoteNode));
-//            Client client = remoteClusterService.getRemoteClusterClient(
-//                    threadPool,
-//                    "test",
-//                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-//                    randomBoolean()
-//            );
-//            client.admin();
-//            Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(clientService, serverNode, null);
-//            Transport.Connection connection2 = AbstractSimpleTransportTestCase.openConnection(clientService, serverNode, null);
-//        final CountDownLatch connectedLatch = new CountDownLatch(1);
-//        TransportConnectionListener waitForConnection = new TransportConnectionListener() {
-//            @Override
-//            public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
-//                connectedLatch.countDown();
-//            }
-//
-//            @Override
-//            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
-//                fail("disconnect should not be called " + node);
-//            }
-//        };
-//        serverTransportService.addConnectionListener(waitForConnection);
-//        assertThat("failed to wait for node to connect", connectedLatch.await(5, TimeUnit.SECONDS), equalTo(true));
-//        assertNumHandshakes(1, securityNetty4ServerTransport);
+    // connection.sendRequest(
+    // randomNonNegativeLong(),
+    // RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+    // TransportRequest.Empty.INSTANCE,
+    // TransportRequestOptions.of(null, TransportRequestOptions.Type.REG)
+    // );
+    // connection.getNode();
+    // connection.isClosed();
+    // assertTrue(remoteClusterService.isRemoteNodeConnected("remote_security_server_transport", remoteNode));
+    // Client client = remoteClusterService.getRemoteClusterClient(
+    // threadPool,
+    // "test",
+    // EsExecutors.DIRECT_EXECUTOR_SERVICE,
+    // randomBoolean()
+    // );
+    // client.admin();
+    // Transport.Connection connection = AbstractSimpleTransportTestCase.openConnection(clientService, serverNode, null);
+    // Transport.Connection connection2 = AbstractSimpleTransportTestCase.openConnection(clientService, serverNode, null);
+    // final CountDownLatch connectedLatch = new CountDownLatch(1);
+    // TransportConnectionListener waitForConnection = new TransportConnectionListener() {
+    // @Override
+    // public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
+    // connectedLatch.countDown();
+    // }
+    //
+    // @Override
+    // public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+    // fail("disconnect should not be called " + node);
+    // }
+    // };
+    // serverTransportService.addConnectionListener(waitForConnection);
+    // assertThat("failed to wait for node to connect", connectedLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+    // assertNumHandshakes(1, securityNetty4ServerTransport);
 }

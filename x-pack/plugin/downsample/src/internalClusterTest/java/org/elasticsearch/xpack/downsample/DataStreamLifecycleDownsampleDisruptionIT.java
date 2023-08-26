@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -87,7 +87,9 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             Thread.sleep(sleepTime);
             final CountDownLatch disruptionStart = new CountDownLatch(1);
             final CountDownLatch disruptionEnd = new CountDownLatch(1);
-            final String sourceIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            List<String> backingIndices = getBackingIndices(client(), dataStreamName);
+            // first generation index
+            String sourceIndex = backingIndices.get(0);
             new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
                 @Override
                 public void disruptionStart() {

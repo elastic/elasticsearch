@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTem
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -46,6 +48,8 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 
 /**
  * A collection of methods to help with the setup of data stream lifecycle downsample tests.
@@ -62,6 +66,14 @@ public class DataStreamLifecycleDriver {
         throws IOException {
         putTSDBIndexTemplate(client, dataStreamName + "*", lifecycle);
         return indexDocuments(client, dataStreamName, docCount);
+    }
+
+    public static List<String> getBackingIndices(Client client, String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().isEmpty(), is(false));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), is(dataStreamName));
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
     }
 
     private static void putTSDBIndexTemplate(Client client, String pattern, DataStreamLifecycle lifecycle) throws IOException {

@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,7 +31,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
@@ -73,7 +70,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
-        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<String> backingIndices = getBackingIndices(client(), dataStreamName);
+        String firstGenerationBackingIndex = backingIndices.get(0);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
         String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
 
@@ -102,18 +100,13 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            List<String> dsBackingIndices = getBackingIndices(client(), dataStreamName);
 
-            assertThat(backingIndices.size(), is(2));
-            String writeIndex = backingIndices.get(1).getName();
+            assertThat(dsBackingIndices.size(), is(2));
+            String writeIndex = dsBackingIndices.get(1);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             // the last downsampling round must remain in the data stream
-            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+            assertThat(dsBackingIndices.get(0), is(tenSecondsDownsampleIndex));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -135,7 +128,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .build();
         DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
-        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<String> backingIndices = getBackingIndices(client(), dataStreamName);
+        String firstGenerationBackingIndex = backingIndices.get(0);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
         String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
 
@@ -159,17 +153,12 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            List<String> dsBackingIndices = getBackingIndices(client(), dataStreamName);
 
-            assertThat(backingIndices.size(), is(2));
-            String writeIndex = backingIndices.get(1).getName();
+            assertThat(dsBackingIndices.size(), is(2));
+            String writeIndex = dsBackingIndices.get(1);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+            assertThat(dsBackingIndices.get(0), is(tenSecondsDownsampleIndex));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -194,7 +183,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
 
-        String firstGenerationBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        List<String> backingIndices = getBackingIndices(client(), dataStreamName);
+        String firstGenerationBackingIndex = backingIndices.get(0);
         String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
         String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
 
@@ -218,17 +208,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-
-            assertThat(backingIndices.size(), is(2));
-            String writeIndex = backingIndices.get(1).getName();
+            List<String> dsBackingIndices = getBackingIndices(client(), dataStreamName);
+            assertThat(dsBackingIndices.size(), is(2));
+            String writeIndex = dsBackingIndices.get(1);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertThat(backingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+            assertThat(dsBackingIndices.get(0), is(tenSecondsDownsampleIndex));
         }, 30, TimeUnit.SECONDS);
 
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
@@ -252,17 +236,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         assertBusy(() -> {
             assertThat(indexExists(tenSecondsDownsampleIndex), is(false));
 
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-
-            assertThat(backingIndices.size(), is(2));
-            String writeIndex = backingIndices.get(1).getName();
+            List<String> dsBackingIndices = getBackingIndices(client(), dataStreamName);
+            assertThat(dsBackingIndices.size(), is(2));
+            String writeIndex = dsBackingIndices.get(1);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-            assertThat(backingIndices.get(0).getName(), is(thirtySecondsDownsampleIndex));
+            assertThat(dsBackingIndices.get(0), is(thirtySecondsDownsampleIndex));
         }, 30, TimeUnit.SECONDS);
     }
 }

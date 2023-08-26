@@ -73,6 +73,7 @@ public final class AuthorizationUtils {
         if (threadContext.isSystemContext() == false && isInternalAction(action) == false) {
             return false;
         }
+        // It is either systemContext or internalAction
 
         // there is no authentication object AND we are executing in a system context OR an internal action
         // AND there
@@ -80,6 +81,21 @@ public final class AuthorizationUtils {
         if (authentication == null && threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME) == null) {
             return true;
         }
+        // It is either non-null authentication or non-null actionOrigin
+
+        // So we can have the following possibilities:
+
+        // 1. System context, regular action, non-null authentication, non-null action-origin
+        // 2. System context, regular action, non-null authentication, null action-origin
+        // 3. System context, regular action, null authentication, non-null action-origin
+
+        // 4. System context, internal action, non-null authentication, non-null action-origin
+        // 5. System context, internal action, non-null authentication, null action-origin
+        // 6. System context, internal action, null authentication, non-null action-origin
+
+        // 7. NOT system context, internal action, non-null authentication, non-null action-origin
+        // 8. NOT system context, internal action, non-null authentication, null action-origin
+        // 9. NOT system context, internal action, null authentication, non-null action-origin
 
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
@@ -87,9 +103,11 @@ public final class AuthorizationUtils {
         final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             logger.info(
-                "Attempting to send as system user with action [{}], originatingAction [{}], authentication [{}]",
+                "Attempting to send as system user with action [{}], originatingAction [{}], "
+                    + "isSystemContext [{}], authentication [{}]",
                 action,
                 originatingAction,
+                threadContext.isSystemContext(),
                 authentication
             );
             return false;

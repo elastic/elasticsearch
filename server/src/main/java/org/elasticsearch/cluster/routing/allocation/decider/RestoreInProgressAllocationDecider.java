@@ -39,17 +39,13 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "not an API-level restore");
         }
 
-        final RestoreInProgress restoresInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
-
-        if (restoresInProgress != null) {
-            RestoreInProgress.Entry restoreInProgress = restoresInProgress.get(source.restoreUUID());
-            if (restoreInProgress != null) {
-                RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
-                if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
-                    assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS
-                        : "expected shard [" + shardRouting + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
-                    return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
-                }
+        RestoreInProgress.Entry restoreInProgress = RestoreInProgress.get(allocation.getClusterState()).get(source.restoreUUID());
+        if (restoreInProgress != null) {
+            RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
+            if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
+                assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS
+                    : "expected shard [" + shardRouting + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
+                return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
             }
         }
         return allocation.decision(

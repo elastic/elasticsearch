@@ -89,29 +89,35 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
-    private long getShareOfAdditionalRamBytesUsed(double cacheSize) {
-        // We also have some shared ram usage that we try to distribute proportionally to their number of cache entries of each shard.
-
-        if (shardStats.isEmpty()) {
-            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
-            // extend beyond the closing of all shards.
+    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+        if (sharedRamBytesUsed == 0L) {
             return 0L;
         }
 
+        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
+        // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
         long totalSize = 0L;
         int shardCount = 0;
         for (final var stats : shardStats.values()) {
             shardCount += 1;
             totalSize += stats.cacheSize;
+            if (cacheSize == 0 && totalSize > 0) {
+                return 0L;
+            }
         }
 
         if (shardCount == 0) {
-            // no synchronization so iterating shardStats may have found no shards even though it was nonempty earlier
+            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
+            // extend beyond the closing of all shards.
             return 0L;
         }
 
-        final double weight = totalSize == 0 ? 1d / shardCount : cacheSize / totalSize;
-        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+        final long additionalRamBytesUsed;
+        if (totalSize == 0) {
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
+        } else {
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+        }
         assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
         return additionalRamBytesUsed;
     }

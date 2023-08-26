@@ -83,7 +83,7 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
 
                 if (e instanceof SnapshotInProgressException) {
                     LOGGER.info(
-                        "Data stream lifecycle was unable to delete index [{}] because it's currently being snapshot. Retrying on "
+                        "Data stream lifecycle is unable to delete index [{}] because it's part of an ongoing snapshot. Retrying on "
                             + "the next data stream lifecycle run",
                         task.getSourceBackingIndex()
                     );

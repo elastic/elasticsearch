@@ -1,0 +1,16 @@
+[[esql-replace]]
+=== `REPLACE`
+This function substitutes the replacement string (3rd argument) for every occurrence of the regular expression (2nd argument) in the string (1st argument).
+
+If any of the arguments are `NULL`, the result is `NULL`.
+
+. This example replaces an occurrence of the word "World" with the word "Universe":
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=replaceString]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=replaceString-result]
+|===

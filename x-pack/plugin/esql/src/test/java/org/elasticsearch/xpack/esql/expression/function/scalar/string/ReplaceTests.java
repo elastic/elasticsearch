@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReplaceTests extends AbstractScalarFunctionTestCase {
@@ -77,6 +78,17 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
         assertThat(process("a tiger is always a tiger", "a", "pp"), equalTo("pp tiger is pplwppys pp tiger"));
         assertThat(process("a tiger", "ti ", ""), equalTo("a tiger"));
         assertThat(process("a tiger", " ti", ""), equalTo("ager"));
+    }
+
+    public void testReplaceRegex() {
+        assertThat(process("what a nice day", "\\s+", "-"), equalTo("what-a-nice-day"));
+        assertThat(process("I love cats and cats are amazing.", "\\bcats\\b", "dogs"),
+            equalTo("I love dogs and dogs are amazing."));
+    }
+
+    public void testInvalidRegex() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process("a tiger", "\\", "any"));
+        assertThat(ex.getMessage(), containsString("regex was invalid"));
     }
 
     public void testUnicode() {

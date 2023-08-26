@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -34,12 +35,12 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression str;
     private final Expression newStr;
-    private final Expression oldStr;
+    private final Expression regex;
 
-    public Replace(Source source, Expression str, Expression oldStr, Expression newStr) {
-        super(source, Arrays.asList(str, oldStr, newStr));
+    public Replace(Source source, Expression str, Expression regex, Expression newStr) {
+        super(source, Arrays.asList(str, regex, newStr));
         this.str = str;
-        this.oldStr = oldStr;
+        this.regex = regex;
         this.newStr = newStr;
     }
 
@@ -59,7 +60,7 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
             return resolution;
         }
 
-        resolution = isString(oldStr, sourceText(), SECOND);
+        resolution = isString(regex, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -69,7 +70,7 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public boolean foldable() {
-        return str.foldable() && oldStr.foldable() && newStr.foldable();
+        return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
     @Override
@@ -78,12 +79,16 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator
-    static BytesRef process(BytesRef str, BytesRef oldStr, BytesRef newStr) {
-        if (str == null || oldStr == null || newStr == null) {
+    static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
+        if (str == null || regex == null || newStr == null) {
             return null;
         }
 
-        return new BytesRef(str.utf8ToString().replace(oldStr.utf8ToString(), newStr.utf8ToString()));
+        try {
+            return new BytesRef(str.utf8ToString().replaceAll(regex.utf8ToString(), newStr.utf8ToString()));
+        } catch (PatternSyntaxException ex) {
+            throw new IllegalArgumentException("The provided regex was invalid", ex);
+        }
     }
 
     @Override
@@ -93,7 +98,7 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Replace::new, str, oldStr, newStr);
+        return NodeInfo.create(this, Replace::new, str, regex, newStr);
     }
 
     @Override
@@ -106,9 +111,9 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> strEval = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> oldStrEval = toEvaluator.apply(oldStr);
+        Supplier<EvalOperator.ExpressionEvaluator> regexEval = toEvaluator.apply(regex);
         Supplier<EvalOperator.ExpressionEvaluator> newStrEval = toEvaluator.apply(newStr);
 
-        return () -> new ReplaceEvaluator(strEval.get(), oldStrEval.get(), newStrEval.get());
+        return () -> new ReplaceEvaluator(strEval.get(), regexEval.get(), newStrEval.get());
     }
 }

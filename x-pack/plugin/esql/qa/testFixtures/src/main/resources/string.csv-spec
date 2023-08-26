@@ -746,3 +746,12 @@ emp_no:integer | last_name:keyword | f_l:keyword
 10009 | Peac      | P
 10010 | Piveteau  | P
 ;
+
+replace regex
+from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1;
+
+l1:keyword
+Gatewayinstances
+Gatewayinstances
+null
+;

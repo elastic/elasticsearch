@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.SearchShardsAction;
-import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -28,14 +26,12 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase.TestRequest;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -49,12 +45,16 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase {
@@ -64,7 +64,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     private SecurityNetty4ServerTransport remoteSecurityNetty4ServerTransport;
     private TransportService remoteTransportService;
     private DiscoveryNode remoteNode;
+    private CrossClusterAccessAuthenticationService remoteCrossClusterAccessAuthenticationService;
 
+    @SuppressWarnings("unchecked")
     @Override
     @Before
     public void setUp() throws Exception {
@@ -80,6 +82,11 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), "true")
             .build();
         remoteSettings = NodeRoles.nonRemoteClusterClientNode(remoteSettings);
+        remoteCrossClusterAccessAuthenticationService = mock(CrossClusterAccessAuthenticationService.class);
+        doAnswer(invocation -> {
+            ((ActionListener<Void>) invocation.getArguments()[1]).onResponse(null);
+            return null;
+        }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
         remoteSecurityNetty4ServerTransport = new SecurityNetty4ServerTransport(
                 remoteSettings,
             TransportVersion.current(),
@@ -91,7 +98,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             null,
             mock(SSLService.class),
             new SharedGroupFactory(remoteSettings),
-            mock(CrossClusterAccessAuthenticationService.class)
+            remoteCrossClusterAccessAuthenticationService
         );
         remoteTransportService = MockTransportService.createNewService(
                 remoteSettings,
@@ -102,7 +109,6 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             Collections.emptySet(),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR // TODO maybe use transport interceptor to set credentials
         );
-        //new ClusterSettings(remoteSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
         remoteTransportService.start();
         remoteTransportService.acceptIncomingRequests();
         // TODO maybe use connection listeners
@@ -184,20 +190,20 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                             TransportRequestOptions.EMPTY,
                             transportResponseHandler
                     );
-                    connection.sendRequest(
-                        randomNonNegativeLong(),
-                        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-                        TransportRequest.Empty.INSTANCE,
-                        TransportRequestOptions.of(null, TransportRequestOptions.Type.REG)
-                    );
-                    connection.getNode();
-                    connection.isClosed();
                 }, e -> {})
             );
-            responseLatch.await();
+            assertTrue(responseLatch.await(5, TimeUnit.SECONDS));
         }
     }
 
+//                    connection.sendRequest(
+//                        randomNonNegativeLong(),
+//                        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+//                        TransportRequest.Empty.INSTANCE,
+//                        TransportRequestOptions.of(null, TransportRequestOptions.Type.REG)
+//                    );
+//                    connection.getNode();
+//                    connection.isClosed();
 //            assertTrue(remoteClusterService.isRemoteNodeConnected("remote_security_server_transport", remoteNode));
 //            Client client = remoteClusterService.getRemoteClusterClient(
 //                    threadPool,

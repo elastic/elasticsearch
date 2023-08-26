@@ -70,8 +70,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return true;
     }
 
-    public static SnapshotDeletionsInProgress get(ClusterState currentState) {
-        return currentState.custom(TYPE, EMPTY);
+    public static SnapshotDeletionsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
     }
 
     /**

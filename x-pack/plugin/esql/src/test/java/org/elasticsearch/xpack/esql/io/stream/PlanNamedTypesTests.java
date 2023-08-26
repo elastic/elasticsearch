@@ -149,7 +149,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         BytesStreamOutput bso = new BytesStreamOutput();
         bso.writeString("hello");
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
-        var plan = new RowExec(Source.EMPTY, List.of(field("foo", DataTypes.LONG)));
+        var plan = new RowExec(Source.EMPTY, List.of(new Alias(Source.EMPTY, "foo", field("field", DataTypes.LONG))));
         out.writePhysicalPlanNode(plan);
         bso.writeVInt(11_345);
 

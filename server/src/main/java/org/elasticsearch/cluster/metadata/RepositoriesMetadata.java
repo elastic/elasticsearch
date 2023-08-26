@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
@@ -48,6 +49,10 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 
     private final List<RepositoryMetadata> repositories;
+
+    public static RepositoriesMetadata get(ClusterState state) {
+        return state.metadata().custom(TYPE, EMPTY);
+    }
 
     /**
      * Constructs new repository metadata

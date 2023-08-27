@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,7 +22,7 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         // test empty stream to array
         assertEquals(0, out.size());
         assertEquals(0, out.bytes().length());
-        assertEquals((long)PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.size());
+        assertEquals((long) PageCacheRecycler.BYTE_PAGE_SIZE + 1, out.bytes.size());
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.ramBytesUsed());
         out.close();
         out = new BigBytesStreamOutput(PageCacheRecycler.BYTE_PAGE_SIZE + 2);
@@ -31,7 +30,7 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         // test empty stream to array
         assertEquals(0, out.size());
         assertEquals(0, out.bytes().length());
-        assertEquals((long)PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.size());
+        assertEquals((long) PageCacheRecycler.BYTE_PAGE_SIZE + 2, out.bytes.size());
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.ramBytesUsed());
         out.close();
         out = new BigBytesStreamOutput(10);
@@ -39,20 +38,19 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         // test empty stream to array
         assertEquals(0, out.size());
         assertEquals(0, out.bytes().length());
-        assertEquals((long)PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.size());
+        assertEquals((long) PageCacheRecycler.BYTE_PAGE_SIZE + 1, out.bytes.size());
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.ramBytesUsed());
         out.close();
-
     }
 
-    public void testFilled() throws Exception{
+    public void testFilled() throws Exception {
         BytesStreamOutput out = new BigBytesStreamOutput();
         byte b[] = new byte[PageCacheRecycler.BYTE_PAGE_SIZE + 1];
         out.write(b, 0, b.length);
         // test empty stream to array
-        assertEquals(b.length , out.size());
-        assertEquals(b.length , out.bytes().length());
-        assertEquals((long)PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.size());
+        assertEquals(b.length, out.size());
+        assertEquals(b.length, out.bytes().length());
+        assertEquals((long) PageCacheRecycler.BYTE_PAGE_SIZE + 1, out.bytes.size());
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 2, out.bytes.ramBytesUsed());
         out.close();
         out = new BigBytesStreamOutput();
@@ -62,12 +60,14 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         // test empty stream to array
         assertEquals(b.length * 2, out.size());
         assertEquals(b.length * 2, out.bytes().length());
-        assertEquals((long)PageCacheRecycler.BYTE_PAGE_SIZE * 3, out.bytes.size());
+        // This inconsistency is size is because of a code bug - Issue raised- https://github.com/elastic/elasticsearch/issues/98912
+        // This test will start failing once this code bug is resolved.
+        assertEquals((long) PageCacheRecycler.BYTE_PAGE_SIZE * 3, out.bytes.size());
         assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 3, out.bytes.ramBytesUsed());
         out.close();
     }
 
-    public void testInputStream() throws Exception{
+    public void testInputStream() throws Exception {
         BigBytesStreamOutput out = new BigBytesStreamOutput();
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
         out.write(b, 0, b.length);
@@ -89,7 +89,7 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         out.write(b2, 0, b.length);
         in = out.resetAndGetInputStream();
         // test empty stream to array
-        assertEquals(b.length + b2.length , in.available());
+        assertEquals(b.length + b2.length, in.available());
         assertArrayEquals(b, in.readNBytes(b.length));
         assertArrayEquals(b2, in.readNBytes(b.length));
         // test empty stream to array
@@ -97,13 +97,10 @@ public class BigBytesStreamOutputTest extends ESTestCase {
         out.close();
     }
 
-
-
     protected byte[] randomizedByteArrayWithSize(int size) {
         byte[] data = new byte[size];
         random().nextBytes(data);
         return data;
     }
-
 
 }

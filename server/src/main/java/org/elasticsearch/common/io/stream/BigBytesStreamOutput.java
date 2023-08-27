@@ -13,16 +13,18 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.InputStream;
 
-public class BigBytesStreamOutput extends BytesStreamOutput implements OutputToInputStreamConvertable{
+public class BigBytesStreamOutput extends BytesStreamOutput implements OutputToInputStreamConvertable {
 
-    public BigBytesStreamOutput(){
+    public BigBytesStreamOutput() {
         this(0);
     }
-    public BigBytesStreamOutput(int size){
+
+    public BigBytesStreamOutput(int size) {
         super(Math.max(size, PageCacheRecycler.PAGE_SIZE_IN_BYTES + 1), new BigArrays(null, null, null));
     }
+
     @Override
-    public InputStream resetAndGetInputStream(){
+    public InputStream resetAndGetInputStream() {
         ByteArray byteArray = this.bytes;
         int count = this.count;
         this.bytes = bigArrays.newByteArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES + 1, false);

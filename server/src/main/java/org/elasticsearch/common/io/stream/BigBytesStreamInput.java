@@ -10,11 +10,9 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteArray;
-import java.io.EOFException;
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
-import java.util.Arrays;
 
 /**
  * A @link {@link StreamInput} that consumes {@link ByteArray}.
@@ -25,7 +23,7 @@ public class BigBytesStreamInput extends InputStream {
     protected int count;
     protected int current;
 
-    public BigBytesStreamInput(ByteArray byteArray, int count){
+    public BigBytesStreamInput(ByteArray byteArray, int count) {
         this.bytes = byteArray;
         this.count = count;
         this.current = 0;
@@ -40,7 +38,7 @@ public class BigBytesStreamInput extends InputStream {
 
     @Override
     public int read() throws IOException {
-        if(current >= count){
+        if (current >= count) {
             return -1;
         }
         return bytes.get(current++);
@@ -51,7 +49,6 @@ public class BigBytesStreamInput extends InputStream {
         return count - current;
     }
 
-
     @Override
     public int read(byte[] b) throws IOException {
         return read(b, 0, b.length);
@@ -59,6 +56,9 @@ public class BigBytesStreamInput extends InputStream {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
+        if (available() <= 0) {
+            return -1;
+        }
         int l = Math.min(len, available());
         BytesRef byteref = new BytesRef();
         bytes.get(current, l, byteref);

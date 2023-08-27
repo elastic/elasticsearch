@@ -9,12 +9,12 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.InputStream;
+
 /**
  * OutputToInputStreamConvertable is transformation all or part of data in the current object to InputStream and reset current object.
  * on {@link StreamInput}.
  */
 public interface OutputToInputStreamConvertable {
-
 
     /**
      * reset the current OutputStream and return InputStream.

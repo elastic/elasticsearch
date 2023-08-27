@@ -12,12 +12,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class BigBytesStreamInputTest extends ESTestCase {
-    public void testCreation() throws Exception{
+    public void testCreation() throws Exception {
         ByteArray byteArray = new BigArrays(null, null, null).newByteArray(1000);
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
         byteArray.set(0, b, 0, b.length);
@@ -25,12 +24,12 @@ public class BigBytesStreamInputTest extends ESTestCase {
         assertEquals(b.length, input.available());
         byte b2[] = new byte[b.length + 1];
         assertEquals(b.length, input.read(b2, 0, b2.length));
-        assertArrayEquals(b, Arrays.copyOf(b2,  b.length));
+        assertArrayEquals(b, Arrays.copyOf(b2, b.length));
         assertEquals(0, input.available());
-        assertEquals(0, input.read(b2, 0, b2.length));
+        assertEquals(-1, input.read(b2, 0, b2.length));
     }
 
-    public void testReadArray() throws Exception{
+    public void testReadArray() throws Exception {
         ByteArray byteArray = new BigArrays(null, null, null).newByteArray(1000);
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
 
@@ -39,28 +38,28 @@ public class BigBytesStreamInputTest extends ESTestCase {
         assertEquals(b.length, input.available());
         byte b2[] = new byte[b.length + 1];
         assertEquals(b.length, input.read(b2));
-        assertArrayEquals(b, Arrays.copyOf(b2,  b.length));
+        assertArrayEquals(b, Arrays.copyOf(b2, b.length));
         assertEquals(0, input.available());
-        assertEquals(0, input.read(b2, 0, b2.length));
+        assertEquals(-1, input.read(b2, 0, b2.length));
     }
 
-    public void testRead() throws Exception{
+    public void testRead() throws Exception {
         ByteArray byteArray = new BigArrays(null, null, null).newByteArray(1000);
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
 
         byteArray.set(0, b, 0, b.length);
         BigBytesStreamInput input = new BigBytesStreamInput(byteArray, b.length);
-        for(int i = 0;i<b.length;i++) {
+        for (int i = 0; i < b.length; i++) {
             assertEquals(b[i], input.read());
         }
 
-        assertEquals(-1,input.read());
+        assertEquals(-1, input.read());
 
         assertEquals(0, input.available());
 
     }
 
-    public void testReadAllBytes() throws Exception{
+    public void testReadAllBytes() throws Exception {
         ByteArray byteArray = new BigArrays(null, null, null).newByteArray(1000);
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
         byteArray.set(0, b, 0, b.length);
@@ -73,8 +72,7 @@ public class BigBytesStreamInputTest extends ESTestCase {
         assertEquals(0, input.readAllBytes().length);
     }
 
-
-    public void testClose() throws Exception{
+    public void testClose() throws Exception {
         ByteArray byteArray = new BigArrays(null, null, null).newByteArray(1000);
         byte b[] = "Test String".getBytes(StandardCharsets.UTF_8);
         byteArray.set(0, b, 0, b.length);

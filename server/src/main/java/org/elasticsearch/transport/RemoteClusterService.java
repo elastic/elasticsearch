@@ -551,6 +551,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                         transportService.clusterName
                     )
                 );
+                // channel.sendResponse(
+                // new ElasticsearchSecurityException("handshake not allowed authn failure")
+                // );
             }
         );
     }

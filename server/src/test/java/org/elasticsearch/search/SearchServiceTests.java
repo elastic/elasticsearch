@@ -83,6 +83,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -2174,27 +2175,72 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98534")
-    public void testIsParallelCollectionSupportedForResults() {
-        SearchSourceBuilder searchSourceBuilder = randomBoolean() ? null : new SearchSourceBuilder();
-        if (searchSourceBuilder != null && randomBoolean()) {
-            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+    public void testIsParallelCollectionSupportedForResults() throws Exception {
+        SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
+        for (var resultsType : ResultsType.values()) {
+            switch (resultsType) {
+                case NONE, FETCH -> assertFalse(
+                    "NONE and FETCH phases do not support parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
+                );
+                case DFS -> assertTrue(
+                    "DFS phase always supports parallel collection.",
+                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
+                );
+                case QUERY -> {
+                    SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when no agg is present.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, true)
+                    );
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when the source is null.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, true)
+                    );
+
+                    SearchSourceBuilder searchSourceAggSupportsParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggSupportsParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when when enabled && contains supported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceAggSupportsParallelCollection, true)
+                    );
+
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, false)
+                    );
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled and source is null.",
+                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, false)
+                    );
+
+                    SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when "
+                            + "enabled && does not contains supported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceAggDoesNotSupportParallelCollection,
+                            true
+                        )
+                    );
+
+                    SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",
+                        SearchService.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceMultiAggDoesNotSupportParallelCollection,
+                            true
+                        )
+                    );
+                }
+                default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
+            }
         }
-        assertTrue(SearchService.isParallelCollectionSupportedForResults(ResultsType.DFS, searchSourceBuilder, true));
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                false
-            )
-        );
-        assertFalse(
-            SearchService.isParallelCollectionSupportedForResults(
-                randomFrom(randomFrom(ResultsType.QUERY, ResultsType.NONE, ResultsType.FETCH)),
-                searchSourceBuilder,
-                true
-            )
-        );
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

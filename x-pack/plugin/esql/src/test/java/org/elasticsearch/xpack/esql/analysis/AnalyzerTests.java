@@ -117,7 +117,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(limit.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
-        Alias eeField = (Alias) eval.fields().get(0);
+        Alias eeField = eval.fields().get(0);
         assertEquals("ee", eeField.name());
         assertEquals("e", ((ReferenceAttribute) eeField.child()).name());
 
@@ -948,29 +948,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(int, "1M")
-            """, "first argument of [date_trunc(int, \"1M\")] must be [datetime], found value [int] type [integer]");
+            | eval date_trunc("1M", int)
+            """, "first argument of [date_trunc(\"1M\", int)] must be [datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(float, "1M")
-            """, "first argument of [date_trunc(float, \"1M\")] must be [datetime], found value [float] type [double]");
+            | eval date_trunc("1M", float)
+            """, "first argument of [date_trunc(\"1M\", float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(keyword, "1M")
-            """, "first argument of [date_trunc(keyword, \"1M\")] must be [datetime], found value [keyword] type [keyword]");
+            | eval date_trunc("1M", keyword)
+            """, "first argument of [date_trunc(\"1M\", keyword)] must be [datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(date, 1)
-            """, "second argument of [date_trunc(date, 1)] must be [dateperiod or timeduration], found value [1] type [integer]");
+            | eval date_trunc(1, date)
+            """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+    }
+
+    public void testDateTruncWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(date, 1 month)
+            """, "function definition has been updated, please swap arguments in [date_trunc(date, 1 month)]");
     }
 
     public void testDateTruncWithDateInterval() {

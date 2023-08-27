@@ -342,10 +342,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     // instances
     private Version minCompatVersion;
 
-    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
-    // instances
-    private Version minIndexCompatVersion;
-
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -386,34 +382,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         }
 
         return Version.min(this, fromId(major * 1000000 + 0 * 10000 + 99));
-    }
-
-    /**
-     * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
-     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
-     *
-     * @deprecated This should not be used to get the compatibility of versions after 8.10.0
-     */
-    @Deprecated
-    public Version minimumIndexCompatibilityVersion() {
-        Version res = minIndexCompatVersion;
-        if (res == null) {
-            res = computeMinIndexCompatVersion();
-            minIndexCompatVersion = res;
-        }
-        return res;
-    }
-
-    private Version computeMinIndexCompatVersion() {
-        final int bwcMajor;
-        if (major == 5) {
-            bwcMajor = 2; // we jumped from 2 to 5
-        } else {
-            bwcMajor = major - 1;
-        }
-        final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     /**

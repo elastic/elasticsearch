@@ -26,6 +26,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -169,6 +170,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
+
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            table.addCell("dataset.size", "default:false;text-align:right;desc:total size of dataset");
+        } else {
+            table.addCell("dataset.size", "text-align:right;desc:total size of dataset");
+        }
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -585,6 +592,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
+            table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().totalDataSetSize());
 
             table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
             table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());

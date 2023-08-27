@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.aggregations.bucket.range;
 
 import org.apache.lucene.document.DoubleDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
@@ -49,8 +50,10 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         long absError = 0L;
         long docCount = 0L;
         for (int k = 0; k < 10; k++) {
-            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-                docCount += generateDocs(w);
+            try (Directory dir = newDirectory()) {
+                try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                    docCount += generateDocs(w);
+                }
                 double[] steps = IntStream.range(2, 99).filter(i -> i % 2 == 0).mapToDouble(Double::valueOf).toArray();
 
                 PercentilesAggregationBuilder rawPercentiles = new PercentilesAggregationBuilder("my_agg").field(RAW_FIELD_NAME)
@@ -61,8 +64,8 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                     .percentilesConfig(new PercentilesConfig.Hdr())
                     .percentiles(steps);
 
-                try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = newSearcher(reader);
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
                     RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
 
                     RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
@@ -119,7 +122,6 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         testRanges(ranges, "manual_medium_ranges");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98713")
     public void testLargerRangesAccuracy() throws Exception {
         List<RangeAggregator.Range> ranges = Arrays.asList(
             new RangeAggregator.Range(null, null, 8.0),
@@ -164,11 +166,12 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
         long absError = 0L;
         long docCount = 0L;
         for (int k = 0; k < 10; k++) {
-            try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-                docCount += generateDocs(w);
-
-                try (IndexReader reader = w.getReader()) {
-                    IndexSearcher searcher = newSearcher(reader);
+            try (Directory dir = newDirectory()) {
+                try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                    docCount += generateDocs(w);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
                     RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg").field(HISTO_FIELD_NAME);
                     RangeAggregationBuilder rawFieldAgg = new RangeAggregationBuilder("my_agg").field(RAW_FIELD_NAME);
                     ranges.forEach(r -> {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.internal.BuildExtension;
 
 import java.io.IOException;
@@ -115,10 +116,20 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = Version.CURRENT.minimumIndexCompatibilityVersion().toString();
+        String minIndexCompat = minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE);
         String displayString = defaultDisplayString(type, hash, date, version);
 
         return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
+    }
+
+    public static String minimumCompatString(IndexVersion minimumCompatible) {
+        if (minimumCompatible.before(IndexVersion.V_8_11_0)) {
+            // use Version for compatibility
+            return Version.fromId(minimumCompatible.id()).toString();
+        } else {
+            // use the IndexVersion string
+            return minimumCompatible.toString();
+        }
     }
 
     public static Build current() {
@@ -203,7 +214,7 @@ public record Build(
             int dashNdx = version.indexOf('-');
             var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
             minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
-            minIndexVersion = versionConstant.minimumIndexCompatibilityVersion().toString();
+            minIndexVersion = minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(versionConstant.id()));
             displayString = defaultDisplayString(type, hash, date, version);
         }
         return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, displayString);

@@ -56,6 +56,7 @@ import static org.mockito.Mockito.mock;
 public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private String remoteClusterName;
     private SecurityNetty4ServerTransport remoteSecurityNetty4ServerTransport;
     private MockTransportService remoteTransportService;
     private CrossClusterAccessAuthenticationService remoteCrossClusterAccessAuthenticationService;
@@ -65,9 +66,10 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
+        remoteClusterName = "test-remote_cluster_service_" + randomAlphaOfLength(8);
         Settings remoteSettings = Settings.builder()
             .put("node.name", getClass().getName())
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "remote_security_server_transport")
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), remoteClusterName)
             .put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), "false")
             .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.getKey(), "false")
             .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED.getKey(), "false")
@@ -121,24 +123,20 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
         Settings localSettings = Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "proxy")
             .put(
-                RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
-                "proxy"
-            )
-            .put(
-                ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
             )
             .put(
-                ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace("remote_security_server_transport")
-                    .getKey(),
+                ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .build();
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
@@ -156,22 +154,18 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             // obtain some connections and check that they'll be promptly closed
             for (int i = 0; i < randomIntBetween(4, 16); i++) {
                 PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-                remoteClusterService.maybeEnsureConnectedAndGetConnection(
-                    "remote_security_server_transport",
-                    true,
-                    ActionListener.wrap(connection -> {
-                        // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn and the connection is closed,
-                        // but it is usually closed AFTER the handshake response returned
-                        logger.info("Connection will auto-close");
-                        connection.addCloseListener(closeFuture);
-                    }, e -> {
-                        // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn and the connection is closed
-                        // before the handshake response returned
-                        logger.info("A connection could not be established");
-                        assertThat(e, instanceOf(NoSuchRemoteClusterException.class));
-                        closeFuture.onResponse(null);
-                    })
-                );
+                remoteClusterService.maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                    // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn and the connection is closed,
+                    // but it is usually closed AFTER the handshake response returned
+                    logger.info("Connection will auto-close");
+                    connection.addCloseListener(closeFuture);
+                }, e -> {
+                    // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn and the connection is closed
+                    // before the handshake response returned
+                    logger.info("A connection could not be established");
+                    assertThat(e, instanceOf(NoSuchRemoteClusterException.class));
+                    closeFuture.onResponse(null);
+                }));
                 closeFuture.get(15L, TimeUnit.SECONDS);
             }
         }
@@ -186,12 +180,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
         Settings localSettings = Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "sniff")
             .put(
-                RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
-                "sniff"
-            )
-            .put(
-                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
             )
             .put(
@@ -199,14 +190,14 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .put(
-                SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomIntBetween(1, 3) // easier to debug with just 1 connection
             )
             .build();
         {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
             localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
@@ -226,17 +217,13 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
                 // the failed authentication during handshake must surely close the connection before
                 // {@code RemoteClusterNodesAction.NAME} is executed, so node sniffing will fail
-                remoteClusterService.maybeEnsureConnectedAndGetConnection(
-                    "remote_security_server_transport",
-                    true,
-                    ActionListener.wrap(connection -> {
-                        fail("No connection should be available, because node sniffing should fail on connection closed");
-                    }, e -> {
-                        logger.info("No connection could be established");
-                        assertThat(e, instanceOf(NoSeedNodeLeftException.class));
-                        closeFuture.onResponse(null);
-                    })
-                );
+                remoteClusterService.maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                    fail("No connection should be available, because node sniffing should fail on connection closed");
+                }, e -> {
+                    logger.info("No connection could be established");
+                    assertThat(e, instanceOf(NoSeedNodeLeftException.class));
+                    closeFuture.onResponse(null);
+                }));
                 closeFuture.get(15L, TimeUnit.SECONDS);
             }
         }

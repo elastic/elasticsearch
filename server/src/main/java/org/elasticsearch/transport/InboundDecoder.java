@@ -41,6 +41,10 @@ public class InboundDecoder implements Releasable {
         this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), ChannelType.MIX);
     }
 
+    public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
+        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), channelType);
+    }
+
     public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {
         this.recycler = recycler;
         this.maxHeaderSize = maxHeaderSize;
@@ -196,15 +200,15 @@ public class InboundDecoder implements Releasable {
             int remoteVersion = streamInput.readInt();
 
             Header header = new Header(networkMessageSize, requestId, status, TransportVersion.fromId(remoteVersion));
-            if (header.isHandshake()) {
-                checkHandshakeVersionCompatibility(header.getVersion());
-            } else {
-                checkVersionCompatibility(header.getVersion());
-            }
             if (channelType == ChannelType.SERVER && header.isResponse()) {
                 throw new IllegalArgumentException("server channels do not accept inbound responses, only requests, closing channel");
             } else if (channelType == ChannelType.CLIENT && header.isRequest()) {
                 throw new IllegalArgumentException("client channels do not accept inbound requests, only responses, closing channel");
+            }
+            if (header.isHandshake()) {
+                checkHandshakeVersionCompatibility(header.getVersion());
+            } else {
+                checkVersionCompatibility(header.getVersion());
             }
 
             if (header.getVersion().onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {

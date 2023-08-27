@@ -22,6 +22,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -216,6 +217,62 @@ public class InboundDecoderTests extends ESTestCase {
             fragments.clear();
         }
 
+    }
+
+    public void testClientChannelTypeFailsDecodingRequests() throws Exception {
+        String action = "test-request";
+        long requestId = randomNonNegativeLong();
+        if (randomBoolean()) {
+            final String headerKey = randomAlphaOfLength(10);
+            final String headerValue = randomAlphaOfLength(20);
+            threadContext.putHeader(headerKey, headerValue);
+        }
+        Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
+        OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new TestRequest(randomAlphaOfLength(100)),
+            TransportVersion.current(),
+            action,
+            requestId,
+            randomBoolean(),
+            scheme
+        );
+
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = message.serialize(os);
+            try (InboundDecoder decoder = new InboundDecoder(recycler, InboundDecoder.ChannelType.CLIENT)) {
+                final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> decoder.decode(releasable1, ignored -> {}));
+                assertThat(e.getMessage(), containsString("client channels do not accept inbound requests, only responses"));
+            }
+        }
+    }
+
+    public void testServerChannelTypeFailsDecodingResponses() throws Exception {
+        long requestId = randomNonNegativeLong();
+        if (randomBoolean()) {
+            final String headerKey = randomAlphaOfLength(10);
+            final String headerValue = randomAlphaOfLength(20);
+            threadContext.putHeader(headerKey, headerValue);
+        }
+        Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
+        OutboundMessage message = new OutboundMessage.Response(
+            threadContext,
+            new TestResponse(randomAlphaOfLength(100)),
+            TransportVersion.current(),
+            requestId,
+            randomBoolean(),
+            scheme
+        );
+
+        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+            final BytesReference bytes = message.serialize(os);
+            try (InboundDecoder decoder = new InboundDecoder(recycler, InboundDecoder.ChannelType.SERVER)) {
+                final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> decoder.decode(releasable1, ignored -> {}));
+                assertThat(e.getMessage(), containsString("server channels do not accept inbound responses, only requests"));
+            }
+        }
     }
 
     public void testCompressedDecode() throws IOException {

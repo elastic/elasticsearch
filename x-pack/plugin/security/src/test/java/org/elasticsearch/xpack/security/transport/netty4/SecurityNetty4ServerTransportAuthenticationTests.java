@@ -26,11 +26,13 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -111,7 +113,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     }
 
     @SuppressWarnings("unchecked")
-    public void testConnectionClosesWhenAuthenticatorAlwaysFails() throws Exception {
+    public void testProxyStrategyConnectionClosesWhenAuthenticatorAlwaysFails() throws Exception {
+        // all requests fail authn
         doAnswer(invocation -> {
             ((ActionListener<Void>) invocation.getArguments()[1]).onFailure(new ElasticsearchSecurityException("failed authn"));
             return null;
@@ -150,6 +153,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         ) {
             localService.start();
             RemoteClusterService remoteClusterService = localService.getRemoteClusterService();
+            // obtain some connections and check that they'll be promptly closed
             for (int i = 0; i < randomIntBetween(4, 16); i++) {
                 PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
                 remoteClusterService.maybeEnsureConnectedAndGetConnection(
@@ -165,6 +169,71 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                         // before the handshake response returned
                         logger.info("A connection could not be established");
                         assertThat(e, instanceOf(NoSuchRemoteClusterException.class));
+                        closeFuture.onResponse(null);
+                    })
+                );
+                closeFuture.get(15L, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSniffStrategyNoConnectionWhenAuthenticatorAlwaysFails() throws Exception {
+        // all requests fail authn
+        doAnswer(invocation -> {
+            ((ActionListener<Void>) invocation.getArguments()[1]).onFailure(new ElasticsearchSecurityException("failed authn"));
+            return null;
+        }).when(remoteCrossClusterAccessAuthenticationService).tryAuthenticate(any(Map.class), anyActionListener());
+        Settings localSettings = Settings.builder()
+            .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .put(
+                RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                "sniff"
+            )
+            .put(
+                SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
+            )
+            .put(
+                SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER.getKey(),
+                randomIntBetween(1, 3) // easier to debug with just 1 connection
+            )
+            .put(
+                SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                randomIntBetween(1, 3) // easier to debug with just 1 connection
+            )
+            .build();
+        {
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace("remote_security_server_transport").getKey(),
+                randomAlphaOfLength(20)
+            );
+            localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
+        }
+        try (
+            MockTransportService localService = MockTransportService.createNewService(
+                localSettings,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
+            localService.start();
+            RemoteClusterService remoteClusterService = localService.getRemoteClusterService();
+            // obtain some connections and check that they'll be promptly closed
+            for (int i = 0; i < randomIntBetween(4, 16); i++) {
+                PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                // the failed authentication during handshake must surely close the connection before
+                // {@code RemoteClusterNodesAction.NAME} is executed, so node sniffing will fail
+                remoteClusterService.maybeEnsureConnectedAndGetConnection(
+                    "remote_security_server_transport",
+                    true,
+                    ActionListener.wrap(connection -> {
+                        fail("No connection should be available, because node sniffing should fail on connection closed");
+                    }, e -> {
+                        logger.info("No connection could be established");
+                        assertThat(e, instanceOf(NoSeedNodeLeftException.class));
                         closeFuture.onResponse(null);
                     })
                 );

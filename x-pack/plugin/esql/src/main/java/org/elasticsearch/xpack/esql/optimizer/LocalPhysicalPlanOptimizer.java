@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.util.Queries;
+import org.elasticsearch.xpack.ql.util.Queries.Clause;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,7 +58,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -191,11 +192,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
-                    QueryBuilder query = planQuery;
-                    QueryBuilder filterQuery = queryExec.query();
-                    if (filterQuery != null) {
-                        query = boolQuery().filter(filterQuery).filter(planQuery);
-                    }
+                    var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),

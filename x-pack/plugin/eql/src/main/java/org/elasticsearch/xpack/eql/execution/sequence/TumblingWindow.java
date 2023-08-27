@@ -48,7 +48,7 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
-import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.addFilter;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.combineFilters;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
@@ -314,7 +314,7 @@ public class TumblingWindow implements Executable {
                         builder.sort(r.timestampField(), SortOrder.ASC);
                     }
                     addKeyFilter(i, sequence, builder);
-                    RuntimeUtils.addFilter(range, builder);
+                    RuntimeUtils.combineFilters(builder, range);
                     result.add(RuntimeUtils.prepareRequest(builder.size(1).trackTotalHits(false), false, Strings.EMPTY_ARRAY));
                 } else {
                     leading = false;
@@ -331,7 +331,7 @@ public class TumblingWindow implements Executable {
         }
         for (int i = 0; i < keys.size(); i++) {
             Attribute k = keys.get(i);
-            addFilter(new TermQueryBuilder(k.qualifiedName(), sequence.key().asList().get(i)), builder);
+            combineFilters(builder, new TermQueryBuilder(k.qualifiedName(), sequence.key().asList().get(i)));
         }
     }
 

@@ -104,6 +104,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
     );
+    public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
+
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();

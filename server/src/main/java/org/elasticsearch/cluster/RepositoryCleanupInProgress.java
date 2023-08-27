@@ -28,6 +28,10 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     private final List<Entry> entries;
 
+    public static RepositoryCleanupInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     public RepositoryCleanupInProgress(List<Entry> entries) {
         this.entries = entries;
     }

@@ -313,7 +313,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 } else {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertNotNull(newResponse.getSearchResponse());
-                    assertFalse(newResponse.isPartial());
+                    if (numFailures > 0) {
+                        assertTrue(newResponse.isPartial());
+                    } else {
+                        assertFalse(newResponse.isPartial());
+                    }
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));
                     assertThat(newResponse.getSearchResponse().getTotalShards(), equalTo(numShards));
                     assertThat(newResponse.getSearchResponse().getShardFailures().length, equalTo(numFailures));

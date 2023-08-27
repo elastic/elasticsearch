@@ -230,31 +230,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          * fields by casting them to {@link DataTypes#DOUBLE}s.
          */
         public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
-            // NOCOMMIT call forUnaryNumeric
+            String read = "Attribute[channel=0]";
+            String eval = name + "[" + argName + "=";
             List<TestCaseSupplier> suppliers = new ArrayList<>();
-            for (DataType type : EsqlDataTypes.types()) {
-                if (type.isNumeric() == false || EsqlDataTypes.isRepresentable(type) == false) {
-                    continue;
-                }
-                for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(type)) {
-                    suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(type), () -> {
-                        Number value = (Number) supplier.getValue().get();
-                        TypedData typed = new TypedData(
-                            // TODO there has to be a better way to handle unsigned long
-                            value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
-                            type,
-                            "value"
-                        );
-                        String evalName = castToDoubleEvaluator("Attribute[channel=0]", type);
-                        return new TestCase(
-                            List.of(typed),
-                            name + "[" + argName + "=" + evalName + "]",
-                            DataTypes.DOUBLE,
-                            equalTo(expected.applyAsDouble(value.doubleValue()))
-                        );
-                    }));
-                }
-            }
+            forUnaryInt(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
+                DataTypes.DOUBLE,
+                i -> expected.applyAsDouble(i)
+            );
+            forUnaryLong(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
+                DataTypes.DOUBLE,
+                l -> expected.applyAsDouble(l)
+            );
+            forUnaryUnsignedLong(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
+                DataTypes.DOUBLE,
+                ul -> expected.applyAsDouble(ul.doubleValue())
+            );
+            forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i));
             return suppliers;
         }
 

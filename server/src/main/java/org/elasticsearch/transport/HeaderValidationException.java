@@ -8,6 +8,9 @@
 
 package org.elasticsearch.transport;
 
+/**
+ * This is used to pack the validation exception with the associated header.
+ */
 public class HeaderValidationException extends RuntimeException {
     public final Header header;
     public final Exception validationException;

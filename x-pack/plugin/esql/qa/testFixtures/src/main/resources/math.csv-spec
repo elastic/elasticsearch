@@ -932,7 +932,8 @@ TAU():double
 
 ceil
 // tag::ceil[]
-ROW a=1.8 | EVAL a=CEIL(a)
+ROW a=1.8
+| EVAL a=CEIL(a)
 // end::ceil[]
 ;
 
@@ -944,7 +945,8 @@ a:double
 
 floor
 // tag::floor[]
-ROW a=1.8 | EVAL a=FLOOR(a)
+ROW a=1.8
+| EVAL a=FLOOR(a)
 // end::floor[]
 ;
 

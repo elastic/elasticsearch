@@ -164,24 +164,11 @@ docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
 
 . Make a REST API call to {es} to ensure the {es} container is running.
 +
---
 [source,sh]
 ----
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 // NOTCONSOLE
-
-[TIP]
-====
-To make a `curl` API call without verifying the SSL certificate, use the `-k` flag.
-
-[source,sh]
-----
-curl -k -u elastic:$ELASTIC_PASSWORD https://localhost:9200
-----
-// NOTCONSOLE
-====
---
 
 ===== Add more nodes
 

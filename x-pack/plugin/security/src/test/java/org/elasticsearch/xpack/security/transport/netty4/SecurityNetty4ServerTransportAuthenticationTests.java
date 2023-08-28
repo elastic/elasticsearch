@@ -98,6 +98,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED.getKey(), "false")
             .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
             .put(RemoteClusterPortSettings.PORT.getKey(), 0)
+            .put("transport.ignore_deserialization_errors", true)
             .build();
         remoteSettings = NodeRoles.nonRemoteClusterClientNode(remoteSettings);
         CrossClusterAccessAuthenticationService remoteCrossClusterAccessAuthenticationService = mock(
@@ -291,6 +292,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     }
 
     public void testConnectionWorksForPing() throws Exception {
+        authenticationException.set(new ElasticsearchSecurityException("authn failure"));
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
         // ping message
@@ -314,7 +316,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         }
     }
 
-    public void testConnectionDisconnectedForHeaderValidationFailure() throws Exception {
+    public void testConnectionDisconnectedWhenAuthnFails() throws Exception {
         authenticationException.set(new ElasticsearchSecurityException("authn failure"));
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
@@ -323,9 +325,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 threadPool.getThreadContext(),
                 TransportRequest.Empty.INSTANCE,
                 TransportVersion.current(),
-                RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+                "internal:whatever",
                 randomNonNegativeLong(),
-                randomBoolean(),
+                false,
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
             );
             Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);

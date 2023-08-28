@@ -196,8 +196,7 @@ public class Maps {
             Object cur = list.get(i);
             if (cur instanceof Map) {
                 flatMap.putAll(flatten((Map<String, Object>) cur, true, ordered, prefix + i));
-            }
-            if (cur instanceof List) {
+            } else if (cur instanceof List) {
                 flatMap.putAll(flatten((List<Object>) cur, ordered, prefix + i));
             } else {
                 flatMap.put(prefix + i, cur);

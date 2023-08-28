@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
+import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +112,9 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             var engine = newIndexEngine(
                 indexConfig(
                     Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60)).build(),
-                    nodeSettings
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
                 )
             )
         ) {

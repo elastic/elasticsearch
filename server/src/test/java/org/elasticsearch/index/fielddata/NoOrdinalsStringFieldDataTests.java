@@ -25,7 +25,7 @@ import org.elasticsearch.search.sort.SortOrder;
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
     public static IndexFieldData<LeafFieldData> hideOrdinals(final IndexFieldData<?> in) {
-        return new IndexFieldData<LeafFieldData>() {
+        return new IndexFieldData<>() {
             @Override
             public String getFieldName() {
                 return in.getFieldName();

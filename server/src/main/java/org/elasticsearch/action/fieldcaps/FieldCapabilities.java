@@ -276,7 +276,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (isDimension) {
-            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), isDimension);
+            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
         if (metricType != null) {
             builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
@@ -315,7 +315,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return PARSER.parse(parser, name);
     }
 
-    @SuppressWarnings("unchecked")
     private static final InstantiatingObjectParser<FieldCapabilities, String> PARSER;
 
     static {
@@ -471,10 +470,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
-        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
     }
 
     static class Builder {

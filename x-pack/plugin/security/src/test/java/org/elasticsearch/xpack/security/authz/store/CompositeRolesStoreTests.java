@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -51,7 +50,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -912,10 +910,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         Metadata metadata = Metadata.builder()
             .put(
-                new IndexMetadata.Builder("test").settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .build(),
+                new IndexMetadata.Builder("test").settings(
+                    Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+                ).numberOfShards(1).numberOfReplicas(0).build(),
                 true
             )
             .build();
@@ -2017,7 +2014,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testGetRoleForCrossClusterAccessAuthentication() throws Exception {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);

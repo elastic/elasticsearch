@@ -938,6 +938,18 @@ Search sections used in selected nodes. For each section, name and number of tim
 it's been used is reported.
 
 =====
+
+`dense_vector`::
+(object)
+Contains statistics about indexed dense vector used in selected nodes.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=====
+`value_count`::
+(integer)
+Total number of dense vector indexed in selected nodes.
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]
@@ -1670,7 +1682,10 @@ The API returns the following response:
           "total_primary_size": "7.4kb",
           "total_primary_bytes": 7632
         }
-      ]
+      ],
+      "dense_vector": {
+          "value_count": 0
+      }
    },
    "nodes": {
       "count": {

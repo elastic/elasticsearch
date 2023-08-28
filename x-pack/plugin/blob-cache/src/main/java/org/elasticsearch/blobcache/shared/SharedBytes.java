@@ -97,10 +97,10 @@ public class SharedBytes extends AbstractRefCounted {
             int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
             MappedByteBuffer[] mmaps = new MappedByteBuffer[mapCount];
             for (int i = 0; i < mapCount - 1; i++) {
-                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_WRITE, (long) mapSize * i, mapSize);
+                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_ONLY, (long) mapSize * i, mapSize);
             }
             mmaps[mapCount - 1] = fileChannel.map(
-                FileChannel.MapMode.READ_WRITE,
+                FileChannel.MapMode.READ_ONLY,
                 (long) mapSize * (mapCount - 1),
                 lastMapSize == 0 ? mapSize : lastMapSize
             );
@@ -110,7 +110,6 @@ public class SharedBytes extends AbstractRefCounted {
                     mmaps[i / regionsPerMmap].slice(Math.toIntExact((i % regionsPerMmap) * regionSize), Math.toIntExact(regionSize))
                 );
             }
-            fileChannel.close();
         } else {
             for (int i = 0; i < numRegions; i++) {
                 ios[i] = new IO(i, null);
@@ -250,12 +249,6 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
-    long getPhysicalOffset(long chunkPosition) {
-        long physicalOffset = chunkPosition * regionSize;
-        assert physicalOffset <= numRegions * regionSize;
-        return physicalOffset;
-    }
-
     public final class IO {
 
         private final long pageStart;
@@ -263,8 +256,14 @@ public class SharedBytes extends AbstractRefCounted {
         private final MappedByteBuffer mappedByteBuffer;
 
         private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
-            pageStart = getPhysicalOffset(sharedBytesPos);
+            long physicalOffset = sharedBytesPos * regionSize;
+            assert physicalOffset <= numRegions * regionSize;
+            this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+        }
+
+        public long pageStart() {
+            return pageStart;
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
@@ -289,14 +288,7 @@ public class SharedBytes extends AbstractRefCounted {
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;
             checkOffsets(position, src.remaining());
-            final int bytesWritten;
-            if (mmap) {
-                bytesWritten = src.remaining();
-                mappedByteBuffer.put(Math.toIntExact(position - pageStart), src, src.position(), bytesWritten);
-                src.position(src.position() + bytesWritten);
-            } else {
-                bytesWritten = fileChannel.write(src, position);
-            }
+            int bytesWritten = fileChannel.write(src, position);
             writeBytes.accept(bytesWritten);
             return bytesWritten;
         }

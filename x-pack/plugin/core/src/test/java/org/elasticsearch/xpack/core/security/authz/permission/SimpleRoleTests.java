@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -150,8 +149,6 @@ public class SimpleRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         SimpleRole role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(6))
             .addRemoteGroup(
                 Set.of("remote-cluster-a"),
@@ -224,8 +221,6 @@ public class SimpleRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final SimpleRole role = Role.buildFromRoleDescriptor(
             new RoleDescriptor(
                 randomAlphaOfLengthBetween(3, 8),

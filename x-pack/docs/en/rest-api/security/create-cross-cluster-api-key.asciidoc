@@ -2,8 +2,10 @@
 [[security-api-create-cross-cluster-api-key]]
 === Create Cross-Cluster API key API
 
+beta::[]
+
 ++++
-<titleabbrev>Create Cross-Cluster API key API</titleabbrev>
+<titleabbrev>Create Cross-Cluster API key</titleabbrev>
 ++++
 
 Creates an API key of the `cross_cluster` type for the API key based remote cluster access.

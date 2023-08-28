@@ -147,8 +147,10 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
     public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
     public static final Version V_8_9_1 = new Version(8_09_01_99, IndexVersion.V_8_9_1);
+    public static final Version V_8_9_2 = new Version(8_09_02_99, IndexVersion.V_8_9_2);
     public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
-    public static final Version CURRENT = V_8_10_0;
+    public static final Version V_8_11_0 = new Version(8_11_00_99, IndexVersion.V_8_11_0);
+    public static final Version CURRENT = V_8_11_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -340,10 +342,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     // instances
     private Version minCompatVersion;
 
-    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
-    // instances
-    private Version minIndexCompatVersion;
-
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -384,39 +382,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         }
 
         return Version.min(this, fromId(major * 1000000 + 0 * 10000 + 99));
-    }
-
-    /**
-     * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
-     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
-     */
-    public Version minimumIndexCompatibilityVersion() {
-        Version res = minIndexCompatVersion;
-        if (res == null) {
-            res = computeMinIndexCompatVersion();
-            minIndexCompatVersion = res;
-        }
-        return res;
-    }
-
-    private Version computeMinIndexCompatVersion() {
-        final int bwcMajor;
-        if (major == 5) {
-            bwcMajor = 2; // we jumped from 2 to 5
-        } else {
-            bwcMajor = major - 1;
-        }
-        final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
-    }
-
-    /**
-     * Whether the current version is older than the current minimum compatible index version,
-     * see {@link #minimumIndexCompatibilityVersion()}
-     */
-    public boolean isLegacyIndexVersion() {
-        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     /**

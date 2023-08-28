@@ -73,6 +73,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * Tests {@code top_hits} inside of {@code terms}. While not strictly a unit test this is a fairly common way to run {@code top_hits}
      * and serves as a good example of running {@code top_hits} inside of another aggregation.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98892")
     public void testInsideTerms() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
@@ -126,7 +127,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         Aggregation result = searchAndReduce(indexSearcher, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
         indexReader.close();
@@ -177,7 +178,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(w);
         w.close();
 
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();

@@ -111,12 +111,12 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -1882,7 +1882,6 @@ Refer to <<example-watches>> for other Watcher examples.
 
 Refer to <<fix-watermark-errors>>.
 
-ifeval::["{release-state}"=="unreleased"]
 [role="exclude",id="dlm-delete-lifecycle"]
 === Delete the lifecycle of a data stream
 
@@ -1902,7 +1901,6 @@ Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
 === Update the lifecycle of a data stream
 
 Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
-endif::[]
 
 [role="exclude",id="get-synonyms"]
 === Get synonyms set API
@@ -1918,3 +1916,13 @@ See <<delete-synonyms-set>>
 === Create or delete synonyms sets API
 
 See <<put-synonyms-set>>
+
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>
+
+[role="exclude",id="remote-clusters-privileges"]
+=== Configure roles and users for remote clusters
+
+Refer to <<remote-clusters>>

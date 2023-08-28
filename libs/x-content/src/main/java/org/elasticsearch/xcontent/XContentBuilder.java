@@ -740,11 +740,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (values == null) {
             return nullValue();
         }
-        startArray();
-        for (String s : values) {
-            value(s);
-        }
-        endArray();
+        generator.writeStringArray(values);
         return this;
     }
 
@@ -1055,8 +1051,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
         startObject();
         for (Map.Entry<String, String> value : values.entrySet()) {
-            field(value.getKey());
-            value(value.getValue());
+            generator.writeStringField(value.getKey(), value.getValue());
         }
         return endObject();
     }

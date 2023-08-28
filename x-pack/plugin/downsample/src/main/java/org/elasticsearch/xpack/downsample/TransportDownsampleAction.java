@@ -595,12 +595,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // only one value (the last value of the counter)
             builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
         } else {
-            final List<String> supportedAggs = List.of(metricType.supportedAggs());
+            final String[] supportedAggsArray = metricType.supportedAggs();
             // We choose max as the default metric
-            final String defaultMetric = supportedAggs.contains("max") ? "max" : supportedAggs.get(0);
+            final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
             builder.startObject(field)
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggs)
+                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();

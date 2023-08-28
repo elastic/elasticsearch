@@ -428,17 +428,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         builder.startObject();
         builder.field("repository", repository);
         builder.field("snapshot", snapshot);
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (featureStates != null) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);

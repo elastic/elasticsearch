@@ -490,7 +490,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final XContentBuilder template = jsonBuilder();
             template.startObject();
             {
-                template.startArray("index_patterns").value("*").endArray();
+                template.array("index_patterns", "*");
                 if (useComponentTemplate) {
                     template.field("priority", 4); // relatively low priority, but hopefully uncommon enough not to conflict
                     template.startObject("template");

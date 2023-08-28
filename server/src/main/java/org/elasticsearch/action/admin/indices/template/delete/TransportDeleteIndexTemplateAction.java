@@ -67,7 +67,6 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.info("**** I am deleting!!!");
         indexTemplateService.removeTemplates(
             new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
             new ActionListener<>() {

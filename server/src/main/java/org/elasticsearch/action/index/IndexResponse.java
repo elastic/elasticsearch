@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -49,13 +48,27 @@ public class IndexResponse extends DocWriteResponse {
         this(shardId, id, seqNo, primaryTerm, version, created, null);
     }
 
-    public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created,
-                         List<String> executedPipelines) {
+    public IndexResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        boolean created,
+        List<String> executedPipelines
+    ) {
         this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, executedPipelines);
     }
 
-    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result,
-                          List<String> executedPipelines) {
+    private IndexResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        Result result,
+        List<String> executedPipelines
+    ) {
         super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
         this.executedPipelines = executedPipelines;
     }

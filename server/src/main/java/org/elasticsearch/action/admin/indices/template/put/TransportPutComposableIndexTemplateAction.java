@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +36,6 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     PutComposableIndexTemplateAction.Request> {
-    private static final Logger logger = LogManager.getLogger(TransportPutComposableIndexTemplateAction.class);
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
@@ -75,7 +72,6 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.info("***** I am putting!!! " + request.indexTemplate().toString());
         verifyIfUsingReservedComponentTemplates(request, state);
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(

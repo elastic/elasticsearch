@@ -700,3 +700,23 @@ Gateway     | instances
 Gateway     | instances   
 null        | null
 ;
+
+left
+// tag::left[]
+FROM employees
+| KEEP last_name
+| EVAL left = LEFT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::left[]
+;
+
+// tag::left-result[]
+last_name:keyword | left:keyword
+Awdeh             |Awd
+Azuma             |Azu
+Baek              |Bae
+Bamford           |Bam
+Bernatsky         |Ber
+// end::left-result[]
+;

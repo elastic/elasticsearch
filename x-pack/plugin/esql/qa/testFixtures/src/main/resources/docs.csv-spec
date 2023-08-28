@@ -302,26 +302,6 @@ date:date                 | year:long
 // end::dateExtract-result[]
 ;
 
-docsLeft
-// tag::left[]
-FROM employees
-| KEEP last_name
-| EVAL left_sub = LEFT(last_name, 3)
-// end::left[]
-| SORT last_name ASC
-| LIMIT 5
-;
-
-// tag::left-result[]
-last_name:keyword | ln_sub:keyword
-Awdeh          |Awd
-Azuma          |Azu
-Baek           |Bae
-Bamford        |Bam
-Bernatsky      |Ber
-// end::left-result[]
-;
-
 docsSubstring
 // tag::substring[]
 FROM employees

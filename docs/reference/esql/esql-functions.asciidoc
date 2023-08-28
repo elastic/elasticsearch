@@ -1,4 +1,3 @@
-
 [[esql-functions]]
 == {esql} functions
 

@@ -71,8 +71,10 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
         Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
         Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
-        BytesRef out = new BytesRef();
-        return () -> new LeftEvaluator(source, out, strSupplier.get(), lengthSupplier.get());
+        return () -> {
+            BytesRef out = new BytesRef();
+            return new LeftEvaluator(source, out, strSupplier.get(), lengthSupplier.get());
+        };
     }
 
     @Override

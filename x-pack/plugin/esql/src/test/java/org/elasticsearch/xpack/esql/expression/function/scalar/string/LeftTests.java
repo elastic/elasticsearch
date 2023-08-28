@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -34,7 +35,8 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Left basic test", () -> {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(new TestCaseSupplier("long", () -> {
             int length = between(1, 10);
             String text = randomAlphaOfLength(10);
             return new TestCase(
@@ -43,7 +45,18 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(0, length)))
             );
-        })));
+        }));
+        suppliers.add(new TestCaseSupplier("short", () -> {
+            int length = between(2, 10);
+            String text = randomAlphaOfLength(1);
+            return new TestCase(
+                List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
+                "LeftEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(text))
+            );
+        }));
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override

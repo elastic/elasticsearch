@@ -33,7 +33,6 @@ import java.util.Set;
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
 public abstract class DocumentParserContext {
-
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */

@@ -66,7 +66,7 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
-            SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(ir));
 
             // field1 and field2 are present in the index, so they get resolved; field3 is in the mappings but
             // not in the actual index, so it is ignored
@@ -103,7 +103,7 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(ir));
 
             int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
             try {

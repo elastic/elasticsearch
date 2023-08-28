@@ -171,7 +171,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             pipelinesHaveRun = in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
             this.pipelines = new ArrayList<>(in.readList(StreamInput::readString));
         }
     }
@@ -734,7 +734,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
             out.writeBoolean(pipelinesHaveRun);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
             out.writeCollection(pipelines, StreamOutput::writeString);
         }
     }

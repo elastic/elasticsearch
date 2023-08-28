@@ -67,6 +67,11 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
             return null;
         }
 
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();

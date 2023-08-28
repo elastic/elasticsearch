@@ -88,7 +88,7 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
             simulate = in.readBoolean();
         }
     }
@@ -436,7 +436,7 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_062)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
             out.writeBoolean(simulate);
         }
     }

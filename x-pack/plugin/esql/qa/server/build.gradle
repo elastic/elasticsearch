@@ -1,0 +1,58 @@
+apply plugin: 'elasticsearch.java'
+
+description = 'Integration tests for ESQL'
+
+dependencies {
+  api project(":test:framework")
+
+  // Common utilities from QL
+  api project(xpackModule('ql:test-fixtures'))
+  api project(xpackModule('esql:qa:testFixtures'))
+}
+
+subprojects {
+  if (subprojects.isEmpty()) {
+    // leaf project
+  } else {
+    apply plugin: 'elasticsearch.java'
+    apply plugin: 'elasticsearch.standalone-rest-test'
+  }
+
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+    testClusters.matching { it.name == "javaRestTest" }.configureEach {
+      testDistribution = 'DEFAULT'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+    }
+
+
+    dependencies {
+      configurations.javaRestTestRuntimeClasspath {
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+      configurations.javaRestTestRuntimeOnly {
+        // This is also required to make resolveAllDependencies work
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+
+      /* Since we're a standalone rest test we actually get transitive
+       * dependencies but we don't really want them because they cause
+       * all kinds of trouble with the jar hell checks. So we suppress
+       * them explicitly for non-es projects. */
+      javaRestTestImplementation(project(':x-pack:plugin:esql:qa:server')) {
+        transitive = false
+      }
+      javaRestTestImplementation project(":test:framework")
+      javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
+
+      javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+      javaRestTestRuntimeOnly "net.sf.supercsv:super-csv:${versions.supercsv}"
+
+      javaRestTestImplementation project(path: xpackModule('ql:test-fixtures'))
+    }
+  }
+}

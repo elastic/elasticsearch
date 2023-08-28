@@ -94,6 +94,7 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
+    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 1;
 
     // The client to perform any operations on user indices (alias, ...).
     private final Client client;
@@ -152,6 +153,7 @@ public class SearchApplicationIndexService {
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

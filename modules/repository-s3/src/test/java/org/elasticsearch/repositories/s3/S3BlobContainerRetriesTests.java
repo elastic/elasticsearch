@@ -76,7 +76,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service(Mockito.mock(Environment.class));
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY);
         super.setUp();
     }
 

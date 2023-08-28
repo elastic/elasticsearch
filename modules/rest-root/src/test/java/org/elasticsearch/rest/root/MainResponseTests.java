@@ -35,7 +35,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         IndexVersion indexVersion = IndexVersionUtils.randomVersion();
         Build build = newBuild(
             Build.current(),
@@ -45,7 +45,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                 "minWireCompatVersion",
                 version.minimumCompatibilityVersion().toString(),
                 "minIndexCompatVersion",
-                version.minimumIndexCompatibilityVersion().toString(),
+                Build.minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(indexVersion.id())),
                 "displayString",
                 Build.defaultDisplayString(Build.current().type(), Build.current().hash(), Build.current().date(), version.toString())
             )
@@ -108,7 +108,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                     build.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
                     version.minimumCompatibilityVersion().toString(),
-                    version.minimumIndexCompatibilityVersion().toString()
+                    Build.minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE)
                 )
             ),
             Strings.toString(builder)

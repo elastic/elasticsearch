@@ -16,9 +16,9 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -473,9 +473,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             }, page);
 
                             @Override
-                            public void add(int positionOffset, LongBlock groupIds) {
+                            public void add(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                                    LongBlock.Builder builder = LongBlock.newBlockBuilder(emitChunkSize);
+                                    IntBlock.Builder builder = IntBlock.newBlockBuilder(emitChunkSize);
                                     int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
                                     for (int p = offset; p < endP; p++) {
                                         int start = groupIds.getFirstValueIndex(p);
@@ -483,17 +483,19 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                         switch (count) {
                                             case 0 -> builder.appendNull();
                                             case 1 -> {
-                                                long group = groupIds.getLong(start);
+                                                int group = groupIds.getInt(start);
                                                 seenGroupIds.set(group);
-                                                builder.appendLong(group);
+                                                builder.appendInt(group);
                                             }
                                             default -> {
                                                 int end = start + count;
+                                                builder.beginPositionEntry();
                                                 for (int i = start; i < end; i++) {
-                                                    long group = groupIds.getLong(i);
+                                                    int group = groupIds.getInt(i);
                                                     seenGroupIds.set(group);
-                                                    builder.appendLong(group);
+                                                    builder.appendInt(group);
                                                 }
+                                                builder.endPositionEntry();
                                             }
                                         }
                                     }
@@ -502,30 +504,30 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             }
 
                             @Override
-                            public void add(int positionOffset, LongVector groupIds) {
-                                long[] chunk = new long[emitChunkSize];
+                            public void add(int positionOffset, IntVector groupIds) {
+                                int[] chunk = new int[emitChunkSize];
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                                     int count = 0;
                                     for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
-                                        long group = groupIds.getLong(i);
+                                        int group = groupIds.getInt(i);
                                         seenGroupIds.set(group);
                                         chunk[count++] = group;
                                     }
-                                    delegateAddInput.add(positionOffset + offset, new LongArrayVector(chunk, count));
+                                    delegateAddInput.add(positionOffset + offset, new IntArrayVector(chunk, count));
                                 }
                             }
                         };
                     }
 
                     @Override
-                    public void addIntermediateInput(int positionOffset, LongVector groupIds, Page page) {
-                        long[] chunk = new long[emitChunkSize];
+                    public void addIntermediateInput(int positionOffset, IntVector groupIds, Page page) {
+                        int[] chunk = new int[emitChunkSize];
                         for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
                             int count = 0;
                             for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
-                                chunk[count++] = groupIds.getLong(i);
+                                chunk[count++] = groupIds.getInt(i);
                             }
-                            delegate.addIntermediateInput(positionOffset + offset, new LongArrayVector(chunk, count), page);
+                            delegate.addIntermediateInput(positionOffset + offset, new IntArrayVector(chunk, count), page);
                         }
                     }
 

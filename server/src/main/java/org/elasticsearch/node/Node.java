@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -178,7 +179,10 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -245,6 +249,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -458,6 +463,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
@@ -518,6 +524,9 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
+
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -526,7 +535,8 @@ public class Node implements Closeable {
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
-                IngestService.createGrokThreadWatchdog(this.environment, threadPool)
+                IngestService.createGrokThreadWatchdog(this.environment, threadPool),
+                documentParsingObserverSupplier
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -685,7 +695,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
-                searchModule.getRequestCacheKeyDifferentiator()
+                searchModule.getRequestCacheKeyDifferentiator(),
+                documentParsingObserverSupplier
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1081,6 +1092,7 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
+                b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
                 {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
@@ -1195,6 +1207,16 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
+        List<DocumentParsingObserverPlugin> plugins = pluginsService.filterPlugins(DocumentParsingObserverPlugin.class);
+        if (plugins.size() == 1) {
+            return plugins.get(0).getDocumentParsingObserverSupplier();
+        } else if (plugins.size() == 0) {
+            return () -> DocumentParsingObserver.EMPTY_INSTANCE;
+        }
+        throw new IllegalStateException("too many DocumentParsingObserverPlugin instances");
     }
 
     /**
@@ -1578,43 +1600,52 @@ public class Node implements Closeable {
         );
     }
 
-    private Node stop() {
+    private void stop() {
         if (lifecycle.moveToStopped() == false) {
-            return this;
+            return;
         }
         logger.info("stopping ...");
 
         if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).stop();
+            stopIfStarted(ReadinessService.class);
         }
-        injector.getInstance(FileSettingsService.class).stop();
+        stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
-        injector.getInstance(HttpServerTransport.class).stop();
+        stopIfStarted(HttpServerTransport.class);
 
-        injector.getInstance(SnapshotsService.class).stop();
-        injector.getInstance(SnapshotShardsService.class).stop();
-        injector.getInstance(RepositoriesService.class).stop();
+        stopIfStarted(SnapshotsService.class);
+        stopIfStarted(SnapshotShardsService.class);
+        stopIfStarted(RepositoriesService.class);
         // stop any changes happening as a result of cluster state changes
-        injector.getInstance(IndicesClusterStateService.class).stop();
+        stopIfStarted(IndicesClusterStateService.class);
         // close cluster coordinator early to not react to pings anymore.
         // This can confuse other nodes and delay things - mostly if we're the master and we're running tests.
-        injector.getInstance(Coordinator.class).stop();
+        stopIfStarted(Coordinator.class);
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(NodeConnectionsService.class).stop();
-        injector.getInstance(FsHealthService.class).stop();
-        nodeService.getMonitorService().stop();
-        injector.getInstance(GatewayService.class).stop();
-        injector.getInstance(SearchService.class).stop();
-        injector.getInstance(TransportService.class).stop();
+        stopIfStarted(ClusterService.class);
+        stopIfStarted(NodeConnectionsService.class);
+        stopIfStarted(FsHealthService.class);
+        stopIfStarted(nodeService.getMonitorService());
+        stopIfStarted(GatewayService.class);
+        stopIfStarted(SearchService.class);
+        stopIfStarted(TransportService.class);
 
-        pluginLifecycleComponents.forEach(LifecycleComponent::stop);
+        pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
-        injector.getInstance(IndicesService.class).stop();
+        stopIfStarted(IndicesService.class);
         logger.info("stopped");
+    }
 
-        return this;
+    private <T extends LifecycleComponent> void stopIfStarted(Class<T> componentClass) {
+        stopIfStarted(injector.getInstance(componentClass));
+    }
+
+    private static void stopIfStarted(LifecycleComponent component) {
+        // if we failed during startup then some of our components might not have started yet
+        if (component.lifecycleState() == Lifecycle.State.STARTED) {
+            component.stop();
+        }
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.

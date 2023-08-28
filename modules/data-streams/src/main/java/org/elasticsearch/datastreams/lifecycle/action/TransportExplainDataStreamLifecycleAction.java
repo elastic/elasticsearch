@@ -111,9 +111,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         listener.onResponse(
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
-                request.includeDefaults() && DataStreamLifecycle.isEnabled()
-                    ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
-                    : null
+                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
             )
         );
     }

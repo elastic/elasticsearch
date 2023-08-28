@@ -28,11 +28,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -68,7 +70,8 @@ public abstract class TransportTasksAction<
         Writeable.Reader<TaskResponse> responseReader,
         String nodeExecutor
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        // coordination can run on SAME because it's only O(#nodes) work
+        super(actionName, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
@@ -98,14 +101,19 @@ public abstract class TransportTasksAction<
                     return;
                 }
 
-                transportService.sendChildRequest(
-                    discoveryNode,
-                    transportNodeAction,
-                    new NodeTaskRequest(request),
-                    task,
-                    transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader)
-                );
+                final NodeTaskRequest nodeTaskRequest = new NodeTaskRequest(request);
+                try {
+                    transportService.sendChildRequest(
+                        discoveryNode,
+                        transportNodeAction,
+                        nodeTaskRequest,
+                        task,
+                        transportRequestOptions,
+                        new ActionListenerResponseHandler<>(listener, nodeResponseReader, TransportResponseHandler.TRANSPORT_WORKER)
+                    );
+                } finally {
+                    nodeTaskRequest.decRef();
+                }
             }
 
             @Override
@@ -275,11 +283,13 @@ public abstract class TransportTasksAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            assert tasksRequest.hasReferences();
             tasksRequest.writeTo(out);
         }
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
+            tasksRequest.incRef();
             this.tasksRequest = tasksRequest;
         }
 
@@ -288,6 +298,30 @@ public abstract class TransportTasksAction<
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
+        @Override
+        public void incRef() {
+            tasksRequest.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return tasksRequest.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return tasksRequest.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return tasksRequest.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "[" + transportNodeAction + "][" + tasksRequest + "]";
+        }
     }
 
     private class NodeTasksResponse extends TransportResponse {

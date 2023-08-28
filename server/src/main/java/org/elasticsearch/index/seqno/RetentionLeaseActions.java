@@ -82,7 +82,7 @@ public class RetentionLeaseActions {
         protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<ActionResponse.Empty> listener) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            indexShard.acquirePrimaryOperationPermit(listener.delegateFailure((delegatedListener, releasable) -> {
+            indexShard.acquirePrimaryOperationPermit(listener.delegateFailureAndWrap((delegatedListener, releasable) -> {
                 try (Releasable ignore = releasable) {
                     doRetentionLeaseAction(indexShard, request, delegatedListener);
                 }

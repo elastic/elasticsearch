@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -78,7 +76,7 @@ public class TypeParsersTests extends ESTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -86,7 +84,7 @@ public class TypeParsersTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
 
-        IndexVersion olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        IndexVersion olderVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         MappingParserContext olderContext = new MappingParserContext(
             null,
             type -> typeParser,

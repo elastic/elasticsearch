@@ -30,9 +30,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class DataStreamLifecycleFixtures {
 
-    static DataStream createDataStream(
+    public static DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,
@@ -98,7 +98,11 @@ public class DataStreamLifecycleFixtures {
     }
 
     static DataStreamLifecycle randomLifecycle() {
-        return rarely() ? Template.NO_LIFECYCLE : new DataStreamLifecycle(randomRetention(), randomDownsampling());
+        return DataStreamLifecycle.newBuilder()
+            .dataRetention(randomRetention())
+            .downsampling(randomDownsampling())
+            .enabled(frequently())
+            .build();
     }
 
     @Nullable
@@ -116,7 +120,7 @@ public class DataStreamLifecycleFixtures {
             case 0 -> null;
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
-                var count = randomIntBetween(0, 10);
+                var count = randomIntBetween(0, 9);
                 List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
                 var previous = new DataStreamLifecycle.Downsampling.Round(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),

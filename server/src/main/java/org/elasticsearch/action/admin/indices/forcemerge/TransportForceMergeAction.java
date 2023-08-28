@@ -56,7 +56,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             ForceMergeRequest::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT // just for coordination work
         );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();

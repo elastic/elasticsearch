@@ -28,9 +28,7 @@ import java.util.Objects;
 public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;
-    private Version version;
-    private IndexVersion indexVersion;
-    private TransportVersion transportVersion;
+    private String luceneVersion;
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
@@ -40,27 +38,39 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     MainResponse(StreamInput in) throws IOException {
         super(in);
         nodeName = in.readString();
-        version = Version.readVersion(in);
-        indexVersion = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031) ? IndexVersion.readVersion(in) : null;
-        transportVersion = in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019) ? TransportVersion.readVersion(in) : null;
+        if (in.getTransportVersion().before(TransportVersion.V_8_500_041)) {
+            Version.readVersion(in);
+        }
+
+        // Index version and transport version were briefly included in the main response, but
+        // removed before the 8.9.0 release. Reading code remains here (throwing away the values)
+        // for those versions until the new format has propagated through serverless. Additionally,
+        // the lucene version was previously read by inferring from either Version or IndexVersion.
+        // Now the lucene version is read explicitly.
+        String wireLuceneVersion = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_037)) {
+            wireLuceneVersion = in.readString();
+        } else {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+                wireLuceneVersion = IndexVersion.readVersion(in).luceneVersion().toString();
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
+                TransportVersion.readVersion(in);
+            }
+        }
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
+
+        if (wireLuceneVersion == null) {
+            wireLuceneVersion = IndexVersion.fromId(Version.fromString(build.version()).id).luceneVersion().toString();
+        }
+        luceneVersion = wireLuceneVersion;
     }
 
-    public MainResponse(
-        String nodeName,
-        Version version,
-        IndexVersion indexVersion,
-        TransportVersion transportVersion,
-        ClusterName clusterName,
-        String clusterUuid,
-        Build build
-    ) {
+    public MainResponse(String nodeName, String luceneVersion, ClusterName clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
-        this.version = version;
-        this.indexVersion = indexVersion;
-        this.transportVersion = transportVersion;
+        this.luceneVersion = luceneVersion;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
         this.build = build;
@@ -70,16 +80,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return nodeName;
     }
 
-    public Version getVersion() {
-        return version;
-    }
-
-    public IndexVersion getIndexVersion() {
-        return indexVersion;
-    }
-
-    public TransportVersion getTransportVersion() {
-        return transportVersion;
+    public String getLuceneVersion() {
+        return luceneVersion;
     }
 
     public ClusterName getClusterName() {
@@ -97,26 +99,28 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        Version.writeVersion(version, out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
-            IndexVersion.writeVersion(indexVersion, out);
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_041)) {
+            Version.writeVersion(Version.CURRENT, out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
-            TransportVersion.writeVersion(transportVersion, out);
+
+        // Index version and transport version were briefly included in the main response, but
+        // removed before the 8.9.0 release. Writing code remains here (writing the latest versions)
+        // for those versions until the new format has propagated through serverless. Additionally,
+        // the lucene version was previously inferred from either Version or IndexVersion.
+        // Now the lucene version is written explicitly.
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_037)) {
+            out.writeString(luceneVersion);
+        } else {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
+                IndexVersion.writeVersion(IndexVersion.current(), out);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
+                TransportVersion.writeVersion(TransportVersion.current(), out);
+            }
         }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-    }
-
-    private String getLuceneVersion() {
-        if (indexVersion != null) {
-            return indexVersion.luceneVersion().toString();
-        } else if (version.before(Version.V_8_10_0)) {
-            return IndexVersion.fromId(version.id).luceneVersion().toString();
-        } else {
-            return "unknown";
-        }
     }
 
     @Override
@@ -127,16 +131,14 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("number", build.qualifiedVersion())
-            .field("build_flavor", "default")
+            .field("build_flavor", build.flavor())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
-            .field("lucene_version", getLuceneVersion())
-            .field("index_version", indexVersion != null ? indexVersion.toString() : "unknown")
-            .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
-            .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
-            .field("transport_version", transportVersion != null ? transportVersion.toString() : "unknown")
+            .field("lucene_version", luceneVersion)
+            .field("minimum_wire_compatibility_version", build.minWireCompatVersion())
+            .field("minimum_index_compatibility_version", build.minIndexCompatVersion())
             .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
@@ -155,31 +157,30 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            final String buildType = (String) value.get("build_type");
+            final String buildFlavor = (String) value.get("build_flavor");
+            final String buildTypeStr = (String) value.get("build_type");
+            // Be lenient when reading on the wire, the enumeration values from other versions might be different than what we know.
+            final Build.Type buildType = buildTypeStr == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildTypeStr, false);
+            final String buildHash = (String) value.get("build_hash");
+            final String buildDate = (String) value.get("build_date");
+            final boolean isSnapshot = (boolean) value.get("build_snapshot");
+            final String version = (String) value.get("number");
+            final String minWireCompatVersion = (String) value.get("minimum_wire_compatibility_version");
+            final String minIndexCompatVersion = (String) value.get("minimum_index_compatibility_version");
+            final String displayString = Build.defaultDisplayString(buildType, buildHash, buildDate, version);
+
             response.build = new Build(
-                /*
-                 * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
-                 * we know.
-                 */
-                buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
-                (String) value.get("build_hash"),
-                (String) value.get("build_date"),
-                (boolean) value.get("build_snapshot"),
-                (String) value.get("number")
+                buildFlavor,
+                buildType,
+                buildHash,
+                buildDate,
+                isSnapshot,
+                version,
+                minWireCompatVersion,
+                minIndexCompatVersion,
+                displayString
             );
-            response.version = Version.fromString(
-                ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
-            );
-
-            String indexVersion = (String) value.get("index_version");
-            response.indexVersion = indexVersion != null && indexVersion.equals("unknown") == false
-                ? IndexVersion.fromId(Integer.parseInt(indexVersion))
-                : null;
-
-            String transportVersion = (String) value.get("transport_version");
-            response.transportVersion = transportVersion != null && transportVersion.equals("unknown") == false
-                ? TransportVersion.fromString(transportVersion)
-                : null;
+            response.luceneVersion = ((String) value.get("lucene_version"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
@@ -197,9 +198,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         }
         MainResponse other = (MainResponse) o;
         return Objects.equals(nodeName, other.nodeName)
-            && Objects.equals(version, other.version)
-            && Objects.equals(indexVersion, other.indexVersion)
-            && Objects.equals(transportVersion, other.transportVersion)
+            && Objects.equals(luceneVersion, other.luceneVersion)
             && Objects.equals(clusterUuid, other.clusterUuid)
             && Objects.equals(build, other.build)
             && Objects.equals(clusterName, other.clusterName);
@@ -207,7 +206,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, indexVersion, transportVersion, clusterUuid, build, clusterName);
+        return Objects.hash(nodeName, luceneVersion, clusterUuid, build, clusterName);
     }
 
     @Override
@@ -216,12 +215,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             + "nodeName='"
             + nodeName
             + '\''
-            + ", version="
-            + version
-            + ", indexVersion="
-            + indexVersion
-            + ", transportVersion="
-            + transportVersion
+            + ", luceneVersion="
+            + luceneVersion
             + ", clusterName="
             + clusterName
             + ", clusterUuid='"

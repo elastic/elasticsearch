@@ -544,7 +544,7 @@ public class RecoverySourceHandler {
                     request.metadataSnapshot(),
                     startingSeqNo,
                     translogOps.getAsInt(),
-                    getRequest().targetNode().getVersion(),
+                    getRequest().targetNode().getMaxIndexVersion(),
                     canUseSnapshots,
                     request.isPrimaryRelocation(),
                     listener.delegateFailureAndWrap((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
@@ -1221,9 +1221,9 @@ public class RecoverySourceHandler {
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
                 mappingVersion,
-                listener.delegateFailure((l, newCheckpoint) -> {
+                listener.safeMap(newCheckpoint -> {
                     targetLocalCheckpoint.accumulateAndGet(newCheckpoint, SequenceNumbers::max);
-                    l.onResponse(null);
+                    return null;
                 })
             );
         }

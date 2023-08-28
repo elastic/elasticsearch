@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -32,7 +33,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class Version implements Comparable<Version>, ToXContentFragment {
+public class Version implements VersionId<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -113,6 +114,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_17_10 = new Version(7_17_10_99, IndexVersion.V_7_17_10);
     public static final Version V_7_17_11 = new Version(7_17_11_99, IndexVersion.V_7_17_11);
     public static final Version V_7_17_12 = new Version(7_17_12_99, IndexVersion.V_7_17_12);
+    public static final Version V_7_17_13 = new Version(7_17_13_99, IndexVersion.V_7_17_13);
     public static final Version V_8_0_0 = new Version(8_00_00_99, IndexVersion.V_8_0_0);
     public static final Version V_8_0_1 = new Version(8_00_01_99, IndexVersion.V_8_0_1);
     public static final Version V_8_1_0 = new Version(8_01_00_99, IndexVersion.V_8_1_0);
@@ -143,10 +145,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_8_0 = new Version(8_08_00_99, IndexVersion.V_8_8_0);
     public static final Version V_8_8_1 = new Version(8_08_01_99, IndexVersion.V_8_8_1);
     public static final Version V_8_8_2 = new Version(8_08_02_99, IndexVersion.V_8_8_2);
-    public static final Version V_8_8_3 = new Version(8_08_03_99, IndexVersion.V_8_8_3);
     public static final Version V_8_9_0 = new Version(8_09_00_99, IndexVersion.V_8_9_0);
+    public static final Version V_8_9_1 = new Version(8_09_01_99, IndexVersion.V_8_9_1);
+    public static final Version V_8_9_2 = new Version(8_09_02_99, IndexVersion.V_8_9_2);
     public static final Version V_8_10_0 = new Version(8_10_00_99, IndexVersion.V_8_10_0);
-    public static final Version CURRENT = V_8_10_0;
+    public static final Version V_8_11_0 = new Version(8_11_00_99, IndexVersion.V_8_11_0);
+    public static final Version CURRENT = V_8_11_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -310,25 +314,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
-    public boolean after(Version version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(Version version) {
-        return version.id <= id;
-    }
-
-    public boolean before(Version version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(Version version) {
-        return version.id >= id;
-    }
-
     @Override
-    public int compareTo(Version other) {
-        return Integer.compare(this.id, other.id);
+    public int id() {
+        return id;
     }
 
     @Override
@@ -353,10 +341,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
     // instances
     private Version minCompatVersion;
-
-    // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
-    // instances
-    private Version minIndexCompatVersion;
 
     /**
      * Returns the minimum compatible version based on the current
@@ -398,39 +382,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
 
         return Version.min(this, fromId(major * 1000000 + 0 * 10000 + 99));
-    }
-
-    /**
-     * Returns the minimum created index version that this version supports. Indices created with lower versions
-     * can't be used with this version. This should also be used for file based serialization backwards compatibility ie. on serialization
-     * code that is used to read / write file formats like transaction logs, cluster state, and index metadata.
-     */
-    public Version minimumIndexCompatibilityVersion() {
-        Version res = minIndexCompatVersion;
-        if (res == null) {
-            res = computeMinIndexCompatVersion();
-            minIndexCompatVersion = res;
-        }
-        return res;
-    }
-
-    private Version computeMinIndexCompatVersion() {
-        final int bwcMajor;
-        if (major == 5) {
-            bwcMajor = 2; // we jumped from 2 to 5
-        } else {
-            bwcMajor = major - 1;
-        }
-        final int bwcMinor = 0;
-        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
-    }
-
-    /**
-     * Whether the current version is older than the current minimum compatible index version,
-     * see {@link #minimumIndexCompatibilityVersion()}
-     */
-    public boolean isLegacyIndexVersion() {
-        return before(Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     /**

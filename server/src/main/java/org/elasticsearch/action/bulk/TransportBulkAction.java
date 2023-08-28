@@ -298,28 +298,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
-                                @Override
-                                protected void doRun() {
-                                    executeBulk(
-                                        task,
-                                        bulkRequest,
-                                        startTime,
-                                        listener,
-                                        executorName,
-                                        responses,
-                                        indicesThatCannotBeCreated
-                                    );
-                                }
-                            });
+                            forkExecuteBulk(listener);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof IndexNotFoundException) {
-                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) cause);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                            }
                         } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
                             for (int i = 0; i < bulkRequest.requests.size(); i++) {
@@ -330,31 +319,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         }
                         if (counter.decrementAndGet() == 0) {
-                            final ActionListener<BulkResponse> wrappedListener = ActionListener.wrap(listener::onResponse, inner -> {
+                            forkExecuteBulk(ActionListener.wrap(listener::onResponse, inner -> {
                                 inner.addSuppressed(e);
                                 listener.onFailure(inner);
-                            });
-                            threadPool.executor(executorName).execute(new ActionRunnable<>(wrappedListener) {
-                                @Override
-                                protected void doRun() {
-                                    executeBulk(
-                                        task,
-                                        bulkRequest,
-                                        startTime,
-                                        wrappedListener,
-                                        executorName,
-                                        responses,
-                                        indicesThatCannotBeCreated
-                                    );
-                                }
-
-                                @Override
-                                public void onRejection(Exception rejectedException) {
-                                    rejectedException.addSuppressed(e);
-                                    super.onRejection(rejectedException);
-                                }
-                            });
+                            }));
                         }
+                    }
+
+                    private void forkExecuteBulk(ActionListener<BulkResponse> finalListener) {
+                        threadPool.executor(executorName).execute(new ActionRunnable<>(finalListener) {
+                            @Override
+                            protected void doRun() {
+                                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                            }
+                        });
                     }
                 });
             }
@@ -587,7 +565,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[requests.size()])
+                    requests.toArray(new BulkItemRequest[0])
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -605,9 +583,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                             responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        maybeFinishHim();
                     }
 
                     @Override
@@ -619,15 +595,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
                         }
-                        if (counter.decrementAndGet() == 0) {
-                            finishHim();
-                        }
+                        maybeFinishHim();
                     }
 
-                    private void finishHim() {
-                        listener.onResponse(
-                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
-                        );
+                    private void maybeFinishHim() {
+                        if (counter.decrementAndGet() == 0) {
+                            listener.onResponse(
+                                new BulkResponse(
+                                    responses.toArray(new BulkItemResponse[responses.length()]),
+                                    buildTookInMillis(startTimeNanos)
+                                )
+                            );
+                        }
                     }
                 });
             }

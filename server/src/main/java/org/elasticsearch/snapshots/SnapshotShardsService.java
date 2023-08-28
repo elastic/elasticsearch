@@ -49,6 +49,7 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -127,9 +128,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            if (previousSnapshots.equals(currentSnapshots) == false) {
+            SnapshotsInProgress currentSnapshots = SnapshotsInProgress.get(event.state());
+            if (SnapshotsInProgress.get(event.previousState()).equals(currentSnapshots) == false) {
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
                     for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo()) {
@@ -563,7 +563,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 transportService.getLocalNode(),
                 SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
                 req,
-                new ActionListenerResponseHandler<>(reqListener.map(res -> null), in -> ActionResponse.Empty.INSTANCE)
+                new ActionListenerResponseHandler<>(
+                    reqListener.map(res -> null),
+                    in -> ActionResponse.Empty.INSTANCE,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             )
         );
     }

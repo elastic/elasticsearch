@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -95,19 +96,19 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     protected void doExecute(Task task, GetAsyncResultRequest request, ActionListener<Response> listener) {
         DiscoveryNode node = resultsService.getNode(request.getId());
         if (node == null || resultsService.isLocalNode(node)) {
-            resultsService.retrieveResult(request, ActionListener.wrap(r -> {
+            resultsService.retrieveResult(request, listener.delegateFailureAndWrap((l, r) -> {
                 if (r.getException() != null) {
-                    listener.onFailure(r.getException());
+                    l.onFailure(r.getException());
                 } else {
-                    listener.onResponse(r.getResponse());
+                    l.onResponse(r.getResponse());
                 }
-            }, listener::onFailure));
+            }));
         } else {
             transportService.sendRequest(
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, responseReader(), ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listener, responseReader(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

@@ -20,7 +20,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -57,6 +56,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -100,7 +100,9 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class MapperServiceTestCase extends ESTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
@@ -215,7 +217,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript
+            this::compileScript,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
     }
 
@@ -228,7 +231,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
-        settings = indexSettings(1, 0).put(settings).put("index.version.created", version.id()).build();
+        settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }
@@ -274,7 +277,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
     }
 
     /**
@@ -615,9 +618,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
 
             }
-        },
-            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
-        );
+        }, reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, newSearcher(reader), query, lookupSupplier)));
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
@@ -636,22 +637,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
-            new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
+        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
 
-                }
+            }
 
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
 
-                }
-            }),
+            }
+        }),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
@@ -711,7 +707,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

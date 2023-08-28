@@ -123,6 +123,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -2036,7 +2037,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mockPlugins,
             getClientWrapper(),
             forbidPrivateIndexSettings(),
-            forceSingleDataPath()
+            forceSingleDataPath(),
+            autoManageVotingExclusions()
         );
     }
 
@@ -2044,6 +2046,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder initialNodeSettings = Settings.builder();
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+        }
+        boolean eagerConcurrentSearch = eagerConcurrentSearch();
+        if (eagerConcurrentSearch) {
+            initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
         }
         return new NodeConfigurationSource() {
             @Override
@@ -2061,6 +2067,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
+                if (eagerConcurrentSearch) {
+                    List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
+                    plugins.add(ConcurrentSearchTestPlugin.class);
+                    return plugins;
+                }
                 return ESIntegTestCase.this.nodePlugins();
             }
         };
@@ -2071,6 +2082,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The default is {@code true}.
      */
     protected boolean addMockTransportService() {
+        return true;
+    }
+
+    /**
+     * Whether we'd like to increase the likelihood of leveraging inter-segment search concurrency, by creating multiple slices
+     * with a low amount of documents in them, which would not be allowed in production.
+     * Default is true, can be disabled if it causes problems in specific tests.
+     */
+    protected boolean eagerConcurrentSearch() {
         return true;
     }
 
@@ -2421,6 +2441,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @see SuiteScopeTestCase
      */
     protected void setupSuiteScopeCluster() throws Exception {}
+
+    protected boolean autoManageVotingExclusions() {
+        // Temporary workaround until #98055 is tackled
+        return true;
+    }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;

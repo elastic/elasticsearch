@@ -27,6 +27,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -93,7 +94,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         1000L,
         0,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
@@ -123,6 +125,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -134,7 +138,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -145,7 +150,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
+            scriptCompiler,
+            documentParsingObserverSupplier
         );
     }
 
@@ -158,7 +164,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -176,7 +183,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        this.documentParser = new DocumentParser(
+            parserConfiguration,
+            this.mappingParserContextSupplier.get(),
+            documentParsingObserverSupplier
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -336,13 +348,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false) {
+            if (Objects.equals(currentSource, newSource) == false
+                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
                 throw new IllegalStateException(
                     "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
                 );
             }
         }
         return true;
+
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
@@ -374,7 +388,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -531,13 +545,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * otherwise only the provided resource is reloaded.
      * @param registry the analysis registry
      * @param resource the name of the reloadable resource or {@code null} if all resources should be reloaded.
-     * @return The names of reloaded resources.
+     * @param preview {@code false} applies analyzer reloading. {@code true} previews the reloading operation, so analyzers are not reloaded
+     *               but the results retrieved. This is useful for understanding analyzers usage in the different indices.
+     * @return The names of reloaded resources (or resources that would be reloaded if {@code preview} is true).
      * @throws IOException
      */
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource) throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, @Nullable String resource, boolean preview)
+        throws IOException {
         logger.info("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return indexAnalyzers.reload(registry, indexSettings, resource);
+        return indexAnalyzers.reload(registry, indexSettings, resource, preview);
     }
 
     /**

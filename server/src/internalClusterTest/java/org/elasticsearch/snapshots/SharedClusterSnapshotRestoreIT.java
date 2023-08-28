@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -347,6 +348,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setSettings(
                     Settings.builder()
                         .put("location", randomRepoPath())
+                        // io exception writing index.latest won't fail anything which makes assertions below complicated, so we disable
+                        // index.latest
+                        .put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false)
                         .put("random", randomAlphaOfLength(10))
                         .put("random_control_io_exception_rate", 0.2)
                 )
@@ -913,6 +917,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertDocCount("test-idx", 100L);
     }
 
+    private int numberOfFiles(Path dir) throws Exception {
+        final AtomicInteger count = new AtomicInteger();
+        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
+        return count.get();
+    }
+
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
@@ -1092,7 +1102,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         waitForBlock(blockedNode, "test-repo");
 
         awaitClusterState(state -> {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;

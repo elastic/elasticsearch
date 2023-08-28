@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -60,6 +61,8 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
+    final RequestMetricCollector deleteMetricCollector;
+    final RequestMetricCollector abortPartUploadMetricCollector;
 
     S3BlobStore(
         S3Service service,
@@ -109,6 +112,24 @@ class S3BlobStore implements BlobStore {
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
+        this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("POST");
+                stats.deleteCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("DELETE");
+                stats.abortCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    public TimeValue getCompareAndExchangeTimeToLive() {
+        return service.compareAndExchangeTimeToLive;
     }
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
@@ -234,12 +255,18 @@ class S3BlobStore implements BlobStore {
 
         final AtomicLong postCount = new AtomicLong();
 
+        final AtomicLong deleteCount = new AtomicLong();
+
+        final AtomicLong abortCount = new AtomicLong();
+
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
             results.put("GetObject", getCount.get());
             results.put("ListObjects", listCount.get());
             results.put("PutObject", putCount.get());
             results.put("PutMultipartObject", postCount.get());
+            results.put("DeleteObjects", deleteCount.get());
+            results.put("AbortMultipartObject", abortCount.get());
             return results;
         }
     }

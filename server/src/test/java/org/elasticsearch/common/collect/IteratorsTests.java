@@ -154,6 +154,21 @@ public class IteratorsTests extends ESTestCase {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
+    public void testForRange() {
+        String[] array = generateRandomStringArray(20, 20, false, true);
+        Iterator<String> iterator = Iterators.forRange(0, array.length, i -> array[i]);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+        assertEquals(array.length, i);
+    }
+
+    public void testForRangeOnNull() {
+        expectThrows(NullPointerException.class, () -> Iterators.forRange(0, 1, null));
+    }
+
     public void testFlatMap() {
         final var array = randomIntegerArray();
         assertEmptyIterator(Iterators.flatMap(Iterators.forArray(array), i -> Iterators.concat()));
@@ -181,6 +196,16 @@ public class IteratorsTests extends ESTestCase {
         Iterators.flatMap(input.listIterator(), i -> IntStream.range(0, (int) i).iterator())
             .forEachRemaining(i -> assertEquals(expectedArray[(index.getAndIncrement())], i));
         assertEquals(expectedArray.length, index.get());
+    }
+
+    public void testMap() {
+        assertEmptyIterator(Iterators.map(Iterators.concat(), i -> "foo"));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.map(Iterators.forArray(array), i -> i * 2)
+            .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
     }
 
     private static Integer[] randomIntegerArray() {

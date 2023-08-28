@@ -1,6 +1,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-arg1 | result
+n | result
 double | double
 integer | double
 long | double

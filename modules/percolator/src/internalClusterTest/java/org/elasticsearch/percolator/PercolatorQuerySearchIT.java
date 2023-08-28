@@ -11,6 +11,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -34,8 +35,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
@@ -43,7 +46,9 @@ import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
@@ -1272,5 +1277,81 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .get();
         assertEquals(1, response.getHits().getTotalHits().value);
 
+    }
+
+    public void testWithWildcardFieldNames() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    "text_1",
+                    "type=text",
+                    "q_simple",
+                    "type=percolator",
+                    "q_string",
+                    "type=percolator",
+                    "q_match",
+                    "type=percolator",
+                    "q_combo",
+                    "type=percolator"
+                )
+        );
+
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("q_simple", simpleQueryStringQuery("yada").fields(Map.of("text*", 1f)))
+                    .field("q_string", queryStringQuery("yada").fields(Map.of("text*", 1f)))
+                    .field("q_match", multiMatchQuery("yada", "text*"))
+                    .field("q_combo", combinedFieldsQuery("yada", "text*"))
+                    .endObject()
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute()
+            .actionGet();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "q_simple",
+                    BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
+                    XContentType.JSON
+                )
+            )
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "q_string",
+                    BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
+                    XContentType.JSON
+                )
+            )
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "q_match",
+                    BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
+                    XContentType.JSON
+                )
+            )
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "q_combo",
+                    BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
+                    XContentType.JSON
+                )
+            )
+            .get();
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 }

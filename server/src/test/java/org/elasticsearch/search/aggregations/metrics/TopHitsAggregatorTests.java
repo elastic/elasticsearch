@@ -19,7 +19,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -73,7 +72,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * Tests {@code top_hits} inside of {@code terms}. While not strictly a unit test this is a fairly common way to run {@code top_hits}
      * and serves as a good example of running {@code top_hits} inside of another aggregation.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98892")
     public void testInsideTerms() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
@@ -126,10 +124,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         iw.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
-        IndexSearcher indexSearcher = newSearcher(indexReader);
-
-        Aggregation result = searchAndReduce(indexSearcher, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
+        Aggregation result = searchAndReduce(indexReader, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
         indexReader.close();
         directory.close();
         return result;
@@ -178,12 +173,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(w);
         w.close();
 
-        IndexSearcher searcher = newSearcher(reader);
         Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
+        TopHits result = searchAndReduce(reader, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

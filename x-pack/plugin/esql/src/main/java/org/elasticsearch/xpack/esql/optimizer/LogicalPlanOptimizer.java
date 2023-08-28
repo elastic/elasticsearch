@@ -141,7 +141,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             // existing aggregate and their respective attributes
             Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>();
             // surrogate functions eval
-            List<NamedExpression> transientEval = new ArrayList<>();
+            List<Alias> transientEval = new ArrayList<>();
             boolean changed = false;
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)

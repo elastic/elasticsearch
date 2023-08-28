@@ -78,7 +78,7 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
                 .method(PercentilesMethod.TDIGEST);
             MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
-                PercentileRanks ranks = searchAndReduce(newSearcher(reader), new AggTestConfig(aggBuilder, fieldType));
+                PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);

@@ -20,10 +20,9 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
@@ -63,15 +62,15 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    private LongVector add(BytesRefVector vector) {
-        long[] groups = new long[vector.getPositionCount()];
+    private IntVector add(BytesRefVector vector) {
+        int[] groups = new int[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes)));
+            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes))));
         }
-        return new LongArrayVector(groups, vector.getPositionCount());
+        return new IntArrayVector(groups, vector.getPositionCount());
     }
 
-    private LongBlock add(BytesRefBlock block) {
+    private IntBlock add(BytesRefBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();

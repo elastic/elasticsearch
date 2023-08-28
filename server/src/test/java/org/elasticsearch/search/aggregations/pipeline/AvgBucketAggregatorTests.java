@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -104,18 +103,16 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             InternalAvg avgResult;
             InternalDateHistogram histogramResult;
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 avgResult = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(avgBuilder, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
                 );
                 histogramResult = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(histo, fieldType, valueFieldType).withMaxBuckets(10000).withQuery(query)
                 );
             }
@@ -165,14 +162,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             InternalFilter filterResult;
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
                 MappedFieldType keywordField = keywordField(textField);
 
                 filterResult = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(filterAggregationBuilder, fieldType, valueFieldType, keywordField).withQuery(query)
                 );
             }

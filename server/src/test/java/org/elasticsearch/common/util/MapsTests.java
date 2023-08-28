@@ -191,6 +191,15 @@ public class MapsTests extends ESTestCase {
         );
     }
 
+    public void testListFlatten() {
+        Map<String, Object> map = Map.of("parent1", List.of(Map.of("key1", "val1", "key2", "val2")));
+        Map<String, Object> flatten = Maps.flatten(map, true, true);
+        assertThat(flatten.size(), equalTo(2));
+        for (Map.Entry<String, Object> entry : flatten.entrySet()) {
+            assertThat(entry.getKey(), entry.getValue(), equalTo(deepGet(entry.getKey(), map)));
+        }
+    }
+
     public void testFlatten() {
         Map<String, Object> map = randomNestedMap(10);
         Map<String, Object> flatten = Maps.flatten(map, true, true);

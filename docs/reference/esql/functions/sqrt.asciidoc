@@ -1,5 +1,8 @@
 [[esql-sqrt]]
 === `SQRT`
+[.text-center]
+image::esql/functions/signature/sqrt.svg[Embedded,opts=inline]
+
 Returns the square root of a number.  The input can be any numeric value, the return value
 is always a double.
 
@@ -13,3 +16,7 @@ include::{esql-specs}/math.csv-spec[tag=sqrt]
 |===
 include::{esql-specs}/math.csv-spec[tag=sqrt-result]
 |===
+
+Supported types:
+
+include::types/sqrt.asciidoc[]

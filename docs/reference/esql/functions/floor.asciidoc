@@ -1,5 +1,8 @@
 [[esql-floor]]
 === `FLOOR`
+[.text-center]
+image::esql/functions/signature/floor.svg[Embedded,opts=inline]
+
 Round a number down to the nearest integer.
 
 [source.merge.styled,esql]
@@ -11,6 +14,10 @@ include::{esql-specs}/math.csv-spec[tag=floor]
 include::{esql-specs}/math.csv-spec[tag=floor-result]
 |===
 
-NOTE: This is a noop for `long` and `integer`. For `double` this picks the
-      the closest `double` value to the integer ala
+NOTE: This is a noop for `long` (including unsigned) and `integer`.
+      For `double` this picks the the closest `double` value to the integer ala
       {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].
+
+Supported types:
+
+include::types/floor.asciidoc[]

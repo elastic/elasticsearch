@@ -371,7 +371,11 @@ module org.elasticsearch.server {
 
     exports org.elasticsearch.action.datastreams.lifecycle;
     exports org.elasticsearch.action.downsample;
-    exports org.elasticsearch.plugins.internal to org.elasticsearch.metering, org.elasticsearch.settings.secure;
+    exports org.elasticsearch.plugins.internal
+        to
+            org.elasticsearch.metering,
+            org.elasticsearch.settings.secure,
+            org.elasticsearch.serverless.constants;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -386,6 +390,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.plugins.internal.SettingsExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

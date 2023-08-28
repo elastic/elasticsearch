@@ -1624,7 +1624,8 @@ public class Security extends Plugin
                         circuitBreakerService,
                         ipFilter,
                         getSslService(),
-                        getNettySharedGroupFactory(settings)
+                        getNettySharedGroupFactory(settings),
+                        crossClusterAccessAuthcService.get()
                     )
                 );
                 return transportReference.get();

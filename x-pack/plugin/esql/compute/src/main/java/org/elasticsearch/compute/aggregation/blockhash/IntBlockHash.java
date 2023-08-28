@@ -17,9 +17,6 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
@@ -57,15 +54,15 @@ final class IntBlockHash extends BlockHash {
         }
     }
 
-    private LongVector add(IntVector vector) {
-        long[] groups = new long[vector.getPositionCount()];
+    private IntVector add(IntVector vector) {
+        int[] groups = new int[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroupNullReserved(longHash.add(vector.getInt(i)));
+            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getInt(i))));
         }
-        return new LongArrayVector(groups, groups.length);
+        return new IntArrayVector(groups, groups.length);
     }
 
-    private LongBlock add(IntBlock block) {
+    private IntBlock add(IntBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hash(longHash);
         seenNull |= result.sawNull();
         return result.ords();

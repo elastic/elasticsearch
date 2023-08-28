@@ -46,7 +46,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class DataStreamLifecycleFixtures {
 
-    static DataStream createDataStream(
+    public static DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,

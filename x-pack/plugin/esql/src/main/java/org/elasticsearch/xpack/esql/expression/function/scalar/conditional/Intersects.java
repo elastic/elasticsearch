@@ -20,6 +20,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.EqualsLongsEvaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -124,7 +125,7 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
             }
         } else {
             // left and right are longs
-            return () -> new IntersectsLongLongEvaluator(toEvaluator.apply(left()).get(), toEvaluator.apply(right()).get());
+            return () -> new EqualsLongsEvaluator(toEvaluator.apply(left()).get(), toEvaluator.apply(right()).get());
         }
     }
 
@@ -135,11 +136,6 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
         } else {
             throw new IllegalArgumentException("Invalid constant string: " + result);
         }
-    }
-
-    @Evaluator(extraName = "LongLong")
-    static boolean process(long leftValue, long rightValue) {
-        return leftValue == rightValue;
     }
 
     @Evaluator(extraName = "LongConstant")

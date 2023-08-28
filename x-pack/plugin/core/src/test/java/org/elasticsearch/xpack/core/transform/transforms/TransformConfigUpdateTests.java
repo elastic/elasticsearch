@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
@@ -142,7 +141,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.V_7_2_0.toString()
+            randomBoolean() ? null : TransformConfigVersion.V_7_2_0.toString()
         );
         TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
@@ -240,7 +239,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.V_7_2_0.toString()
+            randomBoolean() ? null : TransformConfigVersion.V_7_2_0.toString()
         );
 
         TransformConfigUpdate update = new TransformConfigUpdate(
@@ -328,7 +327,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             oldMetadata,
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.V_7_2_0.toString()
+            randomBoolean() ? null : TransformConfigVersion.V_7_2_0.toString()
         );
 
         Map<String, Object> newMetadata = Map.of("bar", 789, "baz", 1000);
@@ -354,7 +353,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString()
+            randomBoolean() ? null : TransformConfigVersion.CURRENT.toString()
         );
 
         TransformConfigUpdate update = new TransformConfigUpdate(
@@ -388,7 +387,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : Version.CURRENT.toString()
+            randomBoolean() ? null : TransformConfigVersion.CURRENT.toString()
         );
 
         TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null, null, null, new FooSync(), null, null, null, null);

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -207,7 +206,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 IndexMetadata.builder("test")
                     .settings(
                         indexSettings(1, 0).put("index.uuid", "uuid")
-                            .put("index.version.created", Version.CURRENT.id)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     )
                     .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -373,7 +372,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 IndexMetadata.builder("test")
                     .settings(
                         indexSettings(1, 0).put("index.uuid", "uuid")
-                            .put("index.version.created", Version.CURRENT.id)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     )
                     .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())

@@ -49,9 +49,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         try (IndexReader reader = new MultiReader()) {
             IndexSearcher searcher = newSearcher(reader);
             PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-            Percentile rank = ranks.iterator().next();
-            assertEquals(Double.NaN, rank.getPercent(), 0d);
-            assertEquals(0.5, rank.getValue(), 0d);
+            assertFalse(ranks.iterator().hasNext());
             assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
         }
     }

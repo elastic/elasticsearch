@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -17,14 +17,14 @@ import java.util.List;
 import java.util.Objects;
 
 public class RowExec extends LeafExec {
-    private final List<NamedExpression> fields;
+    private final List<Alias> fields;
 
-    public RowExec(Source source, List<NamedExpression> fields) {
+    public RowExec(Source source, List<Alias> fields) {
         super(source);
         this.fields = fields;
     }
 
-    public List<NamedExpression> fields() {
+    public List<Alias> fields() {
         return fields;
     }
 

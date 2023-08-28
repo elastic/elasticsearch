@@ -250,7 +250,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresentConsideringRemovals(String singleTier, DiscoveryNodes nodes, Set<String> removingNodeIds) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        var rolesToNodes = nodes.getRolesToNodes();
+        var rolesToNodes = nodes.getRolesToNodeIds();
         Set<String> nodesWithTier = rolesToNodes.getOrDefault(singleTier, Collections.emptySet());
         Set<String> dataNodes = rolesToNodes.getOrDefault(DiscoveryNodeRole.DATA_ROLE.roleName(), Collections.emptySet());
 

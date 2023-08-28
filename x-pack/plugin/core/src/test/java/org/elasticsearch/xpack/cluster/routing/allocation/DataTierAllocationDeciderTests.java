@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,12 +67,14 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+    private static final DiscoveryNode WARM_NODE_TWO = newNode("node-warm-2", Collections.singleton(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
     private static final DiscoveryNode CONTENT_NODE = newNode(
         "node-content",
         Collections.singleton(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)
     );
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
+    private static final DiscoveryNode DATA_NODE_TWO = newNode("node-data-2", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private static final DesiredNode HOT_DESIRED_NODE = newDesiredNode("node-hot", DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
     private static final DesiredNode WARM_DESIRED_NODE = newDesiredNode("node-warm", DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
@@ -230,29 +233,86 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testTierNodesPresentWithRelevantNodeShutdowns() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(DATA_NODE).build();
+        {
+            DiscoveryNodes nodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(DATA_NODE).build();
 
-        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId())));
-        assertFalse(
-            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
-        );
+            assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId())));
+            assertFalse(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_hot",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), DATA_NODE.getId())
+                )
+            );
 
-        assertTrue(
-            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
-        );
-        assertFalse(
-            DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
-                "data_warm",
-                nodes,
-                Set.of(HOT_NODE.getId(), WARM_NODE.getId(), DATA_NODE.getId())
-            )
-        );
+            assertTrue(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_warm",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), DATA_NODE.getId())
+                )
+            );
+            assertFalse(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_warm",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), WARM_NODE.getId(), DATA_NODE.getId())
+                )
+            );
 
-        assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, Set.of(HOT_NODE.getId())));
-        assertFalse(
-            DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, Set.of(HOT_NODE.getId(), DATA_NODE.getId()))
-        );
+            assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_cold", nodes, Set.of(HOT_NODE.getId())));
+            assertFalse(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_cold",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), DATA_NODE.getId())
+                )
+            );
+        }
 
+        {
+            DiscoveryNodes onlyTierNodes = DiscoveryNodes.builder().add(HOT_NODE).add(WARM_NODE).add(WARM_NODE_TWO).build();
+            assertFalse(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", onlyTierNodes, Set.of(HOT_NODE.getId())));
+            assertTrue(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", onlyTierNodes, Set.of(WARM_NODE.getId()))
+            );
+            assertFalse(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_warm",
+                    onlyTierNodes,
+                    Set.of(WARM_NODE.getId(), WARM_NODE_TWO.getId())
+                )
+            );
+        }
+
+        {
+            DiscoveryNodes nodes = DiscoveryNodes.builder().add(HOT_NODE).add(DATA_NODE).add(DATA_NODE_TWO).build();
+            assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_hot", nodes, Set.of(HOT_NODE.getId())));
+            assertTrue(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_hot",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), DATA_NODE.getId())
+                )
+            );
+            assertTrue(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_hot",
+                    nodes,
+                    Set.of(HOT_NODE.getId(), DATA_NODE_TWO.getId())
+                )
+            );
+            assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, Set.of(DATA_NODE.getId())));
+            assertTrue(DataTierAllocationDecider.tierNodesPresentConsideringRemovals("data_warm", nodes, Set.of(DATA_NODE_TWO.getId())));
+            assertFalse(
+                DataTierAllocationDecider.tierNodesPresentConsideringRemovals(
+                    "data_warm",
+                    nodes,
+                    Set.of(DATA_NODE.getId(), DATA_NODE_TWO.getId())
+                )
+            );
+
+        }
     }
 
     public void testTierNodesPresentDesiredNodes() {
@@ -614,17 +674,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 DataTier.parseTierList("data_warm,data_cold,data_hot"),
                 nodes,
                 desiredNodes,
-                new NodesShutdownMetadata(
-                    Map.of(
-                        WARM_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(WARM_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build()
-                    )
-                )
+                new NodesShutdownMetadata(Map.of(WARM_NODE.getId(), randomShutdownMetadataRemovingNode(WARM_NODE.getId())))
             ),
             equalTo(Optional.of("data_cold"))
         );
@@ -637,19 +687,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 new NodesShutdownMetadata(
                     Map.of(
                         WARM_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(WARM_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build(),
+                        randomShutdownMetadataRemovingNode(WARM_NODE.getId()),
                         COLD_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(COLD_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build()
+                        randomShutdownMetadataRemovingNode(COLD_NODE.getId())
                     )
                 )
             ),
@@ -664,32 +704,48 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 new NodesShutdownMetadata(
                     Map.of(
                         WARM_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(WARM_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build(),
+                        randomShutdownMetadataRemovingNode(WARM_NODE.getId()),
                         COLD_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(COLD_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build(),
+                        randomShutdownMetadataRemovingNode(COLD_NODE.getId()),
                         HOT_NODE.getId(),
-                        SingleNodeShutdownMetadata.builder()
-                            .setNodeId(HOT_NODE.getId())
-                            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                            .setReason(this.getTestName())
-                            .setStartedAtMillis(randomNonNegativeLong())
-                            .build()
+                        randomShutdownMetadataRemovingNode(HOT_NODE.getId())
                     )
                 )
             ),
             equalTo(Optional.empty())
         );
 
+    }
+
+    private SingleNodeShutdownMetadata randomShutdownMetadataRemovingNode(String nodeId) {
+        SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.SIGTERM,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
+        return switch (type) {
+            case REMOVE -> SingleNodeShutdownMetadata.builder()
+                .setNodeId(nodeId)
+                .setType(type)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .build();
+            case REPLACE -> SingleNodeShutdownMetadata.builder()
+                .setNodeId(nodeId)
+                .setType(type)
+                .setTargetNodeName(randomAlphaOfLength(10))
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .build();
+            case SIGTERM -> SingleNodeShutdownMetadata.builder()
+                .setNodeId(nodeId)
+                .setType(type)
+                .setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()))
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .build();
+            case RESTART -> throw new AssertionError("bad randomization, this method only generates removal type shutdowns");
+        };
     }
 
     public void testFrozenIllegalForRegularIndices() {
@@ -890,17 +946,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
     private NodesShutdownMetadata randomRemovalNotInCluster(DiscoveryNodes currentNodes) {
         String nodeId = randomValueOtherThanMany(currentNodes::nodeExists, () -> randomAlphaOfLength(10));
-        return new NodesShutdownMetadata(
-            Map.of(
-                nodeId,
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId(nodeId)
-                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-                    .setReason(this.getTestName())
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .build()
-            )
-        );
+        return new NodesShutdownMetadata(Map.of(nodeId, randomShutdownMetadataRemovingNode(nodeId)));
     }
 
     private NodesShutdownMetadata randomRestartInCluster(DiscoveryNodes currentNodes) {

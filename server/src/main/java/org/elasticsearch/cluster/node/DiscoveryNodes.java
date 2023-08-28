@@ -67,7 +67,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
 
-    private final Map<String, Set<String>> rolesToNodes;
+    private final Map<String, Set<String>> rolesToNodeIds;
 
     private DiscoveryNodes(
         long nodeLeftGeneration,
@@ -82,7 +82,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
-        Map<String, Set<String>> rolesToNodes
+        Map<String, Set<String>> rolesToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -100,7 +100,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.rolesToNodes = rolesToNodes;
+        this.rolesToNodeIds = rolesToNodeIds;
     }
 
     public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
@@ -118,7 +118,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
-            rolesToNodes
+            rolesToNodeIds
         );
     }
 
@@ -155,8 +155,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      *
      * @return {@link Map} of node roles to node IDs which have those roles.
      */
-    public Map<String, Set<String>> getRolesToNodes() {
-        return rolesToNodes;
+    public Map<String, Set<String>> getRolesToNodeIds() {
+        return rolesToNodeIds;
     }
 
     /**
@@ -890,7 +890,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             for (var entry : rolesToNodes.entrySet()) {
                 entry.setValue(Collections.unmodifiableSet(entry.getValue()));
             }
-            return rolesToNodes;
+            return Collections.unmodifiableMap(rolesToNodes);
         }
 
         public boolean isLocalNodeElectedMaster() {

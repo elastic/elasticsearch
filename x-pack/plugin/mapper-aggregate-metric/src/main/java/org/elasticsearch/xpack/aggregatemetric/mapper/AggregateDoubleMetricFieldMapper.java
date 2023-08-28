@@ -566,6 +566,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean supportsParsingObject() {
+        return true;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token;

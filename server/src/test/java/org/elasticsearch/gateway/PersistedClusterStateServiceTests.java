@@ -1802,7 +1802,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Utility method for applying a consumer to each document (of the given types) associated with a DirectoryReader.
      */
     private static void forEachDocument(DirectoryReader reader, Set<String> types, Consumer<Document> consumer) throws IOException {
-        final IndexSearcher indexSearcher = new IndexSearcher(reader);
+        final IndexSearcher indexSearcher = newSearcher(reader);
         indexSearcher.setQueryCache(null);
         for (String typeName : types) {
             final Query query = new TermQuery(new Term(TYPE_FIELD_NAME, typeName));

@@ -39,6 +39,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     private final Map<String, Entry> entries;
 
+    public static RestoreInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     /**
      * Constructs new restore metadata
      *

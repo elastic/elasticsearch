@@ -92,7 +92,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      * @return a result with the repository metadata that were found in the cluster state and the missing repositories
      */
     public static RepositoriesResult getRepositories(ClusterState state, String[] repoNames) {
-        RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        RepositoriesMetadata repositories = RepositoriesMetadata.get(state);
         if (isMatchAll(repoNames)) {
             return new RepositoriesResult(repositories.repositories());
         }

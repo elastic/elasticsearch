@@ -67,11 +67,8 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());

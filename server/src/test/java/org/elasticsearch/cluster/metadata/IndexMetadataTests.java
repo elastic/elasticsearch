@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -476,7 +475,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -488,7 +487,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testRepairIndexAndAliasWithSameName() {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())
@@ -502,7 +501,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
                         .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 )
@@ -518,7 +517,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(DataTier.TIER_PREFERENCE, DataTier.DATA_CONTENT)
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), "snapshot")
                         .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
@@ -534,7 +533,7 @@ public class IndexMetadataTests extends ESTestCase {
             // regular indices do not receive a tier preference when building the index metadata
             // (we have other ways to make sure they have a tier preference)
             final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(false);

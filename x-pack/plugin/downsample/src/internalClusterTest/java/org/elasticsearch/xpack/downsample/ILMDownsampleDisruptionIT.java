@@ -59,6 +59,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterval;
@@ -191,27 +192,32 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 }
             })).start();
 
-            final String targetIndex = "downsample-" + sourceIndex + "-1h";
-            startRollupTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
+            final String targetIndex = "downsample-1h-" + sourceIndex;
+            startDownsampleTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
             waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
             ensureStableCluster(cluster.numDataAndMasterNodes());
             assertTargetIndex(cluster, targetIndex, indexedDocs);
         }
     }
 
-    private void startRollupTaskViaIlm(String sourceIndex, String targetIndex, CountDownLatch disruptionStart, CountDownLatch disruptionEnd)
-        throws Exception {
+    private void startDownsampleTaskViaIlm(
+        String sourceIndex,
+        String targetIndex,
+        CountDownLatch disruptionStart,
+        CountDownLatch disruptionEnd
+    ) throws Exception {
         disruptionStart.await();
         var request = new UpdateSettingsRequest(sourceIndex).settings(
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME)
         );
         assertBusy(() -> {
             try {
-                client().admin().indices().updateSettings(request).actionGet();
+                client().admin().indices().updateSettings(request).actionGet(TimeValue.timeValueSeconds(10));
             } catch (Exception e) {
+                logger.warn(() -> format("encountered failure while updating [%s] index's ilm policy", sourceIndex), e);
                 throw new AssertionError(e);
             }
-        });
+        }, 1, TimeUnit.MINUTES);
         assertBusy(() -> {
             assertTrue("target index [" + targetIndex + "] does not exist", indexExists(targetIndex));
             var getSettingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(targetIndex)).actionGet();

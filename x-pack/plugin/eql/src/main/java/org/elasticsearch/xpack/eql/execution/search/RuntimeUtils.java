@@ -56,21 +56,21 @@ public final class RuntimeUtils {
     private RuntimeUtils() {}
 
     public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
-        return ActionListener.wrap(response -> {
+        return listener.delegateFailureAndWrap((delegate, response) -> {
             ShardSearchFailure[] failures = response.getShardFailures();
             if (CollectionUtils.isEmpty(failures) == false) {
-                listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+                delegate.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
                 return;
             }
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            listener.onResponse(response);
-        }, listener::onFailure);
+            delegate.onResponse(response);
+        });
     }
 
     public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
-        return ActionListener.wrap(items -> {
+        return listener.delegateFailureAndWrap((delegate, items) -> {
             for (MultiSearchResponse.Item item : items) {
                 Exception failure = item.getFailure();
                 SearchResponse response = item.getResponse();
@@ -82,15 +82,15 @@ public final class RuntimeUtils {
                     }
                 }
                 if (failure != null) {
-                    listener.onFailure(failure);
+                    delegate.onFailure(failure);
                     return;
                 }
                 if (log.isTraceEnabled()) {
                     logSearchResponse(response, log);
                 }
             }
-            listener.onResponse(items);
-        }, listener::onFailure);
+            delegate.onResponse(items);
+        });
     }
 
     private static void logSearchResponse(SearchResponse response, Logger logger) {

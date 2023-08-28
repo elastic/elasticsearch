@@ -98,11 +98,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
         long totalSize = 0L;
         int shardCount = 0;
-        for (final var stats : shardStats.values()) {
-            shardCount += 1;
-            totalSize += stats.cacheSize;
-            if (cacheSize == 0 && totalSize > 0) {
-                return 0L;
+        if (cacheSize == 0L) {
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                if (stats.cacheSize > 0L) {
+                    // some shard has nonzero cache footprint, so we apportion the shared size by cache footprint, and this shard has none
+                    return 0L;
+                }
+            }
+        } else {
+            // branchless loop for the common case
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                totalSize += stats.cacheSize;
             }
         }
 
@@ -114,8 +122,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         final long additionalRamBytesUsed;
         if (totalSize == 0) {
+            // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
         } else {
+            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
             additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
         }
         assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;

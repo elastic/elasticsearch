@@ -17,6 +17,7 @@ long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime(
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+  String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
   // Automatically publish scans from Elasticsearch CI
   if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
@@ -97,6 +98,47 @@ buildScan {
       } else {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
+      }
+    } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
+      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+      uploadInBackground = false
+
+      def branch = System.getenv('BUILDKITE_BRANCH')
+      def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
+      def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
+      tag 'CI'
+      link 'CI Build', buildKiteUrl
+      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+
+
+      // Add SCM information
+      def prId = System.getenv('BUILDKITE_PULL_REQUEST')
+      if (prId != 'false') {
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+        tag "pr/${prId}"
+        tag 'pull-request'
+        link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
+        link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
+      } else {
+        value 'Git Commit ID', BuildParams.gitRevision
+        link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
+        tag branch
+      }
+
+      buildScanPublished { scan ->
+        // Attach build scan link as build metadata
+        // See: https://buildkite.com/docs/pipelines/build-meta-data
+        new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
+          .start()
+          .waitFor()
+
+        // Add a build annotation
+        // See: https://buildkite.com/docs/agent/v3/cli-annotate
+        def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+        new ProcessBuilder('buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body)
+          .start()
+          .waitFor()
       }
     } else {
       tag 'LOCAL'

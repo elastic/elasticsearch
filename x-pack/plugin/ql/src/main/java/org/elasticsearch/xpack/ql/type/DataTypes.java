@@ -51,11 +51,6 @@ public final class DataTypes {
     // complex types
     public static final DataType OBJECT           = new DataType("object",            0,            false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,            false, false, false);
-    // geo - TODO: Change to GEOMETRY and GEOGRAPHY
-    public static final DataType GEO_SHAPE        = new DataType("geo_shape",          Integer.MAX_VALUE,false, false, false);
-    public static final DataType GEO_POINT        = new DataType("geo_point",     Double.BYTES * 2, false, false, false);
-    public static final DataType SHAPE            = new DataType("shape",              Integer.MAX_VALUE,false, false, false);
-    public static final DataType POINT            = new DataType("point",              Integer.MAX_VALUE,false, false, false);
     //end::noformat
 
     private static final Collection<DataType> TYPES = Stream.of(

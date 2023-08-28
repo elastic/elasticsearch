@@ -33,10 +33,10 @@ import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
 public class Intersects extends BinaryScalarFunction implements EvaluatorMapper {

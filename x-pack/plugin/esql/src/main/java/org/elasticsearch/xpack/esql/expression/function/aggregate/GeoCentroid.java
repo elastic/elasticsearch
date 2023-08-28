@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isGeoPoint;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isGeoPoint;
-import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 
 /**
  * Calculate geographic centroid of all GeoPoint values of a field in matching documents.

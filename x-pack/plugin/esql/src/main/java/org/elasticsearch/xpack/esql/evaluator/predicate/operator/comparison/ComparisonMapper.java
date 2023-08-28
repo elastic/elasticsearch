@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -145,7 +146,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        if (leftType == DataTypes.GEO_POINT) {
+        if (leftType == EsqlDataTypes.GEO_POINT) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
         throw new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");

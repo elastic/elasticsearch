@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;

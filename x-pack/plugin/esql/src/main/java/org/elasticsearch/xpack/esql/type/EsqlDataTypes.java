@@ -24,7 +24,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
@@ -44,6 +43,7 @@ public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,

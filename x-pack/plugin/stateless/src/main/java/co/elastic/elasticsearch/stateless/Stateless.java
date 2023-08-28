@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
@@ -500,10 +499,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             IngestMetricsService.STALE_LOAD_WINDOW,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
-            ServerlessSharedSettings.BOOST_WINDOW_SETTING,
             ShardSizesCollector.PUSH_INTERVAL_SETTING,
             ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
-            ServerlessSharedSettings.SEARCH_POWER_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING

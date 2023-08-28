@@ -21,8 +21,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FloorTests extends AbstractScalarFunctionTestCase {
-    public FloorTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class CeilTests extends AbstractScalarFunctionTestCase {
+    public CeilTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -32,9 +32,9 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
             double arg = 1 / randomDouble();
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "FloorDoubleEvaluator[val=Attribute[channel=0]]",
+                "CeilDoubleEvaluator[val=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
-                equalTo(Math.floor(arg))
+                equalTo(Math.ceil(arg))
             );
         }), new TestCaseSupplier("integer value", () -> {
             int arg = randomInt();
@@ -70,6 +70,6 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Floor(source, args.get(0));
+        return new Ceil(source, args.get(0));
     }
 }

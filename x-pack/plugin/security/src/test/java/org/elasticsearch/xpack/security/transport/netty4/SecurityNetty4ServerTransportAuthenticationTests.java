@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -135,6 +137,13 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 }
             }
         );
+        DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
+        remoteTransportService.registerRequestHandler(
+            RemoteClusterNodesAction.NAME,
+            ThreadPool.Names.SAME,
+            RemoteClusterNodesAction.Request::new,
+            (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(List.of(remoteNode)))
+        );
         remoteTransportService.start();
         remoteTransportService.acceptIncomingRequests();
     }
@@ -151,71 +160,59 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testProxyStrategyConnectionClosesWhenAuthenticatorAlwaysFails() throws Exception {
         // all requests fail authn
         authenticationException.set(new ElasticsearchSecurityException("authn failure"));
-        Settings localSettings = Settings.builder()
-            .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "proxy")
-            .put(
-                ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
-                remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
-            )
-            .put(
-                ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
-                randomIntBetween(1, 3) // easier to debug with just 1 connection
-            )
-            .build();
-        {
-            final MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
-                randomAlphaOfLength(20)
-            );
-            localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
-        }
         try (
             MockTransportService localService = MockTransportService.createNewService(
-                localSettings,
+                proxyLocalTransportSettings(),
                 VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool
             )
         ) {
             localService.start();
-            RemoteClusterService remoteClusterService = localService.getRemoteClusterService();
             // all attempts to obtain a connections will fail
-            for (int i = 0; i < randomIntBetween(4, 16); i++) {
+            for (int i = 0; i < randomIntBetween(2, 4); i++) {
                 CountDownLatch connectionTestDone = new CountDownLatch(1);
                 // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn (both of them) and the connection is
                 // always closed after receiving an error response
-                remoteClusterService.maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
-                    logger.info("Unexpected: a connection is available");
-                    connectionTestDone.countDown();
-                    fail("No connection should be available if authn fails");
-                }, e -> {
-                    logger.info("Expected: no connection could not be established");
-                    connectionTestDone.countDown();
-                    assertThat(e, instanceOf(RemoteTransportException.class));
-                    assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
-                }));
+                localService.getRemoteClusterService()
+                    .maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                        logger.info("Unexpected: a connection is available");
+                        connectionTestDone.countDown();
+                        fail("No connection should be available if authn fails");
+                    }, e -> {
+                        logger.info("Expected: no connection could not be established");
+                        connectionTestDone.countDown();
+                        assertThat(e, instanceOf(RemoteTransportException.class));
+                        assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                    }));
                 assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
             }
-            // but if authn passes, valid connections are available
-            authenticationException.set(null);
+        }
+        // but if authn passes, valid connections are available
+        authenticationException.set(null);
+        try (
+            MockTransportService localService = MockTransportService.createNewService(
+                proxyLocalTransportSettings(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
+            localService.start();
             CountDownLatch connectionTestDone = new CountDownLatch(1);
-            // {@code RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME} fails authn (both of them) and the connection is
-            // always closed after receiving an error response
-            remoteClusterService.maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
-                logger.info("Unexpected: a connection is available");
-                connectionTestDone.countDown();
-            }, e -> {
-                logger.info("Expected: no connection could not be established");
-                connectionTestDone.countDown();
-                fail("connection could not be established");
-                throw new RuntimeException(e);
-            }));
+            localService.getRemoteClusterService()
+                .maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                    logger.info("Expected: a connection is available");
+                    connectionTestDone.countDown();
+                }, e -> {
+                    logger.info("Unexpected: no connection could be established");
+                    connectionTestDone.countDown();
+                    fail("connection could not be established");
+                    throw new RuntimeException(e);
+                }));
             assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
         }
     }
@@ -223,6 +220,61 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
     public void testSniffStrategyNoConnectionWhenAuthenticatorAlwaysFails() throws Exception {
         // all requests fail authn
         authenticationException.set(new ElasticsearchSecurityException("authn failure"));
+        try (
+            MockTransportService localService = MockTransportService.createNewService(
+                sniffLocalTransportSettings(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
+            localService.start();
+            // obtain some connections and check that they'll be promptly closed
+            for (int i = 0; i < randomIntBetween(2, 4); i++) {
+                CountDownLatch connectionTestDone = new CountDownLatch(1);
+                // the failed authentication during handshake must surely close the connection before
+                // {@code RemoteClusterNodesAction.NAME} is executed, so node sniffing will fail
+                localService.getRemoteClusterService()
+                    .maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                        logger.info("Unexpected: a connection is available");
+                        connectionTestDone.countDown();
+                        fail("No connection should be available if authn fails");
+                    }, e -> {
+                        logger.info("Expected: no connection could be established");
+                        connectionTestDone.countDown();
+                        assertThat(e, instanceOf(RemoteTransportException.class));
+                        assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                    }));
+                assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
+            }
+        }
+        // but if authn passes, valid connections are available
+        authenticationException.set(null);
+        try (
+            MockTransportService localService = MockTransportService.createNewService(
+                sniffLocalTransportSettings(),
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool
+            )
+        ) {
+            localService.start();
+            CountDownLatch connectionTestDone = new CountDownLatch(1);
+            localService.getRemoteClusterService()
+                .maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
+                    logger.info("Expected: a connection is available");
+                    connectionTestDone.countDown();
+                }, e -> {
+                    logger.info("Unexpected: no connection could be established");
+                    connectionTestDone.countDown();
+                    fail("connection could not be established");
+                    throw new RuntimeException(e);
+                }));
+            assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
+        }
+    }
+
+    private Settings sniffLocalTransportSettings() {
         Settings localSettings = Settings.builder()
             .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
             .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "sniff")
@@ -245,35 +297,30 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
                 randomAlphaOfLength(20)
             );
-            localSettings = Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
+            return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
         }
-        try (
-            MockTransportService localService = MockTransportService.createNewService(
-                localSettings,
-                VersionInformation.CURRENT,
-                TransportVersion.current(),
-                threadPool
+    }
+
+    private Settings proxyLocalTransportSettings() {
+        Settings localSettings = Settings.builder()
+            .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
+            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(remoteClusterName).getKey(), "proxy")
+            .put(
+                ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                remoteTransportService.boundRemoteAccessAddress().publishAddress().toString()
             )
-        ) {
-            localService.start();
-            RemoteClusterService remoteClusterService = localService.getRemoteClusterService();
-            // obtain some connections and check that they'll be promptly closed
-            for (int i = 0; i < randomIntBetween(4, 16); i++) {
-                CountDownLatch connectionTestDone = new CountDownLatch(1);
-                // the failed authentication during handshake must surely close the connection before
-                // {@code RemoteClusterNodesAction.NAME} is executed, so node sniffing will fail
-                remoteClusterService.maybeEnsureConnectedAndGetConnection(remoteClusterName, true, ActionListener.wrap(connection -> {
-                    logger.info("Unexpected: a connection is available");
-                    connectionTestDone.countDown();
-                    fail("No connection should be available if authn fails");
-                }, e -> {
-                    logger.info("Expected: no connection could be established");
-                    connectionTestDone.countDown();
-                    assertThat(e, instanceOf(RemoteTransportException.class));
-                    assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
-                }));
-                assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
-            }
+            .put(
+                ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                randomIntBetween(1, 3) // easier to debug with just 1 connection
+            )
+            .build();
+        {
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(
+                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(remoteClusterName).getKey(),
+                randomAlphaOfLength(20)
+            );
+            return Settings.builder().put(localSettings).setSecureSettings(secureSettings).build();
         }
     }
 

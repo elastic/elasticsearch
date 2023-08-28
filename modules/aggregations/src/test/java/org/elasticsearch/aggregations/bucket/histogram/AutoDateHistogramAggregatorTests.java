@@ -16,7 +16,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -1029,8 +1028,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
@@ -1042,7 +1039,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, fieldType, instantFieldType, numericFieldType).withQuery(query)
                 );
                 verify.accept(histogram);

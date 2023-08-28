@@ -1163,9 +1163,9 @@ public class IngestDocumentTests extends ESTestCase {
         // Test that equality still works when the ingest document uses primitive arrays,
         // since normal .equals() methods would not work for Maps containing these arrays.
         byte[] numbers = new byte[] { 0, 1, 2 };
-        ingestDocument.setFieldValue("somearray", numbers);
+        ingestDocument.setFieldValue("some.nested.array", numbers);
         IngestDocument copy = new IngestDocument(ingestDocument);
-        byte[] copiedNumbers = copy.getFieldValue("somearray", byte[].class);
+        byte[] copiedNumbers = copy.getFieldValue("some.nested.array", byte[].class);
         assertArrayEquals(numbers, copiedNumbers);
         assertNotEquals(numbers, copiedNumbers);
         assertThat(copy, equalTo(ingestDocument));

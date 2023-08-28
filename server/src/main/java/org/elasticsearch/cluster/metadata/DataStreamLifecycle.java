@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -59,8 +58,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
 
-    private static final FeatureFlag DATA_STREAM_LIFECYCLE_FEATURE_FLAG = new FeatureFlag("dlm");
-
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
@@ -91,10 +88,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
-    }
-
-    public static boolean isFeatureEnabled() {
-        return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable

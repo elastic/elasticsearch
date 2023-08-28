@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
@@ -110,14 +113,17 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Atan.class, Atan::new, "atan"),
                 def(Atan2.class, Atan2::new, "atan2"),
                 def(AutoBucket.class, AutoBucket::new, "auto_bucket"),
+                def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(E.class, E::new, "e"),
                 def(Floor.class, Floor::new, "floor"),
+                def(Greatest.class, Greatest::new, "greatest"),
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),
                 def(Log10.class, Log10::new, "log10"),
+                def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),

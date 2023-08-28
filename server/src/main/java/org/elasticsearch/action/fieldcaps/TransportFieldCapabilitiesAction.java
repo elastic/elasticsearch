@@ -24,7 +24,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -47,7 +49,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,7 +56,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -244,15 +244,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
         if (indexResponses.size() > 0) {
             if (request.isMergeResults()) {
-                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, new ArrayList<>(failures)));
+                ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
             } else {
-                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures)));
+                listener.onResponse(new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), failures));
             }
         } else {
             // we have no responses at all, maybe because of errors
             if (indexFailures.isEmpty() == false) {
                 // throw back the first exception
-                listener.onFailure(failures.iterator().next().getException());
+                listener.onFailure(failures.get(0).getException());
             } else {
                 listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), Collections.emptyList()));
             }
@@ -283,7 +283,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             && r1.getIndexMappingHash().equals(r2.getIndexMappingHash());
     }
 
-    private FieldCapabilitiesResponse merge(
+    private static FieldCapabilitiesResponse merge(
         Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
@@ -291,10 +291,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
-        final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values()
-            .stream()
-            .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
-            .toArray(FieldCapabilitiesIndexResponse[]::new);
+        final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
+        Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
         final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         int lastPendingIndex = 0;
@@ -312,54 +310,70 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         task.ensureNotCancelled();
-        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
-        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
-            Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
+        return new FieldCapabilitiesResponse(
+            indices,
+            buildResponseMap(indexResponsesMap, responseMapBuilder, request.includeUnmapped()),
+            failures
+        );
+    }
 
-            Optional<Function<Boolean, FieldCapabilities>> unmapped = Optional.empty();
-            if (request.includeUnmapped()) {
+    private static Map<String, Map<String, FieldCapabilities>> buildResponseMap(
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        boolean includeUnmapped
+    ) {
+        Map<String, Map<String, FieldCapabilities>> responseMap = Maps.newMapWithExpectedSize(responseMapBuilder.size());
+        final var indices = indexResponsesMap.keySet();
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+            var typeMapBuilder = entry.getValue().entrySet();
+
+            Function<Boolean, FieldCapabilities> unmapped = null;
+            if (includeUnmapped) {
                 // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
                 unmapped = getUnmappedFields(
-                    indexResponsesMap.keySet(),
+                    indices,
                     entry.getKey(),
-                    typeMapBuilder.values().stream().flatMap(FieldCapabilities.Builder::getIndices).collect(Collectors.toSet())
+                    typeMapBuilder.stream().flatMap(t -> t.getValue().getIndices()).collect(Collectors.toSet())
                 );
             }
 
-            boolean multiTypes = typeMapBuilder.size() + unmapped.map(f -> 1).orElse(0) > 1;
-            responseMap.put(
-                entry.getKey(),
-                Collections.unmodifiableMap(
-                    Stream.concat(
-                        typeMapBuilder.entrySet()
-                            .stream()
-                            .map(e -> Map.<String, Function<Boolean, FieldCapabilities>>entry(e.getKey(), e.getValue()::build)),
-                        unmapped.stream().map(f -> Map.entry("unmapped", f))
-                    ).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(multiTypes)))
-                )
-            );
+            final int resSize = typeMapBuilder.size() + (unmapped == null ? 0 : 1);
+            boolean multiTypes = resSize > 1;
+            final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
+            for (Map.Entry<String, FieldCapabilities.Builder> e : typeMapBuilder) {
+                res.put(e.getKey(), e.getValue().build(multiTypes));
+            }
+            if (unmapped != null) {
+                res.put("unmapped", unmapped.apply(multiTypes));
+            }
+            responseMap.put(entry.getKey(), Collections.unmodifiableMap(res));
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
+        return Collections.unmodifiableMap(responseMap);
     }
 
-    private static Optional<Function<Boolean, FieldCapabilities>> getUnmappedFields(
-        Set<String> indices,
-        String field,
-        Set<String> mappedIndices
-    ) {
+    @Nullable
+    private static Function<Boolean, FieldCapabilities> getUnmappedFields(Set<String> indices, String field, Set<String> mappedIndices) {
         if (mappedIndices.size() != indices.size()) {
-            return Optional.of(
-                mt -> FieldCapabilities.buildBasic(
-                    field,
-                    "unmapped",
-                    mt ? Sets.difference(indices, mappedIndices).toArray(String[]::new) : null
-                )
+            return mt -> new FieldCapabilities(
+                field,
+                "unmapped",
+                false,
+                false,
+                false,
+                false,
+                null,
+                mt ? Sets.difference(indices, mappedIndices).toArray(Strings.EMPTY_ARRAY) : null,
+                null,
+                null,
+                null,
+                null,
+                Map.of()
             );
         }
-        return Optional.empty();
+        return null;
     }
 
-    private void innerMerge(
+    private static void innerMerge(
         String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesRequest request,
@@ -401,7 +415,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         private final Map<String, Exception> failuresByIndex = Collections.synchronizedMap(new HashMap<>());
 
         List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
-            Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = Collections.synchronizedMap(new HashMap<>());
+            Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
                 Exception e = failure.getValue();

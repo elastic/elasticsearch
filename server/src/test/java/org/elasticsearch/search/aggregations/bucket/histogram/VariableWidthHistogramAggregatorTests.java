@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -609,8 +608,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 final VariableWidthHistogramAggregationBuilder aggregationBuilder = new VariableWidthHistogramAggregationBuilder("_name");
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
@@ -628,7 +625,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 }
 
                 final InternalVariableWidthHistogram histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(histogram);

@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -427,8 +428,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
+        final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
+        if (indexVersionCreated.onOrAfter(IndexVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -498,7 +499,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (indexVersionCreated(indexName).onOrAfter(Version.V_7_2_0)) {
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
             assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);
@@ -515,13 +516,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
     /**
      * Returns the version in which the given index has been created
      */
-    private static Version indexVersionCreated(final String indexName) throws IOException {
+    private static IndexVersion indexVersionCreated(final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings");
         final String versionCreatedSetting = indexName + ".settings.index.version.created";
         request.addParameter("filter_path", versionCreatedSetting);
 
         final Response response = client().performRequest(request);
-        return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
+        return IndexVersion.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
     }
 
     /**

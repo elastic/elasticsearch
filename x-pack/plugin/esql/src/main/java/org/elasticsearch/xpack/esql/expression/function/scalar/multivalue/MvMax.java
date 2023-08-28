@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,7 +44,7 @@ public class MvMax extends AbstractMultivalueFunction {
             case INT -> () -> new MvMaxIntEvaluator(fieldEval.get());
             case LONG -> () -> new MvMaxLongEvaluator(fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
+            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
         };
     }
 

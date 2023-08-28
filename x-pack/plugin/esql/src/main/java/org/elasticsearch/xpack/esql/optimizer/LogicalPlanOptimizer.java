@@ -95,6 +95,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new FoldNull(),
             new SplitInWithFoldableValue(),
             new ConstantFolding(),
+            new PropagateEvalFoldables(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -140,7 +141,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             // existing aggregate and their respective attributes
             Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>();
             // surrogate functions eval
-            List<NamedExpression> transientEval = new ArrayList<>();
+            List<Alias> transientEval = new ArrayList<>();
             boolean changed = false;
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
@@ -299,6 +300,39 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    //
+    // Replace any reference attribute with its source, if it does not affect the result.
+    // This avoids ulterior look-ups between attributes and its source across nodes.
+    //
+    static class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            var collectRefs = new AttributeMap<Expression>();
+            // collect aliases
+            plan.forEachExpressionUp(Alias.class, a -> {
+                var c = a.child();
+                if (c.foldable()) {
+                    collectRefs.put(a.toAttribute(), c);
+                }
+            });
+            if (collectRefs.isEmpty()) {
+                return plan;
+            }
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+
+            plan = plan.transformUp(p -> {
+                // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                if (p instanceof Filter || p instanceof Eval) {
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                }
+                return p;
+            });
+
+            return plan;
         }
     }
 
@@ -613,7 +647,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            var used = new Holder<>(new AttributeSet());
+            var used = new AttributeSet();
             // don't remove Evals without any Project/Aggregate (which might not occur as the last node in the plan)
             var seenProjection = new Holder<>(Boolean.FALSE);
 
@@ -626,14 +660,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 // remember used
-                var usedSet = used.get();
                 boolean recheck;
                 // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
                 // perform a loop to retry checking if the current node is completely eliminated
                 do {
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
-                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
                         // no aggregates, no need
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
@@ -646,7 +679,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
                         seenProjection.set(Boolean.TRUE);
                     } else if (p instanceof Eval eval) {
-                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), usedSet) : null;
+                        var remaining = seenProjection.get() ? removeUnused(eval.fields(), used) : null;
                         // no fields, no eval
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
@@ -661,8 +694,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     }
                 } while (recheck);
 
-                var inUse = usedSet.combine(references(p));
-                used.set(inUse);
+                used.addAll(p.references());
 
                 // preserve the state before going to the next node
                 return p;
@@ -685,20 +717,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (used.contains(prev.toAttribute()) == false) {
                     it.remove();
                 } else {
-                    used = used.combine(prev.references());
+                    used.addAll(prev.references());
                 }
             }
             return clone.size() != named.size() ? clone : null;
-        }
-
-        private static List<Expression> expressions(LogicalPlan plan) {
-            List<Expression> exp = new ArrayList<>();
-            plan.forEachExpression(exp::add);
-            return exp;
-        }
-
-        private static AttributeSet references(LogicalPlan plan) {
-            return Expressions.references(expressions(plan));
         }
     }
 
@@ -735,11 +757,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(OrderBy plan) {
-            var referencedAttributes = new ExpressionSet<Attribute>();
+            var referencedAttributes = new ExpressionSet<Order>();
             var order = new ArrayList<Order>();
             for (Order o : plan.order()) {
-                Attribute a = (Attribute) o.child();
-                if (referencedAttributes.add(a)) {
+                if (referencedAttributes.add(o)) {
                     order.add(o);
                 }
             }
@@ -761,7 +782,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
-            throw new UnsupportedOperationException("Expected child to be instance of Project");
+            throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
         }
     }
 

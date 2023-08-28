@@ -29,12 +29,12 @@ public class RotatableSecret {
         this.secrets = new Secrets(Strings.hasText(secret) ? secret : null, null, Instant.EPOCH);
     }
 
-    public void rotate(SecureString newSecret, TimeValue priorValidFor) {
+    public void rotate(SecureString newSecret, TimeValue gracePeriod) {
         // set the current secret and move the current to the prior
         secrets = new Secrets(
             Strings.hasText(newSecret) ? newSecret : null,
             secrets.current,
-            Instant.now().plusMillis(priorValidFor.getMillis())
+            Instant.now().plusMillis(gracePeriod.getMillis())
         );
     }
 
@@ -52,10 +52,11 @@ public class RotatableSecret {
      * @return true if either the current or (non-expired) prior secret matches. false if nether match. false if nether are currently set.
      */
     public boolean matches(SecureString secret) {
-        if (isSet() == false) { // calls checkExpired
+        if (isSet() == false || Strings.hasText(secret) == false) { // calls checkExpired
             return false;
         }
-        return secrets.current.equals(secret) || secrets.prior.equals(secret);
+        assert secrets.current != null;
+        return secrets.current.equals(secret) || (secrets.prior != null && secrets.prior.equals(secret));
     }
 
     private void checkExpired() {

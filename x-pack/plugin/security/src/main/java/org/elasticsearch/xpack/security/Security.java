@@ -38,7 +38,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -1905,13 +1904,11 @@ public class Security extends Plugin
 
     @Override
     public void reload(Settings settings) throws Exception {
-        //TODO: update doc
         realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
             if (realm instanceof JwtRealm jwtRealm) {
-                SecureString secret = CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName())
-                    .get(settings);
-                SecureString newClientSecret = Strings.hasText(secret) ? secret : null; // convert "" to null
-                jwtRealm.setClientSecret(newClientSecret);
+                jwtRealm.rotateClientSecret(
+                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
+                );
             }
         });
     }

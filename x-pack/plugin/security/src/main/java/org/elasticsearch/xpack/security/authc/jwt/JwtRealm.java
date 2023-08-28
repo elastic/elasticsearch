@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.support.RotatableSecret;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final ClaimParser claimParserMail;
     private final ClaimParser claimParserName;
     private final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
-    private SecureString clientAuthenticationSharedSecret;
+    private final RotatableSecret clientAuthenticationSharedSecret;
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -86,9 +87,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
-        final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
-        this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
-
+        this.clientAuthenticationSharedSecret = new RotatableSecret(
+            realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET)
+        );
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
             RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
@@ -442,9 +443,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
-    public void setClientSecret(SecureString clientSecret){
-        //TODO: support time bound fallback secret to help with rotation ?
-        this.clientAuthenticationSharedSecret = clientSecret;
+    public void rotateClientSecret(SecureString clientSecret) {
+        this.clientAuthenticationSharedSecret.rotate(clientSecret, TimeValue.timeValueMinutes(1)); // TODO: time value as setting
     }
 
     /**

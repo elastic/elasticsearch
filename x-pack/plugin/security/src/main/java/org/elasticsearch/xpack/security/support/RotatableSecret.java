@@ -25,12 +25,17 @@ public class RotatableSecret {
      * @param secret The secret to rotate. {@code null} if the secret is not configured.
      */
     public RotatableSecret(@Nullable SecureString secret) {
-        this.secrets = new Secrets(secret, null, Instant.EPOCH);
+
+        this.secrets = new Secrets(Strings.hasText(secret) ? secret : null, null, Instant.EPOCH);
     }
 
     public void rotate(SecureString newSecret, TimeValue priorValidFor) {
         // set the current secret and move the current to the prior
-        secrets = new Secrets(newSecret, secrets.current, Instant.now().plusMillis(priorValidFor.getMillis()));
+        secrets = new Secrets(
+            Strings.hasText(newSecret) ? newSecret : null,
+            secrets.current,
+            Instant.now().plusMillis(priorValidFor.getMillis())
+        );
     }
 
     /**
@@ -47,7 +52,7 @@ public class RotatableSecret {
      * @return true if either the current or (non-expired) prior secret matches. false if nether match. false if nether are currently set.
      */
     public boolean matches(SecureString secret) {
-        if (isSet() == false) { //calls checkExpired
+        if (isSet() == false) { // calls checkExpired
             return false;
         }
         return secrets.current.equals(secret) || secrets.prior.equals(secret);
@@ -56,7 +61,7 @@ public class RotatableSecret {
     private void checkExpired() {
         if (secrets.prior != null && secrets.validTill.isBefore(Instant.now())) {
             // nuke the prior secret
-           secrets = new Secrets(secrets.current, null, Instant.EPOCH);
+            secrets = new Secrets(secrets.current, null, Instant.EPOCH);
         }
     }
 

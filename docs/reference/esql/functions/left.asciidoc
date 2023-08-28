@@ -6,9 +6,9 @@ from string starting from 0.
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=left]
+include::{esql-specs}/string.csv-spec[tag=left]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=left-result]
+include::{esql-specs}/string.csv-spec[tag=left-result]
 |===

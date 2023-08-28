@@ -56,11 +56,10 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         out.length = str.length;
         int curLenStart = 0;
         UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-        for (int i = 0; i < length && curLenStart < out.length;
-             i++, curLenStart += cp.numBytes) {
-             UnicodeUtil.codePointAt(out.bytes, out.offset + curLenStart, cp);
+        for (int i = 0; i < length && curLenStart < out.length; i++, curLenStart += cp.numBytes) {
+            UnicodeUtil.codePointAt(out.bytes, out.offset + curLenStart, cp);
         }
-        out.length =  Math.min(curLenStart, out.length);
+        out.length = Math.min(curLenStart, out.length);
         return out;
     }
 

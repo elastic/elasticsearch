@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class LeftTests extends AbstractScalarFunctionTestCase {
     public LeftTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {

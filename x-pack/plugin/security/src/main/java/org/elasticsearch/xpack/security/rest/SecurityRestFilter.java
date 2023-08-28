@@ -21,6 +21,7 @@ import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.http.nio.NioHttpRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.FilterRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -31,14 +32,13 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.io.IOException;
-import java.util.List;
 
-public class SecurityRestFilter implements RestHandler {
+public class SecurityRestFilter extends FilterRestHandler implements RestHandler {
 
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
-    private final RestHandler restHandler;
     private final AuthenticationService authenticationService;
+
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
@@ -50,16 +50,11 @@ public class SecurityRestFilter implements RestHandler {
         AuditTrailService auditTrailService,
         RestHandler restHandler
     ) {
+        super(restHandler);
         this.licenseState = licenseState;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
-        this.restHandler = restHandler;
-    }
-
-    @Override
-    public boolean allowSystemIndexAccessByDefault() {
-        return restHandler.allowSystemIndexAccessByDefault();
     }
 
     @Override
@@ -75,7 +70,7 @@ public class SecurityRestFilter implements RestHandler {
                     if (secondaryAuthentication != null) {
                         logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
                     }
-                    restHandler.handleRequest(request, channel, client);
+                    getDelegate().handleRequest(request, channel, client);
                 }, e -> handleException("Secondary authentication", request, channel, e)));
             }, e -> handleException("Authentication", request, channel, e)));
         } else {
@@ -101,7 +96,7 @@ public class SecurityRestFilter implements RestHandler {
                         + "/security-minimal-setup.html to enable security."
                 );
             }
-            restHandler.handleRequest(request, channel, client);
+            getDelegate().handleRequest(request, channel, client);
         }
     }
 
@@ -134,29 +129,10 @@ public class SecurityRestFilter implements RestHandler {
         }
     }
 
-    @Override
-    public boolean canTripCircuitBreaker() {
-        return restHandler.canTripCircuitBreaker();
-    }
-
-    @Override
-    public boolean supportsContentStream() {
-        return restHandler.supportsContentStream();
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
-        return restHandler.allowsUnsafeBuffers();
-    }
-
-    @Override
-    public List<Route> routes() {
-        return restHandler.routes();
-    }
-
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
-        if (restHandler instanceof RestRequestFilter) {
-            return ((RestRequestFilter) restHandler).getFilteredRequest(restRequest);
+        final RestHandler handler = getConcreteRestHandler();
+        if (handler instanceof RestRequestFilter) {
+            return ((RestRequestFilter) handler).getFilteredRequest(restRequest);
         }
         return restRequest;
     }

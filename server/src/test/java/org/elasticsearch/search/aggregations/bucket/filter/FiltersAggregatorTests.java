@@ -671,7 +671,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    limitedReader,
+                    searcher.getIndexReader(),
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
@@ -745,7 +745,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    limitedReader,
+                    searcher.getIndexReader(),
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
@@ -817,7 +817,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    limitedReader,
+                    searcher.getIndexReader(),
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(10L));

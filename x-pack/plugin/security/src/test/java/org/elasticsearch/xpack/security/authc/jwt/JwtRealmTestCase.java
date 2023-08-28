@@ -423,11 +423,19 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 assertThat(user.metadata(), equalTo(authenticatedUser.metadata())); // delegated authz returns user's metadata
             } else if (JwtRealmInspector.shouldPopulateUserMetadata(jwtRealm)) {
                 assertThat(authenticatedUser.metadata(), hasEntry("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()));
+                assertThat(authenticatedUser.metadata(), hasEntry("jwt_token_principal", jwtAuthenticationToken.principal()));
                 assertThat(authenticatedUser.metadata(), hasKey(startsWith("jwt_claim_")));
             } else {
                 assertThat(
                     authenticatedUser.metadata(),
-                    equalTo(Map.of("jwt_token_type", JwtRealmInspector.getTokenType(jwtRealm).value()))
+                    equalTo(
+                        Map.of(
+                            "jwt_token_type",
+                            JwtRealmInspector.getTokenType(jwtRealm).value(),
+                            "jwt_token_principal",
+                            jwtAuthenticationToken.principal()
+                        )
+                    )
                 );
             }
         }

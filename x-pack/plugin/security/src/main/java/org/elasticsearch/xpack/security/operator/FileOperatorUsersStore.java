@@ -200,11 +200,8 @@ public class FileOperatorUsersStore {
             if (authenticationType == Authentication.AuthenticationType.REALM) {
                 if (false == FileRealmSettings.TYPE.equals(realmType) && false == JwtRealmSettings.TYPE.equals(realmType)) {
                     validationException.addValidationError(
-                        "when [auth_type] is defined as [realm] " + "then [realm_type] must be defined as [file] or [jwt]"
+                        "when [auth_type] is defined as [realm] then [realm_type] must be defined as [file] or [jwt]"
                     );
-                }
-                if (JwtRealmSettings.TYPE.equals(realmType) && Strings.hasText(realmName) == false) {
-                    validationException.addValidationError("when [realm_type] is [jwt] the [realmName] must be set");
                 }
                 if (tokenNames != null) {
                     validationException.addValidationError("[token_names] is not valid when [realm_type] is [file]");

@@ -421,9 +421,9 @@ user's list of groups.
 
 `metadata`::
 (Optional, object) Additional metadata about the user derived from the JWT
-used to authenticate. These usable values are visible {es} from the result of
-the <<security-api-authenticate-request,/_security/_authenticate>> endpoint.
-Reference these value with a `metadata.` prefix. For example
+used to authenticate. The metadata values are visible {es} from the result of
+the <<security-api-authenticate-request,authenticate>> endpoint.
+Reference these values with a `metadata.` prefix. For example
 `metadata.jwt_token_principal` and `metadata.jwt_claim_<key>` where `key` is a claim
 from the JWT.
 

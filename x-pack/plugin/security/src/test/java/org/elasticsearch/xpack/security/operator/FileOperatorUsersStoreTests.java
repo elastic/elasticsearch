@@ -155,6 +155,43 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     .build(false)
             )
         );
+        final Authentication.RealmRef jwtRealm = new Authentication.RealmRef("jwt1", "jwt", randomAlphaOfLength(8));
+        assertTrue(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(
+                        new User(
+                            "me@elastic.co",
+                            randomRoles(),
+                            "me",
+                            "me@elastic.co",
+                            Map.of("jwt_token_principal", "iss1/aud1,aud2/sub/me@elastic.co"),
+                            true
+                        )
+                    )
+                    .realmRef(jwtRealm)
+                    .build(false)
+            )
+        );
+        assertFalse(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(
+                        new User(
+                            "you@elastic.co",
+                            randomRoles(),
+                            "you",
+                            "you@elastic.co",
+                            Map.of("jwt_token_principal", "iss1/aud1,aud2/sub/you@elastic.co"),
+                            true
+                        )
+                    )
+                    .realmRef(jwtRealm)
+                    .build(false)
+            )
+        );
 
     }
 
@@ -175,14 +212,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     "1st file parsing",
                     logger.getName(),
                     Level.INFO,
-                    "parsed [3] group(s) with a total of [4] operator user(s) from file [" + inUseFile.toAbsolutePath() + "]"
+                    "parsed [4] group(s) with a total of [5] operator user(s) from file [" + inUseFile.toAbsolutePath() + "]"
                 )
             );
 
             final FileOperatorUsersStore fileOperatorUsersStore = new FileOperatorUsersStore(env, watcherService);
             final List<FileOperatorUsersStore.Group> groups = fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups();
 
-            assertEquals(3, groups.size());
+            assertEquals(4, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_1", "operator_2"), "file"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_3"), null), groups.get(1));
             assertEquals(
@@ -195,6 +232,10 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     Set.of("kibana-token")
                 ),
                 groups.get(2)
+            );
+            assertEquals(
+                new FileOperatorUsersStore.Group(Set.of("iss1/aud1,aud2/sub/me@elastic.co"), "jwt1", "jwt", "realm", null, null),
+                groups.get(3)
             );
             appender.assertAllExpectationsMatched();
 
@@ -220,8 +261,8 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             }
             assertBusy(() -> {
                 final List<FileOperatorUsersStore.Group> newGroups = fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups();
-                assertEquals(4, newGroups.size());
-                assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_4")), newGroups.get(3));
+                assertEquals(5, newGroups.size());
+                assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_4")), newGroups.get(4));
             });
             appender.assertAllExpectationsMatched();
 
@@ -233,14 +274,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     Level.ERROR,
                     "Failed to parse operator users file",
                     XContentParseException.class,
-                    "[15:1] [operator_privileges.operator] failed to parse field [operator]"
+                    "[19:1] [operator_privileges.operator] failed to parse field [operator]"
                 )
             );
             try (BufferedWriter writer = Files.newBufferedWriter(inUseFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.append("  - blah\n");
             }
             watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
-            assertEquals(4, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size());
+            assertEquals(5, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size());
             appender.assertAllExpectationsMatched();
 
             // Delete the file will remove all the operator users
@@ -259,7 +300,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             // Back to original content
             Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);
-            assertBusy(() -> assertEquals(3, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
+            assertBusy(() -> assertEquals(4, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
         } finally {
             Loggers.removeAppender(logger, appender);
             appender.stop();
@@ -340,11 +381,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 auth_type: "token"
                 token_source: "index"
                 token_names: ["token1", "token2"]
+              - usernames: ["myissuer/myaud/mysub/myprinc", "myissuer/myaud,myaud2/mysub/myprinc2"]
+                realm_type: "jwt"
+                realm_name: "jwt1"
             """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
-            assertEquals(2, groups.size());
+            assertEquals(3, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(Set.of("internal_system"), "file1"), groups.get(0));
             assertEquals(
                 new FileOperatorUsersStore.Group(
@@ -356,6 +400,17 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                     Set.of("token1", "token2")
                 ),
                 groups.get(1)
+            );
+            assertEquals(
+                new FileOperatorUsersStore.Group(
+                    Set.of("myissuer/myaud/mysub/myprinc", "myissuer/myaud,myaud2/mysub/myprinc2"),
+                    "jwt1",
+                    "jwt",
+                    "realm",
+                    null,
+                    null
+                ),
+                groups.get(2)
             );
         }
     }
@@ -425,7 +480,6 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 e.getCause().getCause().getMessage(),
                 containsString("[realm_name] must be specified for realm types other than [_service_account,file,native,reserved]")
             );
-            assertThat(e.getCause().getCause().getMessage(), containsString("when [realm_type] is [jwt] the [realmName] must be se"));
         }
 
         config = """

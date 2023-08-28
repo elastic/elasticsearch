@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.apache.lucene.index.IndexCommit;
@@ -81,9 +82,12 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         protected StatelessCommitService createStatelessCommitService(
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
-            Client client
+            Client client,
+            StatelessCommitCleaner commitCleaner
         ) {
-            StatelessCommitService commitService = spy(super.createStatelessCommitService(objectStoreService, clusterService, client));
+            StatelessCommitService commitService = spy(
+                super.createStatelessCommitService(objectStoreService, clusterService, client, commitCleaner)
+            );
             doAnswer(invocation -> {
                 ActionListener<Void> argument = invocation.getArgument(2);
                 argument.onResponse(null);

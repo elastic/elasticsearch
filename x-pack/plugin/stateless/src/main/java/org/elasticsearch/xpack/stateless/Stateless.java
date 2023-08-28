@@ -47,6 +47,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -321,8 +322,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             createObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
         );
         components.add(objectStoreService);
-        var commitService = createStatelessCommitService(objectStoreService, clusterService, client);
-        setAndGet(this.commitService, commitService);
         // TODO: figure out a better/correct threadpool for this
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(
             // TODO: figure out a better/correct threadpool for this
@@ -347,6 +346,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         );
         var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
         components.add(consistencyService);
+        var commitCleaner = new StatelessCommitCleaner(consistencyService);
+        var commitService = createStatelessCommitService(objectStoreService, clusterService, client, commitCleaner);
+        setAndGet(this.commitService, commitService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
@@ -458,9 +460,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     protected StatelessCommitService createStatelessCommitService(
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
-        Client client
+        Client client,
+        StatelessCommitCleaner commitCleaner
     ) {
-        return new StatelessCommitService(objectStoreService, clusterService, client);
+        var commitService = new StatelessCommitService(objectStoreService, clusterService, client, commitCleaner);
+        clusterService.addListener(commitService);
+        return commitService;
     }
 
     private static <T> T setAndGet(SetOnce<T> ref, T service) {

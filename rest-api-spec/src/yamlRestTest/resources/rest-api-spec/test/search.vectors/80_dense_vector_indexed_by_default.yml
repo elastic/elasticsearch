@@ -4,7 +4,7 @@ setup:
       reason: 'dense_vector indexed by default was added in 8.11'
 
 ---
-"Indexed by default with cosine similarity":
+"Indexed by default with dot_product similarity":
   - do:
       indices.create:
         index: test
@@ -29,7 +29,7 @@ setup:
               type: dense_vector
               dims: 5
               index: true
-              similarity: cosine
+              similarity: dot_product
 
 ---
 "Indexed by default with specified similarity and index options":

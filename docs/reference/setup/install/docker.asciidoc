@@ -33,14 +33,10 @@ Docker image is currently available for this version.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
-
 [source,sh,subs="attributes"]
 ----
 docker pull {docker-repo}:{version}
 ----
-
-endif::[]
 
 [[docker-verify-signature]]
 ==== Optional: Verify the image signature
@@ -56,8 +52,6 @@ WARNING: Version {version} of {es} has not yet been released, so no
 Docker image signature is currently available for this version.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 Install the appropriate https://docs.sigstore.dev/cosign/installation/[Cosign application]
 for your operating system.
@@ -82,8 +76,6 @@ The following checks were performed on each of these signatures:
   - Existence of the claims in the transparency log was verified offline
   - The signatures were verified against the specified public key
 --------------------------------------------
-
-endif::[]
 
 
 [[docker-cli-run-dev-mode]]
@@ -123,7 +115,6 @@ Docker image is currently available for this version.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
 docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
@@ -132,8 +123,6 @@ docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
 TIP: Use the `-m` flag to set a memory limit for the container.
 
 The command prints the `elastic` user password and an enrollment token for {kib}.
-
-endif::[]
 --
 
 . Copy the generated `elastic` password and enrollment token. These credentials
@@ -193,13 +182,10 @@ Docker image is currently available for this version.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
 docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-image}
 ----
-
-endif::[]
 --
 
 . Call the <<cat-nodes,cat nodes API>> to verify the node was added to the cluster.
@@ -265,15 +251,13 @@ repository on GitHub.
 
 --
 ifeval::["{release-state}"=="unreleased"]
-NOTE: Version {version} of {es} has not been released,
-so the sample Docker Compose and configuration files are not yet available for
-this version. See the {stack-gs-current}/get-started-docker.html[current version]
-for the latest sample files.
+WARNING: Version {version} of {es} has not been released,
+so the following Docker Compose and configuration files won't work.
+See the {stack-gs-current}/get-started-docker.html[current version]
+for the latest working files.
 endif::[]
 --
 
---
-ifeval::["{release-state}"!="unreleased"]
 
 [discrete]
 [[docker-env-file]]
@@ -315,8 +299,6 @@ then only be accessible from the host machine itself.
 include::docker/docker-compose.yml[]
 ----
 
-endif::[]
---
 
 ===== Start your cluster with security enabled and configured
 
@@ -687,7 +669,6 @@ instead. The command must:
 * Use the `elasticsearch-keystore` tool with the `create -p` option. You'll be
   prompted to enter a password for the keystore.
 
-ifeval::["{release-state}"!="unreleased"]
 For example:
 
 [source,sh,subs="attributes"]
@@ -711,7 +692,6 @@ bin/elasticsearch-keystore \
 add my.secure.setting \
 my.other.secure.setting
 ----
-endif::[]
 
 If you've already created the keystore and don't need to update it, you can
 bind-mount the `elasticsearch.keystore` file directly. You can use the

@@ -30,11 +30,9 @@ wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearm
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 You may need to install the `apt-transport-https` package on Debian before proceeding:
 
@@ -51,8 +49,6 @@ ifeval::["{release-state}"=="released"]
 --------------------------------------------------
 echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
-
-endif::[]
 
 ifeval::["{release-state}"=="prerelease"]
 
@@ -110,11 +106,9 @@ include::skip-set-kernel-parameters.asciidoc[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 The Debian package for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
@@ -127,8 +121,6 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
     `elasticsearch-{version}-amd64.deb: OK`.
-
-endif::[]
 
 // Set a `distro` attribute so we can reuse files containing anchors
 :distro: deb

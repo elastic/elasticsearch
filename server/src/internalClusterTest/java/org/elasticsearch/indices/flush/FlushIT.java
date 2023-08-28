@@ -19,7 +19,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -128,7 +127,7 @@ public class FlushIT extends ESIntegTestCase {
             client().prepareIndex(indexName).setSource("f", "v").get();
         }
         if (randomBoolean()) {
-            internalCluster().restartNode(randomFrom(dataNodes), new InternalTestCluster.RestartCallback());
+            internalCluster().restartNode(randomFrom(dataNodes));
             ensureGreen(indexName);
         }
         assertBusy(() -> {

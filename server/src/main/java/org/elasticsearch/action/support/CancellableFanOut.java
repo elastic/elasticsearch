@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -79,14 +80,7 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
             });
         }
 
-        try (var refs = new RefCountingRunnable(() -> {
-            // When all sub-tasks are complete, pass the result from resultListener to the outer listener.
-            resultListenerCompleter.getAndSet(() -> {}).run();
-            // May block (very briefly) if there's a concurrent cancellation, so that we are sure the resultListener is now complete and
-            // therefore the outer listener is completed on this thread.
-            assert resultListener.isDone();
-            resultListener.addListener(listener);
-        })) {
+        try (var refs = new RefCountingRunnable(new SubtasksCompletionHandler<>(resultListenerCompleter, resultListener, listener))) {
             while (itemsIterator.hasNext()) {
                 final var item = itemsIterator.next();
 
@@ -94,7 +88,20 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                 final ActionListener<ItemResponse> itemResponseListener = ActionListener.notifyOnce(new ActionListener<>() {
                     @Override
                     public void onResponse(ItemResponse itemResponse) {
-                        onItemResponse(item, itemResponse);
+                        try {
+                            onItemResponse(item, itemResponse);
+                        } catch (Exception e) {
+                            logger.error(
+                                () -> Strings.format(
+                                    "unexpected exception handling [%s] for item [%s] in [%s]",
+                                    itemResponse,
+                                    item,
+                                    CancellableFanOut.this
+                                ),
+                                e
+                            );
+                            assert false : e;
+                        }
                     }
 
                     @Override
@@ -103,12 +110,12 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                             // Completed on cancellation so it is released promptly, but there's no need to handle the exception.
                             return;
                         }
-                        onItemFailure(item, e);
+                        onItemFailure(item, e); // must not throw, enforced by the ActionListener#notifyOnce wrapper
                     }
 
                     @Override
                     public String toString() {
-                        return "[" + CancellableFanOut.this + "][" + item + "]";
+                        return "[" + CancellableFanOut.this + "][" + listener + "][" + item + "]";
                     }
                 });
 
@@ -122,12 +129,12 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
                 }
 
                 // Process the item, capturing a ref to make sure the outer listener is completed after this item is processed.
-                sendItemRequest(item, ActionListener.releaseAfter(itemResponseListener, refs.acquire()));
+                ActionListener.run(ActionListener.releaseAfter(itemResponseListener, refs.acquire()), l -> sendItemRequest(item, l));
             }
         } catch (Exception e) {
             // NB the listener may have been completed already (by exiting this try block) so this exception may not be sent to the caller,
             // but we cannot do anything else with it; an exception here is a bug anyway.
-            logger.error("unexpected failure in [" + this + "]", e);
+            logger.error("unexpected failure in [" + this + "][" + listener + "]", e);
             assert false : e;
             throw e;
         }
@@ -143,7 +150,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void sendItemRequest(Item item, ActionListener<ItemResponse> listener);
 
     /**
-     * Handle a successful response for an item. May be called concurrently for multiple items. Not called if the task is cancelled.
+     * Handle a successful response for an item. May be called concurrently for multiple items. Not called if the task is cancelled. Must
+     * not throw any exceptions.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.
@@ -151,7 +159,8 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
     protected abstract void onItemResponse(Item item, ItemResponse itemResponse);
 
     /**
-     * Handle a failure for an item. May be called concurrently for multiple items. Not called if the task is cancelled.
+     * Handle a failure for an item. May be called concurrently for multiple items. Not called if the task is cancelled. Must not throw any
+     * exceptions.
      * <p>
      * Note that it's easy to accidentally capture another reference to this class when implementing this method, and that will prevent the
      * early release of any accumulated results. Beware of lambdas, and test carefully.
@@ -166,4 +175,35 @@ public abstract class CancellableFanOut<Item, ItemResponse, FinalResponse> {
      * early release of any accumulated results. Beware of lambdas, and test carefully.
      */
     protected abstract FinalResponse onCompletion() throws Exception;
+
+    private static class SubtasksCompletionHandler<FinalResponse> implements Runnable {
+        private final AtomicReference<Runnable> resultListenerCompleter;
+        private final SubscribableListener<FinalResponse> resultListener;
+        private final ActionListener<FinalResponse> listener;
+
+        private SubtasksCompletionHandler(
+            AtomicReference<Runnable> resultListenerCompleter,
+            SubscribableListener<FinalResponse> resultListener,
+            ActionListener<FinalResponse> listener
+        ) {
+            this.resultListenerCompleter = resultListenerCompleter;
+            this.resultListener = resultListener;
+            this.listener = listener;
+        }
+
+        @Override
+        public void run() {
+            // When all sub-tasks are complete, pass the result from resultListener to the outer listener.
+            resultListenerCompleter.getAndSet(() -> {}).run();
+            // May block (very briefly) if there's a concurrent cancellation, so that we are sure the resultListener is now complete and
+            // therefore the outer listener is completed on this thread.
+            assert resultListener.isDone();
+            resultListener.addListener(listener);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[" + listener.toString() + "]";
+        }
+    }
 }

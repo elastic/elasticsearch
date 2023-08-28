@@ -14,14 +14,12 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -194,7 +192,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testDynamicMapperWithBadMapping() throws IOException {
         {
             // in 7.x versions this will issue a deprecation warning
-            IndexVersion version = VersionUtils.randomCompatibleVersion(random(), Version.V_7_0_0).indexVersion;
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersion.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            );
             DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
                 b.startArray("dynamic_templates");
                 {
@@ -700,7 +702,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
             """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point")));
+            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point"), false));
         assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }

@@ -67,6 +67,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
@@ -961,9 +962,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-            String currentLuceneVersion = IndexVersion.current().luceneVersion().toString();
-            String bwcLuceneVersion = getOldClusterVersion().luceneVersion().toString();
-            String minCompatibleBWCVersion = Version.CURRENT.minimumCompatibilityVersion().luceneVersion().toString();
+            var luceneVersion = IndexVersion.current().luceneVersion();
+            String currentLuceneVersion = luceneVersion.toString();
+            int currentLuceneVersionMajor = luceneVersion.major;
+            String bwcLuceneVersion = getOldClusterIndexVersion().luceneVersion().toString();
             if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
                 int numCurrentVersion = 0;
                 int numBwcVersion = 0;
@@ -975,19 +977,22 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     if (false == line.startsWith("p")) {
                         continue;
                     }
-                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    Matcher m = Pattern.compile("((\\d+)\\.\\d+\\.\\d+)$").matcher(line);
                     assertTrue(line, m.find());
                     String version = m.group(1);
+                    int major = Integer.parseInt(m.group(2));
                     if (currentLuceneVersion.equals(version)) {
                         numCurrentVersion++;
                     } else if (bwcLuceneVersion.equals(version)) {
                         numBwcVersion++;
-                    } else if (minCompatibleBWCVersion.equals(version) && minCompatibleBWCVersion.equals(bwcLuceneVersion) == false) {
-                        // Our upgrade path from 7.non-last always goes through 7.last, which depending on timing can create 7.last
-                        // index segment. We ignore those.
+                    } else if (major == currentLuceneVersionMajor - 1) {
+                        // we can read one lucene version back. The upgrade path might have created old segment versions.
+                        // that's ok, we just ignore them
                         continue;
                     } else {
-                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                        fail(
+                            "expected lucene version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line
+                        );
                     }
                 }
                 assertNotEquals(
@@ -1106,9 +1111,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, getOldClusterVersion());
+        checkSnapshot("old_snap", count, getOldClusterVersion(), getOldClusterIndexVersion());
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, Version.CURRENT);
+            checkSnapshot("new_snap", count, Version.CURRENT, IndexVersion.current());
         }
     }
 
@@ -1298,7 +1303,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(String snapshotName, int count, Version tookOnVersion, IndexVersion tookOnIndexVersion) throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));
@@ -1308,7 +1313,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // the format can change depending on the ES node version running & this test code running
         assertThat(
             XContentMapValues.extractValue("snapshots.version", snapResponse),
-            either(Matchers.<Object>equalTo(List.of(tookOnVersion.toString()))).or(equalTo(List.of(tookOnVersion.indexVersion.toString())))
+            either(Matchers.<Object>equalTo(List.of(tookOnVersion.toString()))).or(equalTo(List.of(tookOnIndexVersion.toString())))
         );
 
         // Remove the routing setting and template so we can test restoring them.
@@ -1726,8 +1731,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
-                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                final IndexVersion tasksCreatedVersion = IndexVersion.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
                     getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {

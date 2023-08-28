@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -188,7 +187,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.metadata(),
             state.routingTable(),
             state.nodes(),
-            state.transportVersions(),
+            state.transportVersions,
             state.blocks(),
             state.customs(),
             false,
@@ -222,7 +221,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
 
-        this.minTransportVersion = transportVersions.values().stream().min(Comparator.naturalOrder()).orElse(TransportVersion.current());
+        this.minTransportVersion = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            ? TransportVersion.MINIMUM_COMPATIBLE
+            : transportVersions.values()
+                .stream()
+                .min(Comparator.naturalOrder())
+                // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
+                .orElse(TransportVersion.MINIMUM_COMPATIBLE);
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -651,19 +656,29 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.ROUTING_TABLE),
                 (builder, params) -> builder.startObject("routing_table").startObject("indices"),
                 routingTable().iterator(),
-                indexRoutingTable -> Iterators.single((builder, params) -> {
-                    builder.startObject(indexRoutingTable.getIndex().getName());
-                    builder.startObject("shards");
-                    for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                        IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
-                            indexShardRoutingTable.shard(copy).toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                    return builder.endObject().endObject();
-                }),
+                indexRoutingTable -> {
+                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
+                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                        return Iterators.concat(
+                            Iterators.single(
+                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
+                            ),
+                            Iterators.forRange(
+                                0,
+                                indexShardRoutingTable.size(),
+                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                            ),
+                            Iterators.single((builder, params) -> builder.endArray())
+                        );
+                    });
+                    return Iterators.concat(
+                        Iterators.single(
+                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
+                        ),
+                        Iterators.flatMap(input, Function.identity()),
+                        Iterators.single((builder, params) -> builder.endObject().endObject())
+                    );
+                },
                 (builder, params) -> builder.endObject().endObject()
             ),
 
@@ -736,7 +751,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
-            this.transportVersions = new HashMap<>(state.transportVersions());
+            this.transportVersions = new HashMap<>(state.transportVersions);
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -763,8 +778,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        public Builder putTransportVersion(String node, TransportVersion version) {
-            transportVersions.put(node, Objects.requireNonNull(version, node));
+        public Builder putTransportVersion(String nodeId, TransportVersion version) {
+            transportVersions.put(nodeId, Objects.requireNonNull(version, nodeId));
             return this;
         }
 

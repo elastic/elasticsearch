@@ -16,7 +16,4 @@ coming::[8.10.0]
 [[breaking-changes-8.10]]
 === Breaking changes
 
-// tag::notable-breaking-changes[]
 There are no breaking changes in {es} 8.10.
-// end::notable-breaking-changes[]
-

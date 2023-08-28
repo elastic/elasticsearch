@@ -47,7 +47,6 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96919")
     public void testRed() throws Exception {
         try (InternalTestCluster internalCluster = internalCluster()) {
             internalCluster.startMasterOnlyNode(getVeryLowWatermarksSettings());

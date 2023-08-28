@@ -166,9 +166,16 @@ The API returns the following result:
             "rewrite_time": 451233,
             "collector": [
               {
-                "name": "SimpleTopScoreDocCollector",
-                "reason": "search_top_hits",
-                "time_in_nanos": 775274
+                "name": "QueryPhaseCollector",
+                "reason": "search_query_phase",
+                "time_in_nanos": 775274,
+                "children" : [
+                  {
+                    "name": "SimpleTopScoreDocCollector",
+                    "reason": "search_top_hits",
+                    "time_in_nanos": 775274
+                  }
+                ]
               }
             ]
           }
@@ -509,9 +516,16 @@ Looking at the previous example:
 --------------------------------------------------
 "collector": [
   {
-    "name": "SimpleTopScoreDocCollector",
-    "reason": "search_top_hits",
-    "time_in_nanos": 775274
+    "name": "QueryPhaseCollector",
+    "reason": "search_query_phase",
+    "time_in_nanos": 775274,
+    "children" : [
+      {
+        "name": "SimpleTopScoreDocCollector",
+        "reason": "search_top_hits",
+        "time_in_nanos": 775274
+      }
+    ]
   }
 ]
 --------------------------------------------------
@@ -520,14 +534,14 @@ Looking at the previous example:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 
-We see a single collector named `SimpleTopScoreDocCollector` wrapped into
-`CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and
-sorting" `Collector` used by {es}. The `reason` field attempts to give a plain
-English description of the class name. The `time_in_nanos` is similar to the
-time in the Query tree: a wall-clock time inclusive of all children. Similarly,
-`children` lists all sub-collectors. The `CancellableCollector` that wraps
-`SimpleTopScoreDocCollector` is used by {es} to detect if the current search was
-cancelled and stop collecting documents as soon as it occurs.
+We see a top-level collector named `QueryPhaseCollector` which holds a child
+`SimpleTopScoreDocCollector`. `SimpleTopScoreDocCollector` is the  default
+"scoring and sorting" `Collector` used by {es}. The `reason` field attempts
+to give a plain English description of the class name. The `time_in_nanos`
+is similar to the time in the Query tree: a wall-clock time inclusive of all
+children. Similarly, `children` lists all sub-collectors. When aggregations
+are requested, the `QueryPhaseCollector` will hold an additional child
+collector with reason `aggregation` that is the one performing aggregations.
 
 It should be noted that Collector times are **independent** from the Query
 times. They are calculated, combined, and normalized independently! Due to the
@@ -537,7 +551,7 @@ Collectors into the Query section, so they are displayed in separate portions.
 For reference, the various collector reasons are:
 
 [horizontal]
-`search_sorted`::
+`search_top_hits`::
 
     A collector that scores and sorts documents. This is the most common collector and will be seen in most
     simple searches
@@ -547,20 +561,13 @@ For reference, the various collector reasons are:
     A collector that only counts the number of documents that match the query, but does not fetch the source.
     This is seen when `size: 0` is specified
 
-`search_terminate_after_count`::
+`search_query_phase`::
 
-    A collector that terminates search execution after `n` matching documents have been found. This is seen
-    when the `terminate_after_count` query parameter has been specified
-
-`search_min_score`::
-
-    A collector that only returns matching documents that have a score greater than `n`. This is seen when
-    the top-level parameter `min_score` has been specified.
-
-`search_multi`::
-
-    A collector that wraps several other collectors. This is seen when combinations of search, aggregations,
-    global aggs, and post_filters are combined in a single search.
+    A collector that incorporates collecting top hits as well aggregations as part of the query phase.
+    It supports terminating the search execution after `n` matching documents have been found (when
+    `terminate_after` is specified), as well as only returning matching documents that have a score
+    greater than `n` (when `min_score` is provided). Additionally, it is able to filter matching top
+    hits based on the provided `post_filter`.
 
 `search_timeout`::
 
@@ -723,21 +730,14 @@ The API returns the following result:
             "rewrite_time": 4769,
             "collector": [
               {
-                "name": "MultiCollector",
-                "reason": "search_multi",
+                "name": "QueryPhaseCollector",
+                "reason": "search_query_phase",
                 "time_in_nanos": 1945072,
                 "children": [
                   {
-                    "name": "FilteredCollector",
-                    "reason": "search_post_filter",
-                    "time_in_nanos": 500850,
-                    "children": [
-                      {
-                        "name": "SimpleTopScoreDocCollector",
-                        "reason": "search_top_hits",
-                        "time_in_nanos": 22577
-                      }
-                    ]
+                    "name": "SimpleTopScoreDocCollector",
+                    "reason": "search_top_hits",
+                    "time_in_nanos": 22577
                   },
                   {
                     "name": "BucketCollectorWrapper: [BucketCollectorWrapper[bucketCollector=[my_scoped_agg, my_global_agg]]]",
@@ -772,9 +772,9 @@ major portions of the query are represented:
 2. The second `TermQuery` (message:search) represents the `post_filter` query.
 
 The Collector tree is fairly straightforward, showing how a single
-CancellableCollector wraps a MultiCollector which also wraps a FilteredCollector
-to execute the post_filter (and in turn wraps the normal scoring
-SimpleCollector), a BucketCollector to run all scoped aggregations.
+QueryPhaseCollector that holds the normal scoring SimpleTopScoreDocCollector
+used to collect top hits, as well as BucketCollectorWrapper to run all scoped
+aggregations.
 
 ===== Understanding MultiTermQuery output
 

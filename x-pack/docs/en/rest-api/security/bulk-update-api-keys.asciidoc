@@ -82,7 +82,7 @@ POST /_security/api_key
   "role_descriptors": {
     "role-a": {
       "cluster": ["all"],
-      "index": [
+      "indices": [
         {
           "names": ["index-a*"],
           "privileges": ["read"]
@@ -156,7 +156,7 @@ Further, assume that the owner user's permissions are:
 --------------------------------------------------
 {
   "cluster": ["all"],
-  "index": [
+  "indices": [
     {
       "names": ["*"],
       "privileges": ["all"]
@@ -178,7 +178,7 @@ POST /_security/api_key/_bulk_update
   ],
   "role_descriptors": {
     "role-a": {
-      "index": [
+      "indices": [
         {
           "names": ["*"],
           "privileges": ["write"]
@@ -215,7 +215,7 @@ Both API keys' effective permissions after the update will be the intersection o
 [source,js]
 --------------------------------------------------
 {
-  "index": [
+  "indices": [
     {
       "names": ["*"],
       "privileges": ["write"]
@@ -259,7 +259,7 @@ The API keys' effective permissions after the update will be the same as the own
 --------------------------------------------------
 {
   "cluster": ["all"],
-  "index": [
+  "indices": [
     {
       "names": ["*"],
       "privileges": ["all"]
@@ -275,7 +275,7 @@ For the next example, assume that the owner user's permissions have changed from
 --------------------------------------------------
 {
   "cluster": ["manage_security"],
-  "index": [
+  "indices": [
     {
       "names": ["*"],
       "privileges": ["read"]
@@ -318,7 +318,7 @@ Resulting in the following effective permissions for both API keys:
 --------------------------------------------------
 {
   "cluster": ["manage_security"],
-  "index": [
+  "indices": [
     {
       "names": ["*"],
       "privileges": ["read"]

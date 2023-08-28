@@ -9,9 +9,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,12 +25,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1500,97 +1502,141 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        DataLifecycle lifecycle30d = new DataLifecycle(TimeValue.timeValueDays(30));
+        DataStreamLifecycle emptyLifecycle = new DataStreamLifecycle();
+
+        DataStreamLifecycle lifecycle30d = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(30)).build();
         String ct30d = "ct_30d";
         state = addComponentTemplate(service, state, ct30d, lifecycle30d);
 
-        DataLifecycle lifecycle45d = new DataLifecycle(TimeValue.timeValueDays(45));
+        DataStreamLifecycle lifecycle45d = DataStreamLifecycle.newBuilder()
+            .dataRetention(TimeValue.timeValueDays(45))
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(30),
+                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                        )
+                    )
+                )
+            )
+            .build();
         String ct45d = "ct_45d";
         state = addComponentTemplate(service, state, ct45d, lifecycle45d);
 
-        DataLifecycle lifecycleNullRetention = new DataLifecycle.Builder().dataRetention(DataLifecycle.Retention.NULL).build();
+        DataStreamLifecycle lifecycleNullRetention = new DataStreamLifecycle.Builder().dataRetention(DataStreamLifecycle.Retention.NULL)
+            .build();
         String ctNullRetention = "ct_null_retention";
         state = addComponentTemplate(service, state, ctNullRetention, lifecycleNullRetention);
 
         String ctEmptyLifecycle = "ct_empty_lifecycle";
-        state = addComponentTemplate(service, state, ctEmptyLifecycle, DataLifecycleTests.IMPLICIT_INFINITE_RETENTION);
+        state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
 
-        String ctNullLifecycle = "ct_null_lifecycle";
-        state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
+        String ctDisabledLifecycle = "ct_disabled_lifecycle";
+        state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
         state = addComponentTemplate(service, state, ctNoLifecycle, null);
 
         // Component A: -
-        // Component B: "lifecycle": {}
+        // Component B: "lifecycle": {"enabled": true}
         // Composable Z: -
-        // Result: "lifecycle": {}
-        assertLifecycleResolution(
-            service,
-            state,
-            List.of(ctNoLifecycle, ctEmptyLifecycle),
-            null,
-            DataLifecycleTests.IMPLICIT_INFINITE_RETENTION
-        );
+        // Result: "lifecycle": {"enabled": true}
+        assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
 
-        // Component A: "lifecycle": {}
+        // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "30d"}
         // Composable Z: -
-        // Result: "lifecycle": {"retention": "30d"}
+        // Result: "lifecycle": {"enabled": true, "retention": "30d"}
         assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": {"retention": "45d"}
-        // Composable Z: "lifecycle": {}
-        // Result: "lifecycle": {"retention": "45d"}
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), DataLifecycleTests.IMPLICIT_INFINITE_RETENTION, lifecycle45d);
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"enabled": true}
+        // Result: "lifecycle": {"enabled": true, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
 
-        // Component A: "lifecycle": {}
-        // Component B: "lifecycle": {"retention": "45d"}
+        // Component A: "lifecycle": {"enabled": true}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": "30d"}
-        // Result: "lifecycle": {"retention": "30d"}
-        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct45d), lifecycle30d, lifecycle30d);
+        // Result: "lifecycle": {"enabled": true, "retention": "30d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctEmptyLifecycle, ct45d),
+            lifecycle30d,
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle30d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": null}
         // Composable Z: -
-        // Result: "lifecycle": {"retention": null}, here the result of the composition is with retention explicitly
-        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to infinite retention.
         assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
 
-        // Component A: "lifecycle": {}
-        // Component B: "lifecycle": {"retention": "45d"}
+        // Component A: "lifecycle": {"enabled": true}
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": null}
-        // Result: "lifecycle": {"retention": null} , here the result of the composition is with retention explicitly
-        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
-        assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct45d), lifecycleNullRetention, lifecycleNullRetention);
+        // Result: "lifecycle": {"enabled": true, "retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
+        // here the result of the composition is with retention explicitly nullified, but effectively this is equivalent to infinite
+        // retention.
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ctEmptyLifecycle, ct45d),
+            lifecycleNullRetention,
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(DataStreamLifecycle.Retention.NULL)
+                .downsampling(lifecycle45d.getDownsampling())
+                .build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": {"retention": "45d"}
-        // Composable Z: "lifecycle": null
-        // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), Template.NO_LIFECYCLE, null);
+        // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"enabled": false}
+        // Result: "lifecycle": {"enabled": false, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ct45d),
+            DataStreamLifecycle.newBuilder().enabled(false).build(),
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle45d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .enabled(false)
+                .build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": null
-        // Composable Z: -
-        // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), null, null);
+        // Component B: "lifecycle": {"enabled": false}
+        // Composable Z:
+        // Result: "lifecycle": {"enabled": false, "retention": "30d"}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ctDisabledLifecycle),
+            null,
+            DataStreamLifecycle.newBuilder().dataRetention(lifecycle30d.getDataRetention()).enabled(false).build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": null
-        // Composable Z: "lifecycle": {"retention": "45d"}
-        // Result: "lifecycle": {"retention": "45d"}
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), lifecycle45d, lifecycle45d);
+        // Component B: "lifecycle": {"enabled": false}
+        // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
     private ClusterState addComponentTemplate(
         MetadataIndexTemplateService service,
         ClusterState state,
         String name,
-        DataLifecycle dataLifecycle
+        DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, dataLifecycle), null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1598,8 +1644,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service,
         ClusterState state,
         List<String> composeOf,
-        DataLifecycle lifecycleZ,
-        DataLifecycle expected
+        DataStreamLifecycle lifecycleZ,
+        DataStreamLifecycle expected
     ) throws Exception {
         ComposableIndexTemplate it = new ComposableIndexTemplate(
             List.of(randomAlphaOfLength(10) + "*"),
@@ -1613,13 +1659,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
-
-        if (expected == null) {
-            assertThat(resolvedLifecycle, nullValue());
-        } else {
-            assertThat(resolvedLifecycle, equalTo(expected));
-        }
+        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
+        assertThat(resolvedLifecycle, equalTo(expected));
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -1836,7 +1877,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, new DataLifecycle(randomMillisUpToYear9999())),
+            new Template(null, null, null, DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()),
             null,
             null
         );
@@ -1974,7 +2015,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2003,7 +2044,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2118,7 +2159,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
             )
             .build();
@@ -2147,7 +2188,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();
@@ -2212,7 +2253,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
+                            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
             )
             .build();

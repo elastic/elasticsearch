@@ -12,7 +12,9 @@ apply plugin: 'com.github.johnrengelman.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
-archivesBaseName = 'elasticsearch-sql-cli'
+base {
+  archivesName = 'elasticsearch-sql-cli'
+}
 
 description = 'Command line interface to Elasticsearch that speaks SQL'
 

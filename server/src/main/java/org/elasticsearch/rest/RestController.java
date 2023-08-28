@@ -57,7 +57,6 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
@@ -664,17 +663,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
         throws IOException {
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
-            builder.startObject();
-            {
-                builder.field(
-                    "error",
-                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
-                );
-            }
-            builder.endObject();
-            channel.sendResponse(new RestResponse(NOT_FOUND, builder));
-        }
+        String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
+        channel.sendResponse(new RestResponse(channel, new ApiNotAvailableException(msg)));
     }
 
     /**

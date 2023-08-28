@@ -36,7 +36,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.synonyms.SynonymsAPI;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,6 +53,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
@@ -118,17 +118,10 @@ public class SystemIndices {
     /**
      * This is the source for non-plugin system features.
      */
-    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS;
-
-    static {
-        Collection<Feature> indicesFeatures = new ArrayList<>();
-        indicesFeatures.add(new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)));
-        if (SynonymsAPI.isEnabled()) {
-            indicesFeatures.add(new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)));
-        }
-        SERVER_SYSTEM_FEATURE_DESCRIPTORS = indicesFeatures.stream()
-            .collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
-    }
+    private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
+        new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
+        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
+    ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     /**
      * The node's full list of system features is stored here. The map is keyed
@@ -177,7 +170,7 @@ public class SystemIndices {
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
             Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
-            Integer.MAX_VALUE
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
     }
@@ -261,7 +254,9 @@ public class SystemIndices {
             .collect(
                 Collectors.toUnmodifiableMap(
                     Entry::getKey,
-                    entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+                    entry -> new CharacterRunAutomaton(
+                        MinimizationOperations.minimize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                    )
                 )
             );
     }
@@ -421,7 +416,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -432,7 +427,9 @@ public class SystemIndices {
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+        return new CharacterRunAutomaton(
+            MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+        );
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
@@ -452,7 +449,7 @@ public class SystemIndices {
             .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
             .reduce(Operations::union);
 
-        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
+        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) : EMPTY;
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> featureDescriptors) {
@@ -465,7 +462,7 @@ public class SystemIndices {
             .stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
-        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
@@ -698,6 +695,12 @@ public class SystemIndices {
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
         return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMappingsVersions() {
+        return getSystemIndexDescriptors().stream()
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getPrimaryIndex, SystemIndexDescriptor::getMappingsVersion));
     }
 
     /**

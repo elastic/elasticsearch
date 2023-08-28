@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,10 +20,12 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -42,7 +43,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(
             Metadata.builder()
-                .put(IndexMetadata.builder(".my-system").system(true).settings(indexSettings(Version.CURRENT, 1, 0)).build(), true)
+                .put(IndexMetadata.builder(".my-system").system(true).settings(indexSettings(IndexVersion.current(), 1, 0)).build(), true)
                 .build()
         )
         .build();
@@ -70,7 +71,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         this.action = new TransportUpdateSettingsAction(
             mock(TransportService.class),
             mock(ClusterService.class),
-            null,
+            mock(ThreadPool.class),
             metadataUpdateSettingsService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

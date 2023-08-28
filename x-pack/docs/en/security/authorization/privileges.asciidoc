@@ -20,6 +20,28 @@ See <<delete-async-search,delete async search>> API for more informations.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
+`cross_cluster_replication`::
+beta:[] Privileges to connect to remote clusters configured with the API key based model
+for cross-cluster replication.
++
+--
+NOTE: This privilege should _not_ be directly granted. It is used internally by
+<<security-api-create-cross-cluster-api-key>> and <<security-api-update-cross-cluster-api-key>>
+to manage cross-cluster API keys.
+
+--
+
+`cross_cluster_search`::
+beta:[] Privileges to connect to remote clusters configured with the API key based model
+for cross-cluster search.
++
+--
+NOTE: This privilege should _not_ be directly granted. It is used internally by
+<<security-api-create-cross-cluster-api-key>> and <<security-api-update-cross-cluster-api-key>>
+to manage cross-cluster API keys.
+
+--
+
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
 
@@ -30,7 +52,7 @@ obtaining snapshot and restore status. This privilege does not include the
 ability to manage security.
 
 `manage_api_key`::
-All security-related operations on {es} API keys including
+All security-related operations on {es} REST API keys including
 <<security-api-create-api-key,creating new API keys>>,
 <<security-api-get-api-key,retrieving information about API keys>>,
 <<security-api-query-api-key,querying API keys>>,
@@ -108,6 +130,15 @@ rollup jobs.
 `manage_saml`::
 Enables the use of internal {es} APIs to initiate and manage SAML authentication
 on behalf of other users.
+
+`manage_search_application`::
+All CRUD operations on <<search-application-apis, search applications>>.
+
+`manage_search_query_rules`::
+All CRUD operations on <<query-rules-apis, query rules>>.
+
+`manage_search_synonyms`::
+All synonyms management operations on <<synonyms-apis>>.
 
 `manage_security`::
 All security-related operations such as CRUD operations on users and roles and
@@ -200,7 +231,7 @@ on all {es} API keys.
 
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote
-cluster to enable <<remote-clusters-security,{ccs}>>.
+cluster to enable <<remote-clusters,{ccs}>>.
 
 [[privileges-list-indices]]
 ==== Indices privileges
@@ -269,6 +300,22 @@ aliases to be added to the index once created. In that case the request
 requires the `manage` privilege as well, on both the index and the aliases
 names.
 
+`cross_cluster_replication`::
+beta:[] Privileges to perform cross-cluster replication for indices located on remote clusters
+configured with the API key based model. This privilege should only be used for
+the `privileges` field of <<roles-remote-indices-priv,remote indices privileges>>.
+
+`cross_cluster_replication_internal`::
+beta:[] Privileges to perform supporting actions for cross-cluster replication from remote clusters
+configured with the API key based model.
++
+--
+NOTE: This privilege should _not_ be directly granted. It is used internally by
+<<security-api-create-cross-cluster-api-key>> and <<security-api-update-cross-cluster-api-key>>
+to manage cross-cluster API keys.
+
+--
+
 `delete`::
 Privilege to delete documents.
 
@@ -324,7 +371,7 @@ more like this, multi percolate/search/termvector, percolate, scroll,
 clear_scroll, search, suggest, tv).
 
 `read_cross_cluster`::
-Read-only access to the search action from a <<remote-clusters-security,remote cluster>>.
+Read-only access to the search action from a <<remote-clusters,remote cluster>>.
 
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, exists,

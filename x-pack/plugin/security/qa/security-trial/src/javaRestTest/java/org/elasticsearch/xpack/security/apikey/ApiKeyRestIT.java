@@ -18,7 +18,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -41,6 +40,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -196,6 +196,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         for (Map<String, Object> apiKeyMap : apiKeyMaps) {
             final String name = (String) apiKeyMap.get("name");
+            assertThat(apiKeyMap, not(hasKey("access")));
             @SuppressWarnings("unchecked")
             final var roleDescriptors = (Map<String, Object>) apiKeyMap.get("role_descriptors");
 
@@ -595,8 +596,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testRemoteIndicesSupportForApiKeys() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
         createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
@@ -685,8 +684,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -773,6 +770,27 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             )
         );
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+                "search": [
+                  {
+                    "names": [
+                      "metrics"
+                    ],
+                    "query": "{\\"term\\":{\\"score\\":42}}",
+                    "allow_restricted_indices": false
+                  }
+                ],
+                "replication": [
+                  {
+                    "names": [
+                      "logs"
+                    ],
+                    "allow_restricted_indices": true
+                  }
+                ]
+
+            }""", false)));
         assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
         final Request deleteRequest = new Request("DELETE", "/_security/api_key");
@@ -798,8 +816,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCannotCreateDerivedCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
         setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
         createRestApiKeyRequest.setJsonEntity("{\"name\":\"rest-key\"}");
@@ -829,8 +845,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {"name": "my-key"}""", "Required [access]");
 
@@ -854,8 +868,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyDoesNotAllowDlsFlsForReplication() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "name": "key",
@@ -886,8 +898,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testCrossClusterApiKeyRequiresName() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         assertBadCreateCrossClusterApiKeyRequest("""
             {
               "access": {
@@ -897,7 +907,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -957,6 +966,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse1.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse1.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "data" ],
+                  "query": "{\\"term\\":{\\"score\\":42}}",
+                  "allow_restricted_indices": false
+                }
+              ],
+              "replication": [
+                {
+                  "names": [ "logs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse1.evaluate("api_keys.0.metadata"), equalTo(Map.of("tag", "shared", "points", 0)));
 
         // Update metadata only
@@ -973,6 +998,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse2.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptor1)))
         );
+        assertThat(fetchResponse2.evaluate("api_keys.0.access"), equalTo(fetchResponse1.evaluate("api_keys.0.access")));
         assertThat(fetchResponse2.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Update access only
@@ -1005,6 +1031,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse3.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse3.evaluate("api_keys.0.access"), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "search": [
+                {
+                  "names": [ "blogs" ],
+                  "allow_restricted_indices": false
+                }
+              ]
+            }""", false)));
         assertThat(fetchResponse3.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
 
         // Noop update
@@ -1040,11 +1075,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse4.evaluate("api_keys.0.role_descriptors"),
             equalTo(Map.of("cross_cluster", XContentTestUtils.convertToMap(updatedRoleDescriptors2)))
         );
+        assertThat(fetchResponse4.evaluate("api_keys.0.access"), equalTo(fetchResponse3.evaluate("api_keys.0.access")));
         assertThat(fetchResponse4.evaluate("api_keys.0.metadata"), equalTo(Map.of("env", "prod", "magic", 42)));
     }
 
     public void testUpdateFailureCases() throws IOException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createRequest.setJsonEntity("""
             {
@@ -1136,6 +1171,28 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ResponseException e8 = expectThrows(ResponseException.class, () -> client().performRequest(anotherUpdateRequest));
         assertThat(e8.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(e8.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/update] is unauthorized"));
+    }
+
+    public void testCrossClusterApiKeyAccessInResponseCanBeUsedAsInputForUpdate() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "my-key",
+              "access": %s
+            }""", randomCrossClusterApiKeyAccessField()));
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        final String apiKeyId = assertOKAndCreateObjectPath(client().performRequest(createRequest)).evaluate("id");
+        final ObjectPath fetchResponse = fetchCrossClusterApiKeyById(apiKeyId);
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + apiKeyId);
+        updateRequest.setJsonEntity(Strings.format("""
+            {
+              "access": %s
+            }""", XContentTestUtils.convertToXContent(fetchResponse.evaluate("api_keys.0.access"), XContentType.JSON).utf8ToString()));
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath updateResponse4 = assertOKAndCreateObjectPath(client().performRequest(updateRequest));
+        assertThat(updateResponse4.evaluate("updated"), is(false));
     }
 
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
@@ -1524,6 +1581,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
         assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("cross_cluster"));
+        assertThat(fetchResponse.evaluate("api_keys.0.access"), notNullValue());
         return fetchResponse;
     }
 

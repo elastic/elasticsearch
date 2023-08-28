@@ -21,7 +21,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
-import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
@@ -128,7 +128,7 @@ public final class AuthorizationUtils {
             case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
-            case DLM_ORIGIN:
+            case DATA_STREAM_LIFECYCLE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.DATA_STREAM_LIFECYCLE_USER, version, consumer);
                 break;
             case WATCHER_ORIGIN:

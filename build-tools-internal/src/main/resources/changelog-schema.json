@@ -37,6 +37,7 @@
             "Distributed",
             "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -263,6 +264,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",

@@ -14,7 +14,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-mapper-version'
+base {
+  archivesName = 'x-pack-mapper-version'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

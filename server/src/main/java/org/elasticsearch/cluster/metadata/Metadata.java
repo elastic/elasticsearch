@@ -1270,7 +1270,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     /**
      * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
-     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * data stream that's potentially managed by data stream lifecycle and the value of the
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
         if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
@@ -1285,8 +1286,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
-            // index has both ILM and DLM configured so let's check which is preferred
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
+            // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
 
@@ -1433,7 +1434,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        return Iterators.concat(start, Iterators.<ToXContent>single((builder, params) -> {
+        return Iterators.concat(start, Iterators.single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
             builder.startObject("cluster_coordination");
@@ -1443,16 +1444,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             persistentSettings,
             ChunkedToXContentHelper.wrapWithObject(
                 "templates",
-                templates().values()
-                    .stream()
-                    .map(
-                        template -> (ToXContent) (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(
-                            template,
-                            builder,
-                            params
-                        )
-                    )
-                    .iterator()
+                Iterators.map(
+                    templates().values().iterator(),
+                    template -> (builder, params) -> IndexTemplateMetadata.Builder.toXContentWithTypes(template, builder, params)
+                )
             ),
             indices,
             Iterators.flatMap(
@@ -2567,7 +2562,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
                 final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
                     .stream()
-                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
                     .toList();

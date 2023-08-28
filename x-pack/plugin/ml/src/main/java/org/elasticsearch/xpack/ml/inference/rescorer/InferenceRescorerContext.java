@@ -7,49 +7,85 @@
 
 package org.elasticsearch.xpack.ml.inference.rescorer;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ValueFetcher;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class InferenceRescorerContext extends RescoreContext {
 
-    record FieldValueFetcher(String fieldName, ValueFetcher valueFetcher) {}
-
     final SearchExecutionContext executionContext;
     final LocalModel inferenceDefinition;
-    final List<FieldValueFetcher> valueFetcherList;
+    final LearnToRankConfig inferenceConfig;
 
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
+     * @param inferenceConfig The inference config containing updated and rewritten parameters
      * @param inferenceDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
     public InferenceRescorerContext(
         int windowSize,
         Rescorer rescorer,
+        LearnToRankConfig inferenceConfig,
         LocalModel inferenceDefinition,
         SearchExecutionContext executionContext
     ) {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
         this.inferenceDefinition = inferenceDefinition;
-        if (inferenceDefinition != null) {
-            this.valueFetcherList = inferenceDefinition.inputFields().stream().map(s -> {
-                MappedFieldType mappedFieldType = executionContext.getFieldType(s);
-                if (mappedFieldType != null) {
-                    return new InferenceRescorerContext.FieldValueFetcher(s, mappedFieldType.valueFetcher(executionContext, null));
-                }
-                return null;
-            }).filter(Objects::nonNull).toList();
-        } else {
-            valueFetcherList = List.of();
+        this.inferenceConfig = inferenceConfig;
+    }
+
+    List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {
+        assert this.inferenceDefinition != null && this.inferenceConfig != null;
+        List<FeatureExtractor> featureExtractors = new ArrayList<>();
+        if (this.inferenceDefinition.inputFields().isEmpty() == false) {
+            featureExtractors.add(
+                new FieldValueFeatureExtractor(new ArrayList<>(this.inferenceDefinition.inputFields()), this.executionContext)
+            );
         }
+        List<Weight> weights = new ArrayList<>();
+        List<String> queryFeatureNames = new ArrayList<>();
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
+            if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
+                Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
+                Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
+                weights.add(weight);
+                queryFeatureNames.add(queryExtractorBuilder.featureName());
+            }
+        }
+        if (weights.isEmpty() == false) {
+            featureExtractors.add(new QueryFeatureExtractor(queryFeatureNames, weights));
+        }
+
+        return featureExtractors;
+    }
+
+    @Override
+    public List<ParsedQuery> getParsedQueries() {
+        if (this.inferenceConfig == null) {
+            return List.of();
+        }
+        List<ParsedQuery> parsedQueries = new ArrayList<>();
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
+            if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
+                parsedQueries.add(executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()));
+            }
+        }
+        return parsedQueries;
     }
 }

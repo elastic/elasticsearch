@@ -1,0 +1,5 @@
+pr: 97581
+summary: Add Setting to optionally use mmap for shared cache IO
+area: Snapshot/Restore
+type: enhancement
+issues: []

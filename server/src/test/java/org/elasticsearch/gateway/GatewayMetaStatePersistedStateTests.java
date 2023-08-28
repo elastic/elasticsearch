@@ -13,7 +13,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -38,6 +37,7 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -167,7 +167,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
     private static IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
         return IndexMetadata.builder(indexName)
-            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, indexName).build())
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, indexName).build())
             .version(version)
             .build();
     }

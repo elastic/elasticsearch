@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
@@ -22,6 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
 /**
@@ -127,6 +131,83 @@ public interface ChunkedRestResponseBody {
             @Override
             public String getResponseContentTypeString() {
                 return builder.getResponseContentTypeString();
+            }
+        };
+    }
+
+    /**
+     * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
+     * consumer of a {@link Writer}. The last chunk that the iterator yields must write at least one byte.
+     */
+    static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
+        return new ChunkedRestResponseBody() {
+            private RecyclerBytesStreamOutput currentOutput;
+            private final Writer writer = new OutputStreamWriter(new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    assert currentOutput != null;
+                    currentOutput.write(b);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    assert currentOutput != null;
+                    currentOutput.write(b, off, len);
+                }
+
+                @Override
+                public void flush() {
+                    assert currentOutput != null;
+                    currentOutput.flush();
+                }
+
+                @Override
+                public void close() {
+                    assert currentOutput != null;
+                    currentOutput.flush();
+                }
+            }, StandardCharsets.UTF_8);
+
+            @Override
+            public boolean isDone() {
+                return chunkIterator.hasNext() == false;
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+                try {
+                    assert currentOutput == null;
+                    currentOutput = new RecyclerBytesStreamOutput(recycler);
+
+                    while (chunkIterator.hasNext() && currentOutput.size() < sizeHint) {
+                        chunkIterator.next().accept(writer);
+                    }
+
+                    if (chunkIterator.hasNext()) {
+                        writer.flush();
+                    } else {
+                        writer.close();
+                    }
+
+                    final var chunkOutput = currentOutput;
+                    final var result = new ReleasableBytesReference(
+                        chunkOutput.bytes(),
+                        () -> Releasables.closeExpectNoException(chunkOutput)
+                    );
+                    currentOutput = null;
+                    return result;
+                } finally {
+                    if (currentOutput != null) {
+                        assert false : "failure encoding text chunk";
+                        Releasables.closeExpectNoException(currentOutput);
+                        currentOutput = null;
+                    }
+                }
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return contentType;
             }
         };
     }

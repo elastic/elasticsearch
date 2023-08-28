@@ -530,7 +530,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
-
             Terms terms = null;
             if (isIndexed()) {
                 terms = MultiTerms.getTerms(reader, name());
@@ -541,11 +540,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(prefix) : Automata.makeString(prefix);
-            a = Operations.concatenate(a, Automata.makeAnyString());
-            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(prefix)
+                : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+            assert a.isDeterministic();
+            a = MinimizationOperations.minimize(a, 0);
 
-            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
 
             BytesRef searchBytes = searchAfter == null ? null : new BytesRef(searchAfter);
 

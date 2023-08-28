@@ -32,7 +32,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +66,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,12 +140,12 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupNativeUser() throws IOException {
-        final Map<String, Object> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("roles", Collections.singletonList("kibana_admin"))
-            .put("full_name", "Thor Son of Odin")
-            .put("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16))
-            .put("metadata", Collections.singletonMap("is_native", true))
-            .map();
+        final Map<String, Object> body = Map.ofEntries(
+            entry("roles", Collections.singletonList("kibana_admin")),
+            entry("full_name", "Thor Son of Odin"),
+            entry("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16)),
+            entry("metadata", Collections.singletonMap("is_native", true))
+        );
         final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));
         assertOK(response);
     }

@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Index-specific deprecation checks
@@ -212,7 +211,7 @@ public class IndexDeprecationChecks {
         );
 
         if (fields.size() > 0) {
-            String detailsMessageBeginning = fields.stream().collect(Collectors.joining(" "));
+            String detailsMessageBeginning = String.join(" ", fields);
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Date fields use deprecated camel case formats",

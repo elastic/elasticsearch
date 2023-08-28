@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
@@ -61,7 +62,7 @@ import java.util.TreeMap;
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
 @SuppressWarnings({"checkstyle:linelength", "deprecation"})
-public record IndexVersion(int id, Version luceneVersion) implements Comparable<IndexVersion>, ToXContentFragment {
+public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment {
 
     /*
      * NOTE: IntelliJ lies!
@@ -143,6 +144,8 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     public static final IndexVersion V_7_17_9 = registerIndexVersion(7_17_09_99, Version.LUCENE_8_11_1, "8044989f-77ef-4d6d-9dd8-1bdd805cef74");
     public static final IndexVersion V_7_17_10 = registerIndexVersion(7_17_10_99, Version.LUCENE_8_11_1, "66b743fb-8be6-443f-8920-d8c5ed561857");
     public static final IndexVersion V_7_17_11 = registerIndexVersion(7_17_11_99, Version.LUCENE_8_11_1, "f1935acc-1af9-44b0-97e9-67112d333753");
+    public static final IndexVersion V_7_17_12 = registerIndexVersion(7_17_12_99, Version.LUCENE_8_11_1, "1a0719f2-96f4-4df5-b20d-62244e27d7d4");
+    public static final IndexVersion V_7_17_13 = registerIndexVersion(7_17_13_99, Version.LUCENE_8_11_1, "171a73c6-3ece-4f10-804f-7104a97b557c");
     public static final IndexVersion V_8_0_0 = registerIndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = registerIndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = registerIndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");
@@ -174,14 +177,16 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
     public static final IndexVersion V_8_8_1 = registerIndexVersion(8_08_01_99, Version.LUCENE_9_6_0, "a613499e-ec1a-4b0b-81d3-a766aff3c27c");
     public static final IndexVersion V_8_8_2 = registerIndexVersion(8_08_02_99, Version.LUCENE_9_6_0, "9db9d888-6be8-4a58-825c-f423fd8c6b00");
     public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
+    public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
+    public static final IndexVersion V_8_9_2 = registerIndexVersion(8_09_02_99, Version.LUCENE_9_7_0, "14c7d64c-9e25-4265-b4fa-e0c5aca67f14");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
+    public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_7_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
-
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_11_0);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {
@@ -286,11 +291,6 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         out.writeVInt(version.id);
     }
 
-    @Deprecated(forRemoval = true)
-    public org.elasticsearch.Version toVersion() {
-        return org.elasticsearch.Version.fromId(id);
-    }
-
     /**
      * Returns the minimum version of {@code version1} and {@code version2}
      */
@@ -313,39 +313,25 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return CurrentHolder.CURRENT;
     }
 
-    public boolean after(IndexVersion version) {
-        return version.id < id;
-    }
-
-    public boolean onOrAfter(IndexVersion version) {
-        return version.id <= id;
-    }
-
-    public boolean before(IndexVersion version) {
-        return version.id > id;
-    }
-
-    public boolean onOrBefore(IndexVersion version) {
-        return version.id >= id;
-    }
-
-    public boolean between(IndexVersion lowerInclusive, IndexVersion upperExclusive) {
-        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
-        return onOrAfter(lowerInclusive) && before(upperExclusive);
-    }
-
     public boolean isLegacyIndexVersion() {
         return before(MINIMUM_COMPATIBLE);
     }
 
-    @Override
-    public int compareTo(IndexVersion other) {
-        return Integer.compare(this.id, other.id);
+    public static IndexVersion getMinimumCompatibleIndexVersion(int versionId) {
+        int major = versionId / 1_000_000;
+        if (major == IndexVersion.current().id() / 1_000_000) {
+            // same compatibility version as current
+            return IndexVersion.MINIMUM_COMPATIBLE;
+        } else {
+            int compatId = (major-1) * 1_000_000;
+            if (major <= 8) compatId += 99;
+            return IndexVersion.fromId(compatId);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(toString());
+        return builder.value(id);
     }
 
     @Override

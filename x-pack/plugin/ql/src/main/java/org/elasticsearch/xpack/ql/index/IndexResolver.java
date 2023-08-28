@@ -272,7 +272,7 @@ public class IndexResolver {
                     indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
                 }
 
-                client.admin().indices().getIndex(indexRequest, wrap(indices -> {
+                client.admin().indices().getIndex(indexRequest, listener.delegateFailureAndWrap((delegate, indices) -> {
                     if (indices != null) {
                         for (String indexName : indices.getIndices()) {
                             boolean isFrozen = retrieveFrozenIndices
@@ -282,8 +282,8 @@ public class IndexResolver {
                             );
                         }
                     }
-                    resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
-                }, listener::onFailure));
+                    resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, delegate);
+                }));
             } else {
                 resolveRemoteIndices(clusterWildcard, indexWildcards, javaRegex, retrieveFrozenIndices, indexInfos, listener);
             }
@@ -363,7 +363,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
         );
     }
 
@@ -379,7 +379,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            ActionListener.wrap(response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
         );
     }
 
@@ -455,8 +455,13 @@ public class IndexResolver {
             );
         }
 
-        final String indexName = fieldCapsResponse.getIndices()[0];
-        return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexName, emptyMap()) : indices.get(0));
+        String[] indexNames = fieldCapsResponse.getIndices();
+        if (indices.isEmpty()) {
+            return IndexResolution.valid(new EsIndex(indexNames[0], emptyMap(), Set.of()));
+        } else {
+            EsIndex idx = indices.get(0);
+            return IndexResolution.valid(new EsIndex(idx.name(), idx.mapping(), Set.of(indexNames)));
+        }
     }
 
     private static EsField createField(
@@ -586,17 +591,17 @@ public class IndexResolver {
         ActionListener<List<EsIndex>> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
-        client.fieldCaps(fieldRequest, wrap(response -> {
+        client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
-                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+                delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
             }, ex -> {
                 if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
                 } else {
-                    listener.onFailure(ex);
+                    delegate.onFailure(ex);
                 }
             }));
-        }, listener::onFailure));
+        }));
 
     }
 
@@ -704,7 +709,7 @@ public class IndexResolver {
                     for (String concreteIndex : concreteIndices) {
                         if (aliases.containsKey(concreteIndex)) {
                             List<AliasMetadata> concreteIndexAliases = aliases.get(concreteIndex);
-                            concreteIndexAliases.stream().forEach(e -> uniqueAliases.add(e.alias()));
+                            concreteIndexAliases.forEach(e -> uniqueAliases.add(e.alias()));
                         }
                     }
                     concreteIndices.addAll(uniqueAliases);
@@ -777,7 +782,7 @@ public class IndexResolver {
         // return indices in ascending order
         List<EsIndex> foundIndices = new ArrayList<>(indices.size());
         for (Entry<String, Fields> entry : indices.entrySet()) {
-            foundIndices.add(new EsIndex(entry.getKey(), entry.getValue().hierarchicalMapping));
+            foundIndices.add(new EsIndex(entry.getKey(), entry.getValue().hierarchicalMapping, Set.of(entry.getKey())));
         }
         foundIndices.sort(Comparator.comparing(EsIndex::name));
         return foundIndices;

@@ -135,7 +135,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         IndicesService indicesService
     ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
+        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool);
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 

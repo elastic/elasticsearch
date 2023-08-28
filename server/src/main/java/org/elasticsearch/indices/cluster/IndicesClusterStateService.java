@@ -931,10 +931,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Override
         public void accept(final IndexShard.ShardFailure shardFailure) {
             final ShardRouting shardRouting = shardFailure.routing();
-            if (shardRouting.initializing()) {
-                // no need to fail the shard here during recovery, the recovery code will take care of failing it
-                return;
-            }
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
                     failAndRemoveShard(

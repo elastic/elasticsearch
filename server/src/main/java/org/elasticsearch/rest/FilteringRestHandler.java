@@ -11,10 +11,10 @@ package org.elasticsearch.rest;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class AbstractDelegatingRestHandler implements RestHandler {
+public abstract class FilteringRestHandler implements RestHandler {
     private final RestHandler delegate;
 
-    protected AbstractDelegatingRestHandler(RestHandler delegate) {
+    protected FilteringRestHandler(RestHandler delegate) {
         this.delegate = Objects.requireNonNull(delegate);
     }
 
@@ -56,5 +56,4 @@ public abstract class AbstractDelegatingRestHandler implements RestHandler {
     public boolean mediaTypesValid(RestRequest request) {
         return delegate.mediaTypesValid(request);
     }
-
 }

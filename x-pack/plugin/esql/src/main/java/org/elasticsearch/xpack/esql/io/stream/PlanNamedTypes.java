@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
@@ -294,6 +295,7 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, Acos.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Asin.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Atan.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, Ceil.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Cos.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Cosh.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Floor.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -438,12 +440,12 @@ public final class PlanNamedTypes {
     }
 
     static EvalExec readEvalExec(PlanStreamInput in) throws IOException {
-        return new EvalExec(Source.EMPTY, in.readPhysicalPlanNode(), readNamedExpressions(in));
+        return new EvalExec(Source.EMPTY, in.readPhysicalPlanNode(), readAliases(in));
     }
 
     static void writeEvalExec(PlanStreamOutput out, EvalExec evalExec) throws IOException {
         out.writePhysicalPlanNode(evalExec.child());
-        writeNamedExpressions(out, evalExec.fields());
+        writeAliases(out, evalExec.fields());
     }
 
     static EnrichExec readEnrichExec(PlanStreamInput in) throws IOException {
@@ -582,12 +584,12 @@ public final class PlanNamedTypes {
     }
 
     static RowExec readRowExec(PlanStreamInput in) throws IOException {
-        return new RowExec(Source.EMPTY, readNamedExpressions(in));
+        return new RowExec(Source.EMPTY, readAliases(in));
     }
 
     static void writeRowExec(PlanStreamOutput out, RowExec rowExec) throws IOException {
         assert rowExec.children().size() == 0;
-        writeNamedExpressions(out, rowExec.fields());
+        writeAliases(out, rowExec.fields());
     }
 
     @SuppressWarnings("unchecked")
@@ -655,12 +657,12 @@ public final class PlanNamedTypes {
     }
 
     static Eval readEval(PlanStreamInput in) throws IOException {
-        return new Eval(Source.EMPTY, in.readLogicalPlanNode(), readNamedExpressions(in));
+        return new Eval(Source.EMPTY, in.readLogicalPlanNode(), readAliases(in));
     }
 
     static void writeEval(PlanStreamOutput out, Eval eval) throws IOException {
         out.writeLogicalPlanNode(eval.child());
-        writeNamedExpressions(out, eval.fields());
+        writeAliases(out, eval.fields());
     }
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
@@ -770,6 +772,14 @@ public final class PlanNamedTypes {
 
     static void writeNamedExpressions(PlanStreamOutput out, List<? extends NamedExpression> namedExpressions) throws IOException {
         out.writeCollection(namedExpressions, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
+    }
+
+    private static List<Alias> readAliases(PlanStreamInput in) throws IOException {
+        return in.readList(readerFromPlanReader(PlanNamedTypes::readAlias));
+    }
+
+    static void writeAliases(PlanStreamOutput out, List<Alias> aliases) throws IOException {
+        out.writeCollection(aliases, writerFromPlanWriter(PlanNamedTypes::writeAlias));
     }
 
     static FieldAttribute readFieldAttribute(PlanStreamInput in) throws IOException {
@@ -1025,6 +1035,7 @@ public final class PlanNamedTypes {
         entry(name(Acos.class), Acos::new),
         entry(name(Asin.class), Asin::new),
         entry(name(Atan.class), Atan::new),
+        entry(name(Ceil.class), Ceil::new),
         entry(name(Cos.class), Cos::new),
         entry(name(Cosh.class), Cosh::new),
         entry(name(Floor.class), Floor::new),

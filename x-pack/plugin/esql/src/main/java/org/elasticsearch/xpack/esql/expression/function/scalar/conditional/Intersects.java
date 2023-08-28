@@ -95,21 +95,21 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
                 if (left().foldable()) {
                     if (right().foldable()) {
                         // Both are constant strings
-                        return () -> new IntersectsConstantConstantEvaluator(asString(left()), asString(right()));
+                        return () -> new IntersectsConstantConstantEvaluator(asGeometry(left()), asGeometry(right()));
                     } else {
                         // Left is a constant string, right is a variable string
-                        return () -> new IntersectsConstantStringEvaluator(asString(left()), toEvaluator.apply(right()).get());
+                        return () -> new IntersectsConstantStringEvaluator(asGeometry(left()), toEvaluator.apply(right()).get());
                     }
                 } else if (right().foldable()) {
                     // Left is a variable string, and right is a constant string
-                    return () -> new IntersectsConstantStringEvaluator(asString(right()), toEvaluator.apply(left()).get());
+                    return () -> new IntersectsConstantStringEvaluator(asGeometry(right()), toEvaluator.apply(left()).get());
                 } else {
                     // Both are variable strings
                     return () -> new IntersectsStringStringEvaluator(toEvaluator.apply(left()).get(), toEvaluator.apply(right()).get());
                 }
             } else if (left().foldable()) {
                 // Left is constant string, right is long
-                return () -> new IntersectsLongConstantEvaluator(toEvaluator.apply(right()).get(), asString(left()));
+                return () -> new IntersectsLongConstantEvaluator(toEvaluator.apply(right()).get(), asGeometry(left()));
             } else {
                 // Left is variable string, right is long
                 return () -> new IntersectsLongStringEvaluator(toEvaluator.apply(right()).get(), toEvaluator.apply(left()).get());
@@ -117,7 +117,7 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
         } else if (isString(right().dataType())) {
             if (right().foldable()) {
                 // Left is long, right is constant string
-                return () -> new IntersectsLongConstantEvaluator(toEvaluator.apply(left()).get(), asString(right()));
+                return () -> new IntersectsLongConstantEvaluator(toEvaluator.apply(left()).get(), asGeometry(right()));
             } else {
                 // Left is long, right is variable string
                 return () -> new IntersectsLongStringEvaluator(toEvaluator.apply(left()).get(), toEvaluator.apply(right()).get());
@@ -128,13 +128,12 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
         }
     }
 
-    private static String asString(Expression expression) {
+    private static Geometry asGeometry(Expression expression) {
         Object result = expression.fold();
         if (result instanceof BytesRef bytesRef) {
-            return bytesRef.utf8ToString();
+            return SpatialUtils.stringAsGeometry(bytesRef.utf8ToString());
         } else {
-            // TODO: Should this be an error case?
-            return result.toString();
+            throw new IllegalArgumentException("Invalid constant string: " + result);
         }
     }
 
@@ -144,9 +143,8 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     @Evaluator(extraName = "LongConstant")
-    static boolean processConstant(long leftValue, @Fixed String rightValue) {
-        Geometry geometry = SpatialUtils.stringAsGeometry(rightValue);
-        return pointIntersectsGeometry(leftValue, geometry);
+    static boolean processConstant(long leftValue, @Fixed Geometry rightValue) {
+        return pointIntersectsGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "LongString")
@@ -156,17 +154,14 @@ public class Intersects extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     @Evaluator(extraName = "ConstantConstant")
-    static boolean processConstant(@Fixed String leftValue, @Fixed String rightValue) {
-        Geometry leftGeom = SpatialUtils.stringAsGeometry(leftValue);
-        Geometry rightGeom = SpatialUtils.stringAsGeometry(rightValue);
-        return geometryIntersectsGeometry(leftGeom, rightGeom);
+    static boolean processConstant(@Fixed Geometry leftValue, @Fixed Geometry rightValue) {
+        return geometryIntersectsGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "ConstantString")
-    static boolean processConstant(@Fixed String leftValue, BytesRef rightValue) {
-        Geometry leftGeom = SpatialUtils.stringAsGeometry(leftValue);
+    static boolean processConstant(@Fixed Geometry leftValue, BytesRef rightValue) {
         Geometry rightGeom = SpatialUtils.stringAsGeometry(rightValue.utf8ToString());
-        return geometryIntersectsGeometry(leftGeom, rightGeom);
+        return geometryIntersectsGeometry(leftValue, rightGeom);
     }
 
     @Evaluator(extraName = "StringString")

@@ -10,17 +10,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Geometry;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Intersects}.
  * This class is generated. Do not edit it.
  */
 public final class IntersectsConstantConstantEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final String leftValue;
+  private final Geometry leftValue;
 
-  private final String rightValue;
+  private final Geometry rightValue;
 
-  public IntersectsConstantConstantEvaluator(String leftValue, String rightValue) {
+  public IntersectsConstantConstantEvaluator(Geometry leftValue, Geometry rightValue) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
   }

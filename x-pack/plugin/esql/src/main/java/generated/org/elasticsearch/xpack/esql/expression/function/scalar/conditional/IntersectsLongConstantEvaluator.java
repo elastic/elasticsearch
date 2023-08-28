@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Geometry;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Intersects}.
@@ -21,10 +22,10 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class IntersectsLongConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator leftValue;
 
-  private final String rightValue;
+  private final Geometry rightValue;
 
   public IntersectsLongConstantEvaluator(EvalOperator.ExpressionEvaluator leftValue,
-      String rightValue) {
+      Geometry rightValue) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
   }

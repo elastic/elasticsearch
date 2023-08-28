@@ -20,7 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.logging.log4j.LogManager;
@@ -31,7 +31,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -41,6 +44,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -52,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,27 +77,34 @@ import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
-public class StatelessCommitService {
+public class StatelessCommitService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessCommitService.class);
 
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, IndexShardRoutingTable> shardRouting;
-    private final Client client;
     private final ThreadPool threadPool;
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
     private final ConcurrentHashMap<ShardId, ShardCommitState> shardsCommitsStates = new ConcurrentHashMap<>();
     private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
+    private final StatelessCommitCleaner commitCleaner;
+    private final NewCommitNotificationGrouperClient client;
 
-    public StatelessCommitService(ObjectStoreService objectStoreService, ClusterService clusterService, Client client) {
+    public StatelessCommitService(
+        ObjectStoreService objectStoreService,
+        ClusterService clusterService,
+        Client client,
+        StatelessCommitCleaner commitCleaner
+    ) {
         this(
             objectStoreService,
             () -> clusterService.localNode().getEphemeralId(),
             (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
             clusterService.threadPool(),
-            client
+            client,
+            commitCleaner
         );
     }
 
@@ -101,13 +113,15 @@ public class StatelessCommitService {
         Supplier<String> ephemeralNodeIdSupplier,
         Function<ShardId, IndexShardRoutingTable> shardRouting,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        StatelessCommitCleaner commitCleaner
     ) {
         this.objectStoreService = objectStoreService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
         this.shardRouting = shardRouting;
         this.threadPool = threadPool;
-        this.client = client;
+        this.client = new NewCommitNotificationGrouperClient(client);
+        this.commitCleaner = commitCleaner;
     }
 
     public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit commit) {
@@ -136,18 +150,41 @@ public class StatelessCommitService {
         }
 
         logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-        commitState.markCommitCreated(reference.getPrimaryTerm(), generation, reference.getCommitFiles(), reference.getAdditionalFiles());
-        CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.wrap(new ActionListener<>() {
+        var compoundCommitBlob = commitState.markCommitCreated(
+            reference.getPrimaryTerm(),
+            generation,
+            reference.getCommitFiles(),
+            reference.getAdditionalFiles()
+        );
+
+        // The CommitUpload listener is called after releasing the reference to the Lucene commit,
+        // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
+        // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
+        compoundCommitBlob.incRef();
+        CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
-                NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRouting.apply(commit.shardId()), commit);
-                client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(r -> {
+                var shardRoutingTable = shardRouting.apply(commit.shardId());
+                var releasables = shardRoutingTable.unpromotableShards()
+                    .stream()
+                    .map(
+                        shardRouting -> commitState.trackOutstandingUnpromotableShardCommitRef(
+                            shardRouting.currentNodeId(),
+                            compoundCommitBlob
+                        )
+                    )
+                    .toList();
+
+                NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
+                client.sendRequest(request, ActionListener.releaseAfter(ActionListener.wrap(response -> {
+                    commitState.trackReferencedCommitsByUnpromotableShards(response.getUsedPrimaryTermAndGenerations());
                     var consumer = commitNotificationSuccessListeners.get(shardId);
                     if (consumer != null) {
                         consumer.accept(generation);
                     }
-                }, e -> logger.warn(() -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation), e))
-                );
+                }, e -> logger.warn(() -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation), e)),
+                    Releasables.wrap(releasables)
+                ));
             }
 
             @Override
@@ -172,7 +209,7 @@ public class StatelessCommitService {
                 return true;
             }
 
-        }), reference, TimeValue.timeValueMillis(50));
+        }), compoundCommitBlob::decRef), reference, TimeValue.timeValueMillis(50));
         commitUpload.run();
     }
 
@@ -301,7 +338,6 @@ public class StatelessCommitService {
                 reference.getTranslogRecoveryStartFile()
             );
 
-            logger.trace("{} uploading stateless commit file [{}] for commit [{}]", shardId, commitFileName, generation);
             objectStoreService.uploadStatelessCommitFile(
                 shardId,
                 reference.getPrimaryTerm(),
@@ -393,6 +429,7 @@ public class StatelessCommitService {
 
         // map generations to compound commit blob instances
         private final Map<Long, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
+        private final Map<String, UnpromotableShardCommitReferences> unpromotableShardCommitReferencesByNode = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
@@ -416,7 +453,7 @@ public class StatelessCommitService {
                     : fileName + ':' + current + " vs " + uploaded;
                 return true;
             }
-            assert current.compoundCommitBlob().generation == uploaded.compoundFileGeneration()
+            assert current.compoundCommitBlob().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
                 : fileName + ':' + current + " vs " + uploaded;
             return true;
         }
@@ -477,7 +514,12 @@ public class StatelessCommitService {
             handleUploadedCommit(recoveredCommit);
         }
 
-        public void markCommitCreated(long primaryTerm, long generation, Collection<String> commitFiles, Set<String> additionalFiles) {
+        public CompoundCommitBlob markCommitCreated(
+            long primaryTerm,
+            long generation,
+            Collection<String> commitFiles,
+            Set<String> additionalFiles
+        ) {
             pendingUploadGenerations.add(generation);
 
             // create a compound commit blob instance for the new commit
@@ -501,10 +543,11 @@ public class StatelessCommitService {
                     compoundCommitBlob.incRef(commit);
                 }
             });
+            return compoundCommitBlob;
         }
 
         public void markCommitDeleted(long generation) {
-            final var compoundCommitBlob = compoundCommitBlobs.remove(generation);
+            final var compoundCommitBlob = compoundCommitBlobs.get(generation);
             assert compoundCommitBlob != null : generation;
             compoundCommitBlob.close();
         }
@@ -628,22 +671,76 @@ public class StatelessCommitService {
             }
         }
 
+        void trackReferencedCommitsByUnpromotableShards(Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations) {
+            if (isClosed) {
+                return;
+            }
+
+            // TODO: provide Map<nodeId, Set<PrimaryTermAndGeneration>>
+            for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
+                Set<CompoundCommitBlob> currentlyReferencedCommits = new HashSet<>();
+                for (PrimaryTermAndGeneration usedPrimaryTermAndGeneration : usedPrimaryTermAndGenerations) {
+                    var compoundCommit = compoundCommitBlobs.get(usedPrimaryTermAndGeneration.generation());
+                    assert compoundCommit != null : usedPrimaryTermAndGeneration + " " + shardId + " " + compoundCommitBlobs;
+                    // TODO: Implement two ref-counting approaches, one to keep track of commits used by the index node and
+                    // one to keep track of outstanding references
+                    currentlyReferencedCommits.add(compoundCommit);
+                    currentlyReferencedCommits.addAll(compoundCommit.references);
+                }
+
+                unpromotableShardCommitReferences.trackReferencedCommits(Collections.unmodifiableSet(currentlyReferencedCommits));
+            }
+        }
+
+        void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
+            for (String currentNode : currentUnpromotableNodes) {
+                unpromotableShardCommitReferencesByNode.computeIfAbsent(currentNode, UnpromotableShardCommitReferences::new);
+            }
+
+            var nodesIter = unpromotableShardCommitReferencesByNode.entrySet().iterator();
+            while (nodesIter.hasNext()) {
+                var nodeRef = nodesIter.next();
+                if (currentUnpromotableNodes.contains(nodeRef.getKey()) == false) {
+                    nodesIter.remove();
+                    nodeRef.getValue().close();
+                }
+            }
+        }
+
+        Releasable trackOutstandingUnpromotableShardCommitRef(String nodeId, CompoundCommitBlob compoundCommitBlob) {
+            unpromotableShardCommitReferencesByNode.computeIfAbsent(nodeId, UnpromotableShardCommitReferences::new);
+
+            List<Releasable> releasables = new ArrayList<>(compoundCommitBlob.references.size() + 1);
+
+            // TODO: Implement two ref-counting approaches, one to keep track of commits used by the index node and
+            // one to keep track of outstanding references
+            compoundCommitBlob.incRef();
+            for (CompoundCommitBlob referencedCommit : compoundCommitBlob.references) {
+                referencedCommit.incRef();
+                releasables.add(referencedCommit::decRef);
+            }
+
+            releasables.add(compoundCommitBlob::decRef);
+            return Releasables.wrap(releasables);
+        }
+
         /**
          * A ref counted instance representing a compound commit blob in the object store. It can reference some other previous compound
          * commit blob instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
          */
         private class CompoundCommitBlob extends AbstractRefCounted implements Releasable {
-
-            private final long primaryTerm;
-            private final long generation;
+            private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<String> internalFiles;
             private final Set<CompoundCommitBlob> references;
 
             CompoundCommitBlob(long primaryTerm, long generation, Set<String> internalFiles) {
-                this.primaryTerm = primaryTerm;
-                this.generation = generation;
+                this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
+            }
+
+            public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
+                return primaryTermAndGeneration;
             }
 
             public void incRef(CompoundCommitBlob other) {
@@ -664,18 +761,21 @@ public class StatelessCommitService {
             @Override
             protected void closeInternal() {
                 final CompoundCommitBlob released = this;
-                // TODO now the instance is released we can prune it from object store once it's not used anymore by search shards
                 internalFiles.forEach(fileName -> {
                     blobLocations.compute(fileName, (file, commitAndBlobLocation) -> {
                         var existing = commitAndBlobLocation.compoundCommitBlob();
                         if (released != existing) {
                             assert isGenerationalFile(file) : file;
-                            assert released.generation < existing.generation : fileName + ':' + released + " vs " + existing;
+                            assert released.primaryTermAndGeneration.generation() < existing.primaryTermAndGeneration.generation()
+                                : fileName + ':' + released + " vs " + existing;
                             return commitAndBlobLocation;
                         }
                         return null;
                     });
                 });
+                commitCleaner.deleteCommit(new StatelessCommitCleaner.StaleCompoundCommit(shardId, primaryTermAndGeneration));
+                var removed = compoundCommitBlobs.remove(primaryTermAndGeneration.generation());
+                assert removed == this;
             }
 
             @Override
@@ -683,17 +783,93 @@ public class StatelessCommitService {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 CompoundCommitBlob that = (CompoundCommitBlob) o;
-                return primaryTerm == that.primaryTerm && generation == that.generation;
+                return Objects.equals(primaryTermAndGeneration, that.primaryTermAndGeneration);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(primaryTerm, generation);
+                return Objects.hash(primaryTermAndGeneration);
             }
 
             @Override
             public String toString() {
-                return "Compound commit blob [" + "primaryTerm=" + primaryTerm + ", generation=" + generation + ']';
+                return "Compound commit blob " + primaryTermAndGeneration;
+            }
+        }
+
+        private static class UnpromotableShardCommitReferences implements Releasable {
+            private final String nodeId;
+            private Set<CompoundCommitBlob> referencedCommits = Collections.emptySet();
+            private boolean closed = false;
+
+            UnpromotableShardCommitReferences(String nodeId) {
+                this.nodeId = nodeId;
+            }
+
+            void trackReferencedCommits(Set<CompoundCommitBlob> newReferencedCommits) {
+                Set<CompoundCommitBlob> oldReferencedCommits;
+                synchronized (this) {
+                    if (closed) {
+                        return;
+                    }
+                    oldReferencedCommits = referencedCommits;
+                    referencedCommits = Collections.unmodifiableSet(newReferencedCommits);
+                    newReferencedCommits.forEach(AbstractRefCounted::incRef);
+                }
+
+                oldReferencedCommits.forEach(AbstractRefCounted::decRef);
+            }
+
+            @Override
+            public void close() {
+                Set<CompoundCommitBlob> oldReferencedCommits;
+                synchronized (this) {
+                    if (closed) {
+                        return;
+                    }
+                    closed = true;
+                    oldReferencedCommits = referencedCommits;
+                    referencedCommits = Collections.emptySet();
+                }
+
+                oldReferencedCommits.forEach(AbstractRefCounted::decRef);
+            }
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        // TODO: maybe give a grace period if the node left?
+        if (event.routingTableChanged()) {
+            var localShardRouting = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
+
+            if (localShardRouting == null) {
+                return;
+            }
+
+            for (ShardRouting shardRouting : localShardRouting) {
+                if (shardRouting.primary() == false) {
+                    continue;
+                }
+                var shardId = shardRouting.shardId();
+                var shardCommitState = shardsCommitsStates.get(shardId);
+                // shardsCommitsStates not registered yet
+                if (shardCommitState == null) {
+                    continue;
+                }
+
+                if (event.indexRoutingTableChanged(shardId.getIndexName())) {
+                    var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
+                    var previousShardRoutingTable = event.previousState().routingTable().shardRoutingTable(shardId);
+
+                    if (currentShardRoutingTable != previousShardRoutingTable) {
+                        var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
+                        var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
+                            .map(ShardRouting::currentNodeId)
+                            .collect(Collectors.toSet());
+                        shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+                    }
+                }
             }
         }
     }

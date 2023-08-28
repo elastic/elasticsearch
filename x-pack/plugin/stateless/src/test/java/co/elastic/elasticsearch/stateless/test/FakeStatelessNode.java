@@ -18,7 +18,9 @@
 package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
@@ -103,6 +105,7 @@ public class FakeStatelessNode implements Closeable {
     public final ThreadPool threadPool;
 
     public final StatelessElectionStrategy electionStrategy;
+    private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
 
@@ -147,7 +150,7 @@ public class FakeStatelessNode implements Closeable {
 
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(ClusterServiceUtils.createClusterService(threadPool));
-            client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
+            client = localCloseables.add(createClient(nodeSettings, threadPool));
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
             final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(
@@ -211,23 +214,37 @@ public class FakeStatelessNode implements Closeable {
 
             objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService);
             objectStoreService.start();
-            IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
-            when(routingTable.shardId()).thenReturn(shardId);
+            electionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
+            var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy);
+            commitCleaner = createCommitCleaner(consistencyService);
             commitService = new StatelessCommitService(
                 objectStoreService,
                 () -> clusterService.localNode().getEphemeralId(),
-                sId -> routingTable,
+                this::getShardRoutingTable,
                 clusterService.threadPool(),
-                client
+                client,
+                commitCleaner
             );
             commitService.register(shardId);
             indexingDirectory.getSearchDirectory()
                 .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
 
-            electionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
-
             closeables = localCloseables.transfer();
         }
+    }
+
+    protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+        return new StatelessCommitCleaner(consistencyService);
+    }
+
+    protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+        IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+        when(routingTable.shardId()).thenReturn(shardId);
+        return routingTable;
+    }
+
+    protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+        return new NodeClient(nodeSettings, threadPool);
     }
 
     public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {

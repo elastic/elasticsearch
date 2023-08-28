@@ -1,0 +1,67 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.versionfield.Version;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class ToVersionTests extends AbstractFunctionTestCase {
+    public ToVersionTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        // TODO multivalue fields
+        String read = "Attribute[channel=0]";
+        String stringEvaluator = "ToVersionFromStringEvaluator[field=" + read + "]";
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // ips are noop
+        TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, v -> v.toBytesRef());
+        // None of are random strings ever look like versions
+        // TODO even though they aren't valid versions, all strings get encoded into something. Is that what we really want?
+        TestCaseSupplier.forUnaryStrings(
+            suppliers,
+            stringEvaluator,
+            DataTypes.VERSION,
+            bytesRef -> new Version(bytesRef.utf8ToString()).toBytesRef()
+        );
+        // But strings that are shaped like versions do parse
+        for (DataType inputType : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
+            for (Map.Entry<String, Supplier<Object>> versionGen : TestCaseSupplier.versionRandomValues(inputType.typeName() + " ")) {
+                suppliers.add(new TestCaseSupplier(versionGen.getKey(), List.of(inputType), () -> {
+                    BytesRef encodedVersion = (BytesRef) versionGen.getValue().get();
+                    TypedData typed = new TypedData(new BytesRef(new Version(encodedVersion).toString()), inputType, "value");
+                    return new TestCase(List.of(typed), stringEvaluator, DataTypes.VERSION, equalTo(encodedVersion));
+                }));
+            }
+        }
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new ToVersion(source, args.get(0));
+    }
+}

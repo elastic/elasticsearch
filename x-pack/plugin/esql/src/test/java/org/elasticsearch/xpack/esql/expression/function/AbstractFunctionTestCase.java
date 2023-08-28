@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -45,6 +46,7 @@ import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -361,6 +363,80 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.DOUBLE, expectedType, n -> expectedValue.apply(n.doubleValue()));
         }
 
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#BOOLEAN}.
+         */
+        public static void forUnaryBoolean(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<Boolean, Object> expectedValue
+        ) {
+            unary(suppliers, expectedEvaluatorToString, DataTypes.BOOLEAN, expectedType, v -> expectedValue.apply((Boolean) v));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#DATETIME}.
+         */
+        public static void forUnaryDatetime(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<Instant, Object> expectedValue
+        ) {
+            unaryNumeric(
+                suppliers,
+                expectedEvaluatorToString,
+                DataTypes.DATETIME,
+                expectedType,
+                n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue()))
+            );
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
+         */
+        public static void forUnaryIp(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<BytesRef, Object> expectedValue
+        ) {
+            unary(suppliers, expectedEvaluatorToString, DataTypes.IP, expectedType, v -> expectedValue.apply((BytesRef) v));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#KEYWORD} and {@link DataTypes#TEXT}.
+         */
+        public static void forUnaryStrings(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<BytesRef, Object> expectedValue
+        ) {
+            for (DataType type : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
+                unary(suppliers, expectedEvaluatorToString, type, expectedType, v -> expectedValue.apply((BytesRef) v));
+            }
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
+         */
+        public static void forUnaryVersion(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<Version, Object> expectedValue
+        ) {
+            unary(
+                suppliers,
+                expectedEvaluatorToString,
+                DataTypes.VERSION,
+                expectedType,
+                v -> expectedValue.apply(new Version((BytesRef) v))
+            );
+        }
+
         private static void unaryNumeric(
             List<TestCaseSupplier> suppliers,
             String expectedEvaluatorToString,
@@ -368,9 +444,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             DataType expectedOutputType,
             Function<Number, Object> expected
         ) {
+            unary(suppliers, expectedEvaluatorToString, inputType, expectedOutputType, v -> expected.apply((Number) v));
+        }
+
+        private static void unary(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType inputType,
+            DataType expectedOutputType,
+            Function<Object, Object> expected
+        ) {
             for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(inputType)) {
                 suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
-                    Number value = (Number) supplier.getValue().get();
+                    Object value = supplier.getValue().get();
                     TypedData typed = new TypedData(
                         // TODO there has to be a better way to handle unsigned long
                         value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
@@ -419,8 +505,54 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomLongBetween(1, Integer.MAX_VALUE)))
                     )
                 )
-            )
+            ),
+            Map.entry(DataTypes.BOOLEAN, List.of(Map.entry("<true>", () -> true), Map.entry("<false>", () -> false))),
+            Map.entry(
+                DataTypes.DATETIME,
+                List.of(
+                    Map.entry("<1970-01-01T00:00:00Z>", () -> 0L),
+                    Map.entry(
+                        "<date>",
+                        () -> randomLongBetween(0, 10 * (long) 10e11) // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
+                    ),
+                    Map.entry(
+                        "<far future date>",
+                        () -> randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE) // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
+                    )
+                )
+            ),
+            Map.entry(
+                DataTypes.IP,
+                List.of(
+                    Map.entry("<ipv4>", () -> new BytesRef(InetAddressPoint.encode(randomIp(true)))),
+                    Map.entry("<ipv6>", () -> new BytesRef(InetAddressPoint.encode(randomIp(false))))
+                )
+            ),
+            Map.entry(DataTypes.KEYWORD, stringRandomValues("keyword")),
+            Map.entry(DataTypes.TEXT, stringRandomValues("text")),
+            Map.entry(DataTypes.VERSION, versionRandomValues(""))
         );
+
+        private static List<Map.Entry<String, Supplier<Object>>> stringRandomValues(String type) {
+            List<Map.Entry<String, Supplier<Object>>> result = new ArrayList<>();
+            result.add(Map.entry("<empty " + type + ">", () -> new BytesRef("")));
+            result.add(Map.entry("<short alpha " + type + ">", () -> new BytesRef(randomAlphaOfLengthBetween(1, 30))));
+            result.add(Map.entry("<long alpha " + type + ">", () -> new BytesRef(randomAlphaOfLengthBetween(300, 3000))));
+            result.add(Map.entry("<short unicode " + type + ">", () -> new BytesRef(randomRealisticUnicodeOfLengthBetween(1, 30))));
+            result.add(Map.entry("<long unicode " + type + ">", () -> new BytesRef(randomRealisticUnicodeOfLengthBetween(300, 3000))));
+            return result;
+        }
+
+        public static List<Map.Entry<String, Supplier<Object>>> versionRandomValues(String prefix) {
+            return List.of(
+                Map.entry("<" + prefix + "version major>", () -> new Version(Integer.toString(between(0, 100))).toBytesRef()),
+                Map.entry("<" + prefix + "version major.minor>", () -> new Version(between(0, 100) + "." + between(0, 100)).toBytesRef()),
+                Map.entry(
+                    "<" + prefix + "version major.minor.patch>",
+                    () -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100)).toBytesRef()
+                )
+            );
+        }
 
         private static String castToDoubleEvaluator(String original, DataType current) {
             if (current == DataTypes.DOUBLE) {
@@ -825,7 +957,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric")
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -938,7 +1071,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static String functionName() {
-        return getTestClass().getSimpleName().replace("Tests", "").toLowerCase(Locale.ROOT);
+        return StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
     }
 
     /**

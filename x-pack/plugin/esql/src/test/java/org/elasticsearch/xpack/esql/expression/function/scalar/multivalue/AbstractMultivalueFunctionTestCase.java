@@ -118,7 +118,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     ) {
         cases.add(
             new TestCaseSupplier(
-                name + "(\"\")",
+                name + "(empty string)",
                 () -> new TestCase(
                     List.of(new TypedData(List.of(new BytesRef("")), DataTypes.KEYWORD, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",

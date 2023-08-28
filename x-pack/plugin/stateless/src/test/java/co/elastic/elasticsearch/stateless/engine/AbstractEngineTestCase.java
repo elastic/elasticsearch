@@ -32,6 +32,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -195,6 +196,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier) throws IOException {
+        return indexConfig(settings, nodeSettings, primaryTermSupplier, newMergePolicy());
+    }
+
+    protected EngineConfig indexConfig(Settings settings, Settings nodeSettings, LongSupplier primaryTermSupplier, MergePolicy mergePolicy)
+        throws IOException {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings, nodeSettings);
         var translogConfig = new TranslogConfig(shardId, createTempDir(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -220,7 +226,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             indexSettings,
             null,
             store,
-            newMergePolicy(),
+            mergePolicy,
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
             new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),

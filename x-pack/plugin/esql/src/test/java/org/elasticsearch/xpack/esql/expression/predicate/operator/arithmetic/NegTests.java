@@ -168,7 +168,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Object val) {
-        if (allTestDataTypesAreRepresentable()) {
+        if (testCase.allTypesAreRepresentable()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
             return toJavaObject(evaluator(neg).get().eval(row(List.of(val))), 0);
         } else {

@@ -1,0 +1,8 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+n | result
+double | double
+integer | double
+long | double
+unsigned_long | double
+|===

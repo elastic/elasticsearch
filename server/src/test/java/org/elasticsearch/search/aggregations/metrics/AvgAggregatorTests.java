@@ -15,7 +15,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -500,9 +499,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-        Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+        Terms terms = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);
@@ -558,12 +556,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value");
 
-        InternalAvg avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+        InternalAvg avg = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
 
         assertEquals(5.5, avg.getValue(), 0);
         assertEquals("avg", avg.getName());
@@ -587,13 +584,12 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        InternalAvg avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+        InternalAvg avg = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
 
         assertEquals(5.5, avg.getValue(), 0);
         assertEquals("avg", avg.getName());
@@ -602,7 +598,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         aggregationBuilder = new AvgAggregationBuilder("avg").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
-        avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType).withShouldBeCached(false));
+        avg = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType).withShouldBeCached(false));
 
         assertTrue(avg.getValue() >= 0.0);
         assertTrue(avg.getValue() <= 1.0);

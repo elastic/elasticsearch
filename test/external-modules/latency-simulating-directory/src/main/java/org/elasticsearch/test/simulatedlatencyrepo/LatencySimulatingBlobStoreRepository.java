@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 
 class LatencySimulatingBlobStoreRepository extends FsRepository {
 
@@ -48,6 +49,11 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
             public BlobContainer blobContainer(BlobPath path) {
                 BlobContainer blobContainer = fsBlobStore.blobContainer(path);
                 return new LatencySimulatingBlobContainer(blobContainer);
+            }
+
+            @Override
+            public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+                fsBlobStore.deleteBlobsIgnoringIfNotExists(blobNames);
             }
 
             @Override

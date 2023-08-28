@@ -420,6 +420,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
+        @Override
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {}
+
         private void deleteContainer(DisruptableBlobContainer container) {
             blobContainer = null;
         }

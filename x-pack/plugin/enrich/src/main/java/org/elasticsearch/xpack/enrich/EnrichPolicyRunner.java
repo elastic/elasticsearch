@@ -348,16 +348,13 @@ public class EnrichPolicyRunner implements Runnable {
                 mappingForMatchField.remove("doc_values"); // enable doc_values
             } else {
                 var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
-                if (typeAndFormat != null && EnrichPolicyMappings.isMappableByEnrich(typeAndFormat.type)) {
-                    logger.trace("Found mappable field [{}] of type [{}/{}]", enrichField, typeAndFormat.type, typeAndFormat.format);
+                if (typeAndFormat != null) {
                     Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
                     mapping.put("type", typeAndFormat.type);
                     if (typeAndFormat.format != null) {
                         mapping.put("format", typeAndFormat.format);
                     }
-                    if (EnrichPolicyMappings.isIndexableByEnrich(typeAndFormat.type)) {
-                        mapping.put("index", false); // disable index
-                    }
+                    mapping.put("index", false); // disable index
                     fieldMappings.put(enrichField, mapping);
                 }
             }

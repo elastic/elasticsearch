@@ -155,7 +155,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                 ScoreMode.COMPLETE_NO_SCORES,
                 1f
             );
-            final List<LeafReaderContext> leaves = reader.leaves();
+            final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);
                 DocIdSetIterator iterator = scorer.iterator();

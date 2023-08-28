@@ -15,13 +15,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -43,6 +46,10 @@ import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationSe
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -271,6 +279,30 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                     throw new RuntimeException(e);
                 }));
             assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testConnectionWorksForPing() throws Exception {
+        TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
+        InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
+        // ping message
+        final BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        bytesStreamOutput.writeBytes(new byte[] { (byte) 'E', (byte) 'S' });
+        bytesStreamOutput.writeInt(-1);
+        try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
+            final byte[] pingBytes = Arrays.copyOfRange(bytesStreamOutput.bytes().array(), 0, 6);
+            socket.getOutputStream().write(pingBytes);
+            socket.getOutputStream().flush();
+            // We should receive the ping back
+            final byte[] responseBytes = socket.getInputStream().readNBytes(6);
+            assertThat(responseBytes, equalTo(pingBytes));
+            try {
+                socket.setSoTimeout(1000);
+                socket.getInputStream().read();
+                fail("should not reach here");
+            } catch (SocketTimeoutException e) {
+                // timeout exception means the server is still connected. Just no data is coming which is normal
+            }
         }
     }
 

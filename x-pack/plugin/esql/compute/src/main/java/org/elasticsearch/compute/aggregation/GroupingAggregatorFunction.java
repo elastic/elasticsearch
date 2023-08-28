@@ -8,9 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.Releasable;
@@ -48,14 +47,14 @@ public interface GroupingAggregatorFunction extends Releasable {
          * @param groupIds {@link Block} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, LongBlock groupIds);
+        void add(int positionOffset, IntBlock groupIds);
 
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
          * may be offset from the start of the block to allow for sending chunks
          * of group ids.
          * <p>
-         *     See {@link #add(int, LongBlock)} for discussion on the offset. This
+         *     See {@link #add(int, IntBlock)} for discussion on the offset. This
          *     method can only be called with blocks contained in a {@link Vector}
          *     which only allows a single value per position.
          * </p>
@@ -64,7 +63,7 @@ public interface GroupingAggregatorFunction extends Releasable {
          * @param groupIds {@link Vector} of group id, some of which may be null
          *                 or multivalued
          */
-        void add(int positionOffset, LongVector groupIds);
+        void add(int positionOffset, IntVector groupIds);
     }
 
     /**
@@ -79,7 +78,7 @@ public interface GroupingAggregatorFunction extends Releasable {
     /**
      * Add data produced by {@link #evaluateIntermediate}.
      */
-    void addIntermediateInput(int positionOffset, LongVector groupIdVector, Page page);
+    void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
      * Add the position-th row from the intermediate output of the given aggregator function to the groupId

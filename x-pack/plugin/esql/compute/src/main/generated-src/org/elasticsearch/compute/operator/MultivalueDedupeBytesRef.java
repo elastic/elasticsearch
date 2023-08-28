@@ -14,7 +14,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.IntBlock;
 
 import java.util.Arrays;
 
@@ -140,11 +140,11 @@ public class MultivalueDedupeBytesRef {
     }
 
     /**
-     * Dedupe values and build a {@link LongBlock} suitable for passing
+     * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
@@ -152,7 +152,7 @@ public class MultivalueDedupeBytesRef {
             switch (count) {
                 case 0 -> {
                     sawNull = true;
-                    builder.appendLong(0);
+                    builder.appendInt(0);
                 }
                 case 1 -> {
                     BytesRef v = block.getBytesRef(first, work[0]);
@@ -312,7 +312,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashUniquedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(BytesRefHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
@@ -327,7 +327,7 @@ public class MultivalueDedupeBytesRef {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashSortedWork(BytesRefHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(BytesRefHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
@@ -383,7 +383,7 @@ public class MultivalueDedupeBytesRef {
         }
     }
 
-    private void hash(LongBlock.Builder builder, BytesRefHash hash, BytesRef v) {
-        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(v)));
+    private void hash(IntBlock.Builder builder, BytesRefHash hash, BytesRef v) {
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
     }
 }

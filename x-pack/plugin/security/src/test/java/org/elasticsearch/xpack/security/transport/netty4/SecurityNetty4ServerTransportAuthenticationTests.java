@@ -89,6 +89,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED.getKey(), "false")
             .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED.getKey(), "false")
             .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
+            .put(RemoteClusterPortSettings.PORT.getKey(), 0)
             .build();
         remoteSettings = NodeRoles.nonRemoteClusterClientNode(remoteSettings);
         remoteCrossClusterAccessAuthenticationService = mock(CrossClusterAccessAuthenticationService.class);

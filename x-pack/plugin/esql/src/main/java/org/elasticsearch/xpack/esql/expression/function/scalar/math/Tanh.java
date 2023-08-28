@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,8 +20,8 @@ import java.util.List;
  * Tangent hyperbolic function.
  */
 public class Tanh extends AbstractTrigonometricFunction {
-    public Tanh(Source source, Expression field) {
-        super(source, field);
+    public Tanh(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override

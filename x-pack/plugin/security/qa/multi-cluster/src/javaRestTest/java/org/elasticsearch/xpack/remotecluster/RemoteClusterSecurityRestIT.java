@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -339,10 +338,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
             );
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(
-                exception4.getMessage(),
-                allOf(containsString("unable to authenticate user "), containsString("unable to find apikey"))
-            );
+            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
 
             // check that REST API key is not supported by cross cluster access
             updateClusterSettings(

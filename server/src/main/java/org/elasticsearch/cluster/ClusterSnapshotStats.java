@@ -39,10 +39,10 @@ public record ClusterSnapshotStats(
 
     public static ClusterSnapshotStats of(ClusterState clusterState, long currentTimeMillis) {
         return of(
-            clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY),
-            clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
-            clusterState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY),
-            clusterState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY),
+            RepositoriesMetadata.get(clusterState),
+            SnapshotsInProgress.get(clusterState),
+            SnapshotDeletionsInProgress.get(clusterState),
+            RepositoryCleanupInProgress.get(clusterState),
             currentTimeMillis
         );
     }

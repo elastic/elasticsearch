@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.FilteringRestHandler;
+import org.elasticsearch.rest.FilterRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class SecurityRestFilter extends FilteringRestHandler implements RestHandler {
+public class SecurityRestFilter extends FilterRestHandler implements RestHandler {
 
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 

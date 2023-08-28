@@ -20,7 +20,7 @@ import java.util.Objects;
  * {@code DeprecationRestHandler} provides a proxy for any existing {@link RestHandler} so that usage of the handler can be
  * logged using the {@link DeprecationLogger}.
  */
-public class DeprecationRestHandler extends FilteringRestHandler implements RestHandler {
+public class DeprecationRestHandler extends FilterRestHandler implements RestHandler {
 
     public static final String DEPRECATED_ROUTE_KEY = "deprecated_route";
 

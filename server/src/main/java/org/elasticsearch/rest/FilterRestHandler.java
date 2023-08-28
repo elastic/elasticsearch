@@ -11,10 +11,10 @@ package org.elasticsearch.rest;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class FilteringRestHandler implements RestHandler {
+public abstract class FilterRestHandler implements RestHandler {
     private final RestHandler delegate;
 
-    protected FilteringRestHandler(RestHandler delegate) {
+    protected FilterRestHandler(RestHandler delegate) {
         this.delegate = Objects.requireNonNull(delegate);
     }
 

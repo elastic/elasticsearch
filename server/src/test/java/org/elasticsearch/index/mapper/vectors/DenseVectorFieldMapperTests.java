@@ -997,9 +997,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     b.field("m", 5);
                     b.field("ef_construction", 50);
                     b.endObject();
-                } else {
-                    b.field("index", false);
                 }
+            } else {
+                b.field("index", false);
             }
         }
 

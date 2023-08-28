@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -893,6 +894,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
                 magnitude = (float) Math.sqrt(squaredMagnitude);
+                if (elementType == ElementType.FLOAT) {
+                    // We don't want to normalize the original query vector.
+                    // It mutates it in place and might cause down stream weirdness
+                    // Instead we copy the value and then normalize that copy
+                    queryVector = Arrays.copyOf(queryVector, queryVector.length);
+                    similarity.floatPreprocessing(queryVector, magnitude);
+                }
             }
             Query knnQuery = switch (elementType) {
                 case BYTE -> {
@@ -902,10 +910,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                     yield new KnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> {
-                    similarity.floatPreprocessing(queryVector, magnitude);
-                    yield new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
-                }
+                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(

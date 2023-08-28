@@ -100,6 +100,16 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
                     node.getId()
                 );
             case REPLACE:
+                if (allocation.nodes().hasByName(thisNodeShutdownMetadata.getTargetNodeName()) == false) {
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "node [%s] is preparing to be removed from the cluster, but replacement is not yet present",
+                        node.getId()
+                    );
+                } else {
+                    return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
+                }
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
             default:

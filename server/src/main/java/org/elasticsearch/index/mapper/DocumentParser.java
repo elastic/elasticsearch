@@ -38,6 +38,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -602,7 +603,7 @@ public final class DocumentParser {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             List<Mapper> postProcessedMappers = new ArrayList<>();
 
-            Map<String, Long> dynamicDenseVectorFieldNameToDimCount = context.getDynamicMappers()
+            Set<String> dynamicDenseVectorFieldNames = context.getDynamicMappers()
                 .stream()
                 .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
                 .map(NumberFieldMapper.class::cast)
@@ -611,19 +612,18 @@ public final class DocumentParser {
                 .entrySet()
                 .stream()
                 .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-            if (dynamicDenseVectorFieldNameToDimCount.isEmpty()) {
+            if (dynamicDenseVectorFieldNames.isEmpty()) {
                 return;
             }
 
             for (Mapper mapper : context.getDynamicMappers()) {
-                if (dynamicDenseVectorFieldNameToDimCount.containsKey(mapper.name())) {
-                    int size = dynamicDenseVectorFieldNameToDimCount.get(mapper.name()).intValue();
+                if (dynamicDenseVectorFieldNames.contains(mapper.name())) {
                     DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                         mapper.name(),
-                        context.indexSettings().getIndexVersionCreated(),
-                        size
+                        context.indexSettings().getIndexVersionCreated()
                     );
 
                     DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());

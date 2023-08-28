@@ -4,6 +4,13 @@ setup:
       reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
 
 ---
+teardown:
+  - do:
+      indices.delete:
+        index: test-map-dense-vector
+        ignore_unavailable: true
+
+---
 "Fields with float arrays below the threshold still map as float":
 
   - do:
@@ -288,4 +295,45 @@ setup:
   - match: { my-dynamic-template-index.mappings.properties.my_dynamic_field.dims: 128 }
   - match: { my-dynamic-template-index.mappings.properties.my_dynamic_field.index: true }
   - match: { my-dynamic-template-index.mappings.properties.my_dynamic_field.similarity: cosine }
+
+---
+"Fields mapped as dense_vector without dims dynamically map the dim size to the first indexed document":
+
+  - do:
+      indices.create:
+        index: test-mapped-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_dense_vector_field:
+                type: dense_vector
+
+  - do:
+      indices.get_mapping:
+        index: test-mapped-index
+
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.type: dense_vector }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.index: true }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.similarity: cosine }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.dims: null }
+
+  - do:
+      index:
+        index: test-mapped-index
+        id: "1"
+        refresh: true
+        body:
+          my_dense_vector_field: [ 159.1, 289.56, -128.7424 ]
+
+  - do:
+      indices.get_mapping:
+        index: test-mapped-index
+
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.type: dense_vector }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.index: true }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.similarity: cosine }
+  - match: { test-mapped-index.mappings.properties.my_dense_vector_field.dims: 3 }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -168,29 +169,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             });
         }
 
-        public Builder(String name, IndexVersion indexVersionCreated, int dims) {
-            super(name);
-
-            final boolean dynamicallyMapDenseVectorVersion = indexVersionCreated.onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION);
-            if (dynamicallyMapDenseVectorVersion == false) {
-                throw new UnsupportedOperationException(
-                    "Dynamic mapping of dense vectors is not supported for index version " + indexVersionCreated
-                );
-            }
-            this.indexVersionCreated = indexVersionCreated;
-            this.dims.setValue(dims);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, true);
-            this.indexed.alwaysSerialize();
-
-            this.similarity = Parameter.enumParam(
-                "similarity",
-                false,
-                m -> toType(m).similarity,
-                (Supplier<VectorSimilarity>) () -> indexed.getValue() ? VectorSimilarity.COSINE : null,
-                VectorSimilarity.class
-            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
-        }
-
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
@@ -198,12 +176,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
-
-            // At this point we expect dims to be set, if it's not there's a problem.
-            if (dims.getValue() == null) {
-                throw new IllegalArgumentException("Missing required parameter [dims] for field [" + name + "]");
-            }
-
             return new DenseVectorFieldMapper(
                 name,
                 new DenseVectorFieldType(
@@ -632,6 +604,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float squaredMagnitude
         );
 
+        int parseDimensionCount(DocumentParserContext context) throws IOException {
+            int index = 0;
+            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                index++;
+            }
+            return index;
+        }
+
         void checkNanAndInfinite(float[] vector) {
             StringBuilder errorBuilder = null;
 
@@ -839,7 +819,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
         private final ElementType elementType;
-        private final int dims;
+        private final Integer dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
@@ -848,7 +828,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             String name,
             IndexVersion indexVersionCreated,
             ElementType elementType,
-            int dims,
+            Integer dims,
             boolean indexed,
             VectorSimilarity similarity,
             Map<String, String> meta
@@ -1060,6 +1040,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
             );
         }
         if (Token.VALUE_NULL == context.parser().currentToken()) {
+            return;
+        }
+        if (fieldType().dims == null) {
+            int dims = elementType.parseDimensionCount(context);
+            DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
+                name(),
+                indexCreatedVersion,
+                elementType,
+                dims,
+                indexed,
+                similarity,
+                fieldType().meta()
+            );
+            Mapper update = new DenseVectorFieldMapper(
+                name(),
+                updatedDenseVectorFieldType,
+                elementType,
+                dims,
+                indexed,
+                similarity,
+                indexOptions,
+                indexCreatedVersion,
+                multiFields(),
+                copyTo
+            );
+            context.addDynamicMapper(update);
             return;
         }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);

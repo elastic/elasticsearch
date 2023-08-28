@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -190,10 +191,14 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(1);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(1)).build()
+        Settings.Builder indexSettings = indexSettings(1, 0).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(1)
         );
+        if (rarely() == false) {
+            indexSettings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL);
+        }
+        createIndex(indexName, indexSettings.build());
 
         indexDocs(indexName, randomIntBetween(1, 5));
 
@@ -207,7 +212,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 "expected a scheduled refresh to cause the non fast refresh shard to flush and produce a new commit generation",
                 indexShard.commitStats().getGeneration(),
                 greaterThan(genBefore)
-            )
+            ),
+            30,
+            TimeUnit.SECONDS
         );
     }
 

@@ -72,6 +72,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
+    public static final IndexVersion DOT_PRODUCT_AUTO_NORMALIZED = IndexVersion.V_8_11_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -508,7 +509,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldMapper.checkDimensionMatches(index, context);
                 checkVectorBounds(vector);
                 checkVectorMagnitude(fieldMapper.similarity, errorFloatElementsAppender(vector), squaredMagnitude);
-                fieldMapper.similarity.floatPreprocessing(vector, squaredMagnitude);
+                if (fieldMapper.indexCreatedVersion.onOrAfter(DOT_PRODUCT_AUTO_NORMALIZED)) {
+                    fieldMapper.similarity.floatPreprocessing(vector, squaredMagnitude);
+                }
                 return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.similarity.function);
             }
 
@@ -894,7 +897,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
                 magnitude = (float) Math.sqrt(squaredMagnitude);
-                if (elementType == ElementType.FLOAT) {
+                if (elementType == ElementType.FLOAT && indexVersionCreated.onOrAfter(DOT_PRODUCT_AUTO_NORMALIZED)) {
                     // We don't want to normalize the original query vector.
                     // It mutates it in place and might cause down stream weirdness
                     // Instead we copy the value and then normalize that copy

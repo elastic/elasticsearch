@@ -17,6 +17,9 @@ import java.time.Instant;
 /**
  * Helper class to provide a secret that can be rotated. Once rotated the prior secret is available for a configured amount of time before
  * it is invalidated. This allows for secrete rotation without temporary failures or the need to tightly orchestrate multiple parties.
+ * This class is mostly threadsafe-ish (nothing will blowup), however it is also not designed multiple concurrent
+ * rotations of the same secret as the functions are non-blocking and non-atomic. It is expected that the caller will not attempt to
+ * rotate different secrets concurrently. TODO: think about this some more
  */
 public class RotatableSecret {
     private volatile Secrets secrets;
@@ -25,17 +28,18 @@ public class RotatableSecret {
      * @param secret The secret to rotate. {@code null} if the secret is not configured.
      */
     public RotatableSecret(@Nullable SecureString secret) {
-
         this.secrets = new Secrets(Strings.hasText(secret) ? secret : null, null, Instant.EPOCH);
     }
 
     public void rotate(SecureString newSecret, TimeValue gracePeriod) {
-        // set the current secret and move the current to the prior
-        secrets = new Secrets(
+        Secrets newSecretRecord = new Secrets(
             Strings.hasText(newSecret) ? newSecret : null,
             secrets.current,
             Instant.now().plusMillis(gracePeriod.getMillis())
         );
+        if(this.secrets.equals(newSecretRecord) == false) {
+            secrets = newSecretRecord;
+        }
     }
 
     /**
@@ -59,12 +63,19 @@ public class RotatableSecret {
         return secrets.current.equals(secret) || (secrets.prior != null && secrets.prior.equals(secret));
     }
 
+    //for testing purpose
+    public Secrets getSecrets() {
+        return secrets;
+    }
+
     private void checkExpired() {
         if (secrets.prior != null && secrets.validTill.isBefore(Instant.now())) {
             // nuke the prior secret
-            secrets = new Secrets(secrets.current, null, Instant.EPOCH);
+            Secrets newSecretsRecord = new Secrets(secrets.current, null, Instant.EPOCH);
+            secrets.prior.close();
+            secrets = newSecretsRecord;
         }
     }
 
-    record Secrets(SecureString current, SecureString prior, Instant validTill) {};
+    public record Secrets(SecureString current, SecureString prior, Instant validTill) {};
 }

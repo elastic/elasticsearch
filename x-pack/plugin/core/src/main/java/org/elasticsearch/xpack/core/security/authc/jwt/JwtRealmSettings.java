@@ -352,14 +352,16 @@ public class JwtRealmSettings {
         )
     );
 
+    //TODO: document that this is reloadable
     public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
     );
 
+    //TODO: document this !
     public static final Setting.AffixSetting<TimeValue> CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "client_authentication.rotation.grace_period",
+        "client_authentication.rotation_grace_period",
         key -> Setting.timeSetting(key, DEFAULT_JWT_CLIENT_AUTH_GRACE_PERIOD, Setting.Property.NodeScope)
     );
 

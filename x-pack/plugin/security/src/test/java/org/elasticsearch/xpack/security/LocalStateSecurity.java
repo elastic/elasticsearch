@@ -126,7 +126,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         return SecurityTransportXPackInfoAction.class;
     }
 
-    List<Plugin> plugins() {
+    public List<Plugin> plugins() {
         return plugins;
     }
 }

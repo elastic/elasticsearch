@@ -12,11 +12,19 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 
 import java.text.ParseException;
@@ -25,7 +33,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,6 +69,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "appid")
             .put("xpack.security.authc.realms.jwt.jwt1.claims.groups", "groups")
             .put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "shared_secret")
+            .put("xpack.security.authc.realms.jwt.jwt1.client_authentication.rotation_grace_period", "1s")
             .putList("xpack.security.authc.realms.jwt.jwt1.allowed_signature_algorithms", "HS256", "HS384")
             // 3rd JWT realm
             .put("xpack.security.authc.realms.jwt.jwt2.order", 30)
@@ -70,6 +81,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.authc.realms.jwt.jwt2.claims.principal", "email")
             .put("xpack.security.authc.realms.jwt.jwt2.claims.groups", "groups")
             .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.type", "shared_secret")
+            .put("xpack.security.authc.realms.jwt.jwt2.client_authentication.rotation_grace_period", "0s")
             .putList("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256", "HS384");
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
@@ -170,6 +182,81 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         threadContext2.putHeader("Authorization", "Bearer " + signedJWT2.serialize());
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> jwtRealm.token(threadContext2));
         assertThat(e2.getMessage(), containsString("Failed to parse JWT claims set"));
+    }
+
+    public void testClientSecretRotation() throws Exception {
+        final List<JwtRealm> jwtRealms = getJwtRealms();
+        Map<String, JwtRealm> realmsByName = jwtRealms.stream().collect(Collectors.toMap(Realm::name, r -> r));
+        JwtRealm realm0 = realmsByName.get("jwt0");
+        JwtRealm realm1 = realmsByName.get("jwt1");
+        JwtRealm realm2 = realmsByName.get("jwt2");
+
+        assertThat(getGracePeriod(realm0), equalTo(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE.getDefault(Settings.EMPTY)));
+        assertThat(getGracePeriod(realm1), equalTo(TimeValue.timeValueSeconds(1)));
+        assertThat(getGracePeriod(realm2), equalTo(TimeValue.timeValueSeconds(0)));
+
+        String jwt0SharedSecret = "jwt0_shared_secret";
+        String jwt1SharedSecret = "jwt1_shared_secret";
+        String jwt2SharedSecret = "jwt2_shared_secret";
+        //sanity check
+        assertThat(getCurrentSecret(realm0), equalTo(jwt0SharedSecret));
+        assertThat(getCurrentSecret(realm1), equalTo(jwt1SharedSecret));
+        assertThat(getCurrentSecret(realm2), equalTo(jwt2SharedSecret));
+
+        final String update1suffix = "_update1";
+        final MockSecureSettings newSecureSettings = new MockSecureSettings();
+        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret", jwt0SharedSecret + update1suffix);
+        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret", jwt1SharedSecret + update1suffix);
+        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret", jwt2SharedSecret + update1suffix);
+
+
+
+        final PluginsService plugins = getInstanceFromNode(PluginsService.class);
+        final LocalStateSecurity notTheDroids = plugins.filterPlugins(LocalStateSecurity.class).get(0);
+        for (Plugin p : notTheDroids.plugins()) {
+            if (p instanceof Security securityPlugin) {
+
+                Settings.Builder newSettingsBuilder = Settings.builder()
+                    .setSecureSettings(newSecureSettings);
+                securityPlugin.reload(newSettingsBuilder.build());
+            }
+        }
+        assertThat(getCurrentSecret(realm0), equalTo(jwt0SharedSecret + update1suffix));
+        assertThat(getCurrentSecret(realm1), equalTo(jwt1SharedSecret + update1suffix));
+        assertThat(getCurrentSecret(realm2), equalTo(jwt2SharedSecret + update1suffix));
+
+        assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret)));
+        assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret + update1suffix)));
+        assertTrue("possible timing issue with test", Instant.now().isBefore(realm1.getClientAuthenticationSharedSecret().getSecrets().validTill()));
+        assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret))); //TODO: safegaurd this against slow executions assert above this
+        assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret + update1suffix)));
+        assertFalse(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //disabled old
+        assertTrue(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret + update1suffix)));
+
+        Thread.sleep(1000);
+        assertTrue("possible timing issue with test", Instant.now().isAfter(realm1.getClientAuthenticationSharedSecret().getSecrets().validTill()));
+        assertFalse(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //old expired
+
+
+
+
+
+
+
+    }
+
+    private SecureString getPriorSecret(JwtRealm realm){
+        return realm.getClientAuthenticationSharedSecret().getSecrets().prior();
+    }
+
+    private SecureString getCurrentSecret(JwtRealm realm){
+        return realm.getClientAuthenticationSharedSecret().getSecrets().current();
+    }
+
+    private TimeValue getGracePeriod(JwtRealm realm){
+       return realm.getConfig()
+            .getConcreteSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE)
+            .get(realm.getConfig().settings());
     }
 
     private void assertJwtToken(JwtAuthenticationToken token, String tokenPrincipal, String sharedSecret, SignedJWT signedJWT)

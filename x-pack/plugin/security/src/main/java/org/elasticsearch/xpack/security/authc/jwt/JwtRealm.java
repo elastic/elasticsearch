@@ -448,6 +448,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE));
     }
 
+    //package private for testing
+    RotatableSecret getClientAuthenticationSharedSecret() {
+        return clientAuthenticationSharedSecret;
+    }
+
     /**
      * Clean up JWT cache (if enabled).
      */

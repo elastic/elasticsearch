@@ -71,7 +71,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final ClaimParser claimParserMail;
     private final ClaimParser claimParserName;
     private final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
-    private final SecureString clientAuthenticationSharedSecret;
+    private SecureString clientAuthenticationSharedSecret;
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -440,6 +440,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             stats.put("jwt.cache", Collections.singletonMap("size", isCacheEnabled() ? jwtCache.count() : -1));
             listener.onResponse(stats);
         }, listener::onFailure));
+    }
+
+    public void setClientSecret(SecureString clientSecret){
+        //TODO: support time bound fallback secret to help with rotation ?
+        this.clientAuthenticationSharedSecret = clientSecret;
     }
 
     /**

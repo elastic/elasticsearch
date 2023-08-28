@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -30,8 +31,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  * </p>
  */
 public class Ceil extends UnaryScalarFunction implements EvaluatorMapper {
-    public Ceil(Source source, Expression field) {
-        super(source, field);
+    public Ceil(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override

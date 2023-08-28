@@ -7,6 +7,7 @@
           mappings:
             properties:
               v:
+                index: false
                 type: dense_vector
                 dims: 3
 

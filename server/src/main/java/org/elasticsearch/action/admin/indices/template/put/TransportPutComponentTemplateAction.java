@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
+
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 

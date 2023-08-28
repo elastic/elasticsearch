@@ -36,6 +36,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     PutComposableIndexTemplateAction.Request> {
+
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject

@@ -219,7 +219,6 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 IndexReader unmappedReader = unmappedWriter.getReader();
                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
             ) {
-                // TODO: we should always use a directory reader as it is the only one supported by ContextIndexSearcher
                 final InternalStats stats = searchAndReduce(multiReader, new AggTestConfig(builder, ft));
 
                 assertEquals(expected.count, stats.getCount(), 0);

@@ -18,8 +18,8 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -76,15 +76,15 @@ final class BytesRefLongBlockHash extends BlockHash {
         }
     }
 
-    public LongVector add(BytesRefVector vector1, LongVector vector2) {
+    public IntVector add(BytesRefVector vector1, LongVector vector2) {
         BytesRef scratch = new BytesRef();
         int positions = vector1.getPositionCount();
-        final long[] ords = new long[positions];
+        final int[] ords = new int[positions];
         for (int i = 0; i < positions; i++) {
             long hash1 = hashOrdToGroup(bytesHash.add(vector1.getBytesRef(i, scratch)));
-            ords[i] = hashOrdToGroup(finalHash.add(hash1, vector2.getLong(i)));
+            ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(hash1, vector2.getLong(i))));
         }
-        return new LongArrayVector(ords, positions);
+        return new IntArrayVector(ords, positions);
     }
 
     private static final long[] EMPTY = new long[0];
@@ -117,7 +117,7 @@ final class BytesRefLongBlockHash extends BlockHash {
                 int count2 = block2.getValueCount(p);
                 if (count1 == 1 && count2 == 1) {
                     long bytesOrd = hashOrdToGroup(bytesHash.add(block1.getBytesRef(start1, scratch)));
-                    ords.appendLong(hashOrdToGroup(finalHash.add(bytesOrd, block2.getLong(start2))));
+                    ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(bytesOrd, block2.getLong(start2)))));
                     addedValue(p);
                     continue;
                 }
@@ -143,14 +143,14 @@ final class BytesRefLongBlockHash extends BlockHash {
                     seenSize2 = LongLongBlockHash.add(seen2, seenSize2, block2.getLong(i));
                 }
                 if (seenSize1 == 1 && seenSize2 == 1) {
-                    ords.appendLong(hashOrdToGroup(finalHash.add(seen1[0], seen2[0])));
+                    ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(seen1[0], seen2[0]))));
                     addedValue(p);
                     continue;
                 }
                 ords.beginPositionEntry();
                 for (int s1 = 0; s1 < seenSize1; s1++) {
                     for (int s2 = 0; s2 < seenSize2; s2++) {
-                        ords.appendLong(hashOrdToGroup(finalHash.add(seen1[s1], seen2[s2])));
+                        ords.appendInt(Math.toIntExact(hashOrdToGroup(finalHash.add(seen1[s1], seen2[s2]))));
                         addedValueInMultivaluePosition(p);
                     }
                 }

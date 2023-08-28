@@ -28,6 +28,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -249,10 +250,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Deprecated
     protected <A extends Aggregator> A createAggregator(
         AggregationBuilder aggregationBuilder,
-        IndexSearcher searcher,
+        IndexReader indexReader,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        return createAggregator(aggregationBuilder, createAggregationContext(searcher, new MatchAllDocsQuery(), fieldTypes));
+        return createAggregator(aggregationBuilder, createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldTypes));
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, AggregationContext context)
@@ -282,7 +283,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Deprecated - this will be made private in a future update
      */
     @Deprecated
-    protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
+    protected AggregationContext createAggregationContext(IndexReader indexReader, Query query, MappedFieldType... fieldTypes)
+        throws IOException {
+        return createAggregationContext(
+            indexReader,
+            createIndexSettings(),
+            query,
+            new NoneCircuitBreakerService(),
+            AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
+            DEFAULT_MAX_BUCKETS,
+            false,
+            fieldTypes
+        );
+    }
+
+    private AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         return createAggregationContext(
             indexSearcher,
@@ -306,7 +321,29 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     @Deprecated
     protected AggregationContext createAggregationContext(
-        IndexSearcher indexSearcher,
+        IndexReader indexReader,
+        IndexSettings indexSettings,
+        Query query,
+        CircuitBreakerService breakerService,
+        long bytesToPreallocate,
+        int maxBucket,
+        boolean isInSortOrderExecutionRequired,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return createAggregationContext(
+            newIndexSearcher(indexReader),
+            indexSettings,
+            query,
+            breakerService,
+            bytesToPreallocate,
+            maxBucket,
+            isInSortOrderExecutionRequired,
+            fieldTypes
+        );
+    }
+
+    private AggregationContext createAggregationContext(
+        IndexSearcher searcher,
         IndexSettings indexSettings,
         Query query,
         CircuitBreakerService breakerService,
@@ -353,7 +390,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            indexSearcher,
+            searcher,
             System::currentTimeMillis,
             null,
             null,
@@ -470,8 +507,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher, AggTestConfig aggTestConfig)
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig)
         throws IOException {
+        IndexSearcher searcher = newIndexSearcher(reader);
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -694,9 +732,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader unwrapped = DirectoryReader.open(directory);
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                V agg = searchAndReduce(indexSearcher, aggTestConfig);
+                V agg = searchAndReduce(indexReader, aggTestConfig);
                 verify.accept(agg);
 
                 verifyOutputFieldNames(aggTestConfig.builder(), agg);
@@ -704,10 +740,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    protected void withIndex(
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        CheckedConsumer<IndexSearcher, IOException> consume
-    ) throws IOException {
+    protected void withIndex(CheckedConsumer<RandomIndexWriter, IOException> buildIndex, CheckedConsumer<IndexReader, IOException> consume)
+        throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             buildIndex.accept(iw);
@@ -716,14 +750,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader unwrapped = DirectoryReader.open(directory);
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
-                consume.accept(newIndexSearcher(indexReader));
+                consume.accept(indexReader);
             }
         }
     }
 
     protected void withNonMergingIndex(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        CheckedConsumer<IndexSearcher, IOException> consume
+        CheckedConsumer<IndexReader, IOException> consume
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(
@@ -737,7 +771,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader unwrapped = DirectoryReader.open(directory);
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
-                consume.accept(newIndexSearcher(indexReader));
+                consume.accept(indexReader);
             }
         }
     }
@@ -755,7 +789,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         TriConsumer<R, Class<? extends Aggregator>, Map<String, Map<String, Object>>> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        withIndex(buildIndex, searcher -> debugTestCase(builder, query, searcher, verify, fieldTypes));
+        withIndex(buildIndex, reader -> debugTestCase(builder, query, reader, verify, null, fieldTypes));
     }
 
     /**
@@ -767,11 +801,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <R extends InternalAggregation> void debugTestCase(
         AggregationBuilder aggregationBuilder,
         Query query,
-        IndexSearcher searcher,
+        IndexReader reader,
         TriConsumer<R, Class<? extends Aggregator>, Map<String, Map<String, Object>>> verify,
+        QueryCachingPolicy queryCachingPolicy,
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
+        IndexSearcher searcher = newIndexSearcher(reader);
+        if (queryCachingPolicy != null) {
+            searcher.setQueryCachingPolicy(queryCachingPolicy);
+        }
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -915,16 +954,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-     * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread. It randomly
-     * sets the IndexSearcher to run on concurrent mode.
+     * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread.
      */
-    protected IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
+    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException {
         return new ContextIndexSearcher(
             indexReader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
-            randomBoolean(),
+            indexReader instanceof DirectoryReader ? randomBoolean() : false, // we can only wrap DirectoryReader instances
             this.threadPoolExecutor,
             this.threadPoolExecutor.getMaximumPoolSize(),
             1 // forces multiple slices
@@ -1042,7 +1080,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 indexWriter.close();
 
                 try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
                     ValuesSourceType vst = fieldToVST(fieldType);
@@ -1050,7 +1087,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            indexSearcher,
+                            indexReader,
                             new AggTestConfig(aggregationBuilder, fieldType)
                         );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override

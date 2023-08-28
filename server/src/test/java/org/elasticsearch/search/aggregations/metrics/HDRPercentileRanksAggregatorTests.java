@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
@@ -47,8 +46,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             .method(PercentilesMethod.HDR);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
-            IndexSearcher searcher = newSearcher(reader);
-            PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+            PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
             assertFalse(ranks.iterator().hasNext());
             assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
         }
@@ -67,8 +65,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 .method(PercentilesMethod.HDR);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                PercentileRanks ranks = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);

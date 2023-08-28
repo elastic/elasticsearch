@@ -184,7 +184,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ProcessClusterEventTimeoutException) {
-                        sendResponse(task, request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT, listener);
+                        // Move off of the MasterService thread, back onto the MANAGEMENT thread.
+                        executor.execute(
+                            () -> sendResponse(task, request, clusterService.state(), waitCount, TimeoutState.TIMED_OUT, listener)
+                        );
                     } else {
                         final Level level = isExpectedFailure(e) ? Level.TRACE : Level.ERROR;
                         logger.log(level, () -> "unexpected failure during [" + source + "]", e);

@@ -1,0 +1,14 @@
+[[esql-left]]
+=== `LEFT`
+
+Return the substring that extract 'length' chars
+from string starting from 0.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=left]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=left-result]
+|===

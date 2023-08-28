@@ -1,5 +1,7 @@
 [[esql-greatest]]
 === `GREATEST`
+[.text-center]
+image::esql/functions/signature/greatest.svg[Embedded,opts=inline]
 
 Returns the maximum value from many columns. This is similar to <<esql-mv_max>>
 except it's intended to run on multiple columns at once.
@@ -16,3 +18,7 @@ include::{esql-specs}/math.csv-spec[tag=greatest-result]
 NOTE: When run on `keyword` or `text` fields, this'll return the last string
       in alphabetical order. When run on `boolean` columns this will return
       `true` if any values are `true`.
+
+Supported types:
+
+include::types/greatest.asciidoc[]

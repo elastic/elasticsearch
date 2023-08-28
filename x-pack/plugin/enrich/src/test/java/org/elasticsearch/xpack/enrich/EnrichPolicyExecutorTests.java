@@ -77,6 +77,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             null,
+            null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
@@ -131,6 +132,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         EnrichPolicyLocks locks = new EnrichPolicyLocks();
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             testSettings,
+            null,
             null,
             client,
             testThreadPool,
@@ -266,6 +268,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             null,
+            null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
@@ -388,6 +391,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             Settings.EMPTY,
             clusterService,
+            null,
             null,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),

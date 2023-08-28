@@ -8,25 +8,36 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -36,8 +47,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
@@ -76,7 +93,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class);
+        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class);
     }
 
     @Override
@@ -434,6 +451,136 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(searchResponse.getSkippedShards(), equalTo(1));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
         }
+    }
+
+    public void testTrimId() throws Exception {
+        String dataStreamName = "k8s";
+        var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+        putTemplateRequest.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of(dataStreamName + "*"),
+                new Template(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .put("index.number_of_replicas", 0)
+                        // Reduce sync interval to speedup this integraton test,
+                        // otherwise by default it will take 30 seconds before minimum retained seqno is updated:
+                        .put("index.soft_deletes.retention_lease.sync_interval", "100ms")
+                        .build(),
+                    new CompressedXContent(MAPPING_TEMPLATE),
+                    null
+                ),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            )
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet();
+
+        // index some data
+        int numBulkRequests = 32;
+        int numDocsPerBulk = 256;
+        String indexName = null;
+        {
+            Instant time = Instant.now();
+            for (int i = 0; i < numBulkRequests; i++) {
+                BulkRequest bulkRequest = new BulkRequest(dataStreamName);
+                for (int j = 0; j < numDocsPerBulk; j++) {
+                    var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+                    indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+                    bulkRequest.add(indexRequest);
+                    time = time.plusMillis(1);
+                }
+                var bulkResponse = client().bulk(bulkRequest).actionGet();
+                assertThat(bulkResponse.hasFailures(), is(false));
+                indexName = bulkResponse.getItems()[0].getIndex();
+            }
+            client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+        }
+
+        // Check whether there are multiple segments:
+        var getSegmentsResponse = client().admin().indices().segments(new IndicesSegmentsRequest(dataStreamName)).actionGet();
+        assertThat(
+            getSegmentsResponse.getIndices().get(indexName).getShards().get(0).shards()[0].getSegments(),
+            hasSize(greaterThanOrEqualTo(2))
+        );
+
+        // Pre check whether _id stored field uses diskspace:
+        var diskUsageResponse = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+        var map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk()
+                                .entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", greaterThanOrEqualTo(1)))
+                        )
+                )
+        );
+
+        // Check that the minimum retaining seqno has advanced, otherwise _id (and recovery source) doesn't get trimmed away.
+        var finalIndexName = indexName;
+        assertBusy(() -> {
+            var r = client().admin().indices().stats(new IndicesStatsRequest().indices(dataStreamName).all()).actionGet();
+            var retentionLeasesStats = r.getIndices().get(finalIndexName).getIndexShards().get(0).getShards()[0].getRetentionLeaseStats();
+            assertThat(retentionLeasesStats.retentionLeases().leases(), hasSize(1));
+            assertThat(
+                retentionLeasesStats.retentionLeases().leases().iterator().next().retainingSequenceNumber(),
+                equalTo((long) numBulkRequests * numDocsPerBulk)
+            );
+        });
+
+        // Force merge should trim the _id stored field away for all segments:
+        var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest(dataStreamName).maxNumSegments(1)).actionGet();
+        assertThat(forceMergeResponse.getTotalShards(), equalTo(1));
+        assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(1));
+        assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
+
+        // Check whether we really end up with 1 segment:
+        getSegmentsResponse = client().admin().indices().segments(new IndicesSegmentsRequest(dataStreamName)).actionGet();
+        assertThat(getSegmentsResponse.getIndices().get(indexName).getShards().get(0).shards()[0].getSegments(), hasSize(1));
+
+        // Check the _id stored field uses no disk space:
+        diskUsageResponse = client().execute(
+            AnalyzeIndexDiskUsageAction.INSTANCE,
+            new AnalyzeIndexDiskUsageRequest(new String[] { dataStreamName }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
+        ).actionGet();
+        map = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(diskUsageResponse), false);
+        assertMap(
+            map,
+            matchesMap().extraOk()
+                .entry(
+                    indexName,
+                    matchesMap().extraOk()
+                        .entry(
+                            "fields",
+                            matchesMap().extraOk().entry("_id", matchesMap().extraOk().entry("stored_fields_in_bytes", equalTo(0)))
+                        )
+                )
+        );
+
+        // Check the search api can synthesize _id
+        var searchRequest = new SearchRequest(dataStreamName);
+        searchRequest.source().trackTotalHits(true);
+        var searchResponse = client().search(searchRequest).actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+        String id = searchResponse.getHits().getHits()[0].getId();
+        assertThat(id, notNullValue());
+
+        // Check that the _id is gettable:
+        var getResponse = client().get(new GetRequest(indexName).id(id)).actionGet();
+        assertThat(getResponse.isExists(), is(true));
+        assertThat(getResponse.getId(), equalTo(id));
     }
 
     static String formatInstant(Instant instant) {

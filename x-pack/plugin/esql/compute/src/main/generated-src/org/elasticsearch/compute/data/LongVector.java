@@ -7,6 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * Vector that stores long values.
  * This class is generated. Do not edit it.
@@ -65,6 +70,35 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
             result = 31 * result + (int) (element ^ (element >>> 32));
         }
         return result;
+    }
+
+    /** Deserializes a Vector from the given stream input. */
+    static LongVector of(StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return new ConstantLongVector(in.readLong(), positions);
+        } else {
+            var builder = LongVector.newVectorBuilder(positions);
+            for (int i = 0; i < positions; i++) {
+                builder.appendLong(in.readLong());
+            }
+            return builder.build();
+        }
+    }
+
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+            out.writeLong(getLong(0));
+        } else {
+            for (int i = 0; i < positions; i++) {
+                out.writeLong(getLong(i));
+            }
+        }
     }
 
     static Builder newVectorBuilder(int estimatedSize) {

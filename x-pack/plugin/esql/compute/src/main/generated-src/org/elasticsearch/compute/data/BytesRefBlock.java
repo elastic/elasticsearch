@@ -46,6 +46,10 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     }
 
     static BytesRefBlock of(StreamInput in) throws IOException {
+        final boolean isVector = in.readBoolean();
+        if (isVector) {
+            return BytesRefVector.of(in).asBlock();
+        }
         final int positions = in.readVInt();
         var builder = newBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
@@ -65,17 +69,23 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        final int positions = getPositionCount();
-        out.writeVInt(positions);
-        for (int pos = 0; pos < positions; pos++) {
-            if (isNull(pos)) {
-                out.writeBoolean(true);
-            } else {
-                out.writeBoolean(false);
-                final int valueCount = getValueCount(pos);
-                out.writeVInt(valueCount);
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    out.writeBytesRef(getBytesRef(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+        BytesRefVector vector = asVector();
+        out.writeBoolean(vector != null);
+        if (vector != null) {
+            vector.writeTo(out);
+        } else {
+            final int positions = getPositionCount();
+            out.writeVInt(positions);
+            for (int pos = 0; pos < positions; pos++) {
+                if (isNull(pos)) {
+                    out.writeBoolean(true);
+                } else {
+                    out.writeBoolean(false);
+                    final int valueCount = getValueCount(pos);
+                    out.writeVInt(valueCount);
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        out.writeBytesRef(getBytesRef(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+                    }
                 }
             }
         }

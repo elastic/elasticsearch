@@ -183,15 +183,15 @@ public class SecurityNetty4Transport extends Netty4Transport {
                                 header.getRequestHeaders(),
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
-                                    logger.debug("Transport CCS authentication SUCCESS for " + header + " on channel " + channel);
+                                    // Header#toString does not print credentials (which are stored in request headers)
+                                    logger.debug("Transport CCS authentication SUCCESS for [{}] on channel [{}]", header, channel);
                                 }, e -> {
+                                    // Header#toString does not print credentials (which are stored in request headers)
                                     logger.debug(
-                                        "Transport CCS authentication FAIL for "
-                                            + header
-                                            + " with "
-                                            + e.getMessage()
-                                            + " closing channel "
-                                            + channel
+                                        "Transport CCS authentication FAIL for [{}] with [{}], closing channel [{}]",
+                                        header,
+                                        e.getMessage(),
+                                        channel
                                     );
                                     channel.eventLoop()
                                         .submit(() -> channel.pipeline().fireExceptionCaught(new HeaderValidationException(header, e)));

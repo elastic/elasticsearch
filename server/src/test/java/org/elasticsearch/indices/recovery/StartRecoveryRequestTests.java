@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            DiscoveryNodeUtils.builder("a").roles(emptySet()).version(targetNodeVersion).build(),
-            DiscoveryNodeUtils.builder("b").roles(emptySet()).version(targetNodeVersion).build(),
+            DiscoveryNodeUtils.builder("a").roles(emptySet()).version(targetNodeVersion, IndexVersion.ZERO, IndexVersion.current()).build(),
+            DiscoveryNodeUtils.builder("b").roles(emptySet()).version(targetNodeVersion, IndexVersion.ZERO, IndexVersion.current()).build(),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

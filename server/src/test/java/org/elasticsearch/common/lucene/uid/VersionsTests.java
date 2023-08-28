@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -272,7 +273,7 @@ public class VersionsTests extends ESTestCase {
 
     private static String createTSDBId(long timestamp) {
         Settings.Builder b = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         IndexMetadata indexMetadata = IndexMetadata.builder("idx").settings(b).numberOfShards(1).numberOfReplicas(0).build();
         IndexRouting.ExtractFromSource.Builder routingBuilder = ((IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(

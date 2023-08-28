@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.broadcast.node;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
@@ -49,6 +48,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
@@ -90,6 +90,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -135,6 +136,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "testrequest" + Arrays.toString(indices);
         }
     }
 
@@ -311,7 +317,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(totalIndexShards);
 
@@ -397,6 +403,14 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
+            assertThat(
+                entry.getValue().iterator().next().request().toString(),
+                allOf(
+                    containsString('[' + action.transportNodeBroadcastAction + ']'),
+                    containsString('[' + entry.getKey() + ']'),
+                    containsString("[testrequest[" + TEST_INDEX + "]]")
+                )
+            );
         }
 
         assertFalse(request.hasReferences());

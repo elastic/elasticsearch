@@ -41,7 +41,9 @@ import java.util.List;
 
 import static org.elasticsearch.core.IOUtils.WINDOWS;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
@@ -83,7 +85,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             cacheSize = ByteSizeValue.ofBytes(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
-        final Settings settings = Settings.builder()
+        final Settings settings1 = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
@@ -92,6 +94,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
+        final Settings settings = settings1;
         final Environment environment = TestEnvironment.newEnvironment(settings);
         for (Path path : environment.dataFiles()) {
             Files.createDirectories(path);
@@ -130,6 +133,13 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
             final byte[] result = randomReadAndSlice(indexInput, fileData.length);
             assertArrayEquals(fileData, result);
+
+            // validate clone copies cache file object
+            indexInput.seek(randomLongBetween(0, fileData.length - 1));
+            FrozenIndexInput clone = (FrozenIndexInput) indexInput.clone();
+            assertThat(clone.cacheFile(), not(equalTo(((FrozenIndexInput) indexInput).cacheFile())));
+            assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
+
             indexInput.close();
         }
     }

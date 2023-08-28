@@ -1,7 +1,7 @@
 [[esql-floor]]
 === `FLOOR`
 [.text-center]
-image::signature/floor.svg[]
+image::esql/functions/signature/floor.svg[Embedded,opts=inline]
 
 Round a number down to the nearest integer.
 

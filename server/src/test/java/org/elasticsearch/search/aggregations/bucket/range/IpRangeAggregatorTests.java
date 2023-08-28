@@ -11,7 +11,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -98,8 +97,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             }
             MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
+                InternalBinaryRange range = searchAndReduce(reader, new AggTestConfig(builder, fieldType));
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
                     Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
@@ -131,8 +129,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder));
+                InternalBinaryRange range = searchAndReduce(reader, new AggTestConfig(builder));
                 assertEquals(1, range.getBuckets().size());
             }
         }
@@ -149,8 +146,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> { searchAndReduce(searcher, new AggTestConfig(builder)); });
+                expectThrows(IllegalArgumentException.class, () -> { searchAndReduce(reader, new AggTestConfig(builder)); });
             }
         }
     }

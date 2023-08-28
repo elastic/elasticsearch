@@ -63,7 +63,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             MappedFieldType ft = mapperService.fieldType("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
             Query rangeQuery = ft.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             assertEquals(1, searcher.count(rangeQuery));
         });
     }

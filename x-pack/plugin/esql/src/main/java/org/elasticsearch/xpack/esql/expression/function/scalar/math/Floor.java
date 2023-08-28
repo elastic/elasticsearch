@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -29,9 +30,9 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  *     an integer ala {@link Math#floor}.
  * </p>
  */
-public class Floor extends UnaryScalarFunction implements Mappable {
-    public Floor(Source source, Expression field) {
-        super(source, field);
+public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
+    public Floor(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
@@ -47,7 +48,7 @@ public class Floor extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

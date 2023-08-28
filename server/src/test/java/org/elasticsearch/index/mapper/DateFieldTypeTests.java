@@ -18,12 +18,10 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -210,7 +208,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             0,
             0,
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -237,16 +234,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             LongPoint.newRangeQuery("field", instant1, instant2),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
-        assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
-        );
+        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
         Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         assertEquals(
             expected2,
-            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+            ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader()))
         );
 
         instant1 = nowInMillis;

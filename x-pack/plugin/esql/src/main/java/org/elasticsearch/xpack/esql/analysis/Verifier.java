@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -228,9 +228,9 @@ public class Verifier {
 
     private static Collection<Failure> validateRow(Row row) {
         List<Failure> failures = new ArrayList<>(row.fields().size());
-        row.fields().forEach(o -> {
-            if (EsqlDataTypes.isRepresentable(o.dataType()) == false && o instanceof Alias a) {
-                failures.add(fail(o, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+        row.fields().forEach(a -> {
+            if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
             }
         });
         return failures;

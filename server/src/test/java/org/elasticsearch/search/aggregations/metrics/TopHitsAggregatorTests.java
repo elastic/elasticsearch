@@ -72,7 +72,6 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * Tests {@code top_hits} inside of {@code terms}. While not strictly a unit test this is a fairly common way to run {@code top_hits}
      * and serves as a good example of running {@code top_hits} inside of another aggregation.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98892")
     public void testInsideTerms() throws Exception {
         Aggregation result;
         if (randomBoolean()) {

@@ -63,10 +63,10 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.TransportAddressConnector;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -184,13 +184,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final NodeHealthService nodeHealthService;
     private final List<PeerFinderListener> peerFinderListeners;
     private final LeaderHeartbeatService leaderHeartbeatService;
-    private final SystemIndices systemIndices;
+    private final VersionsWrapper versionsWrapper;
 
     /**
      * @param nodeName         The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the
      *                         {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
-     * @param systemIndices
      */
     public Coordinator(
         String nodeName,
@@ -213,7 +212,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         Reconfigurator reconfigurator,
         LeaderHeartbeatService leaderHeartbeatService,
         PreVoteCollector.Factory preVoteCollectorFactory,
-        SystemIndices systemIndices
+        VersionsWrapper versionsWrapper
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -238,7 +237,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             circuitBreakerService,
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
             this::getLatestStoredStateAfterWinningAnElection,
-            systemIndices
+            versionsWrapper
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -320,7 +319,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.peerFinderListeners = new CopyOnWriteArrayList<>();
         this.peerFinderListeners.add(clusterBootstrapService);
         this.leaderHeartbeatService = leaderHeartbeatService;
-        this.systemIndices = systemIndices;
+        this.versionsWrapper = versionsWrapper;
     }
 
     /**
@@ -1074,7 +1073,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
-                .putSystemIndexMappingsVersions(getLocalNode().getId(), systemIndices.getMappingsVersions())
+                .putSystemIndexMappingsVersions(getLocalNode().getId(), versionsWrapper.systemIndexMappingsVersions())
                 .metadata(metadata)
                 .build();
             applierState = initialState;

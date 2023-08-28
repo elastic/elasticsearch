@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -122,6 +123,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -924,7 +926,12 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            // TODO[wrb]: for node join approach, "runtime" versions need to go in here
+            // TODO[wrb]: version wrapper instead of system indices
+            VersionsWrapper versionsWrapper = new VersionsWrapper(
+                TransportVersion.current(),
+                IndexVersion.current(),
+                systemIndices.getMappingsVersions()
+            );
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -942,7 +949,7 @@ public class Node implements Closeable {
                 rerouteService,
                 fsHealthService,
                 circuitBreakerService,
-                systemIndices
+                versionsWrapper
             );
             this.nodeService = new NodeService(
                 settings,

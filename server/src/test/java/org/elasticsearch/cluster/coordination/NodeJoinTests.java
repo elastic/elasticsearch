@@ -29,11 +29,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -231,7 +231,7 @@ public class NodeJoinTests extends ESTestCase {
             new Reconfigurator(Settings.EMPTY, clusterSettings),
             LeaderHeartbeatService.NO_OP,
             StatefulPreVoteCollector::new,
-            EmptySystemIndices.INSTANCE
+            VersionsWrapper.STATIC_VERSIONS
         );
         transportService.start();
         transportService.acceptIncomingRequests();

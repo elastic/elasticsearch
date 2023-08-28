@@ -25,8 +25,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -115,7 +115,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             mock(RerouteService.class),
             null,
             new NoneCircuitBreakerService(),
-            EmptySystemIndices.INSTANCE
+            VersionsWrapper.STATIC_VERSIONS
         );
     }
 

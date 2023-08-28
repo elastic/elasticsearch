@@ -35,9 +35,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.transport.TransportService;
@@ -111,7 +111,7 @@ public class DiscoveryModule {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
-        SystemIndices systemIndices
+        VersionsWrapper versionsWrapper
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -213,7 +213,7 @@ public class DiscoveryModule {
                 reconfigurator,
                 leaderHeartbeatService,
                 preVoteCollectorFactory,
-                systemIndices
+                versionsWrapper
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

@@ -144,8 +144,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         TransportVersion transportVersion = nodeJoinTask.transportVersion();
-                        Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions = nodeJoinTask.systemIndices()
-                            .getMappingsVersions();
+                        Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions = nodeJoinTask.versionsWrapper()
+                            .systemIndexMappingsVersions();
                         // TODO[wrb]: add system index versions to version barrier?
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);

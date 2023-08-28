@@ -92,6 +92,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -404,7 +405,7 @@ public class ClusterStateChanges {
             clusterState,
             List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
                 throw new AssertionError("should not complete publication");
-            }), clusterState.term(), EmptySystemIndices.INSTANCE))
+            }), clusterState.term(), VersionsWrapper.STATIC_VERSIONS))
         );
     }
 
@@ -417,7 +418,7 @@ public class ClusterStateChanges {
                     nodes.stream()
                         .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
                             throw new AssertionError("should not complete publication");
-                        }), EmptySystemIndices.INSTANCE)),
+                        }), VersionsWrapper.STATIC_VERSIONS)),
                     clusterState.term() + between(1, 10)
                 )
             )

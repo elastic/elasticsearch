@@ -162,6 +162,7 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -2212,7 +2213,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
-                    EmptySystemIndices.INSTANCE
+                    VersionsWrapper.STATIC_VERSIONS
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

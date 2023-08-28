@@ -15,6 +15,7 @@ these functions:
 * <<esql-atan2>>
 * <<esql-auto_bucket>>
 * <<esql-case>>
+* <<esql-ceil>>
 * <<esql-cidr_match>>
 * <<esql-coalesce>>
 * <<esql-concat>>
@@ -75,6 +76,7 @@ include::functions/atan.asciidoc[]
 include::functions/atan2.asciidoc[]
 include::functions/auto_bucket.asciidoc[]
 include::functions/case.asciidoc[]
+include::functions/ceil.asciidoc[]
 include::functions/cidr_match.asciidoc[]
 include::functions/coalesce.asciidoc[]
 include::functions/concat.asciidoc[]

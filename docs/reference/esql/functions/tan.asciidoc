@@ -16,4 +16,4 @@ include::{esql-specs}/floats.csv-spec[tag=tan-result]
 
 Supported types:
 
-include::types/tanh.asciidoc[]
+include::types/tan.asciidoc[]

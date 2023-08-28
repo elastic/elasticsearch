@@ -24,7 +24,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatusAction.Request, GetStatusAction.Response> {
-
     @Inject
     public TransportGetStatusAction(
         TransportService transportService,
@@ -53,10 +52,20 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterState state,
         ActionListener<GetStatusAction.Response> listener
     ) {
+        IndexStateResolver indexStateResolver = new IndexStateResolver(getValue(state, ProfilingPlugin.PROFILING_CHECK_OUTDATED_INDICES));
+
         boolean pluginEnabled = getValue(state, XPackSettings.PROFILING_ENABLED);
         boolean resourceManagementEnabled = getValue(state, ProfilingPlugin.PROFILING_TEMPLATES_ENABLED);
-        boolean resourcesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
-        listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated));
+
+        boolean templatesCreated = ProfilingIndexTemplateRegistry.isAllResourcesCreated(state, clusterService.getSettings());
+        boolean indicesCreated = ProfilingIndexManager.isAllResourcesCreated(state, indexStateResolver);
+        boolean dataStreamsCreated = ProfilingDataStreamManager.isAllResourcesCreated(state, indexStateResolver);
+        boolean resourcesCreated = templatesCreated && indicesCreated && dataStreamsCreated;
+
+        boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
+        boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
+        boolean anyPre891Data = indicesPre891 || dataStreamsPre891;
+        listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data));
     }
 
     private boolean getValue(ClusterState state, Setting<Boolean> setting) {

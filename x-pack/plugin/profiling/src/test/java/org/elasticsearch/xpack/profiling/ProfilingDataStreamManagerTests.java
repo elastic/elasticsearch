@@ -48,6 +48,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,7 +61,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -73,6 +76,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
     private VerifyingClient client;
     private List<ProfilingDataStreamManager.ProfilingDataStream> managedDataStreams;
     private int indexTemplateVersion;
+    private IndexStateResolver indexStateResolver;
 
     @Before
     public void createRegistryAndClient() {
@@ -82,15 +86,16 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         managedDataStreams = ProfilingDataStreamManager.PROFILING_DATASTREAMS;
         indexTemplateVersion = ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
-        datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService) {
-            @Override
-            protected boolean isAllResourcesCreated(ClusterChangedEvent event, Settings settings) {
-                return templatesCreated.get();
-            }
-
+        indexStateResolver = new IndexStateResolver(true) {
             @Override
             protected int getIndexTemplateVersion() {
                 return indexTemplateVersion;
+            }
+        };
+        datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver) {
+            @Override
+            protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
+                return templatesCreated.get();
             }
 
             @Override
@@ -161,6 +166,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             List.of(existingDataStream.withVersion(0)),
             nodes,
             IndexMetadata.State.OPEN,
+            IndexVersion.current(),
             false
         );
 
@@ -171,6 +177,62 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         // should not create the index because a newer generation with the correct version exists
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
 
+        calledTimes.set(0);
+    }
+
+    public void testThatOutdatedDataStreamIsDetectedIfCheckEnabled() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
+        ClusterChangedEvent event = createClusterChangedEvent(
+            List.of(existingDataStream),
+            nodes,
+            IndexMetadata.State.OPEN,
+            // This is an outdated version that requires indices to be deleted upon migration
+            IndexVersion.V_8_8_2,
+            true
+        );
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
+        // should not create this index because the one that has changed is too old. Depending on the point at which the index is
+        // evaluated, other indices may have already been created.
+        assertBusy(
+            () -> assertThat(
+                calledTimes.get(),
+                allOf(greaterThanOrEqualTo(0), Matchers.lessThan(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size()))
+            )
+        );
+        calledTimes.set(0);
+    }
+
+    public void testThatOutdatedDataStreamIsIgnoredIfCheckDisabled() throws Exception {
+        // disable the check
+        indexStateResolver.setCheckOutdatedIndices(false);
+
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        templatesCreated.set(true);
+
+        ProfilingDataStreamManager.ProfilingDataStream existingDataStream = randomFrom(ProfilingDataStreamManager.PROFILING_DATASTREAMS);
+        ClusterChangedEvent event = createClusterChangedEvent(
+            List.of(existingDataStream),
+            nodes,
+            IndexMetadata.State.OPEN,
+            IndexVersion.V_8_8_2,
+            true
+        );
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+
+        client.setVerifier((action, request, listener) -> verifyDataStreamInstalled(calledTimes, action, request, listener));
+        datastreamManager.clusterChanged(event);
+        // should create all indices but consider the current one up-to-date
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(ProfilingDataStreamManager.PROFILING_DATASTREAMS.size() - 1)));
         calledTimes.set(0);
     }
 
@@ -185,6 +247,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             List.of(existingDataStream.withVersion(0)),
             nodes,
             IndexMetadata.State.CLOSE,
+            IndexVersion.current(),
             true
         );
 
@@ -379,16 +442,17 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes
     ) {
-        return createClusterChangedEvent(existingDataStreams, nodes, IndexMetadata.State.OPEN, true);
+        return createClusterChangedEvent(existingDataStreams, nodes, IndexMetadata.State.OPEN, IndexVersion.current(), true);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
         Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes,
         IndexMetadata.State state,
+        IndexVersion indexVersion,
         boolean allShardsAssigned
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingDataStreams, nodes, state, allShardsAssigned);
+        ClusterState cs = createClusterState(Settings.EMPTY, existingDataStreams, nodes, state, indexVersion, allShardsAssigned);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -405,6 +469,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         Iterable<ProfilingDataStreamManager.ProfilingDataStream> existingDataStreams,
         DiscoveryNodes nodes,
         IndexMetadata.State state,
+        IndexVersion indexVersion,
         boolean allShardsAssigned
     ) {
         Metadata.Builder metadataBuilder = Metadata.builder();
@@ -427,7 +492,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             metadataBuilder.put(ds);
             IndexMetadata.Builder builder = new IndexMetadata.Builder(writeIndexName);
             builder.state(state);
-            builder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, writeIndex.getUUID()));
+            builder.settings(indexSettings(indexVersion, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, writeIndex.getUUID()));
             builder.putMapping(
                 new MappingMetadata(
                     MapperService.SINGLE_MAPPING_NAME,

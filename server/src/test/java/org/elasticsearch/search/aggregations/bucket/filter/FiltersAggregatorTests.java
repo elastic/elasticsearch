@@ -106,7 +106,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         int numFilters = randomIntBetween(1, 10);
         QueryBuilder[] filters = new QueryBuilder[numFilters];
         for (int i = 0; i < filters.length; i++) {
@@ -114,7 +113,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
+        InternalFilters response = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -198,7 +197,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         FiltersAggregator.KeyedFilter[] keys = new FiltersAggregator.KeyedFilter[6];
         keys[0] = new FiltersAggregator.KeyedFilter("foobar", QueryBuilders.termQuery("field", "foobar"));
@@ -211,7 +209,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        final InternalFilters filters = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
+        final InternalFilters filters = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
         assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
@@ -246,7 +244,6 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         try {
             int numFilters = randomIntBetween(1, 10);
             QueryBuilder[] filters = new QueryBuilder[numFilters];
@@ -266,7 +263,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            final InternalFilters response = searchAndReduce(indexSearcher, new AggTestConfig(builder, new KeywordFieldType("field")));
+            final InternalFilters response = searchAndReduce(indexReader, new AggTestConfig(builder, new KeywordFieldType("field")));
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
 
@@ -420,6 +417,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         )
                     );
                 },
+                null,
                 ft
             );
         });
@@ -441,8 +439,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     List.of(new Field("test", "will find me", TextFieldMapper.Defaults.FIELD_TYPE))
                 )
             );
-        }, searcher -> {
-            searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+        }, indexReader -> {
+            QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
                 @Override
                 public boolean shouldCache(Query query) throws IOException {
                     return true;
@@ -450,12 +448,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
                 @Override
                 public void onUse(Query query) {}
-            });
+            };
             for (Matcher<Integer> segmentsCountedInConstantTime : List.of(equalTo(0), greaterThanOrEqualTo(1))) {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    searcher,
+                    indexReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
@@ -479,6 +477,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             )
                         );
                     },
+                    queryCachingPolicy,
                     ft
                 );
             }
@@ -662,7 +661,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newIndexSearcher(limitedReader);
+                IndexSearcher searcher = newSearcher(limitedReader);
                 int segmentsWithLiveDocs = (int) searcher.getIndexReader()
                     .leaves()
                     .stream()
@@ -672,7 +671,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    searcher,
+                    limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
@@ -693,7 +692,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                     )
                             )
                         );
-                    }
+                    },
+                    null
                 );
             }
         }
@@ -735,7 +735,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newIndexSearcher(limitedReader);
+                IndexSearcher searcher = newSearcher(limitedReader);
                 int segmentsWithLiveDocs = (int) searcher.getIndexReader()
                     .leaves()
                     .stream()
@@ -745,7 +745,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    searcher,
+                    limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
@@ -767,6 +767,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             )
                         );
                     },
+                    null,
                     ft
                 );
             }
@@ -805,7 +806,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newIndexSearcher(limitedReader);
+                IndexSearcher searcher = newSearcher(limitedReader);
                 int segmentsWithLiveDocs = (int) searcher.getIndexReader()
                     .leaves()
                     .stream()
@@ -816,7 +817,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 debugTestCase(
                     builder,
                     new MatchAllDocsQuery(),
-                    searcher,
+                    limitedReader,
                     (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                         assertThat(filters.getBuckets(), hasSize(1));
                         assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(10L));
@@ -838,6 +839,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                             )
                         );
                     },
+                    null,
                     ft
                 );
 

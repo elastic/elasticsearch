@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * Creates all data streams that are required for using Elastic Universal Profiling.
  */
-public class ProfilingDataStreamManager extends AbstractProfilingPersistenceManager<ProfilingDataStreamManager.ProfilingDataStream> {
+class ProfilingDataStreamManager extends AbstractProfilingPersistenceManager<ProfilingDataStreamManager.ProfilingDataStream> {
     public static final List<ProfilingDataStream> PROFILING_DATASTREAMS;
 
     static {
@@ -51,8 +51,8 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         PROFILING_DATASTREAMS = Collections.unmodifiableList(dataStreams);
     }
 
-    public ProfilingDataStreamManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
-        super(threadPool, client, clusterService);
+    ProfilingDataStreamManager(ThreadPool threadPool, Client client, ClusterService clusterService, IndexStateResolver indexStateResolver) {
+        super(threadPool, client, clusterService, indexStateResolver);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         IndexState<ProfilingDataStream> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
-        Status status = indexState.getStatus();
+        IndexStatus status = indexState.getStatus();
         switch (status) {
             case NEEDS_CREATION -> createDataStream(indexState.getIndex(), listener);
             case NEEDS_VERSION_BUMP -> rolloverDataStream(indexState.getIndex(), listener);
@@ -72,22 +72,6 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
                 listener.onResponse(null);
             }
         }
-    }
-
-    protected IndexMetadata indexMetadata(ClusterState state, ProfilingDataStream dataStream) {
-        Map<String, DataStream> dataStreams = state.metadata().dataStreams();
-        if (dataStreams == null) {
-            return null;
-        }
-        DataStream ds = dataStreams.get(dataStream.getName());
-        if (ds == null) {
-            return null;
-        }
-        Index writeIndex = ds.getWriteIndex();
-        if (writeIndex == null) {
-            return null;
-        }
-        return state.metadata().index(writeIndex);
     }
 
     @Override
@@ -185,7 +169,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
     /**
      * A datastream that is used by Universal Profiling.
      */
-    static class ProfilingDataStream implements AbstractProfilingPersistenceManager.ProfilingIndexAbstraction {
+    static class ProfilingDataStream implements ProfilingIndexAbstraction {
         private final String name;
         private final int version;
         private final List<Migration> migrations;
@@ -227,6 +211,23 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         }
 
         @Override
+        public IndexMetadata indexMetadata(ClusterState state) {
+            Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+            if (dataStreams == null) {
+                return null;
+            }
+            DataStream ds = dataStreams.get(this.getName());
+            if (ds == null) {
+                return null;
+            }
+            Index writeIndex = ds.getWriteIndex();
+            if (writeIndex == null) {
+                return null;
+            }
+            return state.metadata().index(writeIndex);
+        }
+
+        @Override
         public String toString() {
             return getName();
         }
@@ -247,5 +248,23 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         public int hashCode() {
             return Objects.hash(name, version);
         }
+    }
+
+    public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver) {
+        for (ProfilingDataStream profilingDataStream : PROFILING_DATASTREAMS) {
+            if (indexStateResolver.getIndexState(state, profilingDataStream).getStatus() != IndexStatus.UP_TO_DATE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isAnyResourceTooOld(ClusterState state, IndexStateResolver indexStateResolver) {
+        for (ProfilingDataStream profilingDataStream : PROFILING_DATASTREAMS) {
+            if (indexStateResolver.getIndexState(state, profilingDataStream).getStatus() == IndexStatus.TOO_OLD) {
+                return true;
+            }
+        }
+        return false;
     }
 }

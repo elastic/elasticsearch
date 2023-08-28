@@ -183,7 +183,7 @@ def commonPackageConfig(String type, String architecture) {
     configurationFile '/etc/elasticsearch/users'
     configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
-      dirMode 2750
+      dirMode 02750
       into('/etc')
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
@@ -193,7 +193,7 @@ def commonPackageConfig(String type, String architecture) {
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
-      dirMode 2750
+      dirMode 02750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
@@ -243,8 +243,8 @@ def commonPackageConfig(String type, String architecture) {
         dirMode mode
       }
     }
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 2750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 2750)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa

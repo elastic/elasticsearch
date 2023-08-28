@@ -10,19 +10,29 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AddTests extends AbstractArithmeticTestCase {
+public class AddTests extends AbstractDateTimeArithmeticTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -71,9 +81,51 @@ public class AddTests extends AbstractArithmeticTestCase {
                 "AddUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 equalTo(asLongUnsigned(lhsBI.add(rhsBI).longValue()))
             );
-          })
-          */
-        ));
+          }) */, new TestCaseSupplier("Datetime + Period", () -> {
+            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            return new TestCase(
+                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")),
+                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
+            );
+        }), new TestCaseSupplier("Period + Datetime", () -> {
+            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            long rhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            return new TestCase(
+                List.of(new TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"), new TypedData(rhs, DataTypes.DATETIME, "rhs")),
+                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(rhs).plus(lhs)))
+            );
+        }), new TestCaseSupplier("Datetime + Duration", () -> {
+            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            return new TestCase(
+                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")),
+                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
+            );
+        }), new TestCaseSupplier("Duration + Datetime", () -> {
+            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            return new TestCase(
+                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")),
+                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(lhs).plus(rhs)))
+            );
+        })));
+    }
+
+    @Override
+    protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
+        if (isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)) {
+            return isDateTime(lhsType) && isTemporalAmount(rhsType) || isTemporalAmount(lhsType) && isDateTime(rhsType);
+        }
+        return super.supportsTypes(lhsType, rhsType);
     }
 
     @Override
@@ -101,5 +153,10 @@ public class AddTests extends AbstractArithmeticTestCase {
         BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
         BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
         return asLongUnsigned(lhsBI.add(rhsBI).longValue());
+    }
+
+    @Override
+    protected long expectedValue(long datetime, TemporalAmount temporalAmount) {
+        return asMillis(asDateTime(datetime).plus(temporalAmount));
     }
 }

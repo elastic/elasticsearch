@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.DateTimeException;
 import java.time.temporal.TemporalAmount;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
@@ -36,6 +39,25 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             (s, l, r) -> new SubDoublesEvaluator(l, r),
             SubDatetimesEvaluator::new
         );
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = super.resolveType();
+        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(left().dataType()) == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "[{}] arguments are in unsupported order: cannot subtract a [{}] value [{}] from a [{}] amount [{}]",
+                    symbol(),
+                    right().dataType(),
+                    right().sourceText(),
+                    left().dataType(),
+                    left().sourceText()
+                )
+            );
+        }
+        return resolution;
     }
 
     @Override
@@ -75,6 +97,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
-        return asMillis(asDateTime(datetime, DEFAULT_TZ).minus(temporalAmount));
+        // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
+        return asMillis(asDateTime(datetime).minus(temporalAmount));
     }
 }

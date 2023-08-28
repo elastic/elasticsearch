@@ -52,10 +52,6 @@ public final class DateUtils {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
-    public static ZonedDateTime asDateTime(long millis, ZoneId zoneId) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);
-    }
-
     public static long asMillis(ZonedDateTime zonedDateTime) {
         return zonedDateTime.toInstant().toEpochMilli();
     }

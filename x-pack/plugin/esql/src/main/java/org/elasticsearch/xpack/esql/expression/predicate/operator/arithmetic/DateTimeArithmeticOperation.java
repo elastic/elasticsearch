@@ -14,21 +14,18 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
 
-import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
     interface DatetimeArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, TemporalAmount, ExpressionEvaluator> {};
-
-    protected static final ZoneId DEFAULT_TZ = DateUtils.UTC;
 
     private final DatetimeArithmeticEvaluator datetimes;
 
@@ -51,9 +48,10 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     protected TypeResolution resolveType() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        if (EsqlDataTypes.isDateTime(leftType) || EsqlDataTypes.isDateTime(rightType)) {
-            Expression dateTime = argumentOfType(dt -> dt == DataTypes.DATETIME);
-            Expression nonDateTime = argumentOfType(dt -> dt != DataTypes.DATETIME);
+        // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
+        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
+            Expression dateTime = argumentOfType(DataTypes::isDateTime);
+            Expression nonDateTime = argumentOfType(dt -> DataTypes.isDateTime(dt) == false);
             if (dateTime == null || nonDateTime == null || EsqlDataTypes.isTemporalAmount(nonDateTime.dataType()) == false) {
                 return new TypeResolution(
                     format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
@@ -69,7 +67,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         return dataType() == DataTypes.DATETIME
             ? () -> datetimes.apply(
                 source(),
-                toEvaluator.apply(argumentOfType(dt -> dt == DataTypes.DATETIME)).get(),
+                toEvaluator.apply(argumentOfType(DataTypes::isDateTime)).get(),
                 (TemporalAmount) argumentOfType(EsqlDataTypes::isTemporalAmount).fold()
             )
             : super.toEvaluator(toEvaluator);

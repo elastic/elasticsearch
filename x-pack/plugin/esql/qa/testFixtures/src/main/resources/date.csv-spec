@@ -518,7 +518,7 @@ dt:datetime              |plus:datetime
 2104-04-16T00:00:00.000Z |2100-01-01T01:01:01.001Z
 ;
 
-dateMathOverflow
+dateMathArithmeticOverflow
 row dt = to_dt(9223372036854775807)
 | eval plus = dt + 1 day
 | keep plus;
@@ -530,9 +530,40 @@ plus:datetime
 null
 ;
 
+dateMathDateException
+row dt = to_dt(0)
+| eval plus = dt + 2147483647 years
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
+warning:java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+
+plus:datetime
+null
+;
+
+dateMathNegatedPeriod
+row dt = to_dt(0)
+| eval plus = -(-1 year) + dt
+| keep plus;
+
+plus:datetime
+1971-01-01T00:00:00.000Z
+;
+
+dateMathNegatedDuration
+row dt = to_dt(0)
+| eval plus = -(-1 second) + dt
+| keep plus;
+
+plus:datetime
+1970-01-01T00:00:01.000Z
+;
+
+
 fieldDateMathSimple
 from employees
-| eval bd = birth_date + 1 year - 1 millisecond
+| eval bd = 1 year + birth_date - 1 millisecond
 | keep birth_date, bd
 | limit 5;
 
@@ -546,7 +577,7 @@ birth_date:datetime      |bd:datetime
 
 fieldDateMath
 from employees
-| eval bd = birth_date + 1 year - 1 millisecond
+| eval bd = -1 millisecond + birth_date + 1 year
 | eval bd = date_trunc(1 day, bd)
 | eval bd = bd + 1 day - 1 year
 | where birth_date != bd

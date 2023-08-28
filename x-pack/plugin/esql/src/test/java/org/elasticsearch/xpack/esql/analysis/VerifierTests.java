@@ -250,6 +250,25 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testSubtractDateTimeFromTemporal() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [TIME_DURATION] amount [1 "
+                    + unit
+                    + "]",
+                error("row 1 " + unit + " - now() ")
+            );
+        }
+        for (var unit : List.of("day", "week", "month", "year")) {
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] from a [DATE_PERIOD] amount [1 "
+                    + unit
+                    + "]",
+                error("row 1 " + unit + " - now() ")
+            );
+        }
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
 

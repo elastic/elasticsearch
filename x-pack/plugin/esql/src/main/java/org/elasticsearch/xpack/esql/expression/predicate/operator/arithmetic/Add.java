@@ -85,6 +85,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
-        return asMillis(asDateTime(datetime, DEFAULT_TZ).plus(temporalAmount));
+        // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
+        return asMillis(asDateTime(datetime).plus(temporalAmount));
     }
 }

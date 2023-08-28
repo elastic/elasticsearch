@@ -61,7 +61,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
 
     // TODO: drop check once 8.11 is released
     private TypeResolution argumentTypesAreSwapped() {
-        if (left().dataType() == DataTypes.DATETIME && (isTemporalAmount(right().dataType()))) {
+        if (DataTypes.isDateTime(left().dataType()) && isTemporalAmount(right().dataType())) {
             return new TypeResolution(format(null, "function definition has been updated, please swap arguments in [{}]", sourceText()));
         }
         return TypeResolution.TYPE_RESOLVED;

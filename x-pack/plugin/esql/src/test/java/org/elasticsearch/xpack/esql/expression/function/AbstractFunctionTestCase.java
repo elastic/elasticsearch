@@ -72,7 +72,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         private List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this fuction invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate
          */
         String evaluatorToString;
         /**
@@ -261,6 +261,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testSimple() {
+        assumeTrue("All test data types must be representable", allTestDataTypesAreRepresentable());
         Expression expression = buildFieldExpression(testCase);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
@@ -272,6 +273,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testSimpleWithNulls() {
+        assumeTrue("All test data types must be representable", allTestDataTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -296,6 +298,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testSimpleInManyThreads() throws ExecutionException, InterruptedException {
+        assumeTrue("All test data types must be representable", allTestDataTypesAreRepresentable());
         int count = 10_000;
         int threads = 5;
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -322,6 +325,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorSimpleToString() {
+        assumeTrue("All test data types must be representable", allTestDataTypesAreRepresentable());
         var supplier = evaluator(buildFieldExpression(testCase));
         var ev = supplier.get();
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
@@ -338,6 +342,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
+        assumeTrue("All test data types must be representable", allTestDataTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
+    }
+
+    // checks that all data types used in tests are representable; used for those tests that build field expressions
+    protected boolean allTestDataTypesAreRepresentable() {
+        return testCase.getData().stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
     }
 }

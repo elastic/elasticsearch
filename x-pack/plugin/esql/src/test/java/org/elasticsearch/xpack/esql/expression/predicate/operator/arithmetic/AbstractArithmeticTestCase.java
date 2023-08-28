@@ -20,10 +20,9 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
-    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         Number lhs = (Number) data.get(0);
         Number rhs = (Number) data.get(1);
         if (lhs instanceof Double || rhs instanceof Double) {
@@ -69,24 +68,15 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     protected abstract long expectedUnsignedLongValue(long lhs, long rhs);
 
     @Override
-    protected final boolean supportsType(DataType type) {
-        return type.isNumeric();
+    protected boolean supportsType(DataType type) {
+        return type.isNumeric() && EsqlDataTypes.isRepresentable(type);
     }
 
     @Override
-    protected final void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
+    protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
         if (DataTypes.isNullOrNumeric(lhsType) && DataTypes.isNullOrNumeric(rhsType)) {
             assertTrue(op.toString(), op.typeResolved().resolved());
             assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
-            return;
-        }
-        if (lhsType == DataTypes.DATETIME && EsqlDataTypes.isTemporalAmount(rhsType)
-            || EsqlDataTypes.isTemporalAmount(lhsType) && rhsType == DataTypes.DATETIME) {
-            assertTrue(op.toString(), op.typeResolved().resolved());
-            assertTrue(op.toString(), EsqlDataTypes.isTemporalAmount(lhsType) || EsqlDataTypes.isTemporalAmount(rhsType));
-            assertFalse(op.toString(), EsqlDataTypes.isTemporalAmount(lhsType) && EsqlDataTypes.isTemporalAmount(rhsType));
-            assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
-            assertThat(op.toString(), op.getClass(), oneOf(Add.class, Sub.class));
             return;
         }
         assertFalse(op.toString(), op.typeResolved().resolved());
@@ -99,17 +89,6 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
             );
             return;
         }
-        if (op instanceof DateTimeArithmeticOperation && (EsqlDataTypes.isDateTime(lhsType) || EsqlDataTypes.isDateTime(rhsType))) {
-            assertThat(
-                op.toString(),
-                op.typeResolved().message(),
-                equalTo(
-                    String.format(Locale.ROOT, "[%s] has arguments with incompatible types [%s] and [%s]", op.symbol(), lhsType, rhsType)
-                )
-            );
-            return;
-
-        }
         assertThat(
             op.toString(),
             op.typeResolved().message(),
@@ -119,7 +98,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
         );
     }
 
-    private DataType expectedType(DataType lhsType, DataType rhsType) {
+    protected DataType expectedType(DataType lhsType, DataType rhsType) {
         if (lhsType == DataTypes.DOUBLE || rhsType == DataTypes.DOUBLE) {
             return DataTypes.DOUBLE;
         }
@@ -136,9 +115,6 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
         }
         if (lhsType == DataTypes.NULL || rhsType == DataTypes.NULL) {
             return DataTypes.NULL;
-        }
-        if (EsqlDataTypes.isDateTime(lhsType)) {
-            return DataTypes.DATETIME;
         }
         throw new UnsupportedOperationException();
     }

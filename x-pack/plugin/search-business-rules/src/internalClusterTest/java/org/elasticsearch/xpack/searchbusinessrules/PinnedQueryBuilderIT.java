@@ -454,8 +454,8 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
-        assertSecondHit(searchResponse, hasId("a"));
-        assertThirdHit(searchResponse, hasId("a"));
+        assertSecondHit(searchResponse, both(hasIndex("test1")).and(hasId("a")));
+        assertThirdHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
         assertFourthHit(searchResponse, both(hasIndex("test1")).and(hasId("c")));
     }
 }

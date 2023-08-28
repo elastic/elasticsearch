@@ -56,6 +56,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
+    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersion.V_8_500_066;
+
     private final List<String> ids;
     private final List<Item> docs;
     private QueryBuilder organicQuery;
@@ -102,13 +104,21 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * Read from a stream.
          */
         public Item(StreamInput in) throws IOException {
-            index = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                index = in.readOptionalString();
+            } else {
+                index = in.readString();
+            }
             id = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(index);
+            if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                out.writeOptionalString(index);
+            } else {
+                out.writeString(index);
+            }
             out.writeString(id);
         }
 

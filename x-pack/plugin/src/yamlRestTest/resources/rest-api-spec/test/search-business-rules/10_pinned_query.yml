@@ -81,8 +81,8 @@ setup:
 ---
 "Test pinned query with docs":
   - skip:
-      version: " - 8.9.99"
-      reason: "'_index' was made optional in 8.10"
+      version: " - 8.10.99"
+      reason: "'_index' was made optional in 8.11"
   - do:
       search:
         index: test1,test2

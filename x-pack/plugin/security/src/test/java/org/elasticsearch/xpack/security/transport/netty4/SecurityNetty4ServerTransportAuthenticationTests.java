@@ -56,6 +56,7 @@ import org.junit.Before;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -336,7 +337,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
             socket.getOutputStream().flush();
 
-            final String response = new String(socket.getInputStream().readAllBytes());
+            final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             assertThat(response, containsString("authn failure"));
             // -1 means the other side has disconnected
             assertThat(socket.getInputStream().read(), equalTo(-1));

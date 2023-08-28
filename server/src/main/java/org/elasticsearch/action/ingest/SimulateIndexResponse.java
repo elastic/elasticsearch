@@ -71,7 +71,7 @@ public class SimulateIndexResponse extends IndexResponse {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        builder.append(",pipelines=").append(String.join(", ", getPipelines()));
+        builder.append(",pipelines=").append(String.join(", ", pipelines));
         return builder.append("]").toString();
     }
 }

@@ -136,6 +136,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
+
+    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.KEYWORD;
     }

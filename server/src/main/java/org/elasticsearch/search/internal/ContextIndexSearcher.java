@@ -345,6 +345,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
+            doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         }
         return search(weight, collectorManager, firstCollector);
@@ -475,14 +476,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         collector.setWeight(weight);
+        boolean success = false;
         try {
             for (LeafReaderContext ctx : leaves) { // search each subreader
                 searchLeaf(ctx, weight, collector);
             }
+            success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
         } finally {
-            doAggregationPostCollection(collector);
+            // Only run post collection if we have timeout or if the search was successful
+            // otherwise the state of the aggregation might be undefined and running post collection
+            // might result in an exception
+            if (success || timeExceeded) {
+                doAggregationPostCollection(collector);
+            }
         }
     }
 

@@ -552,7 +552,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public void removeReleasable(Aggregator aggregator) {
+        public synchronized void removeReleasable(Aggregator aggregator) {
             assert releaseMe.contains(aggregator)
                 : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
             releaseMe.remove(aggregator);

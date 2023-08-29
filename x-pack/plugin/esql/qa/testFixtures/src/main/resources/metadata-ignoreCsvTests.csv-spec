@@ -24,16 +24,16 @@ emp_no:integer
 ;
 
 metaIndexInAggs
-// tag::multipleIndices[]
+// tag::metaIndexInAggs[]
 FROM employees [METADATA _index]
 | STATS max = MAX(emp_no) BY _index
-// end::multipleIndices[]
+// end::metaIndexInAggs[]
 ;
 
-// tag::multipleIndices-result[]
+// tag::metaIndexInAggs-result[]
 max:integer |_index:keyword
 10100       |employees
-// end::multipleIndices-result[]
+// end::metaIndexInAggs-result[]
 ;
 
 metaIndexAliasedInAggs

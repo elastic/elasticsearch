@@ -431,7 +431,7 @@ public class XContentHelper {
      * Merges the map provided as the second parameter into the content of the first. Only does recursive merge for inner maps.
      * If a non-null {@link CustomMerge} is provided, it is applied whenever a merge is required, meaning - whenever both the first and
      * the second map has values for the same key. Otherwise, values from the first map will always have precedence, meaning - if the
-     * first map contains a key, its value will not be overriden.
+     * first map contains a key, its value will not be overridden.
      *
      * @param parent      used for recursion to maintain knowledge about the common parent of the currently merged sub-maps, if such exists
      * @param first       the map which serves as the merge base
@@ -541,7 +541,7 @@ public class XContentHelper {
          * the base map.
          * If this method returns {@code null}, then:
          * <ul>
-         *     <li> if the values are of map types, the old and new values will be merged recursively
+         *     <li> if the values are of map type, the old and new values will be merged recursively
          *     <li> otherwise, the original value will be maintained
          * </ul>
          * This method doesn't throw a checked exception, but it is expected that illegal merges will result in a {@link RuntimeException}.

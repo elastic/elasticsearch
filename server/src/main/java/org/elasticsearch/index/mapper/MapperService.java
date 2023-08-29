@@ -405,6 +405,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return (mergedRawMapping != null) ? doMerge(type, reason, mergedRawMapping) : null;
     }
 
+    /**
+     * A {@link org.elasticsearch.common.xcontent.XContentHelper.CustomMerge} for raw map merges that are suitable for index/field mappings.
+     * The default raw map merge algorithm doesn't override values - if there are multiple values for a key, then:
+     * <ul>
+     *     <li> if the values are of map type, the old and new values will be merged recursively
+     *     <li> otherwise, the original value will be maintained
+     * </ul>
+     * When merging field mappings, we want something else. Specifically:
+     * <ul>
+     *     <li> within field mappings node (which is nested within a {@code properties} node):
+     *     <ul>
+     *         <li> if both the base mapping and the mapping to merge into it are of mergeable types (e.g {@code object -> object},
+     *         {@code object -> nested}), then we only want to merge specific mapping entries:
+     *         <ul>
+     *             <li> {@code properties} node - merging fields from both mappings
+     *             <li> {@code subobjects} entry - since this setting affects an entire subtree, we need to keep it when merging
+     *         </ul>
+     *         <li> otherwise, for any couple of non-mergeable types ((e.g {@code object -> long}, {@code long -> long}) - we just want
+     *         to replace the entire mappings subtree, let the last one win
+     *     </ul>
+     *     <li> any other map values that are not encountered within a {@code properties} node (e.g. "_doc", "_meta" or "properties"
+     *     itself - apply recursive merge as the default algorithm would apply
+     *     <li> any non-map values - override the value of the base map with the value of the merged map
+     * </ul>
+     */
     private static class RawFieldMappingMerge implements XContentHelper.CustomMerge {
         private static final XContentHelper.CustomMerge INSTANCE = new RawFieldMappingMerge();
 
@@ -424,9 +449,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         // if two field mappings are to be merged, we only want to keep some specific entries from the base mapping and
                         // let all others be overridden by the second mapping
                         Map<String, Object> mergedMappings = new HashMap<>();
+                        // we must keep the "properties" node, otherwise our merge has no point
                         if (baseMap.containsKey("properties")) {
                             mergedMappings.put("properties", new HashMap<>((Map<String, Object>) baseMap.get("properties")));
                         }
+                        // the "subobjects" setting affects an entire subtree and not only locally where it is configured
                         if (baseMap.containsKey("subobjects")) {
                             mergedMappings.put("subobjects", baseMap.get("subobjects"));
                         }

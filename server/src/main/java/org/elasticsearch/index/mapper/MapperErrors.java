@@ -14,6 +14,6 @@ public class MapperErrors {
     }
 
     static void throwNestedMappingConflictError(String fieldName) throws IllegalArgumentException {
-        throw new IllegalArgumentException("can't merge a non nested mapping [" + fieldName + "] with a nested mapping");
+        throw new IllegalArgumentException("can't merge a non-nested mapping [" + fieldName + "] with a nested mapping");
     }
 }

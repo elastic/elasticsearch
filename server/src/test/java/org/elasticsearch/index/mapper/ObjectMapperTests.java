@@ -293,7 +293,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE)
         );
-        assertThat(e.getMessage(), containsString("can't merge a non nested mapping [object.field2] with a nested mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [object.field2] with a nested mapping"));
 
         String secondUpdate = Strings.toString(
             XContentFactory.jsonBuilder()

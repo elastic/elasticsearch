@@ -27,6 +27,7 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1138,5 +1139,98 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
               }
             }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+    }
+
+    public void testPropertiesField() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "child": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "grandchild": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "properties": {
+                  "properties": {
+                    "child": {
+                      "type": "long",
+                      "coerce": true
+                    }
+                  }
+                }
+              }
+            }""");
+
+        MapperService mapperService = createMapperService(mapping(b -> {
+        }));
+        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "properties" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "long",
+                        "coerce" : true
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        Mapper propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
+        assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
+        Mapper childMapper = ((ObjectMapper) propertiesMapper).getMapper("child");
+        assertThat(childMapper, instanceOf(FieldMapper.class));
+        assertEquals("long", childMapper.typeName());
+
+        // Now checking the opposite merge
+        mapperService = createMapperService(mapping(b -> {
+        }));
+        mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "properties" : {
+                    "properties" : {
+                      "child" : {
+                        "dynamic" : "true",
+                        "properties" : {
+                          "grandchild" : {
+                            "type" : "keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        propertiesMapper = mapperService.documentMapper().mapping().getRoot().getMapper("properties");
+        assertThat(propertiesMapper, instanceOf(ObjectMapper.class));
+        childMapper = ((ObjectMapper) propertiesMapper).getMapper("child");
+        assertThat(childMapper, instanceOf(ObjectMapper.class));
+        Mapper grandchildMapper = ((ObjectMapper) childMapper).getMapper("grandchild");
+        assertThat(grandchildMapper, instanceOf(FieldMapper.class));
+        assertEquals("keyword", grandchildMapper.typeName());
     }
 }

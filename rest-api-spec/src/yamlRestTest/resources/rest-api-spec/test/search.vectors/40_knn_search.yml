@@ -461,3 +461,30 @@ setup:
   - match: {hits.hits.1._id: "3"}
   - close_to: { hits.hits.1._score: { value: $score_1, error: 0.00001 } }
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+---
+"kNN search fails with non-normalized dot-product in older versions":
+  - skip:
+      version: '8.10.99 - '
+      reason: 'dense_vector auto-normalized dot_product in 8.11'
+
+  - do:
+      indices.create:
+        index: test_failing_dot_product
+        body:
+          mappings:
+            properties:
+              dot_product_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: dot_product
+
+  - do:
+      catch: bad_request
+      index:
+        index: test_failing_dot_product
+        id: "1"
+        body:
+          name: cow.jpg
+          dot_product_vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+

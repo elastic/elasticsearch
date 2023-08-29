@@ -251,14 +251,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    actualNode,
-                    TransportVersion.current(),
-                    TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
-                    0L,
-                    VersionsWrapper.STATIC_VERSIONS
-                )
+                JoinTask.singleNode(actualNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L, VersionsWrapper.EMPTY)
             )
         );
 
@@ -296,7 +289,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
                                 executorTerm,
-                                VersionsWrapper.STATIC_VERSIONS
+                                VersionsWrapper.EMPTY
                             )
                         )
                         : List.of(
@@ -307,7 +300,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         TransportVersion.current(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER,
-                                        VersionsWrapper.STATIC_VERSIONS
+                                        VersionsWrapper.EMPTY
                                     )
                                 ),
                                 executorTerm
@@ -360,7 +353,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
                                 executorTerm,
-                                VersionsWrapper.STATIC_VERSIONS
+                                VersionsWrapper.EMPTY
                             )
                         )
                         : List.of(
@@ -371,7 +364,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         TransportVersion.current(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER,
-                                        VersionsWrapper.STATIC_VERSIONS
+                                        VersionsWrapper.EMPTY
                                     )
                                 ),
                                 executorTerm
@@ -415,7 +408,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER,
                             executorTerm,
-                            VersionsWrapper.STATIC_VERSIONS
+                            VersionsWrapper.EMPTY
                         )
                     ),
                     t -> fail("should not succeed"),
@@ -466,14 +459,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             TransportVersion.current(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER,
-                            VersionsWrapper.STATIC_VERSIONS
+                            VersionsWrapper.EMPTY
                         ),
                         new JoinTask.NodeJoinTask(
                             otherNodeNew,
                             TransportVersion.current(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER,
-                            VersionsWrapper.STATIC_VERSIONS
+                            VersionsWrapper.EMPTY
                         )
                     ),
                     executorTerm
@@ -501,7 +494,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm,
-                        VersionsWrapper.STATIC_VERSIONS
+                        VersionsWrapper.EMPTY
                     ),
                     JoinTask.singleNode(
                         otherNodeOld,
@@ -509,7 +502,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm,
-                        VersionsWrapper.STATIC_VERSIONS
+                        VersionsWrapper.EMPTY
                     )
                 )
             ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
@@ -565,14 +558,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 TransportVersion.current(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
-                                VersionsWrapper.STATIC_VERSIONS
+                                VersionsWrapper.EMPTY
                             ),
                             new JoinTask.NodeJoinTask(
                                 otherNode,
                                 TransportVersion.current(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
-                                VersionsWrapper.STATIC_VERSIONS
+                                VersionsWrapper.EMPTY
                             )
                         ),
                         executorTerm
@@ -591,7 +584,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 TransportVersion.current(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
-                                VersionsWrapper.STATIC_VERSIONS
+                                VersionsWrapper.EMPTY
                             )
                         ),
                         executorTerm
@@ -608,7 +601,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm,
-                        VersionsWrapper.STATIC_VERSIONS
+                        VersionsWrapper.EMPTY
                     )
                 )
             );
@@ -682,7 +675,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     TEST_REASON,
                     NOT_COMPLETED_LISTENER,
                     0L,
-                    VersionsWrapper.STATIC_VERSIONS
+                    VersionsWrapper.EMPTY
                 )
             )
             .toList();
@@ -726,7 +719,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         TransportVersion.current(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
-                        VersionsWrapper.STATIC_VERSIONS
+                        VersionsWrapper.EMPTY
                     )
                 ),
             1L
@@ -782,14 +775,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(
-                                node1,
-                                TransportVersion.current(),
-                                TEST_REASON,
-                                future,
-                                0L,
-                                VersionsWrapper.STATIC_VERSIONS
-                            ),
+                            JoinTask.singleNode(node1, TransportVersion.current(), TEST_REASON, future, 0L, VersionsWrapper.EMPTY),
                             null
                         ),
                     10,
@@ -818,14 +804,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(
-                                node2,
-                                TransportVersion.current(),
-                                testReasonWithLink,
-                                future,
-                                0L,
-                                VersionsWrapper.STATIC_VERSIONS
-                            ),
+                            JoinTask.singleNode(node2, TransportVersion.current(), testReasonWithLink, future, 0L, VersionsWrapper.EMPTY),
                             null
                         ),
                     10,
@@ -848,23 +827,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(
-                node,
-                TransportVersion.current(),
-                TEST_REASON,
-                NOT_COMPLETED_LISTENER,
-                term,
-                VersionsWrapper.STATIC_VERSIONS
-            )
+            ? JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, term, VersionsWrapper.EMPTY)
             : JoinTask.completingElection(
                 Stream.of(
-                    new JoinTask.NodeJoinTask(
-                        node,
-                        TransportVersion.current(),
-                        TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
-                        VersionsWrapper.STATIC_VERSIONS
-                    )
+                    new JoinTask.NodeJoinTask(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, VersionsWrapper.EMPTY)
                 ),
                 term
             );

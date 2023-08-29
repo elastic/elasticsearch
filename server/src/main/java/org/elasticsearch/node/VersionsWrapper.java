@@ -8,8 +8,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.Map;
@@ -19,12 +17,7 @@ import java.util.Map;
  *
  * TODO[wrb]: should this go in the cluster package, since it's for use in cluster state?
  */
-public record VersionsWrapper(
-    TransportVersion transportVersion,
-    IndexVersion indexVersion,
-    Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions
-) {
+public record VersionsWrapper(Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions) {
 
-    public static VersionsWrapper STATIC_VERSIONS = new VersionsWrapper(TransportVersion.current(), IndexVersion.current(), Map.of());
-
+    public static VersionsWrapper EMPTY = new VersionsWrapper(Map.of());
 }

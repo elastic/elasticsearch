@@ -92,7 +92,7 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            VersionsWrapper.STATIC_VERSIONS
+            VersionsWrapper.EMPTY
         );
         transportService.start();
 
@@ -259,7 +259,7 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            VersionsWrapper.STATIC_VERSIONS
+            VersionsWrapper.EMPTY
         );
         transportService.start();
 
@@ -335,7 +335,7 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
-            VersionsWrapper.STATIC_VERSIONS
+            VersionsWrapper.EMPTY
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();

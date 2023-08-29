@@ -115,7 +115,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             mock(RerouteService.class),
             null,
             new NoneCircuitBreakerService(),
-            VersionsWrapper.STATIC_VERSIONS
+            VersionsWrapper.EMPTY
         );
     }
 

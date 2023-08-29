@@ -419,7 +419,7 @@ public class JoinHelper {
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong(),
-                VersionsWrapper.STATIC_VERSIONS
+                versionsWrapper
             );
             joinTaskQueue.submitTask("node-join", task, null);
         }
@@ -483,7 +483,7 @@ public class JoinHelper {
                         data.v1(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         data.v2(),
-                        VersionsWrapper.STATIC_VERSIONS
+                        versionsWrapper
                     );
                 }), joiningTerm);
                 latestStoredStateSupplier.accept(new ActionListener<>() {

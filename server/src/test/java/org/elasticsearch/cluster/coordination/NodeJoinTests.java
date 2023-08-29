@@ -231,7 +231,7 @@ public class NodeJoinTests extends ESTestCase {
             new Reconfigurator(Settings.EMPTY, clusterSettings),
             LeaderHeartbeatService.NO_OP,
             StatefulPreVoteCollector::new,
-            VersionsWrapper.STATIC_VERSIONS
+            VersionsWrapper.EMPTY
         );
         transportService.start();
         transportService.acceptIncomingRequests();

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 /**
@@ -64,17 +65,17 @@ public class MultivalueDedupeBoolean {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      * @param everSeen array tracking if the values {@code false} and {@code true} are ever seen
      */
-    public LongBlock hash(boolean[] everSeen) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+    public IntBlock hash(boolean[] everSeen) {
+        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
             switch (count) {
                 case 0 -> {
                     everSeen[NULL_ORD] = true;
-                    builder.appendLong(NULL_ORD);
+                    builder.appendInt(NULL_ORD);
                 }
-                case 1 -> builder.appendLong(hashOrd(everSeen, block.getBoolean(first)));
+                case 1 -> builder.appendInt(hashOrd(everSeen, block.getBoolean(first)));
                 default -> {
                     readValues(first, count);
                     hashValues(everSeen, builder);
@@ -156,18 +157,18 @@ public class MultivalueDedupeBoolean {
         }
     }
 
-    private void hashValues(boolean[] everSeen, LongBlock.Builder builder) {
+    private void hashValues(boolean[] everSeen, IntBlock.Builder builder) {
         if (seenFalse) {
             if (seenTrue) {
                 builder.beginPositionEntry();
-                builder.appendLong(hashOrd(everSeen, false));
-                builder.appendLong(hashOrd(everSeen, true));
+                builder.appendInt(hashOrd(everSeen, false));
+                builder.appendInt(hashOrd(everSeen, true));
                 builder.endPositionEntry();
             } else {
-                builder.appendLong(hashOrd(everSeen, false));
+                builder.appendInt(hashOrd(everSeen, false));
             }
         } else if (seenTrue) {
-            builder.appendLong(hashOrd(everSeen, true));
+            builder.appendInt(hashOrd(everSeen, true));
         } else {
             throw new IllegalStateException("didn't see true of false but counted values");
         }
@@ -185,7 +186,7 @@ public class MultivalueDedupeBoolean {
     /**
      * Convert the boolean to an ordinal and track if it's been seen in {@code everSeen}.
      */
-    public static long hashOrd(boolean[] everSeen, boolean b) {
+    public static int hashOrd(boolean[] everSeen, boolean b) {
         if (b) {
             everSeen[TRUE_ORD] = true;
             return TRUE_ORD;

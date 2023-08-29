@@ -526,6 +526,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
             }
         }
+        if (versionsWrappers.isEmpty() == false) {
+            sb.append("other versions:\n");
+            for (var vw : versionsWrappers.entrySet()) {
+                sb.append(TAB).append(vw.getKey()).append(":\n");
+                sb.append(TAB).append(TAB).append("system index versions:\n");
+                for (var mv : vw.getValue().systemIndexMappingsVersions().entrySet()) {
+                    sb.append(TAB).append(TAB).append(TAB).append(mv.getKey()).append(": ").append(mv.getValue().version()).append("\n");
+                }
+            }
+        }
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
@@ -686,6 +696,21 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     (builder, params) -> builder.startObject()
                         .field("node_id", e.getKey())
                         .field("transport_version", e.getValue().toString())
+                        .endObject()
+                ),
+                (builder, params) -> builder.endArray()
+            ),
+
+            chunkedSection(
+                metrics.contains(Metric.NODES),
+                (builder, params) -> builder.startArray("system_index_mappings_versions"),
+                versionsWrappers.entrySet().iterator(),
+                e -> Iterators.single(
+                    (builder, params) -> builder.startObject()
+                        .field("node_id", e.getKey())
+                        .field("versions")
+                        .map(e.getValue().systemIndexMappingsVersions())
+                        .endObject()
                         .endObject()
                 ),
                 (builder, params) -> builder.endArray()
@@ -993,6 +1018,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             // infer the versions from discoverynodes for now
             builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            builder.versionsWrappers(in.readMap(VersionsWrapper::readVersion));
+        } else {
+            builder.versionsWrappers(Map.of()); // empty system index versions are OK
+        }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
@@ -1033,6 +1063,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeMap(transportVersions, StreamOutput::writeString, (o, v) -> TransportVersion.writeVersion(v, o));
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            out.writeMap(versionsWrappers, StreamOutput::writeString, (o, v) -> v.writeVersion(o));
         }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);

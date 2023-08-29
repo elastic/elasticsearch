@@ -35,6 +35,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -74,6 +76,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .nodes(nodes)
             .metadata(metadata)
             .routingTable(routingTable)
+            .putVersionsWrapper("node1", new VersionsWrapper(Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))))
+            .putVersionsWrapper("node2", new VersionsWrapper(Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(2, 0))))
             .build();
 
         AllocationService strategy = createAllocationService();
@@ -90,6 +94,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
         assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+
+        assertThat(serializedClusterState.versionsWrappers(), equalTo(clusterState.versionsWrappers()));
     }
 
     public void testRoutingTableSerialization() throws Exception {

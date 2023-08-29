@@ -21,8 +21,11 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.node.VersionsWrapper;
 
 import java.util.Arrays;
+import java.util.Map;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
@@ -52,6 +55,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .nodes(nodes)
             .metadata(metadata)
             .routingTable(routingTable)
+            .putVersionsWrapper("node_foo", new VersionsWrapper(Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))))
             .build();
 
         AllocationService strategy = createAllocationService();
@@ -65,5 +69,6 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
         assertThat(clusterStateString, containsString("test_idx"));
         assertThat(clusterStateString, containsString("test_template"));
         assertThat(clusterStateString, containsString("node_foo"));
+        assertThat(clusterStateString, containsString(".system-index"));
     }
 }

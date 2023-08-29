@@ -8,8 +8,11 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -20,4 +23,12 @@ import java.util.Map;
 public record VersionsWrapper(Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions) {
 
     public static VersionsWrapper EMPTY = new VersionsWrapper(Map.of());
+
+    public void writeVersion(StreamOutput streamOutput) throws IOException {
+        streamOutput.writeMap(this.systemIndexMappingsVersions(), StreamOutput::writeString, (o, v) -> v.writeToStream(o));
+    }
+
+    public static VersionsWrapper readVersion(StreamInput streamInput) throws IOException {
+        return new VersionsWrapper(streamInput.readMap(StreamInput::readString, SystemIndexDescriptor.MappingsVersion::readValue));
+    }
 }

@@ -61,7 +61,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     protected abstract InternalGeoGrid<B> create(

@@ -188,7 +188,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         out.writeVLong(nowInMillis);
         out.writeOptionalString(clusterAlias);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        out.writeList(shards);
+        out.writeCollection(shards);
     }
 
     public List<Shard> getShardLevelRequests() {

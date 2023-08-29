@@ -1,49 +1,9 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 first | rest... | result
-boolean | boolean
 boolean | boolean | boolean
-boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean
-boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean | boolean
-integer | integer
 integer | integer | integer
-integer | integer | integer | integer
-integer | integer | integer | integer | integer
-integer | integer | integer | integer | integer | integer
-integer | integer | integer | integer | integer | integer | integer
-integer | integer | integer | integer | integer | integer | integer | integer
-integer | integer | integer | integer | integer | integer | integer | integer | integer
-integer | integer | integer | integer | integer | integer | integer | integer | integer | integer
-keyword | keyword
 keyword | keyword | keyword
-keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword
-keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword | keyword
-long | long
 long | long | long
-long | long | long | long
-long | long | long | long | long
-long | long | long | long | long | long
-long | long | long | long | long | long | long
-long | long | long | long | long | long | long | long
-long | long | long | long | long | long | long | long | long
-long | long | long | long | long | long | long | long | long | long
-text | text
 text | text | text
-text | text | text | text
-text | text | text | text | text
-text | text | text | text | text | text
-text | text | text | text | text | text | text
-text | text | text | text | text | text | text | text
-text | text | text | text | text | text | text | text | text
-text | text | text | text | text | text | text | text | text | text
 |===

@@ -463,7 +463,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
             out.writeGenericMap(runtimeMappings);
         }

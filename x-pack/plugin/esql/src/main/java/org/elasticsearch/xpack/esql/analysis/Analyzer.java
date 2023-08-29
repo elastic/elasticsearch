@@ -348,13 +348,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
             List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
-            List<NamedExpression> newFields = new ArrayList<>();
+            List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (NamedExpression field : eval.fields()) {
-                NamedExpression result = (NamedExpression) field.transformUp(
-                    UnresolvedAttribute.class,
-                    ua -> resolveAttribute(ua, allResolvedInputs)
-                );
+            for (Alias field : eval.fields()) {
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
                 newFields.add(result);

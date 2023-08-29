@@ -69,7 +69,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(this.resetFeatureStateStatusList);
+        out.writeCollection(this.resetFeatureStateStatusList);
     }
 
     @Override

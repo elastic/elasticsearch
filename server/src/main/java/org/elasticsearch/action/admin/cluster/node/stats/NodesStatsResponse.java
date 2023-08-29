@@ -39,7 +39,7 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

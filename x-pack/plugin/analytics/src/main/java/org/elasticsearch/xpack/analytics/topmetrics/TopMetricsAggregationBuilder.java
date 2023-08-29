@@ -167,7 +167,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList(sortBuilders);
         out.writeVInt(size);
-        out.writeList(metricFields);
+        out.writeCollection(metricFields);
     }
 
     @Override

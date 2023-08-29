@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -101,6 +102,16 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
+    public void validate(DownsampleShardTaskParams params, ClusterState clusterState) {
+        // This is just a pre-check, but doesn't prevent from avoiding from aborting the task when source index disappeared
+        // after initial creation of the persistent task.
+        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
+        if (indexShardRouting == null) {
+            throw new ShardNotFoundException(params.shardId());
+        }
+    }
+
+    @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(
         final DownsampleShardTaskParams params,
         final Collection<DiscoveryNode> candidateNodes,
@@ -110,7 +121,17 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // Here we make sure we assign the task to the actual node holding the shard identified by
         // the downsampling task shard id.
         final ShardId shardId = params.shardId();
-        final ShardRouting shardRouting = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+
+        // If during re-assignment the source index was deleted, then we need to break out.
+        // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
+        // So let's return a node and then in the node operation we would just fail and stop this persistent task
+        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
+        if (indexShardRouting == null) {
+            var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
+            return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
+        }
+
+        final ShardRouting shardRouting = indexShardRouting.primaryShard();
         if (shardRouting.started() == false) {
             return NO_NODE_FOUND;
         }
@@ -169,18 +190,18 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         DownsampleShardIndexerStatus.STARTED,
                         Arrays.stream(lastDownsampleTsidHits).findFirst().get().field("_tsid").getValue()
                     );
-                final var downsampleShardIndexer = new DownsampleShardIndexer(
-                    task,
-                    client,
-                    indicesService.indexService(params.shardId().getIndex()),
-                    params.shardId(),
-                    params.downsampleIndex(),
-                    params.downsampleConfig(),
-                    params.metrics(),
-                    params.labels(),
-                    initialState
-                );
                 try {
+                    final var downsampleShardIndexer = new DownsampleShardIndexer(
+                        task,
+                        client,
+                        indicesService.indexService(params.shardId().getIndex()),
+                        params.shardId(),
+                        params.downsampleIndex(),
+                        params.downsampleConfig(),
+                        params.metrics(),
+                        params.labels(),
+                        initialState
+                    );
                     downsampleShardIndexer.execute();
                     task.markAsCompleted();
                 } catch (final DownsampleShardIndexerException e) {

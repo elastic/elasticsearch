@@ -38,7 +38,7 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshottableFeatures);
+        out.writeCollection(snapshottableFeatures);
     }
 
     @Override

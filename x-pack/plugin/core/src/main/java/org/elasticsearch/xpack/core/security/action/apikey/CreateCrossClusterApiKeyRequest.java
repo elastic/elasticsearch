@@ -73,7 +73,7 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         out.writeString(id);
         out.writeString(name);
         out.writeOptionalTimeValue(expiration);
-        out.writeList(roleDescriptors);
+        out.writeCollection(roleDescriptors);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
     }

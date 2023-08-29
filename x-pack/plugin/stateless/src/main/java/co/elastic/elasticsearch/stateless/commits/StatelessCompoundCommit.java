@@ -235,7 +235,7 @@ public record StatelessCompoundCommit(
                     StreamOutput::writeString,
                     (so, v) -> v.writeToStore(so, version >= VERSION_WITH_BLOB_LENGTH)
                 );
-                out.writeList(internalFiles);
+                out.writeCollection(internalFiles);
                 out.flush();
                 // Add 8 bytes for the header size field and 4 bytes for the checksum
                 headerSize = positionTracking.position() + 8 + 4;

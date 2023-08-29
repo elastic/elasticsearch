@@ -53,7 +53,7 @@ public class ClearBlobCacheNodesResponse extends BaseNodesXContentResponse<Clear
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearBlobCacheNodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

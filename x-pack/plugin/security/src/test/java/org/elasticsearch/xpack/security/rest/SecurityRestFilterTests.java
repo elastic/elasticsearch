@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -279,6 +280,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         } else {
             assertThat(restResponse.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
         }
+        verify(restHandler, atLeastOnce()).getConcreteRestHandler();
         verifyNoMoreInteractions(restHandler);
     }
 

@@ -20,10 +20,10 @@ import java.util.Objects;
  * {@code DeprecationRestHandler} provides a proxy for any existing {@link RestHandler} so that usage of the handler can be
  * logged using the {@link DeprecationLogger}.
  */
-public class DeprecationRestHandler implements RestHandler {
+public class DeprecationRestHandler extends FilterRestHandler implements RestHandler {
 
     public static final String DEPRECATED_ROUTE_KEY = "deprecated_route";
-    private final RestHandler handler;
+
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
     private final String deprecationKey;
@@ -50,7 +50,7 @@ public class DeprecationRestHandler implements RestHandler {
         String deprecationMessage,
         DeprecationLogger deprecationLogger
     ) {
-        this.handler = Objects.requireNonNull(handler);
+        super(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
@@ -76,12 +76,7 @@ public class DeprecationRestHandler implements RestHandler {
             deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
         }
 
-        handler.handleRequest(request, channel, client);
-    }
-
-    @Override
-    public boolean supportsContentStream() {
-        return handler.supportsContentStream();
+        getDelegate().handleRequest(request, channel, client);
     }
 
     /**

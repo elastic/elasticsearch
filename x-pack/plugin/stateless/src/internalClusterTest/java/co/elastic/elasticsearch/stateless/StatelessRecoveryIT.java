@@ -1462,16 +1462,24 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             final String actionToBlock = blockSourceNode ? PRIMARY_CONTEXT_HANDOFF_ACTION_NAME : START_RELOCATION_ACTION_NAME;
             if (actionToBlock.equals(action)) {
                 logger.info("--> Blocking the action [{}]", action);
-                blockedListeners.addListener(
-                    ActionListener.wrap(ignored -> connection.sendRequest(requestId, action, request, options), e -> {
-                        if (e instanceof NodeNotConnectedException) {
+                blockedListeners.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        try {
+                            logger.info("--> unblocking request [{}][{}][{}]", requestId, action, request);
+                            connection.sendRequest(requestId, action, request, options);
+                        } catch (NodeNotConnectedException e) {
                             logger.info("Ignoring network connectivity exception", e);
-                        } else {
-                            logger.warn("Unexpected exception", e);
-                            fail();
+                        } catch (Exception e) {
+                            throw new AssertionError("unexpected", e);
                         }
-                    })
-                );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("unexpected", e);
+                    }
+                });
                 relocationStartReadyBlocked.countDown();
             } else {
                 connection.sendRequest(requestId, action, request, options);

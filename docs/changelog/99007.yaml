@@ -1,0 +1,5 @@
+pr: 99007
+summary: Cardinality nested in time series doc values bug
+area: "TSDB, Aggregations"
+type: bug
+issues: []

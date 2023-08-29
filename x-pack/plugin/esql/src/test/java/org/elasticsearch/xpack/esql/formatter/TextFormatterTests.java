@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
@@ -132,6 +133,34 @@ public class TextFormatterTests extends ESTestCase {
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
                 + "2231-12-31T23:59:59.999Z|null           ",
             result[1]
+        );
+    }
+
+    public void testVeryLongPadding() {
+        final var smallFieldContent = "is twenty characters";
+        final var largeFieldContent = "a".repeat(between(smallFieldContent.length(), 200));
+        final var paddingLength = largeFieldContent.length() - smallFieldContent.length();
+        assertEquals(
+            Strings.format("""
+                is twenty characters%s
+                aaaaaaaaaaaaaaaaaaaa%s
+                """, " ".repeat(paddingLength), "a".repeat(paddingLength)),
+            getTextBodyContent(
+                new TextFormatter(
+                    new EsqlQueryResponse(
+                        List.of(new ColumnInfo("foo", "keyword")),
+                        List.of(
+                            new Page(
+                                BytesRefBlock.newBlockBuilder(2)
+                                    .appendBytesRef(new BytesRef(smallFieldContent))
+                                    .appendBytesRef(new BytesRef(largeFieldContent))
+                                    .build()
+                            )
+                        ),
+                        randomBoolean()
+                    )
+                ).format(false)
+            )
         );
     }
 }

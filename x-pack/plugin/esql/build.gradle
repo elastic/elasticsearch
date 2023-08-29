@@ -56,7 +56,11 @@ sourceSets.main.java {
 }
 
 tasks.getByName('test') {
-  dependsOn 'cleanGeneratedDocs'
+  if (BuildParams.isCi() == false) {
+    dependsOn 'cleanGeneratedDocs'
+    finalizedBy 'copyGeneratedDocs'
+    systemProperty 'generateDocs', true
+  }
 }
 
 tasks.register('cleanGeneratedDocs', Delete) {

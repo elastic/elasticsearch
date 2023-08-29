@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -137,8 +139,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
 
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
-        assert indexShard.getEngineOrNull() instanceof IndexEngine;
-        final var engine = (IndexEngine) indexShard.getEngineOrNull();
+        final var engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state());
         indexShard.recoveryStats().incCurrentAsSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
@@ -207,6 +208,16 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                 }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
             }, listener0.map(ignored -> ActionResponse.Empty.INSTANCE));
         }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
+    }
+
+    private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState) {
+        if (engine instanceof IndexEngine indexEngine) {
+            return indexEngine;
+        } else {
+            final var message = Strings.format("not an IndexEngine: %s [indexShardState=%s]", engine, indexShardState);
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
     }
 
     private void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {

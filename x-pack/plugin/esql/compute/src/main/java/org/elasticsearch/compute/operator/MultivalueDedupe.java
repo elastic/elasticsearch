@@ -125,7 +125,7 @@ public final class MultivalueDedupe {
     /**
      * Result of calling "hash" on a multivalue dedupe.
      */
-    public record HashResult(LongBlock ords, boolean sawNull) {}
+    public record HashResult(IntBlock ords, boolean sawNull) {}
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position

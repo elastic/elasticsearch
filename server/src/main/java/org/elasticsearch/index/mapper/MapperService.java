@@ -564,4 +564,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
 }

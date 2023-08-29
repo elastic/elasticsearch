@@ -151,9 +151,29 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet()
-            .stream()
-            .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+
+        for (Map.Entry<K, V> e : left.entrySet()) {
+            if (right.containsKey(e.getKey()) == false) {
+                return false;
+            }
+
+            V v1 = e.getValue();
+            V v2 = right.get(e.getKey());
+            if (v1 instanceof Map && v2 instanceof Map) {
+                // if the values are both maps, then recursively compare them with Maps.deepEquals
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m1 = (Map<Object, Object>) v1;
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m2 = (Map<Object, Object>) v2;
+                if (Maps.deepEquals(m1, m2) == false) {
+                    return false;
+                }
+            } else if (Objects.deepEquals(v1, v2) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -70,8 +70,8 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         );
 
         // Same Lucene version should be cached:
-        IndexVersion v1 = new IndexVersion(1, Version.LUCENE_9_7_0);
-        IndexVersion v2 = new IndexVersion(2, Version.LUCENE_9_7_0);
+        IndexVersion v1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
         assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
     }
 

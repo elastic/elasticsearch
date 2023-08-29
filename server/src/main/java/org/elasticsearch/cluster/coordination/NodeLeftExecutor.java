@@ -58,7 +58,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
 
     @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
     private static Map<String, VersionsWrapper> getSystemIndexMappingsVersions(ClusterState clusterState) {
-        return clusterState.otherVersions();
+        return clusterState.versionsWrappers();
     }
 
     @Override
@@ -67,7 +67,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
         // TODO[wrb]: system index version
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
-        Map<String, VersionsWrapper> otherVersions = new HashMap<>(getSystemIndexMappingsVersions(initialState));
+        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(getSystemIndexMappingsVersions(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
@@ -75,7 +75,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 transportVersions.remove(task.node().getId());
-                otherVersions.remove(task.node().getId());
+                versionsWrappers.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -102,7 +102,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
                 initialState,
                 remainingNodesBuilder,
                 transportVersions,
-                otherVersions
+                versionsWrappers
             );
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
@@ -120,12 +120,12 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
         Map<String, TransportVersion> transportVersions,
-        Map<String, VersionsWrapper> otherVersions
+        Map<String, VersionsWrapper> versionsWrappers
     ) {
         return ClusterState.builder(currentState)
             .nodes(remainingNodesBuilder)
             .transportVersions(transportVersions)
-            .otherVersions(otherVersions)
+            .versionsWrappers(versionsWrappers)
             .build();
     }
 

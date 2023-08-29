@@ -1073,7 +1073,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
-                .putOtherVersions(getLocalNode().getId(), versionsWrapper)
+                .putVersionsWrapper(getLocalNode().getId(), versionsWrapper)
                 .metadata(metadata)
                 .build();
             applierState = initialState;

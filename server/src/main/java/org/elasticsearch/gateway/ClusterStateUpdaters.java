@@ -39,7 +39,7 @@ public class ClusterStateUpdaters {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
             .putTransportVersion(localNode.getId(), transportVersion)
-            .putOtherVersions(localNode.getId(), versionsWrapper)
+            .putVersionsWrapper(localNode.getId(), versionsWrapper)
             .build();
     }
 

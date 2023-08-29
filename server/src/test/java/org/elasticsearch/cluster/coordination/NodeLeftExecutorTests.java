@@ -74,10 +74,10 @@ public class NodeLeftExecutorTests extends ESTestCase {
                 ClusterState currentState,
                 DiscoveryNodes.Builder remainingNodesBuilder,
                 Map<String, TransportVersion> transportVersions,
-                Map<String, VersionsWrapper> otherVersions
+                Map<String, VersionsWrapper> versionsWrappers
             ) {
                 remainingNodesClusterState.set(
-                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions, otherVersions)
+                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions, versionsWrappers)
                 );
                 return remainingNodesClusterState.get();
             }

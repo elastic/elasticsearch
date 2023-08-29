@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -24,7 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class AbsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Integer", () -> {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER), () -> {
             int arg = randomInt();
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
@@ -32,7 +34,8 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 DataTypes.INTEGER,
                 equalTo(Math.abs(arg))
             );
-        }), new TestCaseSupplier("UnsignedLong", () -> {
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.UNSIGNED_LONG), () -> {
             long arg = randomLong();
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
@@ -40,7 +43,8 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 DataTypes.UNSIGNED_LONG,
                 equalTo(arg)
             );
-        }), new TestCaseSupplier("Long", () -> {
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG), () -> {
             long arg = randomLong();
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.LONG, "arg")),
@@ -48,7 +52,8 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 DataTypes.LONG,
                 equalTo(Math.abs(arg))
             );
-        }), new TestCaseSupplier("Double", () -> {
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DOUBLE), () -> {
             double arg = randomDouble();
             return new TestCase(
                 List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
@@ -56,7 +61,8 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 equalTo(Math.abs(arg))
             );
-        })));
+        }));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     public AbsTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {

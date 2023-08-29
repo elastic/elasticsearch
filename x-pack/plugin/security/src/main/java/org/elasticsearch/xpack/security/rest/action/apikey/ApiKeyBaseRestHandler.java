@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -19,7 +20,7 @@ abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings) == false) {
             return new FeatureNotEnabledException(FeatureNotEnabledException.Feature.API_KEY_SERVICE, "api keys are not enabled");
         } else {

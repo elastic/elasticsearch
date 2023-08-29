@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,14 +22,14 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public class Eval extends UnaryPlan {
 
-    private final List<NamedExpression> fields;
+    private final List<Alias> fields;
 
-    public Eval(Source source, LogicalPlan child, List<NamedExpression> fields) {
+    public Eval(Source source, LogicalPlan child, List<Alias> fields) {
         super(source, child);
         this.fields = fields;
     }
 
-    public List<NamedExpression> fields() {
+    public List<Alias> fields() {
         return fields;
     }
 

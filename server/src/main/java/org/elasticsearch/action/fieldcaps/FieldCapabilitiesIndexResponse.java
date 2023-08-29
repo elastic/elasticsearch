@@ -81,8 +81,8 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
             out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         }
 
-        List<FieldCapabilitiesIndexResponse> getResponses() {
-            return indices.stream().map(index -> new FieldCapabilitiesIndexResponse(index, indexMappingHash, responseMap, true)).toList();
+        Stream<FieldCapabilitiesIndexResponse> getResponses() {
+            return indices.stream().map(index -> new FieldCapabilitiesIndexResponse(index, indexMappingHash, responseMap, true));
         }
     }
 
@@ -92,7 +92,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         }
         final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readList(FieldCapabilitiesIndexResponse::new);
         final List<GroupByMappingHash> groups = input.readList(GroupByMappingHash::new);
-        return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(g -> g.getResponses().stream())).toList();
+        return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(GroupByMappingHash::getResponses)).toList();
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {

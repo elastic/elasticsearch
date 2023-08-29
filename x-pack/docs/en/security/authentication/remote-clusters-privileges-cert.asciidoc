@@ -1,4 +1,4 @@
-[[remote-clusters-privileges]]
+[[remote-clusters-privileges-cert]]
 === Configure roles and users for remote clusters
 After <<remote-clusters-connect,connecting remote clusters>>, you create a
 user role on both the local and remote clusters and assign necessary privileges.
@@ -206,7 +206,7 @@ NOTE: You only need to create this user on the *local* cluster.
 Users with the `remote-search` role can then
 <<modules-cross-cluster-search,search across clusters>>.
 
-[[clusters-privileges-ccs-kibana]]
+[[clusters-privileges-ccs-kibana-cert]]
 ==== Configure privileges for {ccs} and {kib}
 When using {kib} to search across multiple clusters, a two-step authorization
 process determines whether or not the user can access data streams and indices

@@ -1,5 +1,8 @@
 [[esql-cosh]]
 === `COSH`
+[.text-center]
+image::esql/functions/signature/cosh.svg[Embedded,opts=inline]
+
 https://en.wikipedia.org/wiki/Hyperbolic_functions[Cosine] hyperbolic function.
 
 [source.merge.styled,esql]
@@ -10,3 +13,7 @@ include::{esql-specs}/floats.csv-spec[tag=cosh]
 |===
 include::{esql-specs}/floats.csv-spec[tag=cosh-result]
 |===
+
+Supported types:
+
+include::types/cosh.asciidoc[]

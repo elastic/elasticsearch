@@ -22,10 +22,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -52,16 +51,13 @@ import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -77,7 +73,6 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.util.Holder;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -137,7 +132,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * To log the results logResults() should return "true".
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -340,12 +335,10 @@ public class CsvTests extends ESTestCase {
         //
         // Keep in sync with ComputeService#execute
         //
-        var localTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
-
         PhysicalPlan physicalPlan = physicalPlan(parsed, testDataset);
-        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = CSVbreakPlanBetweenCoordinatorAndDataNode(
+        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
-            localTestOptimizer
+            configuration
         );
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
@@ -372,7 +365,12 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
-                var csvDataNodePhysicalPlan = CSVlocalPlan(List.of(), configuration, dataNodePlan, localTestOptimizer);
+                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
+                    new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats())
+                );
+                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
+
+                var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
                 LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
@@ -383,45 +381,6 @@ public class CsvTests extends ESTestCase {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }
         return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
-    }
-
-    //
-    // Clone of PlannerUtils
-    //
-
-    // PlannerUtils#breakPlanBetweenCoordinatorAndDataNode
-    private static Tuple<PhysicalPlan, PhysicalPlan> CSVbreakPlanBetweenCoordinatorAndDataNode(
-        PhysicalPlan plan,
-        LocalPhysicalPlanOptimizer optimizer
-    ) {
-        var dataNodePlan = new Holder<PhysicalPlan>();
-
-        // split the given plan when encountering the exchange
-        PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
-            // remember the datanode subplan and wire it to a sink
-            var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), subplan));
-            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
-        });
-        return new Tuple<>(coordinatorPlan, dataNodePlan.get());
-    }
-
-    private static PhysicalPlan CSVlocalPlan(
-        List<SearchContext> searchContexts,
-        EsqlConfiguration configuration,
-        PhysicalPlan plan,
-        LocalPhysicalPlanOptimizer optimizer
-    ) {
-        final Mapper mapper = new Mapper(true);
-
-        var localOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats()));
-
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            var optimizedFragment = localOptimizer.localOptimize(f.fragment());
-            var physicalFragment = mapper.map(optimizedFragment);
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalFragment);
-        });
-        return optimizer.localOptimize(localPhysicalPlan);
     }
 
     private Throwable reworkException(Throwable th) {

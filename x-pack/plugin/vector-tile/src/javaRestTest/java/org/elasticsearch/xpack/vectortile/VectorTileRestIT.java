@@ -14,6 +14,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -930,6 +931,7 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     public void testPartialResult() throws Exception {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
         mvtRequest.setJsonEntity("""
             {

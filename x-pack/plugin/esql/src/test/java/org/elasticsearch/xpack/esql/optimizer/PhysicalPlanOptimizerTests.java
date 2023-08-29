@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -1644,6 +1645,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testFieldExtractWithoutSourceAttributes() {
+        PhysicalPlan verifiedPlan = optimizedPlan(physicalPlan("""
+            from test
+            | where round(emp_no) > 10
+            """));
+        // Transform the verified plan so that it is invalid (i.e. no source attributes)
+        List<Attribute> emptyAttrList = List.of();
+        var badPlan = verifiedPlan.transformDown(
+            EsQueryExec.class,
+            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
+        );
+
+        var e = expectThrows(PhysicalVerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
+            )
+        );
+    }
+
+    /**
+     * Expects
+     * ProjectExec[[x{r}#3]]
+     * \_EvalExec[[1[INTEGER] AS x]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_ExchangeExec[[],false]
+     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r}#12]]
+     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;]]
+     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10,"boost":1.0}}}}}]
+     *            [_doc{f}#13], limit[10000], sort[] estimatedRowSize[8]
+     */
+    public void testProjectAllFieldsWhenOnlyTheCountMatters() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 10
+            | eval x = 1
+            | keep x
+            """));
+
+        var project = as(plan, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var nullField = "<all-fields-projected>";
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains(nullField));
+        eval = as(project.child(), EvalExec.class);
+        assertThat(Expressions.names(eval.fields()), contains(nullField));
+        var source = source(eval.child());
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -1686,27 +1739,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private ExchangeExec asRemoteExchange(PhysicalPlan plan) {
         return as(plan, ExchangeExec.class);
-    }
-
-    public void testFieldExtractWithoutSourceAttributes() {
-        PhysicalPlan verifiedPlan = optimizedPlan(physicalPlan("""
-            from test
-            | where round(emp_no) > 10
-            """));
-        // Transform the verified plan so that it is invalid (i.e. no source attributes)
-        List<Attribute> emptyAttrList = List.of();
-        var badPlan = verifiedPlan.transformDown(
-            EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
-        );
-
-        var e = expectThrows(PhysicalVerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
-            )
-        );
     }
 
     /**

@@ -77,6 +77,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -260,7 +261,12 @@ public class ComputeService {
             listener.onFailure(e);
             return;
         }
-        driverRunner.executeDrivers(task, drivers, ActionListener.releaseAfter(listener, () -> Releasables.close(drivers)));
+        driverRunner.executeDrivers(
+            task,
+            drivers,
+            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+            ActionListener.releaseAfter(listener, () -> Releasables.close(drivers))
+        );
     }
 
     private void acquireSearchContexts(

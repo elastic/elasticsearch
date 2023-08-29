@@ -74,6 +74,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex("test");
     }
 
+    public void testProjectConstant() {
+        EsqlQueryResponse results = run("from test | eval x = 1 | keep x");
+        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));
+        assertThat(results.values().size(), equalTo(40));
+        assertThat(results.values().get(0).get(0), equalTo(1));
+    }
+
+    public void testStatsOverConstant() {
+        EsqlQueryResponse results = run("from test | eval x = 1 | stats x = count(x)");
+        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "long"))));
+        assertThat(results.values().size(), equalTo(1));
+        assertThat(results.values().get(0).get(0), equalTo(40L));
+    }
+
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         EsqlQueryResponse response = run("row " + value);

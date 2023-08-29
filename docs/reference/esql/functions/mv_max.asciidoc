@@ -1,0 +1,24 @@
+[[esql-mv_max]]
+=== `MV_MAX`
+Converts a multivalued field into a single valued field containing the maximum value. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=mv_max]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_max-result]
+|===
+
+It can be used by any field type, including `keyword` fields. In that case picks the
+last string, comparing their utf-8 representation byte by byte:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_max]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_max-result]
+|===

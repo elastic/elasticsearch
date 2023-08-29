@@ -1,0 +1,5 @@
+pr: 97724
+summary: Mapped field types searchable with doc values
+area: TSDB
+type: bug
+issues: []

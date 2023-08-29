@@ -1,6 +1,0 @@
-pr: 97840
-summary: Improve exception handling in Coordinator#publish
-area: Cluster Coordination
-type: bug
-issues:
- - 97798

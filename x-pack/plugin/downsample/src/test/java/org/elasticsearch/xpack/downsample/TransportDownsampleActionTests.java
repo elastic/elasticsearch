@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
@@ -25,7 +25,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         final List<String> tiers = List.of(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD, DataTier.DATA_CONTENT);
         final IndexMetadata source = new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 3))
                 .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, UUID.randomUUID().toString())
@@ -38,7 +38,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         ).build();
         final IndexMetadata target = new IndexMetadata.Builder(randomAlphaOfLength(10)).settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4)
                 .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, UUID.randomUUID().toString())

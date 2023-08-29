@@ -179,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
@@ -209,6 +209,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
                 builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
                 builder.endObject();

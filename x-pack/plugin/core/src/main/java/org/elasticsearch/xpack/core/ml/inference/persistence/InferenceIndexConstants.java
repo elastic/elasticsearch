@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.util.Map;
+
 /**
  * Class containing the index constants so that the index version, name, and prefix are available to a wider audience.
  */
@@ -44,9 +46,15 @@ public final class InferenceIndexConstants {
     private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 1;
 
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/ml/inference_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/ml/inference_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION))
+        );
     }
 
     public static String nativeDefinitionStore() {

@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
@@ -155,9 +154,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 if (Strings.hasLength(repositoryUuid) == false) {
                     repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
                 } else {
-                    final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
-                    final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
-                    repositoryName = repositories.stream()
+                    repositoryName = RepositoriesMetadata.get(allocation.getClusterState())
+                        .repositories()
+                        .stream()
                         .filter(r -> repositoryUuid.equals(r.uuid()))
                         .map(RepositoryMetadata::name)
                         .findFirst()
@@ -234,14 +233,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
                 // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
                 // the RestoreInProgressAllocationDecider
-
-                final RestoreInProgress restoreInProgress = allocation.getClusterState().custom(RestoreInProgress.TYPE);
-                if (restoreInProgress == null) {
-                    // no ongoing restores, so this shard definitely completed
-                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
-                }
-
-                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
+                final RestoreInProgress.Entry entry = RestoreInProgress.get(allocation.getClusterState()).get(recoverySource.restoreUUID());
                 if (entry == null) {
                     // this specific restore is not ongoing, so this shard definitely completed
                     return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;

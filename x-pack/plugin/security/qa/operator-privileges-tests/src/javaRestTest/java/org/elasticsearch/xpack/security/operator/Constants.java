@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -319,6 +317,7 @@ public class Constants {
         "cluster:monitor/xpack/enrich/coordinator_stats",
         "cluster:monitor/xpack/enrich/stats",
         "cluster:monitor/xpack/eql/stats/dist",
+        "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
         "cluster:monitor/xpack/info/analytics",
@@ -329,6 +328,7 @@ public class Constants {
         "cluster:monitor/xpack/info/enrich",
         "cluster:monitor/xpack/info/enterprise_search",
         "cluster:monitor/xpack/info/eql",
+        "cluster:monitor/xpack/info/esql",
         "cluster:monitor/xpack/info/frozen_indices",
         "cluster:monitor/xpack/info/graph",
         "cluster:monitor/xpack/info/ilm",
@@ -389,6 +389,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/enrich",
         "cluster:monitor/xpack/usage/enterprise_search",
         "cluster:monitor/xpack/usage/eql",
+        "cluster:monitor/xpack/usage/esql",
         "cluster:monitor/xpack/usage/frozen_indices",
         "cluster:monitor/xpack/usage/graph",
         "cluster:monitor/xpack/usage/health_api",
@@ -428,10 +429,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
+        "indices:admin/data_stream/lifecycle/delete",
+        "indices:admin/data_stream/lifecycle/get",
+        "indices:admin/data_stream/lifecycle/put",
+        "indices:admin/data_stream/lifecycle/explain",
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -475,12 +476,14 @@ public class Constants {
         "indices:admin/xpack/ccr/unfollow",
         "indices:admin/xpack/downsample",
         "indices:admin/xpack/downsample_indexer",
+        "indices:data/read/downsample_delegate",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",
         "indices:data/read/close_point_in_time",
         "indices:data/read/eql",
         "indices:data/read/eql/async/get",
+        "indices:data/read/esql",
         "indices:data/read/explain",
         "indices:data/read/field_caps",
         "indices:data/read/get",

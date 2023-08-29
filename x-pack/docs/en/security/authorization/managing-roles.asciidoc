@@ -11,8 +11,8 @@ A role is defined by the following JSON structure:
   "cluster": [ ... ], <2>
   "global": { ... }, <3>
   "indices": [ ... ], <4>
-  "applications": [ ... ] <5>
-
+  "applications": [ ... ], <5>
+  "remote_indices": [ ... ] <6>
 }
 -----
 // NOTCONSOLE
@@ -31,6 +31,12 @@ A role is defined by the following JSON structure:
 <4> A list of indices permissions entries. This field is optional (missing `indices`
     privileges effectively mean no index level permissions).
 <5> A list of application privilege entries. This field is optional.
+// TODO: fix the link to new page of API key based remote clusters
+<6> beta:[]
+    A list of indices permissions entries for
+    <<remote-clusters,remote clusters configured with the API key based model>>.
+    This field is optional (missing `remote_indices` privileges effectively mean
+    no index level permissions for any API key based remote clusters).
 
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 507 characters. They can
@@ -39,7 +45,7 @@ NOTE: Role names must be at least 1 and no more than 507 characters. They can
       Leading or trailing whitespace is not allowed.
 
 [[roles-indices-priv]]
-==== Indices Privileges
+==== Indices privileges
 
 The following describes the structure of an indices permissions entry:
 
@@ -49,7 +55,7 @@ The following describes the structure of an indices permissions entry:
   "names": [ ... ], <1>
   "privileges": [ ... ], <2>
   "field_security" : { ... }, <3>
-  "query": "..." <4>
+  "query": "...", <4>
   "allow_restricted_indices": false <5>
 }
 -------
@@ -100,7 +106,7 @@ multiple data streams, indices, and aliases.
 ==============================================================================
 
 [[roles-global-priv]]
-==== Global Privileges
+==== Global privileges
 The following describes the structure of the global privileges entry:
 
 [source,js]
@@ -129,7 +135,7 @@ The following describes the structure of the global privileges entry:
 privilege is restricted to
 
 [[roles-application-priv]]
-==== Application Privileges
+==== Application privileges
 The following describes the structure of an application privileges entry:
 
 [source,js]
@@ -156,6 +162,57 @@ have not yet been defined through the add application privileges API (or they
 were defined, but have since been deleted). In this case, the privilege has
 no effect, and will not grant any actions in the
 <<security-api-has-privileges,has privileges API>>.
+
+[[roles-remote-indices-priv]]
+==== Remote indices privileges
+
+beta::[]
+
+// TODO: fix the link to new page of API key based remote clusters
+For remote clusters configured with the API key based model, remote indices privileges
+can be used to specify desired indices privileges for matching remote clusters. The final
+effective index privileges will be an intersection of the remote indices privileges
+and the <<security-api-create-cross-cluster-api-key,cross-cluster API key>>'s indices privileges.
+
+NOTE: Remote indices are effective for remote clusters configured with the API key based model.
+They have no effect for remote clusters configured with the certificate based model.
+
+The remote indices privileges entry has an extra mandatory `clusters` field compared to
+an <<roles-indices-priv,indices privileges entry>>. Otherwise the two have identical structure.
+The following describes the structure of a remote indices permissions entry:
+
+[source,js]
+-------
+{
+  "clusters": [ ... ], <1>
+  "names": [ ... ], <2>
+  "privileges": [ ... ], <3>
+  "field_security" : { ... }, <4>
+  "query": "...", <5>
+  "allow_restricted_indices": false <6>
+}
+-------
+// NOTCONSOLE
+<1> A list of remote cluster aliases. It supports literal strings as well as
+    <<api-multi-index,wildcards>> and <<regexp-syntax,regular expressions>>.
+    This field is required.
+<2> A list of data streams, indices, and aliases to which the permissions
+    in this entry apply. Supports wildcards (`*`).
+<3> The index level privileges the owners of the role have on the associated
+    data streams and indices specified in the `names` argument.
+<4> Specification for document fields the owners of the role have read access to.
+    See <<field-and-document-access-control>> for details.
+<5> A search query that defines the documents the owners of the role have read
+    access to. A document within the associated data streams and indices must match this query
+    in order for it to be accessible by the owners of the role.
+<6> Restricted indices are a special category of indices that are used
+    internally to store configuration data and should not be directly accessed.
+    Only internal system roles should normally grant privileges over the restricted indices.
+    **Toggling this flag is very strongly discouraged because it could effectively grant unrestricted
+    operations on critical data, making the entire system unstable or leaking sensitive information.**
+    If however, for administrative purposes, you need to create a role with privileges covering
+    restricted indices, you must set this field to `true` (default is `false`), and then the
+    `names` field will cover the restricted indices as well.
 
 ==== Example
 

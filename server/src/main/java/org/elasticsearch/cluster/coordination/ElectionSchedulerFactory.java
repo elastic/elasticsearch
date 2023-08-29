@@ -191,6 +191,11 @@ public class ElectionSchedulerFactory {
                         logger.debug("{} not starting election", this);
                     } else {
                         logger.debug("{} starting election", this);
+                        if (thisAttempt > 0 && thisAttempt % 10 == 0) {
+                            logger.info("""
+                                retrying master election after [{}] failed attempts; \
+                                election attempts are currently scheduled up to [{}ms] apart""", thisAttempt, maxDelayMillis);
+                        }
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }

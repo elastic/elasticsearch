@@ -19,7 +19,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_TIME_SERIES_CHECK_KEY;
-import static org.elasticsearch.xpack.core.ilm.DownsampleAction.GENERATE_DOWNSAMPLE_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
@@ -84,14 +83,14 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
         assertTrue(steps.get(3) instanceof ReadOnlyStep);
         assertThat(steps.get(3).getKey().name(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(3).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
+        assertThat(steps.get(3).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
 
         assertTrue(steps.get(4) instanceof NoopStep);
         assertThat(steps.get(4).getKey().name(), equalTo(CleanupTargetIndexStep.NAME));
         assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
-        assertTrue(steps.get(5) instanceof NoopStep);
-        assertThat(steps.get(5).getKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
+        assertTrue(steps.get(5) instanceof DownsamplePrepareLifeCycleStateStep);
+        assertThat(steps.get(5).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
         assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
         assertTrue(steps.get(6) instanceof DownsampleStep);

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -29,6 +30,7 @@ public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
@@ -136,7 +138,8 @@ public final class AnomalyDetectorsIndex {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
             Version.CURRENT.toString(),
-            RESULTS_MAPPINGS_VERSION_VARIABLE
+            RESULTS_MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

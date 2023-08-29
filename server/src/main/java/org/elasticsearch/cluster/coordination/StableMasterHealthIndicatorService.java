@@ -23,7 +23,6 @@ import org.elasticsearch.health.node.HealthInfo;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This indicator reports the health of master stability.
@@ -206,8 +205,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (node == null) {
             return null;
         } else {
-            String nodeName = node.getName();
-            return Objects.requireNonNullElse(nodeName, null);
+            return node.getName();
         }
     }
 

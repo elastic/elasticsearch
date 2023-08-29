@@ -209,6 +209,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(
             settings,
             clusterService,
+            indicesService,
             client,
             threadPool,
             expressionResolver,

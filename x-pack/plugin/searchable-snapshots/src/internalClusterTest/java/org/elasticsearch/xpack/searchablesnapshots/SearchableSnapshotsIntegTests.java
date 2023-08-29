@@ -1017,12 +1017,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         });
 
         assertBusy(() -> {
-            final RestoreInProgress restoreInProgress = clusterAdmin().prepareState()
-                .clear()
-                .setCustoms(true)
-                .get()
-                .getState()
-                .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            final RestoreInProgress restoreInProgress = RestoreInProgress.get(
+                clusterAdmin().prepareState().clear().setCustoms(true).get().getState()
+            );
             assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
         });
 

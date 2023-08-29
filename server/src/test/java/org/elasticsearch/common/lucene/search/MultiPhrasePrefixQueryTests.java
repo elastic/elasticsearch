@@ -30,7 +30,7 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
         doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
         writer.addDocument(doc);
         IndexReader reader = DirectoryReader.open(writer);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("field");
         query.add(new Term("field", "aa"));

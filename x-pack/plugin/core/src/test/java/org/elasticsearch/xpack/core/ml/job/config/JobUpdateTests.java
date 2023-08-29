@@ -260,6 +260,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98626")
     public void testMergeWithJob() {
         List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>();
         List<DetectionRule> detectionRules1 = Collections.singletonList(

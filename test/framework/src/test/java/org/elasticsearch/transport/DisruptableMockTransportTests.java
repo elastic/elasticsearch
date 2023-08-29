@@ -322,7 +322,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TestRequest> handler) {
-        transportService.registerRequestHandler(TEST_ACTION, ThreadPool.Names.GENERIC, TestRequest::new, handler);
+        transportService.registerRequestHandler(TEST_ACTION, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC), TestRequest::new, handler);
     }
 
     private void send(

@@ -28,7 +28,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
     @Override
     public abstract TestBlockBuilder endPositionEntry();
 
-    static Block blockFromValues(List<List<Object>> blockValues, ElementType elementType) {
+    public static Block blockFromValues(List<List<Object>> blockValues, ElementType elementType) {
         TestBlockBuilder builder = builderOf(elementType);
         for (List<Object> rowValues : blockValues) {
             if (rowValues.isEmpty()) {
@@ -50,6 +50,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
             case LONG -> new TestLongBlockBuilder(0);
             case DOUBLE -> new TestDoubleBlockBuilder(0);
             case BYTES_REF -> new TestBytesRefBlockBuilder(0);
+            case BOOLEAN -> new TestBooleanBlockBuilder(0);
             default -> throw new AssertionError(type);
         };
     }
@@ -290,6 +291,62 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         @Override
         public BytesRefBlock build() {
+            return builder.build();
+        }
+    }
+
+    private static class TestBooleanBlockBuilder extends TestBlockBuilder {
+
+        private final BooleanBlock.Builder builder;
+
+        TestBooleanBlockBuilder(int estimatedSize) {
+            builder = BooleanBlock.newBlockBuilder(estimatedSize);
+        }
+
+        @Override
+        public TestBlockBuilder appendObject(Object object) {
+            builder.appendBoolean((boolean) object);
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder appendNull() {
+            builder.appendNull();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder beginPositionEntry() {
+            builder.beginPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder endPositionEntry() {
+            builder.endPositionEntry();
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            builder.copyFrom(block, beginInclusive, endExclusive);
+            return this;
+        }
+
+        @Override
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
+            return this;
+        }
+
+        @Override
+        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
+            builder.appendAllValuesToCurrentPosition(block);
+            return this;
+        }
+
+        @Override
+        public BooleanBlock build() {
             return builder.build();
         }
     }

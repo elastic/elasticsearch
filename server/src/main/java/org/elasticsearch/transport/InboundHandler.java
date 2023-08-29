@@ -295,7 +295,7 @@ public class InboundHandler {
         boolean success = false;
         request.incRef();
         try {
-            threadPool.executor(reg.getExecutor()).execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+            reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
                     doHandleRequest(reg, request, channel);

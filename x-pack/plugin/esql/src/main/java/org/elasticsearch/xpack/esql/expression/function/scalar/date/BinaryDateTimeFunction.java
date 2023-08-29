@@ -25,8 +25,8 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     private final ZoneId zoneId;
 
-    protected BinaryDateTimeFunction(Source source, Expression timestamp, Expression argument) {
-        super(source, timestamp, argument);
+    protected BinaryDateTimeFunction(Source source, Expression argument, Expression timestamp) {
+        super(source, argument, timestamp);
         zoneId = DEFAULT_TZ;
     }
 
@@ -36,7 +36,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     public Expression timestampField() {
-        return left();
+        return right();
     }
 
     public ZoneId zoneId() {

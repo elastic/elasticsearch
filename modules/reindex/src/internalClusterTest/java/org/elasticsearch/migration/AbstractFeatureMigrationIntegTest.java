@@ -179,7 +179,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );

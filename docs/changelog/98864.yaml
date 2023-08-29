@@ -1,0 +1,5 @@
+pr: 98864
+summary: "[Profiling] Abort index creation on outdated index"
+area: Application
+type: bug
+issues: []

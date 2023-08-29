@@ -137,7 +137,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             1f
         );
 
-        LeafReaderContext leaf = directoryReader.leaves().get(0);
+        LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {

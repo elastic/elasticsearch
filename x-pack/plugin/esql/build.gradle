@@ -30,6 +30,8 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation('net.nextencia:rrdiagram:0.9.4')
+  testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":client:rest-high-level")
 }
@@ -45,8 +47,30 @@ tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-s", "${projectDir}/src/main/java/generated"])
 }
 
+tasks.named("javadoc").configure {
+  include("${projectDir}/src/main/java/generated")
+}
+
 sourceSets.main.java {
   exclude 'generated/**'
+}
+
+tasks.getByName('test') {
+  dependsOn 'cleanGeneratedDocs'
+}
+
+tasks.register('cleanGeneratedDocs', Delete) {
+  delete "${projectDir}/build/testrun/test/temp/esql/functions"
+}
+
+tasks.register('copyGeneratedDocs', Sync) {
+  dependsOn 'test'
+  from "${projectDir}/build/testrun/test/temp/esql/functions"
+  into "${rootDir}/docs/reference/esql/functions"
+  include '**/*.asciidoc', '**/*.svg'
+  preserve {
+    include '/*.asciidoc'
+  }
 }
 
 /****************************************************************

@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -139,8 +138,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // data stream was rolled over and has 2 indices managed by ILM
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
@@ -179,9 +179,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String writeIndex = backingIndices.get(2);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -235,10 +236,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String thirdGenerationIndex = backingIndices.get(2);
+            String writeIndex = backingIndices.get(3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -296,7 +298,6 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 2);
-
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -306,11 +307,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(2));
         });
-
         // data stream was rolled over and has 2 indices managed by ILM
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
@@ -356,11 +357,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(3));
 
         });
-
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String thirdGenerationIndex = backingIndices.get(2);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -382,7 +383,6 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(thirdGenerationExplain.managedByILM(), is(true));
             assertThat(thirdGenerationExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
-
         // let's migrate this data stream to use the data stream lifecycle starting with the next generation
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
@@ -413,10 +413,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String thirdGenerationIndex = backingIndices.get(2);
+            String writeIndex = backingIndices.get(3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -485,8 +486,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // data stream was rolled over and has 2 indices managed by ILM
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(firstGenerationIndex, secondGenerationIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
@@ -528,9 +530,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String writeIndex = backingIndices.get(2);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -581,10 +584,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String thirdGenerationIndex = backingIndices.get(2);
+            String writeIndex = backingIndices.get(3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -631,10 +635,11 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // At this point the data stream is not managed by the data stream lifecycle and all the indices fallback to ILM.
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String thirdGenerationIndex = backingIndices.get(2);
+            String writeIndex = backingIndices.get(3);
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(
                 firstGenerationIndex,
                 secondGenerationIndex,
@@ -684,8 +689,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String writeIndex = backingIndices.get(1);
 
             // let's check the indices are managed by the data stream lifecycle
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
@@ -736,9 +742,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String writeIndex = backingIndices.get(2);
 
             // let's check the previous indices are managed by the data stream lifecycle
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
@@ -772,8 +779,9 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         // the new write index is also managed by ILM
         assertBusy(() -> {
-            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String thirdGenerationIndex = backingIndices.get(2);
+            String writeIndex = backingIndices.get(3);
 
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(thirdGenerationIndex, writeIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
@@ -836,5 +844,12 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
     private static DataStreamLifecycle customEnabledLifecycle() {
         return DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueMillis(randomMillisUpToYear9999())).build();
+    }
+
+    private List<String> getBackingIndices(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
     }
 }

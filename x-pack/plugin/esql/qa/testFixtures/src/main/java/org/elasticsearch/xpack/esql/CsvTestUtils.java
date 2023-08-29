@@ -117,7 +117,7 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(type.clazz(), 8));
+                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(ElementType.fromJava(type.clazz()), 8));
                         }
                     }
                     // data rows

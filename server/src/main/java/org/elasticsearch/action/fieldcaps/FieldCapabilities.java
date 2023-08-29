@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -276,7 +275,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         builder.field(SEARCHABLE_FIELD.getPreferredName(), isSearchable);
         builder.field(AGGREGATABLE_FIELD.getPreferredName(), isAggregatable);
         if (isDimension) {
-            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), isDimension);
+            builder.field(TIME_SERIES_DIMENSION_FIELD.getPreferredName(), true);
         }
         if (metricType != null) {
             builder.field(TIME_SERIES_METRIC_FIELD.getPreferredName(), metricType);
@@ -315,7 +314,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return PARSER.parse(parser, name);
     }
 
-    @SuppressWarnings("unchecked")
     private static final InstantiatingObjectParser<FieldCapabilities, String> PARSER;
 
     static {
@@ -473,10 +471,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    static FieldCapabilities buildBasic(String field, String type, String[] indices) {
-        return new FieldCapabilities(field, type, false, false, false, false, null, indices, null, null, null, null, Map.of());
-    }
-
     static class Builder {
         private final String name;
         private final String type;
@@ -550,8 +544,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        Stream<String> getIndices() {
-            return indicesList.stream().flatMap(c -> Arrays.stream(c.indices));
+        void getIndices(Set<String> into) {
+            for (int i = 0; i < indicesList.size(); i++) {
+                IndexCaps indexCaps = indicesList.get(i);
+                for (String element : indexCaps.indices) {
+                    into.add(element);
+                }
+            }
         }
 
         private String[] filterIndices(int length, Predicate<IndexCaps> pred) {

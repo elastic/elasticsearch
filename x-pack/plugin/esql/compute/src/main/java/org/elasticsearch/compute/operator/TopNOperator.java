@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -22,11 +23,46 @@ import org.elasticsearch.compute.data.Page;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * An operator that sorts "rows" of values by encoding the values to sort on, as bytes (using BytesRef). Each data type is encoded
+ * in a specific way, defined by methods of a TopNEncoder. All the values used to sort a specific row (think of column/block 3
+ * and column/block 6) are converted/encoded in a byte array and the concatenated bytes are all compared in bulk.
+ * For now, the only values that have a special "treatment" when it comes to encoding are the text-based ones (text, keyword, ip, version).
+ * For each "special" encoding there is should be new TopNEncoder implementation. See {@link UTF8TopNEncoder} for encoding regular
+ * "text" and "keyword" data types. See LocalExecutionPlanner for which data type uses which encoder.
+ *
+ * This Operator will not be able to sort binary values (encoded as BytesRef) because the bytes used as separator and "null"s can appear
+ * as valid bytes inside a binary value.
+ */
 public class TopNOperator implements Operator {
+
+    private static final byte SEPARATOR = 0x0; // separator for values inside the BytesRef sorting key
+    private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
+    private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+    public static final TopNEncoder BYTESREF_FIXED_LENGTH_ENCODER = new FixedLengthTopNEncoder();
+    public static final TopNEncoder BYTESREF_UTF8_ENCODER = new UTF8TopNEncoder();
+    public static final TopNEncoder DEFAULT_ENCODER = new TopNEncoder() {
+        @Override
+        public void encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+            throw new IllegalStateException("Cannot find encoder for BytesRef value");
+        }
+
+        @Override
+        public String toString() {
+            return "DefaultEncoder";
+        }
+    };
+
+    // enum to be extended in the future with other sorting modes (AVG average, for example)
+    private enum MvSortMode {
+        MIN,
+        MAX
+    }
 
     /**
      * Internal row to be used in the PriorityQueue instead of the full blown Page.
@@ -45,6 +81,15 @@ public class TopNOperator implements Operator {
         int[] idToFirstValueIndex; // keeps the offset inside each of the arrays above where a specific block position starts from
         ElementType[] idToType;
         int[] numberOfValues; // keeps the count of values of each field in the specialized array
+
+        BitSet blockIsUnordered;
+        BytesRefBuilder orderByCompositeKey = new BytesRefBuilder(); // BytesRef used to sort rows between each other
+        /**
+         * A true/false value (bit set/unset) for each byte in the BytesRef above corresponding to an asc/desc ordering.
+         * For ex, if a Long is represented as 8 bytes, each of these bytes will have the same value (set/unset) if the respective Long
+         * value is used for sorting ascending/descending.
+         */
+        BitSet orderByCompositeKeyAscending;
 
         boolean isNull(int i) {
             return nullValues[i];
@@ -68,6 +113,10 @@ public class TopNOperator implements Operator {
 
         BytesRef getBytesRef(int i, int offset) {
             return byteRefs[idToFirstValueIndex[i] + offset];
+        }
+
+        boolean blockIsUnordered(int i) {
+            return blockIsUnordered.get(i);
         }
     }
 
@@ -106,7 +155,7 @@ public class TopNOperator implements Operator {
             }
         }
 
-        Row row(Page origin, int rowNum, Row spare) {
+        Row row(Page origin, int rowNum, Row spare, List<SortOrder> sortOrders) {
             Row result;
             if (spare == null) {
                 result = new Row();
@@ -123,12 +172,16 @@ public class TopNOperator implements Operator {
                 result.idToType = idToType;
                 result.docs = new int[nDocs * 3];
                 result.numberOfValues = new int[size];
+                result.orderByCompositeKeyAscending = new BitSet();
             } else {
                 result = spare;
                 // idToType has to be set because different pages could have different block types due to different mappings
                 result.idToType = idToType;
                 Arrays.fill(result.nullValues, false);
+                result.orderByCompositeKey = new BytesRefBuilder();
+                result.orderByCompositeKeyAscending.clear();
             }
+            result.blockIsUnordered = new BitSet(size);
 
             int lastLongFirstValueIndex = 0;
             int lastIntFirstValueIndex = 0;
@@ -139,6 +192,9 @@ public class TopNOperator implements Operator {
 
             for (int i = 0; i < size; i++) {
                 Block block = origin.getBlock(i);
+                if (block.mvOrdering() == Block.MvOrdering.UNORDERED) {
+                    result.blockIsUnordered.set(i);
+                }
                 if (block.isNull(rowNum)) {
                     result.nullValues[i] = true;
                 } else {
@@ -241,11 +297,158 @@ public class TopNOperator implements Operator {
                     }
                 }
             }
+
+            int orderByCompositeKeyCurrentPosition = 0;
+            for (SortOrder so : sortOrders) {
+                byte nul, nonNul;
+                if (so.nullsFirst) {
+                    nul = so.asc ? SMALL_NULL : BIG_NULL;
+                    nonNul = so.asc ? BIG_NULL : SMALL_NULL;
+                } else {
+                    nul = so.asc ? BIG_NULL : SMALL_NULL;
+                    nonNul = so.asc ? SMALL_NULL : BIG_NULL;
+                }
+
+                MvSortMode sortMode = so.asc ? MvSortMode.MIN : MvSortMode.MAX;
+                int mvOffset = result.blockIsUnordered(so.channel)
+                    ? -1
+                    : (sortMode == MvSortMode.MIN ? 0 : result.numberOfValues[so.channel] - 1);
+                int valueAsBytesSize;
+
+                if (result.isNull(so.channel)) {
+                    result.orderByCompositeKey.append(nul);
+                    valueAsBytesSize = 0;
+                } else {
+                    result.orderByCompositeKey.append(nonNul);
+                    switch (result.idToType[so.channel]) {
+                        case LONG -> {
+                            long rowValue;
+                            if (mvOffset >= 0) {
+                                rowValue = result.getLong(so.channel, mvOffset);
+                            } else {
+                                rowValue = result.getLong(so.channel, 0);
+                                for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
+                                    long value = result.getLong(so.channel, j);
+                                    if (sortMode == MvSortMode.MIN) {
+                                        rowValue = Math.min(value, rowValue);
+                                    } else if (sortMode == MvSortMode.MAX) {
+                                        rowValue = Math.max(value, rowValue);
+                                    }
+                                }
+                            }
+                            so.encoder.encodeLong(rowValue, result.orderByCompositeKey);
+                            valueAsBytesSize = Long.BYTES;
+                        }
+                        case INT -> {
+                            int rowValue;
+                            if (mvOffset >= 0) {
+                                rowValue = result.getInt(so.channel, mvOffset);
+                            } else {
+                                rowValue = result.getInt(so.channel, 0);
+                                for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
+                                    int value = result.getInt(so.channel, j);
+                                    if (sortMode == MvSortMode.MIN) {
+                                        rowValue = Math.min(value, rowValue);
+                                    } else if (sortMode == MvSortMode.MAX) {
+                                        rowValue = Math.max(value, rowValue);
+                                    }
+                                }
+                            }
+                            so.encoder.encodeInteger(rowValue, result.orderByCompositeKey);
+                            valueAsBytesSize = Integer.BYTES;
+                        }
+                        case DOUBLE -> {
+                            double rowValue;
+                            if (mvOffset >= 0) {
+                                rowValue = result.getDouble(so.channel, mvOffset);
+                            } else {
+                                rowValue = result.getDouble(so.channel, 0);
+                                for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
+                                    double value = result.getDouble(so.channel, j);
+                                    if (sortMode == MvSortMode.MIN) {
+                                        rowValue = Math.min(value, rowValue);
+                                    } else if (sortMode == MvSortMode.MAX) {
+                                        rowValue = Math.max(value, rowValue);
+                                    }
+                                }
+                            }
+                            so.encoder.encodeDouble(rowValue, result.orderByCompositeKey);
+                            valueAsBytesSize = Long.BYTES;
+                        }
+                        case BYTES_REF -> {
+                            BytesRef rowValue;
+                            if (mvOffset >= 0) {
+                                rowValue = result.getBytesRef(so.channel, mvOffset);
+                            } else {
+                                rowValue = result.getBytesRef(so.channel, 0);
+                                for (int j = 1; j < result.numberOfValues[so.channel]; j++) {
+                                    BytesRef value = result.getBytesRef(so.channel, j);
+                                    int compare = value.compareTo(rowValue);
+                                    if (sortMode == MvSortMode.MIN && compare < 0 || sortMode == MvSortMode.MAX && compare > 0) {
+                                        rowValue = value;
+                                    }
+                                }
+                            }
+                            so.encoder.encodeBytesRef(rowValue, result.orderByCompositeKey);
+                            valueAsBytesSize = rowValue.length;
+                        }
+                        case BOOLEAN -> {
+                            boolean rowValue;
+                            if (mvOffset >= 0) {
+                                rowValue = result.getBoolean(so.channel, mvOffset);
+                            } else {
+                                rowValue = result.getBoolean(so.channel, 0);
+                                for (int j = 1; j < result.numberOfValues[so.channel]
+                                    && (sortMode == MvSortMode.MIN && rowValue || sortMode == MvSortMode.MAX && rowValue == false); j++) {
+                                    boolean value = result.getBoolean(so.channel, j);
+                                    if (sortMode == MvSortMode.MIN && value == false) {
+                                        rowValue = false;
+                                    } else if (sortMode == MvSortMode.MAX && value) {
+                                        rowValue = true;
+                                    }
+                                }
+                            }
+                            so.encoder.encodeBoolean(rowValue, result.orderByCompositeKey);
+                            valueAsBytesSize = 1;
+                        }
+                        default -> {
+                            assert false : "Must not occur here as TopN should never receive intermediate blocks";
+                            throw new UnsupportedOperationException("Block doesn't support retrieving elements");
+                        }
+                    }
+                }
+                result.orderByCompositeKeyAscending.set(
+                    orderByCompositeKeyCurrentPosition,
+                    valueAsBytesSize + orderByCompositeKeyCurrentPosition + 2,
+                    so.asc
+                );
+                orderByCompositeKeyCurrentPosition += valueAsBytesSize + 2;
+                result.orderByCompositeKey.append(SEPARATOR);
+            }
+
             return result;
         }
     }
 
-    public record SortOrder(int channel, boolean asc, boolean nullsFirst) {}
+    public record SortOrder(int channel, boolean asc, boolean nullsFirst, TopNEncoder encoder) {
+
+        public SortOrder(int channel, boolean asc, boolean nullsFirst) {
+            this(channel, asc, nullsFirst, DEFAULT_ENCODER);
+        }
+
+        @Override
+        public String toString() {
+            return "SortOrder[channel="
+                + this.channel
+                + ", asc="
+                + this.asc
+                + ", nullsFirst="
+                + this.nullsFirst
+                + ", encoder="
+                + this.encoder
+                + "]";
+        }
+    }
 
     public record TopNOperatorFactory(int topCount, List<SortOrder> sortOrders, int maxPageSize) implements OperatorFactory {
 
@@ -265,6 +468,8 @@ public class TopNOperator implements Operator {
     private final int maxPageSize;
     private RowFactory rowFactory;
 
+    private final List<SortOrder> sortOrders;
+
     // these will be inferred at runtime: one input page might not contain all the information needed
     // eg. it could be missing some fields in the mapping, so it could have NULL blocks as placeholders
     private ElementType[] outputTypes;
@@ -273,73 +478,59 @@ public class TopNOperator implements Operator {
 
     public TopNOperator(int topCount, List<SortOrder> sortOrders, int maxPageSize) {
         this.maxPageSize = maxPageSize;
-        if (sortOrders.size() == 1) {
-            // avoid looping over sortOrders if there is only one order
-            SortOrder order = sortOrders.get(0);
-            this.inputQueue = new PriorityQueue<>(topCount) {
-                @Override
-                protected boolean lessThan(Row a, Row b) {
-                    return comparePositions(order.asc, order.nullsFirst, a, b, order.channel) < 0;
-                }
+        this.sortOrders = sortOrders;
+        this.inputQueue = new PriorityQueue<>(topCount) {
+            @Override
+            protected boolean lessThan(Row r1, Row r2) {
+                return compareRows(r1, r2) < 0;
+            }
 
-                @Override
-                public String toString() {
+            @Override
+            public String toString() {
+                if (sortOrders.size() == 1) {
+                    SortOrder order = sortOrders.get(0);
                     return "count = " + size() + "/" + topCount + ", sortOrder = " + order;
-                }
-            };
-        } else {
-            this.inputQueue = new PriorityQueue<>(topCount) {
-                @Override
-                protected boolean lessThan(Row a, Row b) {
-                    return TopNOperator.compareTo(sortOrders, a, b) < 0;
-                }
-
-                @Override
-                public String toString() {
+                } else {
                     return "count = " + size() + "/" + topCount + ", sortOrders = " + sortOrders;
                 }
-            };
-        }
-    }
-
-    private static int compareTo(List<SortOrder> orders, Row a, Row b) {
-        for (SortOrder order : orders) {
-            int cmp = comparePositions(order.asc, order.nullsFirst, a, b, order.channel);
-            if (cmp != 0) {
-                return cmp;
-            }
-        }
-        return 0;
-    }
-
-    static int comparePositions(boolean asc, boolean nullsFirst, Row b1, Row b2, int position) {
-        boolean firstIsNull = b1.isNull(position);
-        boolean secondIsNull = b2.isNull(position);
-        if (firstIsNull || secondIsNull) {
-            return Boolean.compare(firstIsNull, secondIsNull) * (nullsFirst ? 1 : -1);
-        }
-        if (b1.idToType[position] != b2.idToType[position]) {
-            throw new IllegalStateException(
-                "Blocks have incompatible element types: " + b1.idToType[position] + " != " + b2.idToType[position]
-            );
-        }
-        int cmp = switch (b1.idToType[position]) {
-            case INT -> Integer.compare(b1.getInt(position, 0), b2.getInt(position, 0));
-            case LONG -> Long.compare(b1.getLong(position, 0), b2.getLong(position, 0));
-            case DOUBLE -> Double.compare(b1.getDouble(position, 0), b2.getDouble(position, 0));
-            case BOOLEAN -> Boolean.compare(b1.getBoolean(position, 0), b2.getBoolean(position, 0));
-            case BYTES_REF -> b1.getBytesRef(position, 0).compareTo(b2.getBytesRef(position, 0));
-            case DOC -> throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
-            case NULL -> {
-                assert false : "Must not occur here as we check nulls above already";
-                throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
-            }
-            case UNKNOWN -> {
-                assert false : "Must not occur here as TopN should never receive intermediate blocks";
-                throw new UnsupportedOperationException("Block doesn't support retrieving elements");
             }
         };
-        return asc ? -cmp : cmp;
+    }
+
+    static int compareRows(Row r1, Row r2) {
+        // This is simliar to r1.orderByCompositeKey.compareTo(r2.orderByCompositeKey) but stopping somewhere in the middle so that
+        // we check the byte that mismatched
+        BytesRef br1 = r1.orderByCompositeKey.get();
+        BytesRef br2 = r2.orderByCompositeKey.get();
+        int mismatchedByteIndex = Arrays.mismatch(
+            br1.bytes,
+            br1.offset,
+            br1.offset + br1.length,
+            br2.bytes,
+            br2.offset,
+            br2.offset + br2.length
+        );
+        if (mismatchedByteIndex < 0) {
+            // the two rows are equal
+            return 0;
+        }
+        int length = Math.min(br1.length, br2.length);
+        // one value is the prefix of the other
+        if (mismatchedByteIndex == length) {
+            // the value with the greater length is considered greater than the other
+            if (length == br1.length) {// first row is less than the second row
+                return r2.orderByCompositeKeyAscending.get(length) ? 1 : -1;
+            } else {// second row is less than the first row
+                return r1.orderByCompositeKeyAscending.get(length) ? -1 : 1;
+            }
+        } else {
+            // compare the byte that mismatched accounting for that respective byte asc/desc ordering
+            int c = Byte.compareUnsigned(
+                r1.orderByCompositeKey.bytes()[br1.offset + mismatchedByteIndex],
+                r2.orderByCompositeKey.bytes()[br2.offset + mismatchedByteIndex]
+            );
+            return r1.orderByCompositeKeyAscending.get(mismatchedByteIndex) ? -c : c;
+        }
     }
 
     @Override
@@ -363,7 +554,7 @@ public class TopNOperator implements Operator {
 
         Row removed = null;
         for (int i = 0; i < page.getPositionCount(); i++) {
-            Row x = rowFactory.row(page, i, removed);
+            Row x = rowFactory.row(page, i, removed, sortOrders);
             removed = inputQueue.insertWithOverflow(x);
         }
     }

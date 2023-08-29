@@ -87,7 +87,7 @@ min:date                  | max:date
 ;
 
 evalDateTruncIntervalExpressionPeriod
-from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | keep emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(1 month, hire_date) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z         
@@ -98,7 +98,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncIntervalExpressionDuration
-from employees | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | keep emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(240 hours, hire_date) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z       
@@ -109,7 +109,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncWeeklyInterval
-from employees | sort hire_date | eval x = date_trunc(hire_date, 1 week) | keep emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(1 week, hire_date) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18T00:00:00.000Z       
@@ -120,7 +120,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncQuarterlyInterval
-from employees | sort hire_date | eval x = date_trunc(hire_date, 3 month) | keep emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(3 month, hire_date) | keep emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z         
@@ -131,14 +131,14 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncNullDate
-from employees | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | keep emp_no, birth_date, x;
+from employees | where emp_no == 10040 | eval x = date_trunc(1 day, birth_date) | keep emp_no, birth_date, x;
 
 emp_no:integer | birth_date:date               | x:date
 10040          | null                          | null  
 ;
 
 evalDateTruncGrouping
-from employees | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | keep y, count(emp_no) | limit 5;
+from employees | eval y = date_trunc(1 year, hire_date) | stats count(emp_no) by y | sort y | keep y, count(emp_no) | limit 5;
 
 y:date                        | count(emp_no):long
 1985-01-01T00:00:00.000Z      | 11       
@@ -149,7 +149,7 @@ y:date                        | count(emp_no):long
 ;
 
 in
-from employees | eval x = date_trunc(hire_date, 1 year) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc | limit 4;
+from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc | limit 4;
 
 x:date                  |hire_date:date
 1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z

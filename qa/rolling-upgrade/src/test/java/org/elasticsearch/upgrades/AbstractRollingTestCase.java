@@ -39,11 +39,7 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
         if (version.equals(org.elasticsearch.Version.CURRENT)) {
             return IndexVersion.current();
         } else {
-            assertThat(
-                "Index version needs to be added to rolling test parameters",
-                version,
-                lessThan(org.elasticsearch.Version.V_8_11_0)
-            );
+            assertThat("Index version needs to be added to rolling test parameters", version, lessThan(org.elasticsearch.Version.V_8_11_0));
             return IndexVersion.fromId(version.id);
         }
     }

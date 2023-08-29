@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.util.Collections;
@@ -21,10 +20,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FeatureUpgradeIT extends AbstractRollingTestCase {
-
 
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradeStatus() throws Exception {

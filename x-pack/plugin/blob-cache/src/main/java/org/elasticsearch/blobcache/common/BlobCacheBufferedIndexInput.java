@@ -106,13 +106,13 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
                     buffer.get(b, offset, len);
                 }
             } else {
-                // The amount left to read is larger than the buffer
-                // or we've been asked to not use our buffer -
-                // there's no performance reason not to read it all
-                // at once. Note that unlike the previous code of
-                // this function, there is no need to do a seek
-                // here, because there's no need to reread what we
-                // had in the buffer.
+                // The amount left to read is larger than the buffer or we've been asked to not use our buffer - there's no performance
+                // reason not to read it all at once.
+                if (buffer == EMPTY_BYTEBUFFER) {
+                    // fresh clone, must seek
+                    seekInternal(bufferStart);
+                } // else there's no need to do a seek here because we are already positioned correctly
+
                 long after = bufferStart + buffer.position() + len;
                 if (after > length()) throw new EOFException("read past EOF: " + this);
                 readInternal(ByteBuffer.wrap(b, offset, len));

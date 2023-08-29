@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils;
 
 import java.util.Collections;
@@ -20,8 +21,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class FeatureUpgradeIT extends AbstractRollingTestCase {
+
 
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradeStatus() throws Exception {
@@ -94,7 +97,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                     .orElse(Collections.emptyMap());
 
                 assertThat(feature, aMapWithSize(4));
-                assertThat(feature.get("minimum_index_version"), equalTo(Integer.toString(UPGRADE_FROM_VERSION.id)));
+                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
                 if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {

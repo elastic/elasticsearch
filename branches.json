@@ -1,20 +1,16 @@
 {
   "notice": "This file is not maintained outside of the main branch and should only be used for tooling.",
-  "versions": [
+  "branches": [
     {
-      "version": "8.11.0",
       "branch": "main"
     },
     {
-      "version": "8.10.0",
       "branch": "8.10"
     },
     {
-      "version": "8.9.2",
       "branch": "8.9"
     },
     {
-      "version": "7.17.13",
       "branch": "7.17"
     }
   ]

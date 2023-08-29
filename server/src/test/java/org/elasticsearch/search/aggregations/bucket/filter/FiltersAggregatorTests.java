@@ -20,7 +20,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -134,7 +133,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         if (askForOtherBucket) {
             builder.otherBucket(true).otherBucketKey("other");
         }
-        withAggregator(builder, new MatchAllDocsQuery(), iw -> {}, (searcher, aggregator) -> {
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> {}, (reader, aggregator) -> {
             InternalFilters result = (InternalFilters) aggregator.buildEmptyAggregation();
             for (int i = 0; i < filters.length; i++) {
                 assertThat(result.getBucketByKey(String.valueOf(i)).getDocCount(), equalTo(0L));
@@ -308,7 +307,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
             time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01");
             iw.addDocument(List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time)));
-        }, (searcher, aggregator) -> {
+        }, (reader, aggregator) -> {
             /*
              * The topLevelQuery is entirely contained within the filter query so
              * it is good enough to match that. See MergedPointRangeQueryTests for
@@ -661,9 +660,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newSearcher(limitedReader);
-                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
-                    .leaves()
+                int segmentsWithLiveDocs = (int) limitedReader.leaves()
                     .stream()
                     .map(LeafReaderContext::reader)
                     .filter(leafReader -> leafReader.getLiveDocs() != null)
@@ -687,7 +684,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                         "filters",
                                         matchesList().item(
                                             matchesMap().entry("query", "*:*")
-                                                .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                                                .entry("segments_counted_in_constant_time", limitedReader.leaves().size())
                                         )
                                     )
                             )
@@ -735,9 +732,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", 5, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newSearcher(limitedReader);
-                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
-                    .leaves()
+                int segmentsWithLiveDocs = (int) limitedReader.leaves()
                     .stream()
                     .map(LeafReaderContext::reader)
                     .filter(leafReader -> leafReader.getLiveDocs() != null)
@@ -761,7 +756,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                         "filters",
                                         matchesList().item(
                                             matchesMap().entry("query", "foo:bar")
-                                                .entry("segments_counted_in_constant_time", lessThan(searcher.getLeafContexts().size()))
+                                                .entry("segments_counted_in_constant_time", lessThan(limitedReader.leaves().size()))
                                         )
                                     )
                             )
@@ -806,9 +801,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     bitsetFilterCache,
                     LongPoint.newRangeQuery("t", Long.MIN_VALUE, Long.MAX_VALUE)
                 );
-                IndexSearcher searcher = newSearcher(limitedReader);
-                int segmentsWithLiveDocs = (int) searcher.getIndexReader()
-                    .leaves()
+                int segmentsWithLiveDocs = (int) limitedReader.leaves()
                     .stream()
                     .map(LeafReaderContext::reader)
                     .filter(leafReader -> leafReader.getLiveDocs() != null)
@@ -833,7 +826,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                                         "filters",
                                         matchesList().item(
                                             matchesMap().entry("query", "foo:bar")
-                                                .entry("segments_counted_in_constant_time", searcher.getLeafContexts().size())
+                                                .entry("segments_counted_in_constant_time", limitedReader.leaves().size())
                                         )
                                     )
                             )
@@ -1599,10 +1592,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (reader, aggregator) -> {
             assertThat(aggregator, instanceOf(FilterByFilterAggregator.class));
 
-            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(reader, aggregator);
             assertMap(debug, matchesMap().extraOk().entry("segments_counted_in_constant_time", greaterThan(0)));
         }, fieldType, fnft);
         testCase(buildIndex, (InternalFilters result) -> {
@@ -1616,9 +1609,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         return MOCK_OBJECT_MAPPERS;
     }
 
-    private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
+    private Map<String, Object> collectAndGetFilterDebugInfo(IndexReader reader, Aggregator aggregator) throws IOException {
         aggregator.preCollection();
-        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+        for (LeafReaderContext ctx : reader.leaves()) {
             LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null, null));
             assertTrue(leafCollector.isNoop());
         }

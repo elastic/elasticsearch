@@ -323,11 +323,6 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
-    @Override
-    public void addFilterQuery(QueryBuilder prefilter) {
-        query.addFilterQuery(prefilter);
-    }
-
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {
         private final String path;
 

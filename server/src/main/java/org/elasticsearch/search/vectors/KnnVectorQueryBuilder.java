@@ -202,10 +202,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return filterQueries;
     }
 
-    @Override
-    public void addFilterQuery(QueryBuilder filterQuery) {
+    public KnnVectorQueryBuilder addFilterQuery(QueryBuilder filterQuery) {
         Objects.requireNonNull(filterQuery);
         this.filterQueries.add(filterQuery);
+        return this;
     }
 
     public KnnVectorQueryBuilder addFilterQueries(List<QueryBuilder> filterQueries) {
@@ -310,6 +310,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         boolean changed = false;
+        if (ctx instanceof SearchExecutionContext searchExecutionContext && searchExecutionContext.getAliasFilter() != null) {
+            filterQueries.add(searchExecutionContext.getAliasFilter());
+        }
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : filterQueries) {
             QueryBuilder rewrittenQuery = query.rewrite(ctx);

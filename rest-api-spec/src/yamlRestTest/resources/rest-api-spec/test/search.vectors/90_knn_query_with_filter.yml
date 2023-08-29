@@ -26,6 +26,10 @@ setup:
               filter:
                 term:
                   my_name: v2
+            my_alias1:
+              filter:
+                term:
+                  my_name: v1
 
   - do:
       bulk:
@@ -145,6 +149,35 @@ setup:
   - match: { hits.hits.1.fields.my_name.0: v2 }
   - match: { hits.hits.2._id: "6" }
   - match: { hits.hits.2.fields.my_name.0: v2 }
+
+---
+"PRE_FILTER: pre-filter across multiple aliases":
+  - do:
+      search:
+        index: my_alias,my_alias1
+        body:
+          size: 6
+          fields: [ my_name ]
+          query:
+            knn:
+              field: my_vector
+              query_vector: [1, 1, 1, 1]
+              num_candidates: 100
+
+  - match: { hits.total.value: 10 } # 5 docs from each alias
+  - length: {hits.hits: 6}
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.my_name.0: v1 }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.fields.my_name.0: v2 }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.2.fields.my_name.0: v1 }
+  - match: { hits.hits.3._id: "4" }
+  - match: { hits.hits.3.fields.my_name.0: v2 }
+  - match: { hits.hits.4._id: "5" }
+  - match: { hits.hits.4.fields.my_name.0: v1 }
+  - match: { hits.hits.5._id: "6" }
+  - match: { hits.hits.5.fields.my_name.0: v2 }
 
 ---
 "PRE_FILTER: knn query with internal filter as pre-filter":

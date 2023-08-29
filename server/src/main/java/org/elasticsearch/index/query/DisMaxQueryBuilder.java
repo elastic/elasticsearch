@@ -223,13 +223,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    public void addFilterQuery(QueryBuilder prefilter) {
-        for (QueryBuilder query : queries) {
-            query.addFilterQuery(prefilter);
-        }
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

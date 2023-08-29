@@ -540,11 +540,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    public void addFilterQuery(QueryBuilder prefilter) {
-        query.addFilterQuery(prefilter);
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }

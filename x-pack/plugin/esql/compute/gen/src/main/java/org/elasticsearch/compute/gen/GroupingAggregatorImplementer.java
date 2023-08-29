@@ -44,11 +44,10 @@ import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
+import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
-import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
-import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -159,10 +158,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueVectorType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, valueVectorType(init, combine)));
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -281,12 +280,12 @@ public class GroupingAggregatorImplementer {
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
 
         MethodSpec.Builder block = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        block.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_BLOCK, "groupIds");
+        block.addParameter(TypeName.INT, "positionOffset").addParameter(INT_BLOCK, "groupIds");
         addBlock.accept(block);
         builder.addMethod(block.build());
 
         MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        vector.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_VECTOR, "groupIds");
+        vector.addParameter(TypeName.INT, "positionOffset").addParameter(INT_VECTOR, "groupIds");
         addBlock.accept(vector);
         builder.addMethod(vector.build());
 
@@ -295,7 +294,7 @@ public class GroupingAggregatorImplementer {
 
     /**
      * Generate an {@code addRawInput} method to perform the actual aggregation.
-     * @param groupsType The type of the group key, always {@code LongBlock} or {@code LongVector}
+     * @param groupsType The type of the group key, always {@code IntBlock} or {@code IntVector}
      * @param valuesType The type of the values to consume, always a subclass of {@code Block} or a subclass of {@code Vector}
      */
     private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
@@ -320,9 +319,9 @@ public class GroupingAggregatorImplementer {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(g))");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(g))");
             } else {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
             }
 
             if (valuesIsBlock) {
@@ -409,7 +408,7 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
-        builder.addParameter(LONG_VECTOR, "groups");
+        builder.addParameter(INT_VECTOR, "groups");
         builder.addParameter(PAGE, "page");
 
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
@@ -439,7 +438,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
+            builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
             if (hasPrimitiveState()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");

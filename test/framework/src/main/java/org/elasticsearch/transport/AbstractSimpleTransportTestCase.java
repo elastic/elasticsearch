@@ -297,7 +297,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void assertNumHandshakes(long expected, Transport transport) {
+    public static void assertNumHandshakes(long expected, Transport transport) {
         if (transport instanceof TcpTransport) {
             assertEquals(expected, ((TcpTransport) transport).getNumHandshakes());
         }

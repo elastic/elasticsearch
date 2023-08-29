@@ -181,17 +181,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return blobNames.hasNext();
-            }
-
-            @Override
-            public String next() {
-                return path.resolve(blobNames.next()).toString();
-            }
-        });
+        blobStore.deleteBlobsIgnoringIfNotExists(Iterators.map(blobNames, blobName -> path.resolve(blobName).toString()));
     }
 
     @Override

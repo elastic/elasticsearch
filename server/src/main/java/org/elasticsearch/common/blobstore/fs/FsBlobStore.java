@@ -69,6 +69,8 @@ public class FsBlobStore implements BlobStore {
         long suppressedExceptions = 0;
         while (blobNames.hasNext()) {
             try {
+                // FsBlobContainer uses this method to delete blobs; in that case each blob name is already an absolute path meaning that
+                // the resolution done here is effectively a non-op.
                 Path resolve = path.resolve(blobNames.next());
                 IOUtils.rm(resolve);
             } catch (IOException e) {

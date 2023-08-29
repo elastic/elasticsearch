@@ -14,7 +14,6 @@ supported ones are:
   * <<mapping-id-field, _id>>: the source document's ID. The field is of the
   type <<keyword, keyword>>.
 
-// TODO: are there dedicated docs for _version?
   * _version: the source document's version. The field is of the type
   <<number, long>>.
 

@@ -25,7 +25,7 @@ emp_no:integer
 
 metaIndexInAggs
 // tag::metaIndexInAggs[]
-FROM employees [METADATA _index]
+FROM employees [METADATA _index, _id]
 | STATS max = MAX(emp_no) BY _index
 // end::metaIndexInAggs[]
 ;
@@ -113,8 +113,9 @@ emp_no:integer |_index:integer |_version:keyword
 multipleIndices
 // tag::multipleIndices[]
 FROM ul_logs, apps [METADATA _index, _version]
-| WHERE id in (13, 14) AND _version == 1
+| WHERE id IN (13, 14) AND _version == 1
 | EVAL key = CONCAT(_index, "_", TO_STR(id))
+| SORT id, _index
 | KEEP id, _index, _version, key
 // end::multipleIndices[]
 ;
@@ -122,8 +123,9 @@ FROM ul_logs, apps [METADATA _index, _version]
 // tag::multipleIndices-result[]
  id:long | _index:keyword | _version:long | key:keyword
 13       |apps            |1              |apps_13        
-14       |apps            |1              |apps_14        
 13       |ul_logs         |1              |ul_logs_13     
+14       |apps            |1              |apps_14        
 14       |ul_logs         |1              |ul_logs_14     
+    
 // end::multipleIndices-result[]
 ;

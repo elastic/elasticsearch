@@ -81,7 +81,7 @@ GET /_security/user/jacknich
 }
 --------------------------------------------------
 
-To retrieve the user profile `uid` as part of the response:
+To retrieve the user `profile_uid` as part of the response:
 
 [source,console]
 --------------------------------------------------

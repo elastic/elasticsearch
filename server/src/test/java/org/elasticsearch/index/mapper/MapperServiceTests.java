@@ -1176,8 +1176,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        MapperService mapperService = createMapperService(mapping(b -> {
-        }));
+        MapperService mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
         assertEquals("""
             {
@@ -1202,8 +1201,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertEquals("long", childMapper.typeName());
 
         // Now checking the opposite merge
-        mapperService = createMapperService(mapping(b -> {
-        }));
+        mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
         assertEquals("""
             {

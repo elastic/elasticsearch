@@ -10,6 +10,10 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Vector that stores $type$ values.
@@ -99,6 +103,43 @@ $elseif(double)$
 $endif$
         }
         return result;
+    }
+
+    /** Deserializes a Vector from the given stream input. */
+    static $Type$Vector of(StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return new Constant$Type$Vector(in.read$Type$(), positions);
+        } else {
+            var builder = $Type$Vector.newVectorBuilder(positions);
+            for (int i = 0; i < positions; i++) {
+                builder.append$Type$(in.read$Type$());
+            }
+            return builder.build();
+        }
+    }
+
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+$if(BytesRef)$
+            out.write$Type$(get$Type$(0, new BytesRef()));
+$else$
+            out.write$Type$(get$Type$(0));
+$endif$
+        } else {
+            for (int i = 0; i < positions; i++) {
+$if(BytesRef)$
+                out.write$Type$(get$Type$(i, new BytesRef()));
+$else$
+                out.write$Type$(get$Type$(i));
+$endif$
+            }
+        }
     }
 
     static Builder newVectorBuilder(int estimatedSize) {

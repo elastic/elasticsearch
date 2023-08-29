@@ -8,6 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Vector that stores BytesRef values.
@@ -65,6 +69,35 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
             result = 31 * result + vector.getBytesRef(pos, new BytesRef()).hashCode();
         }
         return result;
+    }
+
+    /** Deserializes a Vector from the given stream input. */
+    static BytesRefVector of(StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return new ConstantBytesRefVector(in.readBytesRef(), positions);
+        } else {
+            var builder = BytesRefVector.newVectorBuilder(positions);
+            for (int i = 0; i < positions; i++) {
+                builder.appendBytesRef(in.readBytesRef());
+            }
+            return builder.build();
+        }
+    }
+
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+            out.writeBytesRef(getBytesRef(0, new BytesRef()));
+        } else {
+            for (int i = 0; i < positions; i++) {
+                out.writeBytesRef(getBytesRef(i, new BytesRef()));
+            }
+        }
     }
 
     static Builder newVectorBuilder(int estimatedSize) {

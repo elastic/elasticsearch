@@ -47,18 +47,30 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testEmptyIntBlock() {
         assertEmptyBlock(IntBlock.newBlockBuilder(0).build());
+        assertEmptyBlock(IntBlock.newBlockBuilder(0).appendNull().build().filter());
+        assertEmptyBlock(IntVector.newVectorBuilder(0).build().asBlock());
+        assertEmptyBlock(IntVector.newVectorBuilder(0).appendInt(randomInt()).build().filter().asBlock());
     }
 
     public void testEmptyLongBlock() {
         assertEmptyBlock(LongBlock.newBlockBuilder(0).build());
+        assertEmptyBlock(LongBlock.newBlockBuilder(0).appendNull().build().filter());
+        assertEmptyBlock(LongVector.newVectorBuilder(0).build().asBlock());
+        assertEmptyBlock(LongVector.newVectorBuilder(0).appendLong(randomLong()).build().filter().asBlock());
     }
 
     public void testEmptyDoubleBlock() {
         assertEmptyBlock(DoubleBlock.newBlockBuilder(0).build());
+        assertEmptyBlock(DoubleBlock.newBlockBuilder(0).appendNull().build().filter());
+        assertEmptyBlock(DoubleVector.newVectorBuilder(0).build().asBlock());
+        assertEmptyBlock(DoubleVector.newVectorBuilder(0).appendDouble(randomDouble()).build().filter().asBlock());
     }
 
     public void testEmptyBytesRefBlock() {
         assertEmptyBlock(BytesRefBlock.newBlockBuilder(0).build());
+        assertEmptyBlock(BytesRefBlock.newBlockBuilder(0).appendNull().build().filter());
+        assertEmptyBlock(BytesRefVector.newVectorBuilder(0).build().asBlock());
+        assertEmptyBlock(BytesRefVector.newVectorBuilder(0).appendBytesRef(randomBytesRef()).build().filter().asBlock());
     }
 
     private void assertEmptyBlock(Block origBlock) {
@@ -68,23 +80,47 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     public void testFilterIntBlock() throws IOException {
         assertFilterBlock(IntBlock.newBlockBuilder(0).appendInt(1).appendInt(2).build().filter(1));
+        assertFilterBlock(IntBlock.newBlockBuilder(1).appendInt(randomInt()).appendNull().build().filter(0));
+        assertFilterBlock(IntVector.newVectorBuilder(1).appendInt(randomInt()).build().filter(0).asBlock());
+        assertFilterBlock(IntVector.newVectorBuilder(1).appendInt(randomInt()).appendInt(randomInt()).build().filter(0).asBlock());
     }
 
     public void testFilterLongBlock() throws IOException {
         assertFilterBlock(LongBlock.newBlockBuilder(0).appendLong(1).appendLong(2).build().filter(1));
+        assertFilterBlock(LongBlock.newBlockBuilder(1).appendLong(randomLong()).appendNull().build().filter(0));
+        assertFilterBlock(LongVector.newVectorBuilder(1).appendLong(randomLong()).build().filter(0).asBlock());
+        assertFilterBlock(LongVector.newVectorBuilder(1).appendLong(randomLong()).appendLong(randomLong()).build().filter(0).asBlock());
     }
 
     public void testFilterDoubleBlock() throws IOException {
         assertFilterBlock(DoubleBlock.newBlockBuilder(0).appendDouble(1).appendDouble(2).build().filter(1));
+        assertFilterBlock(DoubleBlock.newBlockBuilder(1).appendDouble(randomDouble()).appendNull().build().filter(0));
+        assertFilterBlock(DoubleVector.newVectorBuilder(1).appendDouble(randomDouble()).build().filter(0).asBlock());
+        assertFilterBlock(
+            DoubleVector.newVectorBuilder(1).appendDouble(randomDouble()).appendDouble(randomDouble()).build().filter(0).asBlock()
+        );
     }
 
     public void testFilterBytesRefBlock() throws IOException {
-        BytesRefBlock block = BytesRefBlock.newBlockBuilder(0)
-            .appendBytesRef(new BytesRef("1"))
-            .appendBytesRef(new BytesRef("2"))
-            .build()
-            .filter(1);
-        assertFilterBlock(block);
+        assertFilterBlock(
+            BytesRefBlock.newBlockBuilder(0)
+                .appendBytesRef(randomBytesRef())
+                .appendBytesRef(randomBytesRef())
+                .build()
+                .filter(randomIntBetween(0, 1))
+        );
+        assertFilterBlock(
+            BytesRefBlock.newBlockBuilder(0).appendBytesRef(randomBytesRef()).appendNull().build().filter(randomIntBetween(0, 1))
+        );
+        assertFilterBlock(BytesRefVector.newVectorBuilder(0).appendBytesRef(randomBytesRef()).build().asBlock().filter(0));
+        assertFilterBlock(
+            BytesRefVector.newVectorBuilder(0)
+                .appendBytesRef(randomBytesRef())
+                .appendBytesRef(randomBytesRef())
+                .build()
+                .asBlock()
+                .filter(randomIntBetween(0, 1))
+        );
     }
 
     private void assertFilterBlock(Block origBlock) throws IOException {
@@ -120,5 +156,9 @@ public class BlockSerializationTests extends SerializationTestCase {
         finalAggregator.evaluateFinal(finalBlocks, 0);
         var finalBlock = (LongBlock) finalBlocks[0];
         assertThat(finalBlock.getLong(0), is(55L));
+    }
+
+    static BytesRef randomBytesRef() {
+        return new BytesRef(randomAlphaOfLengthBetween(0, 10));
     }
 }

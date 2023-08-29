@@ -7,12 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
-
 /**
  * Block view of a LongVector.
  * This class is generated. Do not edit it.
@@ -49,46 +43,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public LongBlock filter(int... positions) {
         return new FilterLongVector(vector, positions).asBlock();
-    }
-
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "LongVectorBlock",
-        LongVectorBlock::of
-    );
-
-    @Override
-    public String getWriteableName() {
-        return "LongVectorBlock";
-    }
-
-    static LongVectorBlock of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new LongVectorBlock(new ConstantLongVector(in.readLong(), positions));
-        } else {
-            var builder = LongVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
-            }
-            return new LongVectorBlock(builder.build());
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final LongVector vector = this.vector;
-        final int positions = vector.getPositionCount();
-        out.writeVInt(positions);
-        out.writeBoolean(vector.isConstant());
-        if (vector.isConstant() && positions > 0) {
-            out.writeLong(getLong(0));
-        } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeLong(getLong(i));
-            }
-        }
     }
 
     @Override

@@ -85,7 +85,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             cacheSize = ByteSizeValue.ofBytes(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
-        final Settings settings1 = Settings.builder()
+        final Settings settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
@@ -94,7 +94,6 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
-        final Settings settings = settings1;
         final Environment environment = TestEnvironment.newEnvironment(settings);
         for (Path path : environment.dataFiles()) {
             Files.createDirectories(path);

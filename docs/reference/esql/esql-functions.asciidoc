@@ -54,6 +54,7 @@ these functions:
 * <<esql-starts_with>>
 * <<esql-substring>>
 * <<esql-left>>
+* <<esql-right>>
 * <<esql-tan>>
 * <<esql-tanh>>
 * <<esql-tau>>
@@ -117,6 +118,7 @@ include::functions/sqrt.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
 include::functions/left.asciidoc[]
+include::functions/right.asciidoc[]
 include::functions/tan.asciidoc[]
 include::functions/tanh.asciidoc[]
 include::functions/tau.asciidoc[]

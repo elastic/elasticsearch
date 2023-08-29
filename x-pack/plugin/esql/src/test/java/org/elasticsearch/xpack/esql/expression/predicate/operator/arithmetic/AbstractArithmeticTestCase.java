@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -40,7 +41,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     }
 
     @Override
-    protected Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    protected Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         Number lhs = (Number) typedData.get(0).data();
         Number rhs = (Number) typedData.get(1).data();
         if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {

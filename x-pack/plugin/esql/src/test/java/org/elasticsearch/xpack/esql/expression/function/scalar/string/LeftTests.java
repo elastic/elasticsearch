@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -28,7 +29,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LeftTests extends AbstractScalarFunctionTestCase {
-    public LeftTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public LeftTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -38,8 +39,11 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("long", () -> {
             int length = between(1, 10);
             String text = randomAlphaOfLength(10);
-            return new TestCase(
-                List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
                 "LeftEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(0, length)))
@@ -48,8 +52,11 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("short", () -> {
             int length = between(2, 10);
             String text = randomAlphaOfLength(1);
-            return new TestCase(
-                List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
                 "LeftEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text))
@@ -73,7 +80,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    public Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         int length = (Integer) typedData.get(1).data();
         return equalTo(new BytesRef(str.substring(0, length)));

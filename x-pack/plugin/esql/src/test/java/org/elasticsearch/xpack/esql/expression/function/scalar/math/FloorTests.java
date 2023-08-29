@@ -10,43 +10,30 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class FloorTests extends AbstractScalarFunctionTestCase {
+public class FloorTests extends AbstractFunctionTestCase {
     public FloorTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
-            double arg = 1 / randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "FloorDoubleEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.floor(arg))
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
+        String read = "Attribute[channel=0]";
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryInt(suppliers, read, DataTypes.INTEGER, i -> i);
+        TestCaseSupplier.forUnaryLong(suppliers, read, DataTypes.LONG, l -> l);
+        TestCaseSupplier.forUnaryUnsignedLong(suppliers, read, DataTypes.UNSIGNED_LONG, ul -> NumericUtils.asLongUnsigned(ul));
+        TestCaseSupplier.forUnaryDouble(suppliers, "FloorDoubleEvaluator[val=" + read + "]", DataTypes.DOUBLE, Math::floor);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     @Override

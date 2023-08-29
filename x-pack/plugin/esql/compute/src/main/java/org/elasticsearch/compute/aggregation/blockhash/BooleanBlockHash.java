@@ -12,10 +12,9 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
@@ -46,15 +45,15 @@ final class BooleanBlockHash extends BlockHash {
         }
     }
 
-    private LongVector add(BooleanVector vector) {
-        long[] groups = new long[vector.getPositionCount()];
+    private IntVector add(BooleanVector vector) {
+        int[] groups = new int[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i));
         }
-        return new LongArrayVector(groups, groups.length);
+        return new IntArrayVector(groups, groups.length);
     }
 
-    private LongBlock add(BooleanBlock block) {
+    private IntBlock add(BooleanBlock block) {
         return new MultivalueDedupeBoolean(block).hash(everSeen);
     }
 

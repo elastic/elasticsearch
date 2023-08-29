@@ -77,7 +77,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         sortOrder.writeTo(out);
         out.writeStringCollection(metricNames);
         out.writeVInt(size);
-        out.writeList(topMetrics);
+        out.writeCollection(topMetrics);
     }
 
     @Override

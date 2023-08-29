@@ -18,6 +18,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.tasks.TaskManager;
@@ -33,6 +34,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -89,7 +91,8 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             null,
             mock(SSLService.class),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            mock(CrossClusterAccessAuthenticationService.class)
         );
         requestIdReceived = new AtomicLong(-1L);
         securityNettyTransport.setMessageListener(new TransportMessageListener() {
@@ -104,7 +107,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
                 TestRequest::new,
                 taskManager,
                 (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE),
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 true,
                 Tracer.NOOP

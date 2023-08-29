@@ -196,7 +196,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(terms);
+        out.writeCollection(terms);
         order.writeTo(out);
         out.writeOptionalWriteable(collectMode);
         bucketCountThresholds.writeTo(out);

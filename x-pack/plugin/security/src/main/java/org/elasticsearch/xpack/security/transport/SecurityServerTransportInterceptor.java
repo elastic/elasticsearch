@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -458,7 +460,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     @Override
     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
         String action,
-        String executor,
+        Executor executor,
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
@@ -515,7 +517,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
         private final ThreadContext threadContext;
-        private final String executorName;
+        private final Executor executor;
         private final ThreadPool threadPool;
         private final boolean forceExecution;
         private final Logger logger;
@@ -524,14 +526,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             Logger logger,
             String action,
             boolean forceExecution,
-            String executorName,
+            Executor executor,
             TransportRequestHandler<T> handler,
             Map<String, ServerTransportFilter> profileFilters,
             ThreadPool threadPool
         ) {
             this.logger = logger;
             this.action = action;
-            this.executorName = executorName;
+            this.executor = executor;
             this.handler = handler;
             this.profileFilters = profileFilters;
             this.threadContext = threadPool.getThreadContext();
@@ -572,16 +574,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public String toString() {
-            return "ProfileSecuredRequestHandler{"
-                + "action='"
-                + action
-                + '\''
-                + ", executorName='"
-                + executorName
-                + '\''
-                + ", forceExecution="
-                + forceExecution
-                + '}';
+            return "ProfileSecuredRequestHandler{" + "action='" + action + '\'' + ", forceExecution=" + forceExecution + '}';
         }
 
         @Override
@@ -602,7 +595,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
                 final ActionListener<Void> filterListener;
-                if (ThreadPool.Names.SAME.equals(executorName)) {
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     filterListener = new AbstractFilterListener(receiveMessage) {
                         @Override
                         public void onResponse(Void unused) {
@@ -625,7 +618,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 receiveMessage.run();
                             } else {
                                 try {
-                                    threadPool.executor(executorName).execute(receiveMessage);
+                                    executor.execute(receiveMessage);
                                 } catch (Exception e) {
                                     onFailure(e);
                                 }

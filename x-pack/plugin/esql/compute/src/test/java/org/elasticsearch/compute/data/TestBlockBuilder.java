@@ -44,6 +44,20 @@ public abstract class TestBlockBuilder implements Block.Builder {
         return builder.build();
     }
 
+    // Builds a block of single values. Each value can be null or non-null.
+    // Differs from blockFromValues, as it does not use begin/endPositionEntry
+    public static Block blockFromSingleValues(List<Object> blockValues, ElementType elementType) {
+        TestBlockBuilder builder = builderOf(elementType);
+        for (Object rowValue : blockValues) {
+            if (rowValue == null) {
+                builder.appendNull();
+            } else {
+                builder.appendObject(rowValue);
+            }
+        }
+        return builder.build();
+    }
+
     static TestBlockBuilder builderOf(ElementType type) {
         return switch (type) {
             case INT -> new TestIntBlockBuilder(0);
@@ -305,6 +319,9 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         @Override
         public TestBlockBuilder appendObject(Object object) {
+            if (object instanceof Number number) {
+                object = number.intValue() % 2 == 0;
+            }
             builder.appendBoolean((boolean) object);
             return this;
         }

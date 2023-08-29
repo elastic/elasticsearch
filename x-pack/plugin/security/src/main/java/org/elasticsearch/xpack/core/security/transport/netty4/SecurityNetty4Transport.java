@@ -19,6 +19,7 @@ import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -26,10 +27,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Header;
+import org.elasticsearch.transport.HeaderValidationException;
 import org.elasticsearch.transport.InboundAggregator;
 import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.InboundPipeline;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -53,6 +58,7 @@ import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
+import static org.elasticsearch.transport.InboundDecoder.ChannelType.SERVER;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX;
@@ -72,6 +78,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final boolean remoteClusterServerSslEnabled;
     private final SslConfiguration remoteClusterClientSslConfiguration;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -82,7 +89,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
         final NamedWriteableRegistry namedWriteableRegistry,
         final CircuitBreakerService circuitBreakerService,
         final SSLService sslService,
-        final SharedGroupFactory sharedGroupFactory
+        final SharedGroupFactory sharedGroupFactory,
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
     ) {
         super(
             settings,
@@ -94,6 +102,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             circuitBreakerService,
             sharedGroupFactory
         );
+        this.crossClusterAccessAuthenticationService = crossClusterAccessAuthenticationService;
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
@@ -150,16 +159,51 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected InboundPipeline getInboundPipeline(boolean isRemoteClusterServerChannel) {
-        return new InboundPipeline(
-            getStatsTracker(),
-            threadPool::relativeTimeInMillis,
-            isRemoteClusterServerChannel
-                ? new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings))
-                : new InboundDecoder(recycler),
-            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
-            this::inboundMessage
-        );
+    protected InboundPipeline getInboundPipeline(Channel channel, boolean isRemoteClusterServerChannel) {
+        if (false == isRemoteClusterServerChannel) {
+            return super.getInboundPipeline(channel, false);
+        } else {
+            return new InboundPipeline(
+                getStatsTracker(),
+                threadPool::relativeTimeInMillis,
+                new InboundDecoder(recycler, RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE.get(settings), SERVER),
+                new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+                this::inboundMessage
+            ) {
+                @Override
+                protected void headerReceived(Header header) {
+                    if (header.isHandshake() == false) {
+                        // eagerly (before buffering the full request) authenticate all request headers for this type of channel
+                        assert header.isRequest();
+                        // authn is mostly async, avoid buffering anymore data while authn is in progress
+                        channel.config().setAutoRead(false);
+                        // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                            crossClusterAccessAuthenticationService.tryAuthenticate(
+                                header.getRequestHeaders(),
+                                ActionListener.runAfter(ActionListener.wrap(aVoid -> {
+                                    // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)
+                                    // Header#toString does not print credentials (which are stored in request headers)
+                                    logger.debug("Transport CCS authentication SUCCESS for [{}] on channel [{}]", header, channel);
+                                }, e -> {
+                                    // Header#toString does not print credentials (which are stored in request headers)
+                                    logger.debug(
+                                        "Transport CCS authentication FAIL for [{}] with [{}], closing channel [{}]",
+                                        header,
+                                        e.getMessage(),
+                                        channel
+                                    );
+                                    channel.eventLoop()
+                                        .submit(() -> channel.pipeline().fireExceptionCaught(new HeaderValidationException(header, e)));
+                                }), () -> channel.config().setAutoRead(true))
+                            );
+                        }
+                    }
+                    // go on with the message parts
+                    super.headerReceived(header);
+                }
+            };
+        }
     }
 
     @Override

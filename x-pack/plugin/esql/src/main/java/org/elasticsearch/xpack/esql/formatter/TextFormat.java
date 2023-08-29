@@ -286,13 +286,12 @@ public enum TextFormat implements MediaType {
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
-        return Iterators.concat(hasHeader(request) && esqlResponse.columns() != null ?
-        // if the header is requested return the info
-            Iterators.single(writer -> row(writer, esqlResponse.columns(), ColumnInfo::name, delimiter)) : Collections.emptyIterator(),
-            Iterators.map(
-                esqlResponse.values().iterator(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter)
-            )
+        return Iterators.concat(
+            // if the header is requested return the info
+            hasHeader(request) && esqlResponse.columns() != null
+                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter))
+                : Collections.emptyIterator(),
+            Iterators.map(esqlResponse.values(), row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter))
         );
     }
 
@@ -315,12 +314,15 @@ public enum TextFormat implements MediaType {
     }
 
     // utility method for consuming a row.
-    <F> void row(Writer writer, List<F> row, Function<F, String> toString, Character delimiter) throws IOException {
-        for (int i = 0; i < row.size(); i++) {
-            writeEscaped(toString.apply(row.get(i)), delimiter, writer);
-            if (i < row.size() - 1) {
+    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter) throws IOException {
+        boolean firstColumn = true;
+        while (row.hasNext()) {
+            if (firstColumn) {
+                firstColumn = false;
+            } else {
                 writer.append(delimiter);
             }
+            writeEscaped(toString.apply(row.next()), delimiter, writer);
         }
         writer.append(eol());
     }

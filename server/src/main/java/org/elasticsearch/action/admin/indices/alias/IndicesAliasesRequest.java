@@ -624,7 +624,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(allAliasActions);
+        out.writeCollection(allAliasActions);
         out.writeOptionalString(origin);
     }
 

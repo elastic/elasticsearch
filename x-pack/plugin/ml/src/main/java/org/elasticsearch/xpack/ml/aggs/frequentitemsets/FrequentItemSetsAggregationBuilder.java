@@ -198,7 +198,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(fields);
+        out.writeCollection(fields);
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);

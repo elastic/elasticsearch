@@ -52,7 +52,7 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeBoolean(isSafe);
         out.writeString(message);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

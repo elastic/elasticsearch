@@ -122,7 +122,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeArray((o, order) -> order.writeTo(o), missingOrders);
         }
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         out.writeOptionalWriteable(afterKey);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
             out.writeBoolean(earlyTerminated);

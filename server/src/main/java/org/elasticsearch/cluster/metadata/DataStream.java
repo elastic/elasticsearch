@@ -805,7 +805,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(TIMESTAMP_FIELD_NAME);
-        out.writeList(indices);
+        out.writeCollection(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
         out.writeBoolean(hidden);

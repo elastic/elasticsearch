@@ -164,7 +164,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeSnapshotStatus> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 
@@ -184,7 +184,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(snapshots);
+            out.writeCollection(snapshots);
         }
     }
 

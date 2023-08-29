@@ -311,7 +311,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(origin.lat());
         out.writeDouble(origin.lon());
-        out.writeList(ranges);
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
         distanceType.writeTo(out);
         unit.writeTo(out);

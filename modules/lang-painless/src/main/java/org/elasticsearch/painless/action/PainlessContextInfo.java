@@ -157,10 +157,10 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeList(classes);
-        out.writeList(importedMethods);
-        out.writeList(classBindings);
-        out.writeList(instanceBindings);
+        out.writeCollection(classes);
+        out.writeCollection(importedMethods);
+        out.writeCollection(classBindings);
+        out.writeCollection(instanceBindings);
     }
 
     public static PainlessContextInfo fromXContent(XContentParser parser) {

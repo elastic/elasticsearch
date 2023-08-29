@@ -83,7 +83,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
-            out.writeList(nodeDecisions);
+            out.writeCollection(nodeDecisions);
         } else {
             out.writeBoolean(false);
         }

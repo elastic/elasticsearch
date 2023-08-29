@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -21,14 +21,14 @@ import java.util.Objects;
 
 public class Row extends LeafPlan {
 
-    private final List<NamedExpression> fields;
+    private final List<Alias> fields;
 
-    public Row(Source source, List<NamedExpression> fields) {
+    public Row(Source source, List<Alias> fields) {
         super(source);
         this.fields = fields;
     }
 
-    public List<NamedExpression> fields() {
+    public List<Alias> fields() {
         return fields;
     }
 

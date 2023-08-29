@@ -70,6 +70,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return true;
     }
 
+    public static SnapshotDeletionsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
      * the given {@link Entry} to the invoking instance.
@@ -149,7 +153,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

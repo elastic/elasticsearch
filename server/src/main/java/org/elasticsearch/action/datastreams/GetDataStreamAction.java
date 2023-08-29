@@ -359,7 +359,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreams);
+            out.writeCollection(dataStreams);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }

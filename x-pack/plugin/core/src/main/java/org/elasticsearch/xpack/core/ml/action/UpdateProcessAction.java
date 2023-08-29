@@ -115,7 +115,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             boolean hasDetectorUpdates = detectorUpdates != null;
             out.writeBoolean(hasDetectorUpdates);
             if (hasDetectorUpdates) {
-                out.writeList(detectorUpdates);
+                out.writeCollection(detectorUpdates);
             }
             out.writeOptionalWriteable(filter);
             out.writeBoolean(updateScheduledEvents);

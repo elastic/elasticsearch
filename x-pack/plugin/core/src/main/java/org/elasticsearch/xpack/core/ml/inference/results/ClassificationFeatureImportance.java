@@ -85,7 +85,7 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(featureName);
-        out.writeList(classImportance);
+        out.writeCollection(classImportance);
     }
 
     @Override

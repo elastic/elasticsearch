@@ -30,7 +30,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base class for function tests.
+ * @deprecated extends from {@link AbstractFunctionTestCase} instead
+ * and {@link AbstractFunctionTestCase#errorsForCasesWithoutExamples}.
  */
+@Deprecated
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
     /**
      * Describe supported arguments. Build each argument with
@@ -102,12 +105,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
-
-    public final void testSimpleResolveTypeValid() {
-        // TODO: The expected output type should probably be on the TestCase
-        Expression expression = buildFieldExpression(testCase);
-        assertResolveTypeValid(expression, expectedType(expression.children().stream().map(e -> e.dataType()).toList()));
-    }
 
     public final void testResolveType() {
         List<ArgumentSpec> specs = argSpec();

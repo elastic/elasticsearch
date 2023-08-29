@@ -930,9 +930,23 @@ TAU():double
 // end::tau-result[]
 ;
 
+ceil
+// tag::ceil[]
+ROW a=1.8
+| EVAL a=CEIL(a)
+// end::ceil[]
+;
+
+// tag::ceil-result[]
+a:double
+2
+// end::ceil-result[]
+;
+
 floor
 // tag::floor[]
-ROW a=1.8 | EVAL a=FLOOR(a)
+ROW a=1.8
+| EVAL a=FLOOR(a)
 // end::floor[]
 ;
 
@@ -940,6 +954,42 @@ ROW a=1.8 | EVAL a=FLOOR(a)
 a:double
 1
 // end::floor-result[]
+;
+
+ceilFloorOfInfinite
+row i = 1.0/0.0 | eval c = ceil(i), f = floor(i);
+
+i:double | c:double | f:double
+Infinity | Infinity | Infinity
+;
+
+ceilFloorOfNegativeInfinite
+row i = -1.0/0.0 | eval c = ceil(i), f = floor(i);
+
+i:double  | c:double  | f:double
+-Infinity | -Infinity | -Infinity
+;
+
+
+ceilFloorOfInteger
+row i = 1 | eval c = ceil(i), f = floor(i);
+
+i:integer | c:integer | f:integer
+1         | 1         | 1
+;
+
+ceilFloorOfLong
+row i = to_long(1000000000000) | eval c = ceil(i), f = floor(i);
+
+i:long        | c:long        | f:long
+1000000000000 | 1000000000000 | 1000000000000
+;
+
+ceilFloorOfUnsignedLong
+row i = to_ul(1000000000000000000) | eval c = ceil(i), f = floor(i);
+
+i:ul                | c:ul                | f:ul
+1000000000000000000 | 1000000000000000000 | 1000000000000000000
 ;
 
 sqrt

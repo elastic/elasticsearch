@@ -24,6 +24,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     protected boolean positionEntryIsOpen;
 
     protected boolean hasNonNullValue;
+    protected boolean hasMultiValues;
 
     protected Block.MvOrdering mvOrdering = Block.MvOrdering.UNORDERED;
 
@@ -70,6 +71,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     public AbstractBlockBuilder endPositionEntry() {
         positionCount++;
         positionEntryIsOpen = false;
+        if (hasMultiValues == false && valueCount != positionCount) {
+            hasMultiValues = true;
+        }
         return this;
     }
 
@@ -78,7 +82,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     protected final boolean singleValued() {
-        return firstValueIndexes == null;
+        return hasMultiValues == false;
     }
 
     protected final void updatePosition() {

@@ -59,8 +59,8 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_SNAPSHOTTED;
         }
 
-        SnapshotsInProgress snapshotsInProgress = allocation.getClusterState().custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(allocation.getClusterState());
+        if (snapshotsInProgress.isEmpty()) {
             // Snapshots are not running
             return YES_NOT_RUNNING;
         }

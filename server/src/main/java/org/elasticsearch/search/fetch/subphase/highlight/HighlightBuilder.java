@@ -136,7 +136,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(encoder);
         out.writeBoolean(useExplicitFieldOrder);
-        out.writeList(fields);
+        out.writeCollection(fields);
     }
 
     /**

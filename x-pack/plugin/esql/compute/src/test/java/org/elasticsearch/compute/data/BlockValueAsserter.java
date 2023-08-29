@@ -77,7 +77,13 @@ public class BlockValueAsserter {
 
     private static void assertBooleanRowValues(BooleanBlock block, int firstValueIndex, int valueCount, List<Object> expectedRowValues) {
         for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-            boolean expectedValue = (Boolean) expectedRowValues.get(valueIndex);
+            Object value = expectedRowValues.get(valueIndex);
+            boolean expectedValue;
+            if (value instanceof Number number) {
+                expectedValue = number.intValue() % 2 == 0;
+            } else {
+                expectedValue = (Boolean) expectedRowValues.get(valueIndex);
+            }
             assertThat(block.getBoolean(firstValueIndex + valueIndex), is(equalTo(expectedValue)));
         }
     }

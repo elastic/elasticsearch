@@ -174,8 +174,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     private final boolean isNetNew;
 
     /**
-     * Defaults to false as we typically don't want to apply user defined templates on system indices, since they may have unexpected
-     * behaviour when upgrading Elasticsearch versions.
+     * We typically don't want to apply user defined templates on system indices, since they may have unexpected
+     * behaviour when upgrading Elasticsearch versions. Currently, only the .kibana_ indices use templates, so we
+     * are making this property by default as false.
      */
     private final boolean allowsTemplates;
 
@@ -207,7 +208,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *                                     indices
      * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
      *                                    older versions of Elasticsearch
-     * @param allowsTemplates if this system index descriptor allows templates to affect its settings
+     * @param allowsTemplates if this system index descriptor allows templates to affect its settings (e.g. .kibana_ indices)
      */
     protected SystemIndexDescriptor(
         String indexPattern,

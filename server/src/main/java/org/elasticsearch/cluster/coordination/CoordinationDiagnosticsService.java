@@ -1323,7 +1323,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeList(recentMasters);
+                out.writeCollection(recentMasters);
             }
             out.writeOptionalString(remoteExceptionMessage);
             out.writeOptionalString(remoteExceptionStackTrace);

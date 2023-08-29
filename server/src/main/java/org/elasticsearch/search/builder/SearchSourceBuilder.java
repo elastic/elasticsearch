@@ -282,16 +282,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeBoolean(docValueFields != null);
         if (docValueFields != null) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
-        out.writeList(indexBoosts);
+        out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
-            out.writeList(subSearchSourceBuilders);
+            out.writeCollection(subSearchSourceBuilders);
         } else if (out.getTransportVersion().before(TransportVersion.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
             throw new IllegalArgumentException("cannot serialize [sub_searches] to version [" + out.getTransportVersion() + "]");
         } else {
@@ -305,7 +305,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         }
         out.writeVInt(size);
         boolean hasSorts = sorts != null;
@@ -333,7 +333,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
             out.writeOptionalWriteable(pointInTimeBuilder);
         }

@@ -116,7 +116,12 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                @Override
+                public String getDescription() {
+                    return request.getDescription();
+                }
+            };
         }
 
         @Override

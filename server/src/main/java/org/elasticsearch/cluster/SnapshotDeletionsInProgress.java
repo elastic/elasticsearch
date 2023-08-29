@@ -153,7 +153,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {

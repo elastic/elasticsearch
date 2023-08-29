@@ -56,7 +56,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         shardRouting.writeTo(out);
         snapshotId.writeTo(out);
         indexId.writeTo(out);
-        out.writeList(inputStats);
+        out.writeCollection(inputStats);
     }
 
     public ShardRouting getShardRouting() {

@@ -312,7 +312,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                out.writeList(progress);
+                out.writeCollection(progress);
                 dataCounts.writeTo(out);
                 memoryUsage.writeTo(out);
                 out.writeOptionalNamedWriteable(analysisStats);

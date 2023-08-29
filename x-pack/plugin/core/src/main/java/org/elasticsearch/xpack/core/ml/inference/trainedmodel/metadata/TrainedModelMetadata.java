@@ -142,9 +142,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeList(totalFeatureImportances);
+        out.writeCollection(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
-        out.writeList(hyperparameters);
+        out.writeCollection(hyperparameters);
     }
 
     @Override

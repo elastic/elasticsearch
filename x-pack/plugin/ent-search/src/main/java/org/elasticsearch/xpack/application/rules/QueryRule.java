@@ -148,7 +148,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(type.toString());
-        out.writeList(criteria);
+        out.writeCollection(criteria);
         out.writeGenericMap(actions);
     }
 

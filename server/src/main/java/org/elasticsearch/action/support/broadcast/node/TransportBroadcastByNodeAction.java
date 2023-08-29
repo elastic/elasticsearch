@@ -507,7 +507,7 @@ public abstract class TransportBroadcastByNodeAction<
             assert indicesLevelRequest.hasReferences();
             super.writeTo(out);
             indicesLevelRequest.writeTo(out);
-            out.writeList(shards);
+            out.writeCollection(shards);
             out.writeString(nodeId);
         }
 
@@ -599,7 +599,7 @@ public abstract class TransportBroadcastByNodeAction<
             out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                out.writeList(exceptions);
+                out.writeCollection(exceptions);
             }
         }
     }

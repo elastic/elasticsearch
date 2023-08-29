@@ -202,7 +202,7 @@ warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775
 ;
 
 convertDatetimeToInt
-row int = [5013792, 520128] | eval dt = to_datetime(int) | eval ii = to_integer(dt);
+row int = [5013792, 520128] | eval dt = to_date(int) | eval ii = to_integer(dt);
 
 int:integer      |dt:date                                             |ii:integer
 [5013792, 520128]|[1970-01-01T01:23:33.792Z, 1970-01-01T00:08:40.128Z]|[5013792, 520128]

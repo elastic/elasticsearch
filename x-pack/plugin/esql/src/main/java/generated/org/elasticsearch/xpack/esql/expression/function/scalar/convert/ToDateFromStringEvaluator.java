@@ -20,17 +20,17 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDatetime}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDate}.
  * This class is generated. Do not edit it.
  */
-public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDatetimeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+public final class ToDateFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  public ToDateFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
     super(field, source);
   }
 
   @Override
   public String name() {
-    return "ToDatetime";
+    return "ToDate";
   }
 
   @Override
@@ -67,7 +67,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
 
   private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDate.fromKeyword(value);
   }
 
   @Override
@@ -106,6 +106,6 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
 
   private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDate.fromKeyword(value);
   }
 }

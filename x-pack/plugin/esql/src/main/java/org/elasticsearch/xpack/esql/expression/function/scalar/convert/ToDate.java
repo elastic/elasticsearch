@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
-public class ToDatetime extends AbstractConvertFunction {
+public class ToDate extends AbstractConvertFunction {
 
     private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
         Map.of(
@@ -36,7 +36,7 @@ public class ToDatetime extends AbstractConvertFunction {
             LONG,
             (fieldEval, source) -> fieldEval,
             KEYWORD,
-            ToDatetimeFromStringEvaluator::new,
+            ToDateFromStringEvaluator::new,
             DOUBLE,
             ToLongFromDoubleEvaluator::new,
             UNSIGNED_LONG,
@@ -45,7 +45,7 @@ public class ToDatetime extends AbstractConvertFunction {
             ToLongFromIntEvaluator::new // CastIntToLongEvaluator would be a candidate, but not MV'd
         );
 
-    public ToDatetime(Source source, Expression field) {
+    public ToDate(Source source, Expression field) {
         super(source, field);
     }
 
@@ -61,12 +61,12 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDatetime(source(), newChildren.get(0));
+        return new ToDate(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDatetime::new, field());
+        return NodeInfo.create(this, ToDate::new, field());
     }
 
     @ConvertEvaluator(extraName = "FromString")

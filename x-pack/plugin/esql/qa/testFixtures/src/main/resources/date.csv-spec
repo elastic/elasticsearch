@@ -159,7 +159,7 @@ x:date                  |hire_date:date
 ;
 
 convertFromDatetime
-from employees| keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
+from employees| keep birth_date | eval bd = to_date(birth_date) | limit 2;
 
 birth_date:date         |bd:date
 1953-09-02T00:00:00.000Z|1953-09-02T00:00:00.000Z
@@ -167,23 +167,23 @@ birth_date:date         |bd:date
 ;
 
 convertFromString
-// tag::to_datetime-str[]
+// tag::to_date-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
 | EVAL datetime = TO_DATETIME(string)
-// end::to_datetime-str[]
+// end::to_date-str[]
 ;
 warning:Line 2:19: evaluation of [TO_DATETIME(string)] failed, treating result as null. Only first 20 failures recorded.
 warning:java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
 
-// tag::to_datetime-str-result[]
+// tag::to_date-str-result[]
 string:keyword                                          |datetime:date
 ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]|[1953-09-02T00:00:00.000Z, 1964-06-02T00:00:00.000Z]
-// end::to_datetime-str-result[]
+// end::to_date-str-result[]
 ;
 
 convertFromUnsignedLong
-row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
-warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
+row ul = [9223372036854775808, 520128000000] | eval dt = to_date(ul);
+warning:Line 1:58: evaluation of [to_date(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
 
                 ul:ul              |           dt:date
@@ -191,21 +191,21 @@ warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775
 ;
 
 convertFromLong
-row long = [501379200000, 520128000000] | eval dt = to_datetime(long);
+row long = [501379200000, 520128000000] | eval dt = to_date(long);
 
 long:long                    |dt:date
 [501379200000, 520128000000] |[1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z]
 ;
 
 convertFromDouble
-row dbl = [501379200000.1, 520128000000.2] | eval dt = to_datetime(dbl);
+row dbl = [501379200000.1, 520128000000.2] | eval dt = to_date(dbl);
 
 dbl:double                            |dt:date                         
 [5.013792000001E11, 5.201280000002E11]|[1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z]
 ;
 
 convertFromInt
-row int = [501379200, 520128000] | eval dt = to_datetime(int);
+row int = [501379200, 520128000] | eval dt = to_date(int);
 
 int:integer           |dt:date
 [501379200, 520128000]|[1970-01-06T19:16:19.200Z, 1970-01-07T00:28:48.000Z]
@@ -213,16 +213,16 @@ int:integer           |dt:date
 
 // TODO: add a -1, once https://github.com/elastic/elasticsearch-internal/issues/1203 is fixed
 convertFromIntForDocs
-// tag::to_datetime-int[]
+// tag::to_date-int[]
 ROW int = [0, 1]
 | EVAL dt = TO_DATETIME(int)
-// end::to_datetime-int[]
+// end::to_date-int[]
 ;
 
-// tag::to_datetime-int-result[]
+// tag::to_date-int-result[]
 int:integer |dt:date
 [0, 1]     |[1970-01-01T00:00:00.000Z, 1970-01-01T00:00:00.001Z]
-// end::to_datetime-int-result[]
+// end::to_date-int-result[]
 ;
 
 autoBucketSimpleMonth

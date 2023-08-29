@@ -1,5 +1,5 @@
-[[esql-to_datetime]]
-=== `TO_DATETIME`
+[[esql-to_date]]
+=== `TO_DATE`
 Converts an input value to a date value.
 
 The input can be a single- or multi-valued field or an expression. The input
@@ -10,11 +10,11 @@ A string will only be successfully converted if it's respecting the format
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=to_datetime-str]
+include::{esql-specs}/date.csv-spec[tag=to_date-str]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=to_datetime-str-result]
+include::{esql-specs}/date.csv-spec[tag=to_date-str-result]
 |===
 
 Note that in this example, the last value in the source multi-valued
@@ -36,11 +36,11 @@ For example:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=to_datetime-int]
+include::{esql-specs}/date.csv-spec[tag=to_date-int]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/date.csv-spec[tag=to_datetime-int-result]
+include::{esql-specs}/date.csv-spec[tag=to_date-int-result]
 |===
 
 Alias: TO_DT

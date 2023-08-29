@@ -242,7 +242,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        testIndexedVector(VectorSimilarity.DOT_PRODUCT, mapper);
+        testIndexedVector(VectorSimilarity.COSINE, mapper);
     }
 
     public void testIndexedVector() throws Exception {

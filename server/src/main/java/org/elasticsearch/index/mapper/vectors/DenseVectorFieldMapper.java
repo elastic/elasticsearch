@@ -70,6 +70,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
+    private static final float EPS = 1e-4f;
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion DOT_PRODUCT_AUTO_NORMALIZED = IndexVersion.V_8_11_0;
@@ -144,7 +145,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).similarity,
-                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.DOT_PRODUCT : null,
+                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
@@ -323,6 +324,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             void checkVectorMagnitude(
+                IndexVersion indexVersion,
                 VectorSimilarity similarity,
                 Function<StringBuilder, StringBuilder> appender,
                 float squaredMagnitude
@@ -385,7 +387,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     squaredMagnitude += value * value;
                 }
                 fieldMapper.checkDimensionMatches(index, context);
-                checkVectorMagnitude(fieldMapper.similarity, errorByteElementsAppender(vector), squaredMagnitude);
+                checkVectorMagnitude(
+                    fieldMapper.indexCreatedVersion,
+                    fieldMapper.similarity,
+                    errorByteElementsAppender(vector),
+                    squaredMagnitude
+                );
                 return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.similarity.function);
             }
 
@@ -477,15 +484,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             void checkVectorMagnitude(
+                IndexVersion indexVersion,
                 VectorSimilarity similarity,
                 Function<StringBuilder, StringBuilder> appender,
                 float squaredMagnitude
             ) {
                 StringBuilder errorBuilder = null;
 
-                if ((similarity == VectorSimilarity.COSINE || similarity == VectorSimilarity.DOT_PRODUCT)
-                    && Math.sqrt(squaredMagnitude) == 0.0f) {
-                    errorBuilder = new StringBuilder("The [" + similarity + "] similarity does not support vectors with zero magnitude.");
+                if (indexVersion.before(DOT_PRODUCT_AUTO_NORMALIZED)) {
+                    if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > EPS) {
+                        errorBuilder = new StringBuilder(
+                            "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
+                        );
+                    }
+                    if (similarity == VectorSimilarity.COSINE && Math.sqrt(squaredMagnitude) == 0.0f) {
+                        errorBuilder = new StringBuilder(
+                            "The [" + similarity + "] similarity does not support vectors with zero magnitude."
+                        );
+                    }
+                } else {
+                    if ((similarity == VectorSimilarity.COSINE || similarity == VectorSimilarity.DOT_PRODUCT)
+                        && Math.sqrt(squaredMagnitude) == 0.0f) {
+                        errorBuilder = new StringBuilder(
+                            "The [" + similarity + "] similarity does not support vectors with zero magnitude."
+                        );
+                    }
                 }
 
                 if (errorBuilder != null) {
@@ -508,7 +531,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 fieldMapper.checkDimensionMatches(index, context);
                 checkVectorBounds(vector);
-                checkVectorMagnitude(fieldMapper.similarity, errorFloatElementsAppender(vector), squaredMagnitude);
+                checkVectorMagnitude(
+                    fieldMapper.indexCreatedVersion,
+                    fieldMapper.similarity,
+                    errorFloatElementsAppender(vector),
+                    squaredMagnitude
+                );
                 if (fieldMapper.indexCreatedVersion.onOrAfter(DOT_PRODUCT_AUTO_NORMALIZED)) {
                     fieldMapper.similarity.floatPreprocessing(vector, squaredMagnitude);
                 }
@@ -569,6 +597,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract void checkVectorBounds(float[] vector);
 
         abstract void checkVectorMagnitude(
+            IndexVersion indexVersion,
             VectorSimilarity similarity,
             Function<StringBuilder, StringBuilder> errorElementsAppender,
             float squaredMagnitude
@@ -684,6 +713,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             void floatPreprocessing(float[] vector, float squareSum) {
                 if (squareSum == 0) {
                     throw new IllegalArgumentException("Cannot normalize a zero-length vector");
+                }
+                // Vector already has a magnitude have `1`
+                if (Math.abs(squareSum - 1.0f) < EPS) {
+                    return;
                 }
                 float length = (float) Math.sqrt(squareSum);
                 for (int i = 0; i < vector.length; i++) {
@@ -865,7 +898,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 int squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(
+                    indexVersionCreated,
+                    similarity,
+                    elementType.errorByteElementsAppender(queryVector),
+                    squaredMagnitude
+                );
             }
             Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
@@ -892,17 +930,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             elementType.checkVectorBounds(queryVector);
 
-            float magnitude = Float.NaN;
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
-                magnitude = (float) Math.sqrt(squaredMagnitude);
-                if (elementType == ElementType.FLOAT && indexVersionCreated.onOrAfter(DOT_PRODUCT_AUTO_NORMALIZED)) {
-                    // We don't want to normalize the original query vector.
-                    // It mutates it in place and might cause down stream weirdness
-                    // Instead we copy the value and then normalize that copy
+                elementType.checkVectorMagnitude(
+                    indexVersionCreated,
+                    similarity,
+                    elementType.errorFloatElementsAppender(queryVector),
+                    squaredMagnitude
+                );
+                // We don't want to normalize the original query vector.
+                // It mutates it in place and might cause down stream weirdness
+                // Instead we copy the value and then normalize that copy
+                if (similarity == VectorSimilarity.DOT_PRODUCT
+                    && elementType == ElementType.FLOAT
+                    && indexVersionCreated.onOrAfter(DOT_PRODUCT_AUTO_NORMALIZED)) {
                     queryVector = Arrays.copyOf(queryVector, queryVector.length);
-                    similarity.floatPreprocessing(queryVector, magnitude);
+                    similarity.floatPreprocessing(queryVector, squaredMagnitude);
                 }
             }
             Query knnQuery = switch (elementType) {

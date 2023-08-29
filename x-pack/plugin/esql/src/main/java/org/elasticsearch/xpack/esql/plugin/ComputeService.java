@@ -104,12 +104,7 @@ public class ComputeService {
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(
-            DATA_ACTION_NAME,
-            this.esqlExecutor,
-            DataNodeRequest::new,
-            new DataNodeRequestHandler()
-        );
+        transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
         this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;

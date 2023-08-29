@@ -1,4 +1,4 @@
-[[esql-multivalued-fields]]
+[[esql-metadata-fields]]
 == {esql} metadata fields
 
 ++++

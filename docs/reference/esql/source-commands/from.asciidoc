@@ -28,7 +28,7 @@ or aliases:
 FROM employees-00001,employees-*
 ----
 
-Use the `metadata` directive to enable <<esql-multivalued-fields, metadata fields>>:
+Use the `metadata` directive to enable <<esql-metadata-fields, metadata fields>>:
 
 [source,esql]
 ----

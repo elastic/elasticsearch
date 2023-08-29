@@ -50,7 +50,7 @@ public class GetBlobStoreStatsNodesResponse extends BaseNodesResponse<GetBlobSto
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<GetBlobStoreStatsNodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

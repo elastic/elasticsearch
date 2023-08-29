@@ -70,7 +70,7 @@ public class IndexTierMetrics extends AbstractBaseTierMetrics implements Autosca
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersion.V_8_500_063)) {
-            out.writeList(nodesLoad);
+            out.writeCollection(nodesLoad);
             memoryMetrics.writeTo(out);
             return;
         }

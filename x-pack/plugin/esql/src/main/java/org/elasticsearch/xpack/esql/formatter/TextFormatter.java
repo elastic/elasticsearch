@@ -46,10 +46,14 @@ public class TextFormatter {
         }
 
         // 2. Expand columns to fit the largest value
-        for (var row : response.values()) {
+        var iterator = response.values();
+        while (iterator.hasNext()) {
+            var row = iterator.next();
             for (int i = 0; i < width.length; i++) {
-                width[i] = Math.max(width[i], FORMATTER.apply(row.get(i)).length());
+                assert row.hasNext();
+                width[i] = Math.max(width[i], FORMATTER.apply(row.next()).length());
             }
+            assert row.hasNext() == false;
         }
     }
 
@@ -91,12 +95,13 @@ public class TextFormatter {
     }
 
     private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
-        return Iterators.map(response.values().iterator(), row -> writer -> {
+        return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
+                assert row.hasNext();
                 if (i > 0) {
                     writer.append('|');
                 }
-                String string = FORMATTER.apply(row.get(i));
+                String string = FORMATTER.apply(row.next());
                 if (string.length() <= width[i]) {
                     // Pad
                     writer.append(string);
@@ -107,6 +112,7 @@ public class TextFormatter {
                     writer.append('~');
                 }
             }
+            assert row.hasNext() == false;
             writer.append('\n');
         });
     }

@@ -51,6 +51,7 @@ import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -77,21 +78,21 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectConstant() {
         EsqlQueryResponse results = run("from test | eval x = 1 | keep x");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "integer"))));
-        assertThat(results.values().size(), equalTo(40));
-        assertThat(results.values().get(0).get(0), equalTo(1));
+        assertThat(getValuesList(results).size(), equalTo(40));
+        assertThat(getValuesList(results).get(0).get(0), equalTo(1));
     }
 
     public void testStatsOverConstant() {
         EsqlQueryResponse results = run("from test | eval x = 1 | stats x = count(x)");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("x", "long"))));
-        assertThat(results.values().size(), equalTo(1));
-        assertThat(results.values().get(0).get(0), equalTo(40L));
+        assertThat(getValuesList(results).size(), equalTo(1));
+        assertThat(getValuesList(results).get(0).get(0), equalTo(40L));
     }
 
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         EsqlQueryResponse response = run("row " + value);
-        assertEquals(List.of(List.of(value)), response.values());
+        assertEquals(List.of(List.of(value)), getValuesList(response));
     }
 
     public void testFromStatsGroupingAvgWithSort() {
@@ -120,7 +121,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals("long", groupColumn.type());
 
         // assert column values
-        List<List<Object>> valueValues = results.values();
+        List<List<Object>> valueValues = getValuesList(results);
         assertEquals(2, valueValues.size());
         // This is loathsome, find a declarative way to assert the expected output.
         if ((long) valueValues.get(0).get(1) == 1L) {
@@ -158,7 +159,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals("long", valuesColumn.type());
 
         // assert column values
-        List<List<Object>> valueValues = results.values();
+        List<List<Object>> valueValues = getValuesList(results);
         assertEquals(2, valueValues.size());
         // This is loathsome, find a declarative way to assert the expected output.
         if ((long) valueValues.get(0).get(1) == 1L) {
@@ -179,7 +180,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run("from test | stats avg(count) by time");
         logger.info(results);
         Assert.assertEquals(2, results.columns().size());
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
 
         // assert column metadata
         assertEquals("avg(count)", results.columns().get(0).name());
@@ -189,7 +190,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         // assert column values
         List<Long> expectedValues = LongStream.range(0, 40).map(i -> epoch + i).sorted().boxed().toList();
-        List<Long> actualValues = IntStream.range(0, 40).mapToLong(i -> (Long) results.values().get(i).get(1)).sorted().boxed().toList();
+        List<Long> actualValues = IntStream.range(0, 40)
+            .mapToLong(i -> (Long) getValuesList(results).get(i).get(1))
+            .sorted()
+            .boxed()
+            .toList();
         assertEquals(expectedValues, actualValues);
     }
 
@@ -216,7 +221,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         record Group(Long data, Double avg) {}
         List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
-        List<Group> actualGroups = results.values().stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
+        List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
         assertThat(actualGroups, equalTo(expectedGroups));
     }
 
@@ -224,7 +229,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run("from test | stats avg(count) by color");
         logger.info(results);
         Assert.assertEquals(2, results.columns().size());
-        Assert.assertEquals(3, results.values().size());
+        Assert.assertEquals(3, getValuesList(results).size());
 
         // assert column metadata
         assertEquals("avg(count)", results.columns().get(0).name());
@@ -235,8 +240,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         }
         List<Group> expectedGroups = List.of(new Group("blue", 42.0), new Group("green", 44.0), new Group("red", 43));
-        List<Group> actualGroups = results.values()
-            .stream()
+        List<Group> actualGroups = getValuesList(results).stream()
             .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
             .sorted(comparing(c -> c.color))
             .toList();
@@ -259,7 +263,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse results = run("from test | stats avg = avg(" + field + ") by color");
             logger.info(results);
             Assert.assertEquals(2, results.columns().size());
-            Assert.assertEquals(4, results.values().size());
+            Assert.assertEquals(4, getValuesList(results).size());
 
             // assert column metadata
             assertEquals("avg", results.columns().get(0).name());
@@ -275,8 +279,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 new Group("red", 43.0),
                 new Group("yellow", null)
             );
-            List<Group> actualGroups = results.values()
-                .stream()
+            List<Group> actualGroups = getValuesList(results).stream()
                 .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
                 .sorted(comparing(c -> c.color))
                 .toList();
@@ -298,7 +301,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         );
         logger.info(results);
         Assert.assertEquals(6, results.columns().size());
-        Assert.assertEquals(3, results.values().size());
+        Assert.assertEquals(3, getValuesList(results).size());
 
         // assert column metadata
         assertEquals("a", results.columns().get(0).name());
@@ -320,8 +323,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             new Group(43, 40, 46, 860, 20, "red")
         );
         // TODO: each aggregator returns Double now, it should in fact mirror the data type of the fields it's aggregating
-        List<Group> actualGroups = results.values()
-            .stream()
+        List<Group> actualGroups = getValuesList(results).stream()
             .map(l -> new Group((Double) l.get(0), (Long) l.get(1), (Long) l.get(2), (Long) l.get(3), (Long) l.get(4), (String) l.get(5)))
             .sorted(comparing(c -> c.color))
             .toList();
@@ -332,7 +334,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time");
         logger.info(results);
         assertThat(
-            results.values(),
+            getValuesList(results),
             contains(
                 List.of(1L, 44L, epoch + 2),
                 List.of(1L, 44L, epoch + 6),
@@ -348,7 +350,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
-        assertThat(results.values(), containsInAnyOrder(List.of(1L), List.of(2L)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(1L), List.of(2L)));
     }
 
     public void testRowStatsProjectGroupByInt() {
@@ -356,7 +358,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
-        assertThat(results.values(), contains(List.of(1)));
+        assertThat(getValuesList(results), contains(List.of(1)));
     }
 
     public void testRowStatsProjectGroupByLong() {
@@ -364,7 +366,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long"));
-        assertThat(results.values(), contains(List.of(1000000000000L)));
+        assertThat(getValuesList(results), contains(List.of(1000000000000L)));
     }
 
     public void testRowStatsProjectGroupByDouble() {
@@ -372,7 +374,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
-        assertThat(results.values(), contains(List.of(1.0)));
+        assertThat(getValuesList(results), contains(List.of(1.0)));
     }
 
     public void testRowStatsProjectGroupByKeyword() {
@@ -380,7 +382,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("keyword"));
-        assertThat(results.values(), contains(List.of("hello")));
+        assertThat(getValuesList(results), contains(List.of("hello")));
     }
 
     public void testFromStatsProjectGroupByDouble() {
@@ -388,7 +390,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("data_d"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
-        assertThat(results.values(), containsInAnyOrder(List.of(1.0), List.of(2.0)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(1.0), List.of(2.0)));
     }
 
     public void testFromStatsProjectGroupWithAlias() {
@@ -397,7 +399,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("d", "d2"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long", "long"));
-        assertThat(results.values(), containsInAnyOrder(List.of(1L, 1L), List.of(2L, 2L)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(1L, 1L), List.of(2L, 2L)));
     }
 
     public void testFromStatsProjectAgg() {
@@ -405,7 +407,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
-        assertThat(results.values(), containsInAnyOrder(List.of(42d), List.of(44d)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(42d), List.of(44d)));
     }
 
     public void testFromStatsProjectAggWithAlias() {
@@ -413,7 +415,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("b"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
-        assertThat(results.values(), containsInAnyOrder(List.of(42d), List.of(44d)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(42d), List.of(44d)));
     }
 
     public void testFromProjectStatsGroupByAlias() {
@@ -421,7 +423,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(count)", "d"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
-        assertThat(results.values(), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
     }
 
     public void testFromProjectStatsAggregateAlias() {
@@ -429,36 +431,36 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(c)", "data"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
-        assertThat(results.values(), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
+        assertThat(getValuesList(results), containsInAnyOrder(List.of(42d, 1L), List.of(44d, 2L)));
     }
 
     public void testFromEvalStats() {
         EsqlQueryResponse results = run("from test | eval ratio = data_d / count_d | stats avg(ratio)");
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, results.values().size());
+        Assert.assertEquals(1, getValuesList(results).size());
         assertEquals("avg(ratio)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
-        assertEquals(1, results.values().get(0).size());
-        assertEquals(0.034d, (double) results.values().get(0).get(0), 0.001d);
+        assertEquals(1, getValuesList(results).get(0).size());
+        assertEquals(0.034d, (double) getValuesList(results).get(0).get(0), 0.001d);
     }
 
     public void testFromStatsEvalWithPragma() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
-        Assert.assertEquals(1, results.values().size());
-        assertEquals(2, results.values().get(0).size());
-        assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
-        assertEquals(43, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("avg_count", "double"))), 1d);
+        Assert.assertEquals(1, getValuesList(results).size());
+        assertEquals(2, getValuesList(results).get(0).size());
+        assertEquals(50, (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+        assertEquals(43, (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfo("avg_count", "double"))), 1d);
     }
 
     public void testWhere() {
         EsqlQueryResponse results = run("from test | where count > 40");
         logger.info(results);
-        Assert.assertEquals(30, results.values().size());
+        Assert.assertEquals(30, getValuesList(results).size());
         var countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(countIndex), greaterThan(40L));
         }
     }
@@ -466,9 +468,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectWhere() {
         EsqlQueryResponse results = run("from test | keep count | where count > 40");
         logger.info(results);
-        Assert.assertEquals(30, results.values().size());
+        Assert.assertEquals(30, getValuesList(results).size());
         int countIndex = results.columns().indexOf(new ColumnInfo("count", "long"));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(countIndex), greaterThan(40L));
         }
     }
@@ -476,9 +478,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testEvalWhere() {
         EsqlQueryResponse results = run("from test | eval x = count / 2 | where x > 20");
         logger.info(results);
-        Assert.assertEquals(30, results.values().size());
+        Assert.assertEquals(30, getValuesList(results).size());
         int countIndex = results.columns().indexOf(new ColumnInfo("x", "long"));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(countIndex), greaterThan(20L));
         }
     }
@@ -486,15 +488,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testFilterWithNullAndEval() {
         EsqlQueryResponse results = run("row a = 1 | eval b = a + null | where b > 1");
         logger.info(results);
-        Assert.assertEquals(0, results.values().size());
+        Assert.assertEquals(0, getValuesList(results).size());
     }
 
     public void testStringLength() {
         EsqlQueryResponse results = run("from test | eval l = length(color)");
         logger.info(results);
-        assertThat(results.values(), hasSize(40));
+        assertThat(getValuesList(results), hasSize(40));
         int countIndex = results.columns().indexOf(new ColumnInfo("l", "integer"));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Integer) values.get(countIndex), greaterThanOrEqualTo(3));
         }
     }
@@ -506,11 +508,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
         // sanity
         EsqlQueryResponse results = run("from test");
-        Assert.assertEquals(41, results.values().size());
+        Assert.assertEquals(41, getValuesList(results).size());
 
         results = run("from test | eval newCount = count + 1 | where newCount > 1");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count", "long"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("count_d", "double"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
@@ -520,7 +522,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // restore index to original pre-test state
         client().prepareBulk().add(new DeleteRequest("test").id("no_count")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         results = run("from test");
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
     }
 
     public void testMultiConditionalWhere() {
@@ -528,9 +530,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             "from test | eval abc = 1+2 | where (abc + count >= 44 or data_d == 2) and data == 1 | keep color, abc"
         );
         logger.info(results);
-        Assert.assertEquals(10, results.values().size());
+        Assert.assertEquals(10, getValuesList(results).size());
         Assert.assertEquals(2, results.columns().size());
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((String) values.get(0), equalTo("green"));
             assertThat((Integer) values.get(1), equalTo(3));
         }
@@ -539,9 +541,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testWhereNegatedCondition() {
         EsqlQueryResponse results = run("from test | eval abc=1+2 | where abc + count > 45 and data != 1 | keep color, data");
         logger.info(results);
-        Assert.assertEquals(10, results.values().size());
+        Assert.assertEquals(10, getValuesList(results).size());
         Assert.assertEquals(2, results.columns().size());
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((String) values.get(0), equalTo("red"));
             assertThat((Long) values.get(1), equalTo(2L));
         }
@@ -550,11 +552,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testEvalOverride() {
         EsqlQueryResponse results = run("from test | eval count = count + 1 | eval count = count + 1");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         Assert.assertEquals(1, results.columns().stream().filter(c -> c.name().equals("count")).count());
         int countIndex = results.columns().size() - 1;
         Assert.assertEquals(new ColumnInfo("count", "long"), results.columns().get(countIndex));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(countIndex), greaterThanOrEqualTo(42L));
         }
     }
@@ -562,9 +564,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectRename() {
         EsqlQueryResponse results = run("from test | eval y = count | rename count as x | keep x, y");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long")));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
             assertThat(values.get(1), is(values.get(0)));
         }
@@ -573,12 +575,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectRenameEval() {
         EsqlQueryResponse results = run("from test | eval y = count | rename count as x | keep x, y | eval x2 = x + 1 | eval y2 = y + 2");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         assertThat(
             results.columns(),
             contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("x2", "long"), new ColumnInfo("y2", "long"))
         );
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
             assertThat(values.get(1), is(values.get(0)));
             assertThat(values.get(2), is(((Long) values.get(0)) + 1));
@@ -589,9 +591,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectRenameEvalProject() {
         EsqlQueryResponse results = run("from test | eval y = count | rename count as x | keep x, y | eval z = x + y | keep x, y, z");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("z", "long")));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
             assertThat(values.get(1), is(values.get(0)));
             assertThat(values.get(2), is((Long) values.get(0) * 2));
@@ -601,9 +603,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testProjectOverride() {
         EsqlQueryResponse results = run("from test | eval cnt = count | rename count as data | keep cnt, data");
         logger.info(results);
-        Assert.assertEquals(40, results.values().size());
+        Assert.assertEquals(40, getValuesList(results).size());
         assertThat(results.columns(), contains(new ColumnInfo("cnt", "long"), new ColumnInfo("data", "long")));
-        for (List<Object> values : results.values()) {
+        for (List<Object> values : getValuesList(results)) {
             assertThat(values.get(1), is(values.get(0)));
         }
     }
@@ -674,7 +676,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
         EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)");
         logger.info(results);
-        assertThat(results.values().get(0), equalTo(List.of(totalValues.get())));
+        assertThat(getValuesList(results).get(0), equalTo(List.of(totalValues.get())));
     }
 
     public void testESFilter() throws Exception {
@@ -708,9 +710,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         OptionalDouble avg = docs.values().stream().filter(v -> from <= v && v <= to).mapToLong(n -> n).average();
         if (avg.isPresent()) {
-            assertEquals(avg.getAsDouble(), (double) results.values().get(0).get(0), 0.01d);
+            assertEquals(avg.getAsDouble(), (double) getValuesList(results).get(0).get(0), 0.01d);
         } else {
-            assertThat(results.values().get(0).get(0), nullValue());
+            assertThat(getValuesList(results).get(0).get(0), nullValue());
         }
     }
 
@@ -744,12 +746,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         // _doc, _segment, _shard are pruned
         assertThat(results.columns().size(), equalTo(2));
-        assertThat(results.values(), hasSize(Math.min(limit, numDocs)));
+        assertThat(getValuesList(results), hasSize(Math.min(limit, numDocs)));
         assertThat(results.columns().get(1).name(), equalTo("val"));
         assertThat(results.columns().get(0).name(), equalTo("tag"));
         List<Doc> actualDocs = new ArrayList<>();
-        for (int i = 0; i < results.values().size(); i++) {
-            List<Object> values = results.values().get(i);
+        for (int i = 0; i < getValuesList(results).size(); i++) {
+            List<Object> values = getValuesList(results).get(i);
             actualDocs.add(new Doc((Long) values.get(1), (String) values.get(0)));
         }
         assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
@@ -759,25 +761,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run("from test | eval nullsum = count_d + null | stats avg(nullsum)");
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, results.values().size());
+        Assert.assertEquals(1, getValuesList(results).size());
         assertEquals("avg(nullsum)", results.columns().get(0).name());
         assertEquals("double", results.columns().get(0).type());
-        assertEquals(1, results.values().get(0).size());
-        assertNull(results.values().get(0).get(0));
+        assertEquals(1, getValuesList(results).get(0).size());
+        assertNull(getValuesList(results).get(0).get(0));
     }
 
     public void testFromStatsLimit() {
         EsqlQueryResponse results = run("from test | stats ac = avg(count) by data | limit 1");
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("ac", "double"), new ColumnInfo("data", "long")));
-        assertThat(results.values(), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
+        assertThat(getValuesList(results), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
     }
 
     public void testFromLimit() {
         EsqlQueryResponse results = run("from test | keep data | limit 2");
         logger.info(results);
         assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
-        assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+        assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
     public void testDropAllColumns() {
@@ -785,14 +787,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         logger.info(results);
         assertThat(results.columns(), hasSize(1));
         assertThat(results.columns(), contains(new ColumnInfo("a", "integer")));
-        assertThat(results.values(), is(empty()));
+        assertThat(getValuesList(results), is(empty()));
     }
 
     public void testDropAllColumnsWithStats() {
         EsqlQueryResponse results = run("from test | stats g = count(data) | drop g");
         logger.info(results);
         assertThat(results.columns(), is(empty()));
-        assertThat(results.values(), is(empty()));
+        assertThat(getValuesList(results), is(empty()));
     }
 
     public void testIndexPatterns() throws Exception {
@@ -819,34 +821,34 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
 
         EsqlQueryResponse results = run("from test_index_patterns* | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(15L, results.values().get(0).get(0));
-        assertEquals(120000L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(15L, getValuesList(results).get(0).get(0));
+        assertEquals(120000L, getValuesList(results).get(0).get(1));
 
         results = run("from test_index_patterns_1,test_index_patterns_2 | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(10L, results.values().get(0).get(0));
-        assertEquals(55000L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(10L, getValuesList(results).get(0).get(0));
+        assertEquals(55000L, getValuesList(results).get(0).get(1));
 
         results = run("from test_index_patterns_1*,test_index_patterns_2* | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(10L, results.values().get(0).get(0));
-        assertEquals(55000L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(10L, getValuesList(results).get(0).get(0));
+        assertEquals(55000L, getValuesList(results).get(0).get(1));
 
         results = run("from test_index_patterns_*,-test_index_patterns_1 | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(10L, results.values().get(0).get(0));
-        assertEquals(105000L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(10L, getValuesList(results).get(0).get(0));
+        assertEquals(105000L, getValuesList(results).get(0).get(1));
 
         results = run("from * | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(55L, results.values().get(0).get(0));
-        assertEquals(121720L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(55L, getValuesList(results).get(0).get(0));
+        assertEquals(121720L, getValuesList(results).get(0).get(1));
 
         results = run("from test_index_patterns_2 | stats count(data), sum(count)");
-        assertEquals(1, results.values().size());
-        assertEquals(5L, results.values().get(0).get(0));
-        assertEquals(40000L, results.values().get(0).get(1));
+        assertEquals(1, getValuesList(results).size());
+        assertEquals(5L, getValuesList(results).get(0).get(0));
+        assertEquals(40000L, getValuesList(results).get(0).get(1));
     }
 
     public void testOverlappingIndexPatterns() throws Exception {
@@ -887,7 +889,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get());
         EsqlQueryResponse results = run("from test_empty");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("k", "keyword"), new ColumnInfo("v", "long"))));
-        assertThat(results.values(), empty());
+        assertThat(getValuesList(results), empty());
     }
 
     public void testShowInfo() {
@@ -896,22 +898,22 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             results.columns(),
             equalTo(List.of(new ColumnInfo("version", "keyword"), new ColumnInfo("date", "keyword"), new ColumnInfo("hash", "keyword")))
         );
-        assertThat(results.values().size(), equalTo(1));
-        assertThat(results.values().get(0).get(0), equalTo(Build.current().version()));
-        assertThat(results.values().get(0).get(1), equalTo(Build.current().date()));
-        assertThat(results.values().get(0).get(2), equalTo(Build.current().hash()));
+        assertThat(getValuesList(results).size(), equalTo(1));
+        assertThat(getValuesList(results).get(0).get(0), equalTo(Build.current().version()));
+        assertThat(getValuesList(results).get(0).get(1), equalTo(Build.current().date()));
+        assertThat(getValuesList(results).get(0).get(2), equalTo(Build.current().hash()));
     }
 
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("name", "keyword"), new ColumnInfo("synopsis", "keyword"))));
-        assertThat(results.values().size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
+        assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
     }
 
     public void testInWithNullValue() {
         EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data");
         assertThat(results.columns(), equalTo(List.of(new ColumnInfo("data", "long"))));
-        assertThat(results.values().size(), equalTo(0));
+        assertThat(getValuesList(results).size(), equalTo(0));
     }
 
     public void testTopNPushedToLucene() {
@@ -948,7 +950,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             """);
         logger.info(results);
         Assert.assertEquals(3, results.columns().size());
-        Assert.assertEquals(10, results.values().size());
+        Assert.assertEquals(10, getValuesList(results).size());
 
         // assert column metadata
         assertEquals("data", results.columns().get(0).name());
@@ -975,8 +977,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             new Group(9L, null),
             new Group(9L, 90L)
         );
-        List<Group> actualGroups = results.values()
-            .stream()
+        List<Group> actualGroups = getValuesList(results).stream()
             .map(l -> new Group((Long) l.get(0), (Long) l.get(1), (String) l.get(2)))
             .toList();
         assertThat(actualGroups, equalTo(expectedGroups));
@@ -1002,7 +1003,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time");
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(limit, results.values().size());
+        Assert.assertEquals(limit, getValuesList(results).size());
 
         // assert column metadata
         assertEquals("time", results.columns().get(0).name());
@@ -1015,7 +1016,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .sorted(sortedDesc ? reverseOrder() : naturalOrder())
             .limit(limit)
             .toList();
-        var actual = results.values().stream().map(l -> (Long) l.get(0)).toList();
+        var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
         assertThat(actual, equalTo(expected));
 
         // clean-up
@@ -1129,8 +1130,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         EsqlQueryResponse results = run(query);
         assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
         assertThat(results.columns().size(), is(1));
-        assertThat(results.values().size(), is(docsCount));
-        for (List<Object> row : results.values()) {
+        assertThat(getValuesList(results).size(), is(docsCount));
+        for (List<Object> row : getValuesList(results)) {
             assertThat(row.size(), is(1));
             // check that all the values returned are the regular ones
             assertThat((Long) row.get(0), allOf(greaterThanOrEqualTo(minValue), lessThanOrEqualTo(maxValue)));

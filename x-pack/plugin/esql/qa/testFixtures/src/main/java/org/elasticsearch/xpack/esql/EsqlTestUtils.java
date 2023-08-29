@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.Assert;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -123,5 +126,19 @@ public final class EsqlTestUtils {
                 return missingFields.contains(field) == false;
             }
         };
+    }
+
+    public static List<List<Object>> getValuesList(EsqlQueryResponse results) {
+        return getValuesList(results.values());
+    }
+
+    public static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.forEachRemaining(row -> {
+            var rowValues = new ArrayList<>();
+            row.forEachRemaining(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
     }
 }

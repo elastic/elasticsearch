@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -148,6 +149,15 @@ public final class CsvAssert {
 
     static void assertData(ExpectedResults expected, ActualResults actual, Logger logger) {
         assertData(expected, actual.values(), logger, Function.identity());
+    }
+
+    public static void assertData(
+        ExpectedResults expected,
+        Iterator<Iterator<Object>> actualValuesIterator,
+        Logger logger,
+        Function<Object, Object> valueTransformer
+    ) {
+        assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), logger, valueTransformer);
     }
 
     public static void assertData(

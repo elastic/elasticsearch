@@ -41,12 +41,12 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+        public static final ParseField FINISH_PENDING_WORK = new ParseField("finish_pending_work");
 
         private String id;
         private boolean allowNoMatch = true;
         private boolean force;
-        private boolean waitForCompletion;
+        private boolean finishPendingWork;
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -54,7 +54,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             PARSER.declareString(Request::setId, TrainedModelConfig.MODEL_ID);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
             PARSER.declareBoolean(Request::setForce, FORCE);
-            PARSER.declareBoolean(Request::setWaitForCompletion, WAIT_FOR_COMPLETION);
+            PARSER.declareBoolean(Request::setFinishPendingWork, FINISH_PENDING_WORK);
         }
 
         public static Request parseRequest(String id, XContentParser parser) {
@@ -80,9 +80,9 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             force = in.readBoolean();
 
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
-                waitForCompletion = in.readBoolean();
+                finishPendingWork = in.readBoolean();
             } else {
-                waitForCompletion = false;
+                finishPendingWork = false;
             }
         }
 
@@ -112,12 +112,12 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             return force;
         }
 
-        public boolean shouldWaitForCompletion() {
-            return waitForCompletion;
+        public boolean shouldFinishPendingWork() {
+            return finishPendingWork;
         }
 
-        public void setWaitForCompletion(boolean waitForCompletion) {
-            this.waitForCompletion = waitForCompletion;
+        public void setFinishPendingWork(boolean finishPendingWork) {
+            this.finishPendingWork = finishPendingWork;
         }
 
         @Override
@@ -133,7 +133,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeBoolean(force);
 
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
-                out.writeBoolean(waitForCompletion);
+                out.writeBoolean(finishPendingWork);
             }
         }
 
@@ -143,14 +143,14 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), id);
             builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+            builder.field(FINISH_PENDING_WORK.getPreferredName(), finishPendingWork);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, allowNoMatch, force, waitForCompletion);
+            return Objects.hash(id, allowNoMatch, force, finishPendingWork);
         }
 
         @Override
@@ -162,7 +162,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             return Objects.equals(id, that.id)
                 && allowNoMatch == that.allowNoMatch
                 && force == that.force
-                && waitForCompletion == that.waitForCompletion;
+                && finishPendingWork == that.finishPendingWork;
         }
     }
 

@@ -108,11 +108,11 @@ public class MlLifeCycleService {
             return true;
         }
 
+        logger.debug(() -> format("Checking shutdown safety for node id [%s]", nodeId));
+
         boolean nodeHasRunningDeployments = nodeHasRunningDeployments(nodeId, state);
 
-        logger.debug(
-            () -> format("Checking shutdown safety for node id [%s], has running deployments: %s", nodeId, nodeHasRunningDeployments)
-        );
+        logger.debug(() -> format("Node id [%s] has running deployments: %s", nodeId, nodeHasRunningDeployments));
 
         PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
@@ -138,7 +138,8 @@ public class MlLifeCycleService {
                 );
 
                 // A routing could exist in the stopped state if the deployment has successfully drained any remaining requests
-                return routingInfo.getState() != RoutingState.STOPPED;
+                // If a route is starting, started, or stopping then the node is not ready to shut down yet
+                return routingInfo.getState().isNoneOf(RoutingState.STOPPED, RoutingState.FAILED);
             }
 
             return false;

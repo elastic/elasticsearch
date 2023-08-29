@@ -474,7 +474,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             routingStateListener
         );
 
-        stopDeploymentAfterCompletingPendingWorkAsync(task, NODE_IS_SHUTTING_DOWN, notifyDeploymentOfStopped);
+        stopDeploymentAfterCompletingPendingWorkAsync(task, notifyDeploymentOfStopped);
     }
 
     private ActionListener<Void> updateRoutingStateToStoppedListener(
@@ -541,12 +541,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         });
     }
 
-    private void stopDeploymentAfterCompletingPendingWorkAsync(
-        TrainedModelDeploymentTask task,
-        String reason,
-        ActionListener<Void> listener
-    ) {
-        stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
+    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
+        stopDeploymentHelper(task, NODE_IS_SHUTTING_DOWN, deploymentManager::stopAfterCompletingPendingWork, listener);
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {

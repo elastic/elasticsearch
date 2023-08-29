@@ -22,12 +22,9 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-
-import static org.elasticsearch.common.Strings.format;
 
 /**
  * A worker service that executes runnables sequentially in
@@ -44,7 +41,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
     protected final BlockingQueue<T> queue;
     private final AtomicReference<Exception> error = new AtomicReference<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
-    private volatile boolean shouldShutdownAfterCompletingWork = false;
+    private final AtomicBoolean shouldShutdownAfterCompletingWork = new AtomicBoolean(false);
 
     /**
      * @param contextHolder the thread context holder
@@ -69,43 +66,30 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         return queue.size();
     }
 
-    public void shutdownWithError(Exception e) {
+    public void shutdownNowWithError(Exception e) {
         error.set(e);
-        shutdown();
-    }
-
-    /**
-     * Signals the worker to stop after completing all queued work and waits the specified amount of time for the worker to complete.
-     *
-     * @param timeout the maximum time to wait
-     * @param unit the time unit of the timeout
-     * @throws TimeoutException if the work has not completed after exceeding the timeout period
-     */
-    public void awaitTerminationAfterCompletingWork(long timeout, TimeUnit unit) throws TimeoutException {
-        try {
-            shouldShutdownAfterCompletingWork = true;
-            if (awaitTermination(timeout, unit) == false) {
-                throw new TimeoutException(format("Timed out waiting for process worker to complete for process %s", processName));
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.info(format("[%s] Interrupted waiting for process worker to complete", processName));
-        }
+        shutdownNow();
     }
 
     @Override
     public void shutdown() {
-        running.set(false);
+        shouldShutdownAfterCompletingWork.set(true);
     }
 
+    /**
+     * Some of the tasks in the returned list of {@link Runnable}s could have run. Some tasks may have run while the queue was being copied.
+     *
+     * @return a list of tasks that may not have been run
+     */
     @Override
     public List<Runnable> shutdownNow() {
-        throw new UnsupportedOperationException("not supported");
+        running.set(false);
+        return new ArrayList<>(queue);
     }
 
     @Override
     public boolean isShutdown() {
-        return running.get() == false;
+        return running.get() == false || shouldShutdownAfterCompletingWork.get();
     }
 
     @Override
@@ -129,7 +113,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                         logger.error(() -> "error handling process [" + processName + "] operation", e);
                     }
                     EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable));
-                } else if (shouldShutdownAfterCompletingWork) {
+                } else if (shouldShutdownAfterCompletingWork.get()) {
                     running.set(false);
                 }
             }

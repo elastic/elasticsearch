@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
@@ -385,6 +386,7 @@ public class DeploymentManager {
 
     class ProcessContext {
 
+        private static final String PROCESS_NAME = "inference process";
         private final TrainedModelDeploymentTask task;
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
@@ -415,7 +417,7 @@ public class DeploymentManager {
             this.stateStreamer = new PyTorchStateStreamer(client, executorServiceForProcess, xContentRegistry);
             this.priorityProcessWorker = new PriorityProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
-                "inference process",
+                PROCESS_NAME,
                 task.getParams().getQueueCapacity()
             );
         }
@@ -523,12 +525,27 @@ public class DeploymentManager {
 
         private void signalAndWaitForWorkerTermination() {
             try {
-                priorityProcessWorker.awaitTerminationAfterCompletingWork(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+                awaitTerminationAfterCompletingWork();
             } catch (TimeoutException e) {
                 logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()), e);
                 // The process failed to stop in the time period allotted, so we'll mark it for shut down
                 priorityProcessWorker.shutdown();
                 priorityProcessWorker.notifyQueueRunnables();
+            }
+        }
+
+        private void awaitTerminationAfterCompletingWork() throws TimeoutException {
+            try {
+                priorityProcessWorker.shutdown();
+
+                if (priorityProcessWorker.awaitTermination(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
+                    throw new TimeoutException(
+                        Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
+                    );
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info(Strings.format("[%s] Interrupted waiting for process worker to complete", PROCESS_NAME));
             }
         }
 
@@ -560,7 +577,7 @@ public class DeploymentManager {
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-            priorityProcessWorker.shutdownWithError(new IllegalStateException(reason));
+            priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();
             }

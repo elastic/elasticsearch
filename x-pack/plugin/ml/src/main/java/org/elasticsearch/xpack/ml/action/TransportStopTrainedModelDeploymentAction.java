@@ -262,7 +262,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     ) {
         task.stop(
             "undeploy_trained_model (api)",
-            request.shouldWaitForCompletion(),
+            request.shouldFinishPendingWork(),
             ActionListener.wrap(r -> listener.onResponse(new StopTrainedModelDeploymentAction.Response(true)), listener::onFailure)
         );
     }

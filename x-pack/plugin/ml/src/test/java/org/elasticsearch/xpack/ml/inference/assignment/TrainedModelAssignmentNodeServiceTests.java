@@ -70,7 +70,6 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private TrainedModelAssignmentService trainedModelAssignmentService;
     private TaskManager taskManager;
-    private CountDownLatch stopProcessCompletedLatch;
 
     @Before
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -89,7 +88,6 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             )
         );
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        stopProcessCompletedLatch = new CountDownLatch(1);
         deploymentManager = mock(DeploymentManager.class);
         doAnswer(invocationOnMock -> {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
@@ -376,6 +374,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         ArgumentCaptor<TrainedModelDeploymentTask> stopParamsCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
 
+        CountDownLatch stopProcessCompletedLatch = new CountDownLatch(1);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ActionListener<AcknowledgedResponse> listener = (ActionListener) invocationOnMock.getArguments()[1];

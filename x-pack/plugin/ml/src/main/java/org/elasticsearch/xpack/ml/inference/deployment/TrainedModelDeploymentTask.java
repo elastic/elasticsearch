@@ -104,9 +104,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason, boolean waitForCompletion, ActionListener<AcknowledgedResponse> listener) {
+    public void stop(String reason, boolean finishPendingWork, ActionListener<AcknowledgedResponse> listener) {
 
-        if (waitForCompletion) {
+        if (finishPendingWork) {
             trainedModelAssignmentNodeService.gracefullyStopDeploymentAndNotify(this, reason, listener);
         } else {
             trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);

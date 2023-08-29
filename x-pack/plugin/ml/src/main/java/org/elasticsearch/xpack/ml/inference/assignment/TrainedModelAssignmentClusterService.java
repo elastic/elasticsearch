@@ -234,6 +234,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
+        Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().getAllNodeIds();
 
         for (TrainedModelAssignment assignment : metadata.allAssignments().values()) {
             Set<String> routedNodeIdsToRemove = Sets.difference(assignment.getNodeRoutingTable().keySet(), assignableNodes);
@@ -248,7 +249,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 TrainedModelAssignment.Builder assignmentBuilder = removeRoutingBuilder(
                     routedNodeIdsToRemove,
-                    currentState.metadata().nodeShutdowns().getAllNodeIds(),
+                    shuttingDownNodes,
                     assignment
                 );
 
@@ -266,27 +267,26 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignment.Builder assignmentBuilder = TrainedModelAssignment.Builder.fromAssignment(assignment);
 
         for (String nodeIdToRemove : nodeIds) {
+            RoutingInfo routingInfoToRemove = assignment.getNodeRoutingTable().get(nodeIdToRemove);
+
             if (shuttingDownNodes.contains(nodeIdToRemove) == false) {
                 logger.debug(
                     () -> format("[%s] Removing route for unassignable node id [%s]", assignment.getDeploymentId(), nodeIdToRemove)
                 );
 
                 assignmentBuilder.removeRoutingEntry(nodeIdToRemove);
-            } else if (assignment.getNodeRoutingTable()
-                .get(nodeIdToRemove)
-                .getState()
-                .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
-                    logger.debug(
-                        () -> format(
-                            "[%s] Found assignment with route to shutting down node id [%s], adding stopping route",
-                            assignment.getDeploymentId(),
-                            nodeIdToRemove
-                        )
-                    );
+            } else if (routingInfoToRemove != null && routingInfoToRemove.getState().isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                logger.debug(
+                    () -> format(
+                        "[%s] Found assignment with route to shutting down node id [%s], adding stopping route",
+                        assignment.getDeploymentId(),
+                        nodeIdToRemove
+                    )
+                );
 
-                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(assignment.getNodeRoutingTable().get(nodeIdToRemove));
-                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeIdToRemove, stoppingRouteInfo);
-                }
+                RoutingInfo stoppingRouteInfo = createShuttingDownRoute(assignment.getNodeRoutingTable().get(nodeIdToRemove));
+                assignmentBuilder.addOrOverwriteRoutingEntry(nodeIdToRemove, stoppingRouteInfo);
+            }
 
         }
 

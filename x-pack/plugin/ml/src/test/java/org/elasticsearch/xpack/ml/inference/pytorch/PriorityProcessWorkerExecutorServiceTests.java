@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
@@ -127,8 +126,9 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
     private void runExecutorAndAssertTermination(PriorityProcessWorkerExecutorService executor) {
         Future<?> executorTermination = threadPool.generic().submit(() -> {
             try {
-                executor.awaitTerminationAfterCompletingWork(1, TimeUnit.MINUTES);
-            } catch (TimeoutException e) {
+                executor.shutdown();
+                executor.awaitTermination(1, TimeUnit.MINUTES);
+            } catch (Exception e) {
                 fail(Strings.format("Failed to gracefully shutdown executor: %s", e.getMessage()));
             }
         });

@@ -286,7 +286,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         stopDeployment(modelId, false, false);
     }
 
-    protected void stopDeployment(String modelId, boolean force, boolean waitForCompletion) throws IOException {
+    protected void stopDeployment(String modelId, boolean force, boolean finishPendingWork) throws IOException {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
 
         Request request = new Request("POST", endpoint);
@@ -294,8 +294,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
             request.addParameter("force", "true");
         }
 
-        if (waitForCompletion) {
-            request.addParameter("wait_for_completion", "true");
+        if (finishPendingWork) {
+            request.addParameter("finish_pending_work", "true");
         }
 
         client().performRequest(request);

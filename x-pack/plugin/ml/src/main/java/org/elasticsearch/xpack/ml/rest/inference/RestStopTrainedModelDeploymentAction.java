@@ -55,10 +55,10 @@ public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
             request.setForce(
                 restRequest.paramAsBoolean(StopTrainedModelDeploymentAction.Request.FORCE.getPreferredName(), request.isForce())
             );
-            request.setWaitForCompletion(
+            request.setFinishPendingWork(
                 restRequest.paramAsBoolean(
-                    StopTrainedModelDeploymentAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
-                    request.shouldWaitForCompletion()
+                    StopTrainedModelDeploymentAction.Request.FINISH_PENDING_WORK.getPreferredName(),
+                    request.shouldFinishPendingWork()
                 )
             );
         }

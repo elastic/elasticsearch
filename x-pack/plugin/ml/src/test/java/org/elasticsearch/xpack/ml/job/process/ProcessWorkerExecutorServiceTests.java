@@ -106,7 +106,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         boolean shutdownWithError = randomBoolean();
         // now shutdown
         if (shutdownWithError) {
-            executor.shutdownWithError(new ElasticsearchException("stopping the executor because an error occurred"));
+            executor.shutdownNowWithError(new ElasticsearchException("stopping the executor because an error occurred"));
         } else {
             executor.shutdown();
         }

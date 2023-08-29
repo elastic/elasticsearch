@@ -105,3 +105,22 @@ setup:
   - match: { hits.hits.2._index: "test2" }
   - match: { hits.hits.3._id: "b" }
 
+---
+"Test pinned query with docs and no index fail in previous versions":
+  - skip:
+      version: "8.10.99 - "
+      reason: "'_index' was made optional in 8.11, this test is for explicit failure tests"
+  - do:
+      catch: bad_request
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a }
+                - { _id: c, _index: test2 }
+              organic:
+                match:
+                  title:
+                    query: "title"

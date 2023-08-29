@@ -49,7 +49,6 @@ public class AuditIT extends ESRestTestCase {
 
     private static final String API_USER = "api_user";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
-    // private final
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

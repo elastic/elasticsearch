@@ -57,6 +57,10 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         cacheSize += stats.cacheSize;
     }
 
+    public void addRamBytesUsed(long additionalRamBytesUsed) {
+        ramBytesUsed += additionalRamBytesUsed;
+    }
+
     public long getMemorySizeInBytes() {
         return ramBytesUsed;
     }

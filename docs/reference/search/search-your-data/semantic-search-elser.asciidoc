@@ -361,3 +361,9 @@ PUT my-index
 * {ml-docs}/ml-nlp-elser.html[How to download and deploy ELSER]
 * {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER v1 limitation]
 * https://www.elastic.co/blog/may-2023-launch-information-retrieval-elasticsearch-ai-model[Improving information retrieval in the Elastic Stack: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
+
+[discrete]
+[[interactive-example]]
+==== Interactive example
+
+* The `elasticsearch-labs` repo has an interactive example of running https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/03-ELSER.ipynb[ELSER-powered semantic search] using the {es} Python client.

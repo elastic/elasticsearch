@@ -14,17 +14,21 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -32,12 +36,20 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,7 +60,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoubleFunction;
 import java.util.function.DoubleUnaryOperator;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -210,34 +226,32 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         /**
-         * Generate positive test cases for binary functions that operate on an {@code numeric}
+         * Generate positive test cases for unary functions that operate on an {@code numeric}
          * fields by casting them to {@link DataTypes#DOUBLE}s.
          */
         public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
+            String read = "Attribute[channel=0]";
+            String eval = name + "[" + argName + "=";
             List<TestCaseSupplier> suppliers = new ArrayList<>();
-            for (DataType type : EsqlDataTypes.types()) {
-                if (type.isNumeric() == false || EsqlDataTypes.isRepresentable(type) == false) {
-                    continue;
-                }
-                for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(type)) {
-                    suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(type), () -> {
-                        Number value = (Number) supplier.getValue().get();
-                        TypedData typed = new TypedData(
-                            // TODO there has to be a better way to handle unsigned long
-                            value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
-                            type,
-                            "value"
-                        );
-                        String evalName = castToDoubleEvaluator("Attribute[channel=0]", type);
-                        return new TestCase(
-                            List.of(typed),
-                            name + "[" + argName + "=" + evalName + "]",
-                            DataTypes.DOUBLE,
-                            equalTo(expected.applyAsDouble(value.doubleValue()))
-                        );
-                    }));
-                }
-            }
+            forUnaryInt(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
+                DataTypes.DOUBLE,
+                i -> expected.applyAsDouble(i)
+            );
+            forUnaryLong(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
+                DataTypes.DOUBLE,
+                l -> expected.applyAsDouble(l)
+            );
+            forUnaryUnsignedLong(
+                suppliers,
+                eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
+                DataTypes.DOUBLE,
+                ul -> expected.applyAsDouble(ul.doubleValue())
+            );
+            forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i));
             return suppliers;
         }
 
@@ -291,6 +305,81 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             return suppliers;
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#INTEGER}.
+         */
+        public static void forUnaryInt(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            IntFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.INTEGER, expectedType, n -> expectedValue.apply(n.intValue()));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#LONG}.
+         */
+        public static void forUnaryLong(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            LongFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.LONG, expectedType, n -> expectedValue.apply(n.longValue()));
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#UNSIGNED_LONG}.
+         */
+        public static void forUnaryUnsignedLong(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            Function<BigInteger, Object> expectedValue
+        ) {
+            unaryNumeric(
+                suppliers,
+                expectedEvaluatorToString,
+                DataTypes.UNSIGNED_LONG,
+                expectedType,
+                n -> expectedValue.apply((BigInteger) n)
+            );
+        }
+
+        /**
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#DOUBLE}.
+         */
+        public static void forUnaryDouble(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType expectedType,
+            DoubleFunction<Object> expectedValue
+        ) {
+            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.DOUBLE, expectedType, n -> expectedValue.apply(n.doubleValue()));
+        }
+
+        private static void unaryNumeric(
+            List<TestCaseSupplier> suppliers,
+            String expectedEvaluatorToString,
+            DataType inputType,
+            DataType expectedOutputType,
+            Function<Number, Object> expected
+        ) {
+            for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(inputType)) {
+                suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
+                    Number value = (Number) supplier.getValue().get();
+                    TypedData typed = new TypedData(
+                        // TODO there has to be a better way to handle unsigned long
+                        value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
+                        inputType,
+                        "value"
+                    );
+                    return new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
+                }));
+            }
         }
 
         private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(
@@ -624,6 +713,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         return suppliers;
+
     }
 
     /**
@@ -753,5 +843,103 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static Stream<DataType> representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+    }
+
+    /**
+     * Unique signatures encountered by this test.
+     * <p>
+     *     We clear this at the beginning of the test class with
+     *     {@link #clearSignatures} out of paranoia. It <strong>is</strong>
+     *     shared by many tests, after all.
+     * </p>
+     * <p>
+     *     After each test method we add the signature it operated on via
+     *     {@link #trackSignature}. Once the test class is done we render
+     *     all the unique signatures to a temp file with {@link #renderTypesTable}.
+     *     We use a temp file because that's all we're allowed to write to.
+     *     Gradle will move the files into the docs after this is done.
+     * </p>
+     */
+    private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
+
+    @BeforeClass
+    public static void clearSignatures() {
+        signatures.clear();
+    }
+
+    @After
+    public void trackSignature() {
+        if (testCase.expectedTypeError != null) {
+            return;
+        }
+        if (testCase.getData().stream().anyMatch(t -> t.type == DataTypes.NULL)) {
+            return;
+        }
+        signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
+    }
+
+    @AfterClass
+    public static void renderTypesTable() throws IOException {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");
+            return;
+        }
+
+        List<String> definedSignature = ShowFunctions.signature(definition);
+        StringBuilder header = new StringBuilder();
+        for (String arg : definedSignature) {
+            header.append(arg).append(" | ");
+        }
+        header.append("result");
+
+        List<String> table = new ArrayList<>();
+        for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
+            if (sig.getKey().size() != definedSignature.size()) {
+                continue;
+            }
+            StringBuilder b = new StringBuilder();
+            for (DataType arg : sig.getKey()) {
+                b.append(arg.typeName()).append(" | ");
+            }
+            b.append(sig.getValue().typeName());
+            table.add(b.toString());
+        }
+        Collections.sort(table);
+
+        String rendered = """
+            [%header.monospaced.styled,format=dsv,separator=|]
+            |===
+            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
+        LogManager.getLogger(getTestClass()).info("Writing function types:\n{}", rendered);
+        writeToTempDir("types", rendered, "asciidoc");
+    }
+
+    private static FunctionDefinition definition() {
+        String name = functionName();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        if (registry.functionExists(name)) {
+            return registry.resolveFunction(name);
+        }
+        return null;
+    }
+
+    private static String functionName() {
+        return getTestClass().getSimpleName().replace("Tests", "").toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Write some text to a tempdir so we can copy it to the docs later.
+     * <p>
+     *     We need to write to a tempdir instead of the docs because the tests
+     *     don't have write permission to the docs.
+     * </p>
+     */
+    private static void writeToTempDir(String subdir, String str, String extension) throws IOException {
+        // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
+        Files.createDirectories(dir);
+        Path file = dir.resolve(functionName() + "." + extension);
+        Files.writeString(file, str);
     }
 }

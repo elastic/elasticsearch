@@ -70,6 +70,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return true;
     }
 
+    public static SnapshotDeletionsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
      * the given {@link Entry} to the invoking instance.

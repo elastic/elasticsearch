@@ -353,7 +353,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertNotNull(createSnapshotResponseListener.result());
         assertNotNull(restoreSnapshotResponseListener.result());
         assertTrue(documentCountVerified.get());
-        assertTrue(masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
+        assertTrue(SnapshotsInProgress.get(masterNode.clusterService.state()).isEmpty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
@@ -438,8 +438,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
             .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
-        SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state()
-            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        SnapshotsInProgress finalSnapshotsInProgress = SnapshotsInProgress.get(randomMaster.clusterService.state());
         assertTrue(finalSnapshotsInProgress.isEmpty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
@@ -484,10 +483,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             () -> testClusterNodes.randomMasterNode()
                 .map(
                     master -> snapshotDeleteResponded.get()
-                        && master.clusterService.state()
-                            .custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
-                            .getEntries()
-                            .isEmpty()
+                        && SnapshotDeletionsInProgress.get(master.clusterService.state()).getEntries().isEmpty()
                 )
                 .orElse(false),
             TimeUnit.MINUTES.toMillis(1L)
@@ -497,8 +493,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
             .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
-        SnapshotsInProgress finalSnapshotsInProgress = randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertTrue(finalSnapshotsInProgress.isEmpty());
+        assertTrue(SnapshotsInProgress.get(randomMaster.clusterService.state()).isEmpty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(0));
@@ -531,7 +526,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         masterNode.clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty() == false) {
+                if (SnapshotsInProgress.get(event.state()).isEmpty() == false) {
                     client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
                     masterNode.clusterService.removeListener(this);
                 }
@@ -957,8 +952,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
-        SnapshotDeletionsInProgress deletionsInProgress = masterNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
-        assertFalse(deletionsInProgress.hasDeletionsInProgress());
+        assertFalse(SnapshotDeletionsInProgress.get(masterNode.clusterService.state()).hasDeletionsInProgress());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
@@ -1051,17 +1045,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (createdSnapshot.get() == false) {
                 return false;
             }
-            return master.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty();
+            return SnapshotsInProgress.get(master.clusterService.state()).isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
         assertTrue(createdSnapshot.get());
-        assertTrue(
-            testClusterNodes.randomDataNodeSafe().clusterService.state()
-                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .isEmpty()
-        );
+        assertTrue(SnapshotsInProgress.get(testClusterNodes.randomDataNodeSafe().clusterService.state()).isEmpty());
         final Repository repository = testClusterNodes.randomMasterNodeSafe().repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));

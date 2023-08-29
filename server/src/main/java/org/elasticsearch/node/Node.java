@@ -182,6 +182,7 @@ import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -462,6 +463,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));

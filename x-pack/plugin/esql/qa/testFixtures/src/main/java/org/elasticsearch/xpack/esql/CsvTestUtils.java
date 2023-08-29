@@ -33,6 +33,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -383,7 +384,7 @@ public final class CsvTestUtils {
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        List<List<Object>> values() {
+        Iterator<Iterator<Object>> values() {
             return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
         }
     }

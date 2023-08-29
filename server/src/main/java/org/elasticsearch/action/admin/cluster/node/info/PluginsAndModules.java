@@ -42,11 +42,11 @@ public class PluginsAndModules implements ReportingService.Info {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
-            out.writeList(plugins);
+            out.writeCollection(plugins);
         } else {
-            out.writeList(plugins.stream().map(PluginRuntimeInfo::descriptor).toList());
+            out.writeCollection(plugins.stream().map(PluginRuntimeInfo::descriptor).toList());
         }
-        out.writeList(modules);
+        out.writeCollection(modules);
     }
 
     /**

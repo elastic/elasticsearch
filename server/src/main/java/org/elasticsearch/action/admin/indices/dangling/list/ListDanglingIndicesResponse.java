@@ -99,7 +99,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     // visible for testing

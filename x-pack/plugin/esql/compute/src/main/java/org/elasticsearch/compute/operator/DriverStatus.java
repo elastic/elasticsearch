@@ -67,7 +67,7 @@ public class DriverStatus implements Task.Status {
         out.writeString(sessionId);
         out.writeLong(lastUpdated);
         out.writeString(status.toString());
-        out.writeList(activeOperators);
+        out.writeCollection(activeOperators);
     }
 
     @Override

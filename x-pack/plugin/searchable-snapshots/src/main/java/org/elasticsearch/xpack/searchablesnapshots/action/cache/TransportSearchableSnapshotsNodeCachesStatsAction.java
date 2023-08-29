@@ -294,7 +294,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

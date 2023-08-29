@@ -117,7 +117,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(limit.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
-        Alias eeField = (Alias) eval.fields().get(0);
+        Alias eeField = eval.fields().get(0);
         assertEquals("ee", eeField.name());
         assertEquals("e", ((ReferenceAttribute) eeField.child()).name());
 

@@ -358,8 +358,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     public void testMigrateWithTemplatesV1() throws Exception {
-        // this should pass for both, the first allows templates, the second INTERNAL_UNMANAGED doesn't match the template
-        migrateWithTemplatesV1(".allow_templates", ALLOW_TEMPLATES_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
+        // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
+        migrateWithTemplatesV1(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
 
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
@@ -442,8 +442,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     public void testMigrateWithTemplatesV2() throws Exception {
-        // this should pass for both, the first allows templates, the second INTERNAL_UNMANAGED doesn't match the template
-        migrateWithTemplatesV2(".allow_templates", ALLOW_TEMPLATES_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
+        // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
+        migrateWithTemplatesV2(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
 
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(

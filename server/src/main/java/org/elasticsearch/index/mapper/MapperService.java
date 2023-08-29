@@ -351,13 +351,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
-            if (Objects.equals(currentSource, newSource) == false) {
+            if (Objects.equals(currentSource, newSource) == false
+                && mapper.isSyntheticSourceMalformed(currentSource, indexVersionCreated) == false) {
                 throw new IllegalStateException(
                     "expected current mapping [" + currentSource + "] to be the same as new mapping [" + newSource + "]"
                 );
             }
         }
         return true;
+
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
@@ -504,7 +506,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -695,4 +697,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return documentMapper().mapping().getRoot().dynamicTemplates();
     }
 
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
 }

@@ -11,11 +11,15 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
@@ -136,5 +140,29 @@ public class NodesStatsRequestTests extends ESTestCase {
     private static void assertRequestsEqual(NodesStatsRequest request1, NodesStatsRequest request2) {
         assertThat(request1.indices().getFlags(), equalTo(request2.indices().getFlags()));
         assertThat(request1.requestedMetrics(), equalTo(request2.requestedMetrics()));
+    }
+
+    public void testGetDescription() {
+        final var request = new NodesStatsRequest("nodeid1", "nodeid2");
+        request.clear();
+        request.addMetrics(NodesStatsRequest.Metric.OS.metricName(), NodesStatsRequest.Metric.TRANSPORT.metricName());
+        request.indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store, CommonStatsFlags.Flag.Flush));
+        final var description = request.getDescription();
+
+        assertThat(
+            description,
+            allOf(
+                containsString("nodeid1"),
+                containsString("nodeid2"),
+                containsString(NodesStatsRequest.Metric.OS.metricName()),
+                containsString(NodesStatsRequest.Metric.TRANSPORT.metricName()),
+                not(containsString(NodesStatsRequest.Metric.SCRIPT.metricName())),
+                containsString(CommonStatsFlags.Flag.Store.toString()),
+                containsString(CommonStatsFlags.Flag.Flush.toString()),
+                not(containsString(CommonStatsFlags.Flag.FieldData.toString()))
+            )
+        );
+
+        assertEquals(description, request.createTask(1, "", "", TaskId.EMPTY_TASK_ID, Map.of()).getDescription());
     }
 }

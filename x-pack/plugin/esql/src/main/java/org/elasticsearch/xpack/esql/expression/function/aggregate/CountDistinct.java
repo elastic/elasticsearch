@@ -14,7 +14,6 @@ import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunc
 import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -87,6 +86,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(type);
+        throw new UnsupportedOperationException("COUNT DISTINCT not supported for type [" + type.typeName() + "]");
     }
 }

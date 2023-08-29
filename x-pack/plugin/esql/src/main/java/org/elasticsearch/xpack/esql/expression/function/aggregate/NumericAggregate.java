@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -71,7 +70,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (type == DataTypes.DOUBLE) {
             return doubleSupplier(bigArrays, inputChannels);
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(type);
+        throw new UnsupportedOperationException("aggregation not supported for type [" + type.typeName() + "]");
     }
 
     protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);

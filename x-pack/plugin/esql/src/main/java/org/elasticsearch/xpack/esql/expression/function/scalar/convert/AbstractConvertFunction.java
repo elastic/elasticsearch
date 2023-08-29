@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -44,7 +43,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         DataType sourceType = field().dataType();
         var evaluator = evaluators().get(sourceType);
         if (evaluator == null) {
-            throw EsqlUnsupportedOperationException.unsupportedDataType(sourceType);
+            throw new UnsupportedOperationException("convert function not supported for type [" + sourceType.typeName() + "]");
         }
         return () -> evaluator.apply(fieldEval.get(), source());
     }

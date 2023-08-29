@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -89,7 +90,8 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             null,
             mock(SSLService.class),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            mock(CrossClusterAccessAuthenticationService.class)
         );
         requestIdReceived = new AtomicLong(-1L);
         securityNettyTransport.setMessageListener(new TransportMessageListener() {

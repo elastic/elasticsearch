@@ -366,4 +366,4 @@ PUT my-index
 [[interactive-example]]
 ==== Interactive example
 
-* The `elasticsearch-labs` repo has an interactive example of running https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/03-ELSER.ipynb[ELSER-powered semantic search] using the Elasticsearch Python client.
+* The `elasticsearch-labs` repo has an interactive example of running https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/03-ELSER.ipynb[ELSER-powered semantic search] using the {es} Python client.

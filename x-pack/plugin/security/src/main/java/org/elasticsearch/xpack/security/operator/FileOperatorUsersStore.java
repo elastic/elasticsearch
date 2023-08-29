@@ -74,17 +74,12 @@ public class FileOperatorUsersStore {
         if (realm == null) {
             return false;
         }
-        // User principal is not unique enough for the JWT realm
-        final String username = JwtRealmSettings.TYPE.equals(realm.getType())
-            ? (String) authentication.getEffectiveSubject().getUser().metadata().get("jwt_token_principal")
-            : authentication.getEffectiveSubject().getUser().principal();
-
         // Validation per-group is done early and once. This allows this anyMatch to be agnostic to the specific rules
         // for any specific group. For example, token_source is not allowed to be null when authentication is done via a token but
         // null is allowed here for a generic anyMatch across any group. This safe because we require token_source to be configured
         // when auth_type is token.
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
-            final boolean match = group.usernames.contains(username)
+            final boolean match = group.usernames.contains(authentication.getEffectiveSubject().getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()))

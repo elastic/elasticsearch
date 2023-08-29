@@ -158,38 +158,12 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         final Authentication.RealmRef jwtRealm = new Authentication.RealmRef("jwt1", "jwt", randomAlphaOfLength(8));
         assertTrue(
             fileOperatorUsersStore.isOperatorUser(
-                AuthenticationTestHelper.builder()
-                    .realm()
-                    .user(
-                        new User(
-                            "me@elastic.co",
-                            randomRoles(),
-                            "me",
-                            "me@elastic.co",
-                            Map.of("jwt_token_principal", "iss1/aud1,aud2/sub/me@elastic.co"),
-                            true
-                        )
-                    )
-                    .realmRef(jwtRealm)
-                    .build(false)
+                AuthenticationTestHelper.builder().realm().user(new User("me@elastic.co", randomRoles())).realmRef(jwtRealm).build(false)
             )
         );
         assertFalse(
             fileOperatorUsersStore.isOperatorUser(
-                AuthenticationTestHelper.builder()
-                    .realm()
-                    .user(
-                        new User(
-                            "you@elastic.co",
-                            randomRoles(),
-                            "you",
-                            "you@elastic.co",
-                            Map.of("jwt_token_principal", "iss1/aud1,aud2/sub/you@elastic.co"),
-                            true
-                        )
-                    )
-                    .realmRef(jwtRealm)
-                    .build(false)
+                AuthenticationTestHelper.builder().realm().user(new User("you@elastic.co", randomRoles())).realmRef(jwtRealm).build(false)
             )
         );
 
@@ -233,10 +207,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 ),
                 groups.get(2)
             );
-            assertEquals(
-                new FileOperatorUsersStore.Group(Set.of("iss1/aud1,aud2/sub/me@elastic.co"), "jwt1", "jwt", "realm", null, null),
-                groups.get(3)
-            );
+            assertEquals(new FileOperatorUsersStore.Group(Set.of("me@elastic.co"), "jwt1", "jwt", "realm", null, null), groups.get(3));
             appender.assertAllExpectationsMatched();
 
             // Content does not change, the groups should not be updated
@@ -381,7 +352,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 auth_type: "token"
                 token_source: "index"
                 token_names: ["token1", "token2"]
-              - usernames: ["myissuer/myaud/mysub/myprinc", "myissuer/myaud,myaud2/mysub/myprinc2"]
+              - usernames: ["myprinc", "myprinc2"]
                 realm_type: "jwt"
                 realm_name: "jwt1"
             """;
@@ -402,14 +373,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 groups.get(1)
             );
             assertEquals(
-                new FileOperatorUsersStore.Group(
-                    Set.of("myissuer/myaud/mysub/myprinc", "myissuer/myaud,myaud2/mysub/myprinc2"),
-                    "jwt1",
-                    "jwt",
-                    "realm",
-                    null,
-                    null
-                ),
+                new FileOperatorUsersStore.Group(Set.of("myprinc", "myprinc2"), "jwt1", "jwt", "realm", null, null),
                 groups.get(2)
             );
         }

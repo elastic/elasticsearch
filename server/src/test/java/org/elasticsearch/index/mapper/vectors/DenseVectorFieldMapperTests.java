@@ -998,6 +998,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     b.field("ef_construction", 50);
                     b.endObject();
                 }
+            } else {
+                b.field("index", false);
             }
         }
 

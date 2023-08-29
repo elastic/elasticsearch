@@ -38,8 +38,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -403,7 +403,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 null,
                 persistedClusterStateService,
                 List.of(),
-                EmptySystemIndices.INSTANCE
+                VersionsWrapper.EMPTY
             );
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
             assertThat(persistedState, instanceOf(GatewayMetaState.AsyncPersistedState.class));

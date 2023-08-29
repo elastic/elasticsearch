@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
@@ -143,23 +144,24 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         };
 
     // TODO[wrb]: mappings versions serializer?
-    private static final DiffableUtils.ValueSerializer<
-        String,
-        Map<String, SystemIndexDescriptor.MappingsVersion>> SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER =
-            new DiffableUtils.NonDiffableValueSerializer<>() {
-                @Override
-                public void write(Map<String, SystemIndexDescriptor.MappingsVersion> value, StreamOutput out) throws IOException {
-                    out.writeMap(value, StreamOutput::writeString, (o, v) -> {
-                        out.writeInt(v.version());
-                        out.writeInt(v.hash());
-                    });
-                }
+    private static final DiffableUtils.ValueSerializer<String, VersionsWrapper> SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<>() {
+            @Override
+            public void write(VersionsWrapper value, StreamOutput out) throws IOException {
+                // TODO[wrb] this needs to be modified for multiple kinds of versions
+                out.writeMap(value.systemIndexMappingsVersions(), StreamOutput::writeString, (o, v) -> {
+                    out.writeInt(v.version());
+                    out.writeInt(v.hash());
+                });
+            }
 
-                @Override
-                public Map<String, SystemIndexDescriptor.MappingsVersion> read(StreamInput in, String key) throws IOException {
-                    return in.readMap(StreamInput::readString, i -> new SystemIndexDescriptor.MappingsVersion(i.readInt(), i.readInt()));
-                }
-            };
+            @Override
+            public VersionsWrapper read(StreamInput in, String key) throws IOException {
+                return new VersionsWrapper(
+                    in.readMap(StreamInput::readString, i -> new SystemIndexDescriptor.MappingsVersion(i.readInt(), i.readInt()))
+                );
+            }
+        };
 
     public static final String UNKNOWN_UUID = "_na_";
 
@@ -185,8 +187,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private final Map<String, TransportVersion> transportVersions;
     private final TransportVersion minTransportVersion;
-    private final Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions;
-    private final Map<String, SystemIndexDescriptor.MappingsVersion> minSystemIndexMappingsVersions;
+    private final Map<String, VersionsWrapper> otherVersions;
+    private final VersionsWrapper minOtherVersions;
     private final Metadata metadata;
 
     private final ClusterBlocks blocks;
@@ -209,7 +211,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.routingTable(),
             state.nodes(),
             state.transportVersions,
-            state.systemIndexMappingsVersions,
+            state.otherVersions,
             state.blocks(),
             state.customs(),
             false,
@@ -225,7 +227,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         Map<String, TransportVersion> transportVersions,
-        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions,
+        Map<String, VersionsWrapper> otherVersions,
         ClusterBlocks blocks,
         Map<String, Custom> customs,
         boolean wasReadFromDiff,
@@ -238,7 +240,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingTable = routingTable;
         this.nodes = nodes;
         this.transportVersions = Map.copyOf(transportVersions);
-        this.systemIndexMappingsVersions = systemIndexMappingsVersions;
+        this.otherVersions = otherVersions;
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
@@ -254,12 +256,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 .orElse(TransportVersion.MINIMUM_COMPATIBLE);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> tmpVersions = new HashMap<>();
-        for (Map<String, SystemIndexDescriptor.MappingsVersion> versionMap : systemIndexMappingsVersions.values()) {
-            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> entry : versionMap.entrySet()) {
+        for (VersionsWrapper versionsWrapper : otherVersions.values()) {
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> entry : versionsWrapper.systemIndexMappingsVersions()
+                .entrySet()) {
                 tmpVersions.merge(entry.getKey(), entry.getValue(), (v1, v2) -> v1.version() < v2.version() ? v1 : v2);
             }
         }
-        this.minSystemIndexMappingsVersions = Map.copyOf(tmpVersions);
+        this.minOtherVersions = new VersionsWrapper(Map.copyOf(tmpVersions));
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -323,12 +326,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return this.minTransportVersion;
     }
 
-    public Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions() {
-        return this.systemIndexMappingsVersions;
+    public Map<String, VersionsWrapper> otherVersions() {
+        return this.otherVersions;
     }
 
-    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingsVersions() {
-        return this.minSystemIndexMappingsVersions;
+    public VersionsWrapper getMinOtherVersions() {
+        return this.minOtherVersions;
     }
 
     public Metadata metadata() {
@@ -781,7 +784,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private final Map<String, TransportVersion> transportVersions;
-        private final Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions;
+        private final Map<String, VersionsWrapper> otherVersions;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
@@ -793,7 +796,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
             this.transportVersions = new HashMap<>(state.transportVersions);
-            this.systemIndexMappingsVersions = new HashMap<>(state.systemIndexMappingsVersions);
+            this.otherVersions = new HashMap<>(state.otherVersions);
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -803,7 +806,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         public Builder(ClusterName clusterName) {
             this.transportVersions = new HashMap<>();
-            this.systemIndexMappingsVersions = new HashMap<>();
+            this.otherVersions = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -834,18 +837,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
-        public Builder putSystemIndexMappingsVersions(String nodeId, Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions) {
-            systemIndexMappingsVersions.put(nodeId, Objects.requireNonNull(mappingsVersions, nodeId));
+        public Builder putOtherVersions(String nodeId, VersionsWrapper versionsWrapper) {
+            otherVersions.put(nodeId, Objects.requireNonNull(versionsWrapper, nodeId));
             return this;
         }
 
-        public Builder systemIndexMappingsVersions(
-            Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions
-        ) {
-            systemIndexMappingsVersions.forEach((key, value) -> Objects.requireNonNull(value, key));
+        public Builder otherVersions(Map<String, VersionsWrapper> versionsWrapperMap) {
+            versionsWrapperMap.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in new map
-            this.systemIndexMappingsVersions.keySet().retainAll(systemIndexMappingsVersions.keySet());
-            this.systemIndexMappingsVersions.putAll(systemIndexMappingsVersions);
+            this.otherVersions.keySet().retainAll(versionsWrapperMap.keySet());
+            this.otherVersions.putAll(versionsWrapperMap);
             return this;
         }
 
@@ -853,8 +854,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return Collections.unmodifiableMap(this.transportVersions);
         }
 
-        public Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions() {
-            return Collections.unmodifiableMap(this.systemIndexMappingsVersions);
+        public Map<String, VersionsWrapper> otherVersions() {
+            return Collections.unmodifiableMap(this.otherVersions);
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -943,7 +944,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 routingTable,
                 nodes,
                 transportVersions,
-                systemIndexMappingsVersions,
+                otherVersions,
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -1056,7 +1057,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         @Nullable
         private final Diff<Map<String, TransportVersion>> transportVersions;
-        private final Diff<Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>>> systemIndexMappingsVersions;
+        private final Diff<Map<String, VersionsWrapper>> otherVersions;
 
         private final Diff<Metadata> metadata;
 
@@ -1077,9 +1078,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 DiffableUtils.getStringKeySerializer(),
                 TRANSPORT_VERSION_VALUE_SERIALIZER
             );
-            systemIndexMappingsVersions = DiffableUtils.diff(
-                before.systemIndexMappingsVersions,
-                after.systemIndexMappingsVersions,
+            otherVersions = DiffableUtils.diff(
+                before.otherVersions,
+                after.otherVersions,
                 DiffableUtils.getStringKeySerializer(),
                 SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
             );
@@ -1105,13 +1106,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 transportVersions = null;   // infer at application time
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
-                systemIndexMappingsVersions = DiffableUtils.readJdkMapDiff(
+                otherVersions = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
                     SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
                 );
             } else {
-                systemIndexMappingsVersions = DiffableUtils.emptyDiff();
+                otherVersions = DiffableUtils.emptyDiff();
             }
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
@@ -1133,7 +1134,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 out.writeOptionalWriteable(transportVersions);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
-                out.writeWriteable(systemIndexMappingsVersions);
+                out.writeWriteable(otherVersions);
             }
             metadata.writeTo(out);
             blocks.writeTo(out);
@@ -1163,10 +1164,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 // infer the versions from discoverynodes for now
                 builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
             }
-            if (systemIndexMappingsVersions != null) {
-                builder.systemIndexMappingsVersions(systemIndexMappingsVersions.apply(state.systemIndexMappingsVersions));
+            if (otherVersions != null) {
+                builder.otherVersions(otherVersions.apply(state.otherVersions));
             } else {
-                builder.systemIndexMappingsVersions(Map.of());
+                builder.otherVersions(Map.of());
             }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));

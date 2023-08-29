@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.HashMap;
@@ -57,10 +57,8 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     }
 
     @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
-    private static Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> getSystemIndexMappingsVersions(
-        ClusterState clusterState
-    ) {
-        return clusterState.systemIndexMappingsVersions();
+    private static Map<String, VersionsWrapper> getSystemIndexMappingsVersions(ClusterState clusterState) {
+        return clusterState.otherVersions();
     }
 
     @Override
@@ -69,9 +67,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
         // TODO[wrb]: system index version
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
-        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> allSystemIndexMappingsVersions = new HashMap<>(
-            getSystemIndexMappingsVersions(initialState)
-        );
+        Map<String, VersionsWrapper> otherVersions = new HashMap<>(getSystemIndexMappingsVersions(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
@@ -79,7 +75,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 transportVersions.remove(task.node().getId());
-                allSystemIndexMappingsVersions.remove(task.node().getId());
+                otherVersions.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -106,7 +102,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
                 initialState,
                 remainingNodesBuilder,
                 transportVersions,
-                allSystemIndexMappingsVersions
+                otherVersions
             );
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
@@ -124,12 +120,12 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
         Map<String, TransportVersion> transportVersions,
-        Map<String, Map<String, SystemIndexDescriptor.MappingsVersion>> systemIndexMappingsVersions
+        Map<String, VersionsWrapper> otherVersions
     ) {
         return ClusterState.builder(currentState)
             .nodes(remainingNodesBuilder)
             .transportVersions(transportVersions)
-            .systemIndexMappingsVersions(systemIndexMappingsVersions)
+            .otherVersions(otherVersions)
             .build();
     }
 

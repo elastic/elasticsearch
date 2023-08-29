@@ -52,7 +52,10 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public static final String NO_TEMPLATE_STORED_WARNING = "Using default search application template which is subject to change. "
         + "We recommend storing a template to avoid breaking changes.";
 
+    public static final String NO_ALIAS_WARNING = "Alias is missing for the search application";
     private final String name;
+
+    @Nullable
     private final String[] indices;
     private final long updatedAtMillis;
     private final String analyticsCollectionName;
@@ -90,7 +93,15 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     public SearchApplication(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.indices = in.readStringArray();
+        this.indices = null;
+        this.analyticsCollectionName = in.readOptionalString();
+        this.updatedAtMillis = in.readLong();
+        this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
+    }
+
+    public SearchApplication(StreamInput in, String[] indices) throws IOException {
+        this.name = in.readString();
+        this.indices = indices;
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
         this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
@@ -99,7 +110,6 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeStringArray(indices);
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
         out.writeOptionalWriteable(searchApplicationTemplate);
@@ -182,7 +192,11 @@ public class SearchApplication implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         builder.field(NAME_FIELD.getPreferredName(), name);
+        if (indices != null) {
+            builder.field(INDICES_FIELD.getPreferredName(), indices);
+        }
         if (analyticsCollectionName != null) {
             builder.field(ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), analyticsCollectionName);
         }

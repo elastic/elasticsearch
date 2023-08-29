@@ -87,8 +87,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(columns);
-        out.writeList(pages);
+        out.writeCollection(columns);
+        out.writeCollection(pages);
         out.writeBoolean(columnar);
     }
 

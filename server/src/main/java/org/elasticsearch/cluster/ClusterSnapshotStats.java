@@ -175,7 +175,7 @@ public record ClusterSnapshotStats(
         out.writeVInt(incompleteShardSnapshotCount);
         out.writeVInt(deletionsInProgressCount);
         out.writeVInt(cleanupsInProgressCount);
-        out.writeList(statsByRepository);
+        out.writeCollection(statsByRepository);
     }
 
     public static ClusterSnapshotStats readFrom(StreamInput in) throws IOException {

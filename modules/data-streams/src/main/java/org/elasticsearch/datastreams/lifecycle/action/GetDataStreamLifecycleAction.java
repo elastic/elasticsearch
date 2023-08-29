@@ -205,7 +205,7 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreamLifecycles);
+            out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
         }
 

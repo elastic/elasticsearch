@@ -77,7 +77,7 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(steps.stream().map(MockStep::new).collect(Collectors.toList()));
+        out.writeCollection(steps.stream().map(MockStep::new).collect(Collectors.toList()));
         out.writeBoolean(safe);
     }
 

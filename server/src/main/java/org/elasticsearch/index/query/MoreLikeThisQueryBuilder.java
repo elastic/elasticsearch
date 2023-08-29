@@ -515,9 +515,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalStringArray(fields);
         out.writeStringArray(likeTexts);
-        out.writeList(Arrays.asList(likeItems));
+        out.writeCollection(Arrays.asList(likeItems));
         out.writeStringArray(unlikeTexts);
-        out.writeList(Arrays.asList(unlikeItems));
+        out.writeCollection(Arrays.asList(unlikeItems));
         out.writeVInt(maxQueryTerms);
         out.writeVInt(minTermFreq);
         out.writeVInt(minDocFreq);

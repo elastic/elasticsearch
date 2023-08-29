@@ -45,7 +45,7 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

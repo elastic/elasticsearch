@@ -75,10 +75,7 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
 
     @Override
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
-        if (false == (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric())) {
-            return false;
-        }
-        return super.supportsTypes(lhsType, rhsType);
+        return super.supportsTypes(lhsType, rhsType) && (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric());
     }
 
     @Override

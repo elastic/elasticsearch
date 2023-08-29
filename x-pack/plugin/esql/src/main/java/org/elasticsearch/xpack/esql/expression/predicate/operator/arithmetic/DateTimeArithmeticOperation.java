@@ -50,9 +50,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType rightType = right().dataType();
         // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
         if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            Expression dateTime = argumentOfType(DataTypes::isDateTime);
-            Expression nonDateTime = argumentOfType(dt -> DataTypes.isDateTime(dt) == false);
-            if (dateTime == null || nonDateTime == null || EsqlDataTypes.isTemporalAmount(nonDateTime.dataType()) == false) {
+            if (argumentOfType(DataTypes::isDateTime) == null || argumentOfType(EsqlDataTypes::isTemporalAmount) == null) {
                 return new TypeResolution(
                     format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
                 );

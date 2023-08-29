@@ -171,7 +171,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         if (testCase.allTypesAreRepresentable()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
             return toJavaObject(evaluator(neg).get().eval(row(List.of(val))), 0);
-        } else {
+        } else { // just fold if type is not representable
             Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
             return neg.fold();
         }

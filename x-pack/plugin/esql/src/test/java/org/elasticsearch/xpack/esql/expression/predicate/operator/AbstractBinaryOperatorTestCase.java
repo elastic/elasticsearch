@@ -88,12 +88,12 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                 Literal rhs = randomValueOtherThanMany(l -> rhsOk(l.value()) == false, () -> randomLiteral(rhsType));
                 Object result;
                 BinaryOperator<?, ?, ?, ?> op;
+                Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
                 if (isRepresentable(lhsType) && isRepresentable(rhsType)) {
-                    Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
                     op = build(src, field("lhs", lhsType), field("rhs", rhsType));
                     result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
                 } else {
-                    op = build(new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName()), lhs, rhs);
+                    op = build(src, lhs, rhs);
                     result = op.fold();
                 }
                 if (result == null) {

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -53,6 +54,12 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private volatile boolean shuttingDown = false;
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
+
+    interface SocketChannelFactory {
+        ServerSocketChannel open(String nodeName) throws IOException;
+    }
+
+    static SocketChannelFactory socketChannelFactory = nodeName -> ServerSocketChannel.open();
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
         this.serverChannel = null;
@@ -119,7 +126,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         });
 
         try {
-            serverChannel = ServerSocketChannel.open();
+            serverChannel = socketChannelFactory.open(Node.NODE_NAME_SETTING.get(settings));
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {

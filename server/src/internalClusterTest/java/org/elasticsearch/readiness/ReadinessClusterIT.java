@@ -28,11 +28,22 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.SocketAddress;
+import java.net.SocketOption;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,6 +60,81 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClientProbe {
+
+    private static class MockServerSocketChannel extends ServerSocketChannel {
+
+        private static final Map<String, MockServerSocketChannel> mockedSockets = new HashMap<>();
+
+        static ServerSocketChannel open(String nodeName) {
+            var mockSocket = new MockServerSocketChannel();
+            mockedSockets.put(nodeName, mockSocket);
+            return mockSocket;
+        }
+
+        private static void tcpReadinessProbeTrue(String nodeName) {
+            MockServerSocketChannel mockedSocket = mockedSockets.get(nodeName);
+            if (mockedSocket == null) {
+                fail("Mocked socket not created for this node");
+            }
+            assertTrue(mockedSocket.isOpen());
+        }
+
+        private static void tcpReadinessProbeFalse(String nodeName) {
+            MockServerSocketChannel mockedSocket = mockedSockets.get(nodeName);
+            if (mockedSocket == null) {
+                fail("Mocked socket not created for this node");
+            }
+            assertFalse(mockedSocket.isOpen());
+        }
+
+        private MockServerSocketChannel() {
+            super(SelectorProvider.provider());
+        }
+
+        @Override
+        public ServerSocketChannel bind(SocketAddress local, int backlog) {
+            assert isOpen();
+            return this;
+        }
+
+        @Override
+        public <T> ServerSocketChannel setOption(SocketOption<T> name, T value) {
+            throw new UnsupportedOperationException("Calling not mocked method");
+        }
+
+        @Override
+        public <T> T getOption(SocketOption<T> name) {
+            throw new UnsupportedOperationException("Calling not mocked method");
+        }
+
+        @Override
+        public Set<SocketOption<?>> supportedOptions() {
+            throw new UnsupportedOperationException("Calling not mocked method");
+        }
+
+        @Override
+        public ServerSocket socket() {
+            throw new UnsupportedOperationException("Calling not mocked method");
+        }
+
+        @Override
+        public SocketChannel accept() {
+            return null;
+        }
+
+        @Override
+        public SocketAddress getLocalAddress() {
+            return new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        }
+
+        @Override
+        protected void implCloseSelectableChannel() {}
+
+        @Override
+        protected void implConfigureBlocking(boolean block) {
+            throw new UnsupportedOperationException("Calling not mocked method");
+        }
+    }
 
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -101,6 +187,9 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     }
 
     public void testReadinessDuringRestarts() throws Exception {
+
+        ReadinessService.socketChannelFactory = MockServerSocketChannel::open;
+
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
         String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
@@ -112,13 +201,8 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         final String masterNode = internalCluster().startMasterOnlyNode();
 
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
-        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
-        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
-
-        Integer masterPort = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName())
-            .boundAddress()
-            .publishAddress()
-            .getPort();
+        MockServerSocketChannel.tcpReadinessProbeTrue(dataNode);
+        MockServerSocketChannel.tcpReadinessProbeTrue(masterNode);
 
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
 
@@ -127,7 +211,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
         internalCluster().stopCurrentMasterNode();
         expectMasterNotFound();
 
-        tcpReadinessProbeFalse(masterPort);
+        MockServerSocketChannel.tcpReadinessProbeFalse(masterNode);
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
@@ -136,7 +220,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
 
         assertMasterNode(internalCluster().nonMasterClient(), nextMasterEligibleNodeName);
         assertMasterNode(internalCluster().masterClient(), nextMasterEligibleNodeName);
-        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, nextMasterEligibleNodeName));
+        MockServerSocketChannel.tcpReadinessProbeTrue(nextMasterEligibleNodeName);
     }
 
     public void testReadinessDuringRestartsNormalOrder() throws Exception {

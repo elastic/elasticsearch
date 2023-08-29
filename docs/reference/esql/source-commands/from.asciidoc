@@ -27,3 +27,10 @@ or aliases:
 ----
 FROM employees-00001,employees-*
 ----
+
+Use the `metadata` directive to enable <<esql-multivalued-fields, metadata fields>>:
+
+[source,esql]
+----
+FROM employees [METADATA _id]
+----

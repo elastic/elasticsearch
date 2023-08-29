@@ -725,6 +725,14 @@ tasks.named("buildRestTests").configure { buildRestTests ->
             "email" : "jacknich@example.com",
             "metadata" : { "intelligence" : 7 }
           }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
 '''
   setups['app0102_privileges'] = '''
   - do:

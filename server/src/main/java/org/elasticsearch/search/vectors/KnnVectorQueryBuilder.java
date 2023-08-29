@@ -100,7 +100,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
     private final int numCands;
-    private final List<QueryBuilder> filterQueries;
+    private final List<QueryBuilder> filterQueries = new ArrayList<>();
     private final Float vectorSimilarity;
 
     private KnnVectorQueryBuilder(
@@ -136,7 +136,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorBuilder = queryVectorBuilder;
         this.querySupplier = null;
         this.numCands = numCands;
-        this.filterQueries = new ArrayList<>();
         this.vectorSimilarity = vectorSimilarity;
     }
 
@@ -150,7 +149,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorBuilder = null;
         this.querySupplier = querySupplier;
         this.numCands = numCands;
-        this.filterQueries = new ArrayList<>();
         this.vectorSimilarity = vectorSimilarity;
     }
 
@@ -166,10 +164,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 in.readBoolean(); // used for byteQueryVector, which was always null
             }
         }
-        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
-            this.filterQueries = new ArrayList<>();
-        } else {
-            this.filterQueries = readQueries(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+            this.filterQueries.addAll(readQueries(in));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             this.vectorSimilarity = in.readOptionalFloat();

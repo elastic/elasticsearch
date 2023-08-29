@@ -143,11 +143,13 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
     }
 
     public void testCloneAndLargeRead() throws IOException {
-        final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(ByteSizeUnit.KB.toIntBytes(2), ByteSizeUnit.KB.toIntBytes(10)));
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(between(ByteSizeUnit.KB.toIntBytes(2), ByteSizeUnit.KB.toIntBytes(10)));
         try (var indexInput = createIndexInput(bytes)) {
             indexInput.readLong();
 
             final var clone = indexInput.clone();
+
+            // do a read which is large enough to exercise the path which bypasses the buffer and fills the output directly
 
             final var originalBytes = new byte[2048];
             indexInput.readBytes(originalBytes, 0, originalBytes.length);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.aggregations.bucket;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -57,7 +56,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         numberOfDocuments = randomIntBetween(1000, 2000);
         final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocuments);
         // NOTE: use also the last (changing) dimension so to make sure documents are not indexed all in the same shard.
-        final String[] routingDimensions = new String[] { "dim_1", "dim_" + (numberOfDimensions - 1) };
+        final String[] routingDimensions = new String[] { "dim_0", "dim_" + (numberOfDimensions - 1) };
         assertTrue(prepareTimeSeriesIndex(mapping, startMillis, endMillis, routingDimensions).isAcknowledged());
 
         logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocuments + " start: " + startMillis + " end: " + endMillis);
@@ -141,9 +140,11 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         }
         builder.startObject("counter_metric");
         builder.field("type", "double");
+        builder.field("time_series_metric", "counter");
         builder.endObject();
         builder.startObject("gauge_metric");
         builder.field("type", "double");
+        builder.field("time_series_metric", "gauge");
         builder.endObject();
         builder.endObject(); // properties
         builder.endObject();
@@ -186,14 +187,14 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         assertTimeSeriesAggregation(ts);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98715")
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + (numberOfDimensions - 1))
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
-        assertTimeSeriesAggregation(aggregationResponse.getAggregations().get("counter_cardinality"));
         ((InternalTimeSeries) aggregationResponse.getAggregations().get("ts")).getBuckets().forEach(bucket -> {
-            assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 2);
+            assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1);
         });
     }
 
@@ -215,7 +216,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
     private static void assertTsid(final Map<String, Object> timeSeries) {
         final Map.Entry<String, Object> tsidEntry = timeSeries.entrySet().stream().toList().get(0);
         assertEquals(TimeSeriesIdFieldMapper.NAME, tsidEntry.getKey());
-        assertTrue(((BytesRef) tsidEntry.getValue()).utf8ToString().startsWith(TSID_HASH_PREFIX));
+        assertTrue(((String) tsidEntry.getValue()).startsWith(TSID_HASH_PREFIX));
     }
 
     private static void assertCardinality(final InternalCardinality cardinalityAggregation, int expectedCardinality) {

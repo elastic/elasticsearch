@@ -15,9 +15,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -140,10 +142,26 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
-        BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
+        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
+        final BytesReference timeSeriesId = timeSeriesIdBuilder.build();
+        final BytesReference timeSeriesIdHashOrPlain = timeSeriesId.toBytesRef().length > LIMIT ? hash(timeSeriesId) : timeSeriesId;
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdHashOrPlain.toBytesRef()));
+        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId.toBytesRef());
+    }
+
+    public static BytesReference hash(final BytesReference timeSeriesId) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            final byte[] buffer = new byte[16];
+            out.writeVInt(TSID_HASH_SENTINEL);
+            final BytesRef tsid = timeSeriesId.toBytesRef();
+            final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+            MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, 0, hash);
+            ByteUtils.writeLongLE(hash.h1, buffer, 0);
+            ByteUtils.writeLongLE(hash.h2, buffer, 8);
+            final BytesRef encoded = new BytesRef(TSID_HASH_PREFIX + Base64.getUrlEncoder().encodeToString(buffer));
+            out.writeBytesRef(encoded);
+            return out.bytes();
+        }
     }
 
     @Override
@@ -163,7 +181,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         try {
             int sizeOrTsidHashSentinel = in.readVInt();
             if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                return Collections.emptyMap();
+                return Collections.singletonMap("_tsid", in.readBytesRef().utf8ToString());
             }
             Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
@@ -218,19 +236,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     out.writeBytesRef(fieldName);
                     entry.getValue().writeTo(out);
                 }
-                final BytesReference timeSeriesId = out.bytes();
-                if (timeSeriesId.length() > LIMIT) {
-                    // NOTE: we hash the _tsid only if necessary, which is if the field does not fit Lucene UTF-8 doc values
-                    try (BytesStreamOutput hashOut = new BytesStreamOutput()) {
-                        final byte[] buffer = new byte[16];
-                        hashOut.writeVInt(TSID_HASH_SENTINEL);
-                        TsidExtractingIdFieldMapper.hashTsid(timeSeriesId.toBytesRef(), buffer);
-                        final BytesRef encoded = new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(buffer));
-                        hashOut.writeBytesRef(encoded);
-                        return hashOut.bytes();
-                    }
-                }
-                return timeSeriesId;
+                return out.bytes();
             }
         }
 

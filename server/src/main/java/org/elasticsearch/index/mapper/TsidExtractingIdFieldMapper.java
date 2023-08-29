@@ -171,13 +171,6 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return id;
     }
 
-    public static void hashTsid(final BytesRef tsid, byte[] buffer) {
-        final Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
-        ByteUtils.writeLongLE(hash.h1, buffer, 0);
-        ByteUtils.writeLongLE(hash.h2, buffer, 8);
-    }
-
     @Override
     public String documentDescription(DocumentParserContext context) {
         /*

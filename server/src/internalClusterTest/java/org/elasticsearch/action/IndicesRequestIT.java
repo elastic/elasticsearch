@@ -98,6 +98,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -754,7 +755,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
-            String executor,
+            Executor executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler
         ) {

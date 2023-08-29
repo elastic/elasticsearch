@@ -8,6 +8,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -69,7 +70,9 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         );
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(IndexVersion.V_8_0_0), PreBuiltAnalyzers.STOP.getAnalyzer(IndexVersion.V_8_0_1));
+        IndexVersion v1 = new IndexVersion(1, Version.LUCENE_9_7_0);
+        IndexVersion v2 = new IndexVersion(2, Version.LUCENE_9_7_0);
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

@@ -305,7 +305,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -469,6 +469,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -545,28 +546,11 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restInterceptor = null;
-        for (ActionPlugin plugin : actionPlugins) {
-            if (plugin instanceof RestInterceptorActionPlugin riplugin) {
-                UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
-                if (newRestInterceptor != null) {
-                    logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());
-                    if (plugin.getClass().getCanonicalName() == null
-                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom REST "
-                                + "interceptor. This functionality is not available anymore."
-                        );
-                    }
-                    if (restInterceptor != null) {
-                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST interceptor");
-                    }
-                    restInterceptor = newRestInterceptor;
-                }
-            }
-        }
+        UnaryOperator<RestHandler> restInterceptor = getRestServerComponent(
+            "REST interceptor",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestHandlerInterceptor(threadPool.getThreadContext())
+        );
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
         );
@@ -574,8 +558,56 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
         headersToCopy = headers;
-        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+
+        var customController = getRestServerComponent(
+            "REST controller",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer)
+        );
+        if (customController != null) {
+            restController = customController;
+        } else {
+            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+    }
+
+    private static <T> T getRestServerComponent(
+        String type,
+        List<ActionPlugin> actionPlugins,
+        Function<RestServerActionPlugin, T> function
+    ) {
+        T result = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            if (plugin instanceof RestServerActionPlugin restPlugin) {
+                var newInstance = function.apply(restPlugin);
+                if (newInstance != null) {
+                    logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
+                    if (isInternalPlugin(plugin) == false) {
+                        throw new IllegalArgumentException(
+                            "The "
+                                + plugin.getClass().getName()
+                                + " plugin tried to install a custom "
+                                + type
+                                + ". This functionality is not available to external plugins."
+                        );
+                    }
+                    if (result != null) {
+                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a " + type);
+                    }
+                    result = newInstance;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isInternalPlugin(ActionPlugin plugin) {
+        final String canonicalName = plugin.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     /**

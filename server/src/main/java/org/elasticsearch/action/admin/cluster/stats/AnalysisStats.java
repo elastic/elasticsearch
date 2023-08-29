@@ -47,6 +47,16 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
 
     private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
 
+    // Maps the synonyms token filter configurations to the stats keys used
+    static final Map<String, String> SYNONYM_STATS_KEYS_FOR_CONFIG = Map.of(
+        "synonyms",
+        "inline",
+        "synonyms_set",
+        "sets",
+        "synonyms_path",
+        "paths"
+    );
+
     /**
      * Create {@link AnalysisStats} from the given cluster state.
      */
@@ -217,7 +227,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                     synonymRuleType = "synonyms";
                     isInline = true;
                 }
-                SynonymsStats stat = synonymsStats.computeIfAbsent(synonymRuleType, id -> new SynonymsStats());
+                SynonymsStats stat = synonymsStats.computeIfAbsent(
+                    SYNONYM_STATS_KEYS_FOR_CONFIG.get(synonymRuleType),
+                    id -> new SynonymsStats()
+                );
                 if (synonymIdsUsedInIndices.add(synonymRuleType + indexName)) {
                     stat.indexCount++;
                 }
@@ -405,7 +418,6 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
         builder.field("synonyms");
         builder.map(usedSynonyms);
-
         builder.endObject();
 
         return builder;

@@ -200,7 +200,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         perPartitionCategorizationConfig.writeTo(out);
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
-        out.writeList(detectors);
+        out.writeCollection(detectors);
         out.writeStringCollection(influencers);
 
         out.writeOptionalBoolean(multivariateByFields);

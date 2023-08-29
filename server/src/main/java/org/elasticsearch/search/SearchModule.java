@@ -217,11 +217,11 @@ import org.elasticsearch.search.fetch.subphase.MatchedQueriesPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
 import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -279,13 +279,6 @@ public class SearchModule {
         1,
         Integer.MAX_VALUE,
         Setting.Property.NodeScope
-    );
-
-    public static final Setting<Boolean> SEARCH_CONCURRENCY_ENABLED = Setting.boolSetting(
-        "search.concurrency_enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
     );
 
     private final Map<String, Highlighter> highlighters;
@@ -872,7 +865,7 @@ public class SearchModule {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("unified", new UnifiedHighlighter());
+        highlighters.register("unified", new DefaultHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());

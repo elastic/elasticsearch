@@ -890,9 +890,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         @Nullable
-        public org.elasticsearch.Version getCommitVersion() {
+        public IndexVersion getCommitVersion() {
             String version = commitUserData.get(ES_VERSION);
-            return version == null ? null : org.elasticsearch.Version.fromString(version);
+            return version == null ? null : Engine.readIndexVersion(version);
         }
 
         public static boolean isReadAsHash(String file) {
@@ -1499,7 +1499,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     final Map<String, String> userData = startingIndexCommit.getUserData();
                     writer.setLiveCommitData(() -> {
                         Map<String, String> updatedUserData = new HashMap<>(userData);
-                        updatedUserData.put(ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+                        updatedUserData.put(ES_VERSION, IndexVersion.current().toString());
                         return updatedUserData.entrySet().iterator();
                     });
                     writer.commit();
@@ -1528,7 +1528,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
-        userData.put(Engine.ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+        userData.put(Engine.ES_VERSION, IndexVersion.current().toString());
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();

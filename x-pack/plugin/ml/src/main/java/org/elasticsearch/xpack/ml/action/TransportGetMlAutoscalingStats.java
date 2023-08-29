@@ -77,6 +77,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         if (mlMemoryTracker.isRecentlyRefreshed()) {
             MlAutoscalingResourceTracker.getMlAutoscalingStats(
                 state,
+                clusterService.getClusterSettings(),
                 parentTaskAssigningClient,
                 request.timeout(),
                 mlMemoryTracker,
@@ -96,6 +97,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                     ActionListener.wrap(
                         ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                             state,
+                            clusterService.getClusterSettings(),
                             parentTaskAssigningClient,
                             request.timeout(),
                             mlMemoryTracker,

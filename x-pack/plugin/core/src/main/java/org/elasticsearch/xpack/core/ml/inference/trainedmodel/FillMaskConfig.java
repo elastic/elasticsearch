@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +16,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -133,8 +133,8 @@ public class FillMaskConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedNodeVersion() {
-        return Version.V_8_0_0;
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_0_0;
     }
 
     @Override

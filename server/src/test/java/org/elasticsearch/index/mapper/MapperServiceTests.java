@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -264,14 +263,14 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testIsMetadataField() throws IOException {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
 
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(Version.V_8_0_0)) {
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersion.V_8_0_0)) {
                 continue;   // Nested field does not exist in the 7x line
             }
             assertTrue("Expected " + builtIn + " to be a metadata field for version " + version, mapperService.isMetadataField(builtIn));

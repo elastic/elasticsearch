@@ -1481,28 +1481,33 @@ public class MetadataIndexTemplateService {
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "20d"
      *     }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
-     * However, if we have the following two lifecycles:
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "20d"}} because the second data retention overrides the
+     * first. However, if we have the following two lifecycles:
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": false,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
-     *   "lifecycle": { }
+     *   "lifecycle": {
+     *      "enabled": true
+     *   }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "10d"} } because the latest lifecycle does not have any
      * information on retention.
      * @param lifecycles a sorted list of lifecycles in the order that they will be composed
      * @return the final lifecycle
@@ -1511,11 +1516,10 @@ public class MetadataIndexTemplateService {
     public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
         DataStreamLifecycle.Builder builder = null;
         for (DataStreamLifecycle current : lifecycles) {
-            if (current == Template.NO_LIFECYCLE) {
-                builder = null;
-            } else if (builder == null) {
+            if (builder == null) {
                 builder = DataStreamLifecycle.newBuilder(current);
             } else {
+                builder.enabled(current.isEnabled());
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());
                 }

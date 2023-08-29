@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -211,7 +212,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
         {
             Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
             Settings indexSettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
                 .build();

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
@@ -716,7 +715,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         for (int i = 0; i < 5; i++) {
             String indexName = "metrics-" + i;
             Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_INDEX_UUID, indexName);
             imdBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
 
@@ -1084,7 +1083,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )
@@ -1127,7 +1126,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )
@@ -1170,7 +1169,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )
@@ -1213,7 +1212,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )
@@ -1256,7 +1255,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )
@@ -1299,7 +1298,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                             .build()
                     )

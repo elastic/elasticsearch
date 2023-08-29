@@ -156,7 +156,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), Map.of(), nodes);
         registry.clusterChanged(newEvent);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -164,7 +164,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -200,7 +200,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             "{\"_meta\":{\"version\":%d},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}",
             ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION
         );
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -253,7 +253,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         // set version to 0 to force an upgrade (proper versions start at 1)
         String priorPolicyStr = "{\"_meta\":{\"version\":0},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 

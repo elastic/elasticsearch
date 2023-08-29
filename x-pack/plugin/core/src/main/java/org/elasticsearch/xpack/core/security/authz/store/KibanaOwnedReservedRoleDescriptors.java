@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -79,6 +78,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 "manage_ml",
                 // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
@@ -347,15 +347,13 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null,
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    getRemoteIndicesReadPrivileges(".monitoring-*"),
-                    getRemoteIndicesReadPrivileges("apm-*"),
-                    getRemoteIndicesReadPrivileges("logs-apm.*"),
-                    getRemoteIndicesReadPrivileges("metrics-apm.*"),
-                    getRemoteIndicesReadPrivileges("traces-apm.*"),
-                    getRemoteIndicesReadPrivileges("traces-apm-*") }
-                : null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                getRemoteIndicesReadPrivileges(".monitoring-*"),
+                getRemoteIndicesReadPrivileges("apm-*"),
+                getRemoteIndicesReadPrivileges("logs-apm.*"),
+                getRemoteIndicesReadPrivileges("metrics-apm.*"),
+                getRemoteIndicesReadPrivileges("traces-apm.*"),
+                getRemoteIndicesReadPrivileges("traces-apm-*") },
             null
         );
     }

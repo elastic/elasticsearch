@@ -79,7 +79,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     @Override
     protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         filter.writeTo(out);
     }
 

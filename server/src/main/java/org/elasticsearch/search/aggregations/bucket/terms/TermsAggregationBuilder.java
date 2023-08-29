@@ -134,7 +134,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    public boolean supportsConcurrentExecution() {
+    public boolean supportsParallelCollection() {
         return false;
     }
 

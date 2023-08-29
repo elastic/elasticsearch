@@ -278,6 +278,11 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetSecretsIndex), is(false));
 
+        final TransportRequest request = mock(TransportRequest.class);
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(true));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(false));
+        assertThat(role.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(false));
+
         final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(apmSampledTracesIndex), is(true));

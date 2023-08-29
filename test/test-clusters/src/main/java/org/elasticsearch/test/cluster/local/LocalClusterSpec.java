@@ -197,6 +197,10 @@ public class LocalClusterSpec implements ClusterSpec {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
         }
 
+        public boolean isRemoteClusterServerEnabled() {
+            return Boolean.parseBoolean(getSetting("remote_cluster_server.enabled", "false"));
+        }
+
         public boolean isMasterEligible() {
             return getSetting("node.roles", "master").contains("master");
         }

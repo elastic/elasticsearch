@@ -102,7 +102,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(shutdownStatuses);
+            out.writeCollection(shutdownStatuses);
         }
 
         @Override

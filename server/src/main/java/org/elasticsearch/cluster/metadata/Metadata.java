@@ -1286,7 +1286,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null && parentDataStream.getLifecycle().isEnabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }
@@ -1434,7 +1434,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        return Iterators.concat(start, Iterators.<ToXContent>single((builder, params) -> {
+        return Iterators.concat(start, Iterators.single((builder, params) -> {
             builder.field("cluster_uuid", clusterUUID);
             builder.field("cluster_uuid_committed", clusterUUIDCommitted);
             builder.startObject("cluster_coordination");

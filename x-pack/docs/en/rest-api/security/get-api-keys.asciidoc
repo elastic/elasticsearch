@@ -15,13 +15,13 @@ Retrieves information for one or more API keys.
 [[security-api-get-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_own_api_key` or the 
+* To use this API, you must have at least the `manage_own_api_key` or the
 `read_security` cluster privileges.
 ** If you only have the `manage_own_api_key` privilege, this API only returns
-the API keys that you own. 
+the API keys that you own.
 +
 NOTE: Authenticating with an API key that has the `manage_own_api_key` privilege
-does not allow retrieving the authenticated user's own keys. Instead, 
+does not allow retrieving the authenticated user's own keys. Instead,
 authenticate the user with basic credentials.
 ** If you have `read_security`, `manage_api_key` or greater
 privileges (including `manage_security`), this API returns all API keys
@@ -66,6 +66,12 @@ parameter is set to 'true' as they are assumed to be the currently authenticated
 associated with the API key. An API key's actual permission is the intersection of
 its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's role descriptors
 (effectively limited by it). An API key must have `manage_api_key` or higher privileges to retrieve the limited-by role descriptors of any API key, including itself.
+
+`active_only`::
+(Optional, Boolean) A boolean flag that can be used to query API keys that are currently active.
+An API key is considered active if it is neither invalidated, nor expired at query time. You can specify this together
+with other parameters such as `owner` or `name`.  If `active_only` is `false`, the response will
+include both active and inactive (expired or invalidated) keys. Defaults to `false`.
 
 NOTE: When none of the parameters "id", "name", "username" and "realm_name"
 are specified, and the "owner" is set to false then it will retrieve all API
@@ -227,6 +233,13 @@ The following example retrieves all API keys if the user is authorized to do so:
 [source,console]
 --------------------------------------------------
 GET /_security/api_key
+--------------------------------------------------
+// TEST[continued]
+
+The following example retrieves all active API keys if the user is authorized to do so:
+[source,console]
+--------------------------------------------------
+GET /_security/api_key?active_only=true
 --------------------------------------------------
 // TEST[continued]
 

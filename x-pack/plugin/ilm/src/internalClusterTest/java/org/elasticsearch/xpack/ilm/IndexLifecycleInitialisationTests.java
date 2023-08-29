@@ -104,9 +104,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         nodeSettings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         nodeSettings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
-        // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
+        // This is necessary to prevent ILM installing a lifecycle policy, these tests assume a blank slate
         nodeSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
-        nodeSettings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         return nodeSettings.build();
     }
 
@@ -596,7 +595,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
+            out.writeCollection(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
             out.writeBoolean(isSafeAction());
         }
     }

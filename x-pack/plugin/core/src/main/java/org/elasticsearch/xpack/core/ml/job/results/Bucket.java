@@ -161,10 +161,10 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        out.writeList(records);
+        out.writeCollection(records);
         out.writeLong(eventCount);
         out.writeBoolean(isInterim);
-        out.writeList(bucketInfluencers);
+        out.writeCollection(bucketInfluencers);
         out.writeLong(processingTimeMs);
         out.writeStringCollection(scheduledEvents);
     }

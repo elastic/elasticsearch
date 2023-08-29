@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedAlias;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
@@ -44,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -422,7 +422,7 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen
     ) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen);
 
@@ -513,7 +513,16 @@ public class ResolveIndexTests extends ESTestCase {
                             .setAllowedElasticProductOrigins(List.of("test-net-new-system"))
                             .setNetNew()
                             .setSettings(Settings.EMPTY)
-                            .setMappings("{ \"_doc\": { \"_meta\": { \"version\": \"8.0.0\" } } }")
+                            .setMappings(String.format(Locale.ROOT, """
+                                {
+                                  "_doc": {
+                                    "_meta": {
+                                      "version": "8.0.0",
+                                      "%s": 1
+                                    }
+                                  }
+                                }
+                                """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
                             .setVersionMetaKey("version")
                             .setOrigin("system")

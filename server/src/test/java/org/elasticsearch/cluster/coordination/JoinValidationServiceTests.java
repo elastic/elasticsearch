@@ -199,7 +199,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 randomFrom(random, otherNodes),
                                 ActionListener.assertOnce(new ActionListener<>() {
                                     @Override
-                                    public void onResponse(TransportResponse.Empty empty) {
+                                    public void onResponse(Void ignored) {
                                         validationPermits.release();
                                     }
 
@@ -344,7 +344,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         masterTransportService.acceptIncomingRequests();
 
         try {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<Void>();
             joinValidationService.validateJoin(joiningNode, future);
             assertFalse(future.isDone());
             deterministicTaskQueue.runAllTasks();
@@ -488,7 +488,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         masterTransportService.acceptIncomingRequests();
 
         try {
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<Void>();
             joinValidationService.validateJoin(joiningNode, future);
             assertFalse(future.isDone());
             deterministicTaskQueue.runAllTasks();

@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.core.ml.notifications;
 import org.elasticsearch.Version;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.util.Map;
+
 public final class NotificationsIndex {
 
     public static final String NOTIFICATIONS_INDEX = ".ml-notifications-000002";
 
     private static final String RESOURCE_PATH = "/ml/";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    private static final int NOTIFICATIONS_INDEX_MAPPINGS_VERSION = 1;
 
     private NotificationsIndex() {}
 
@@ -22,7 +25,8 @@ public final class NotificationsIndex {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "notifications_index_mappings.json",
             Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION))
         );
     }
 }

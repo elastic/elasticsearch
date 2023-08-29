@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -105,8 +105,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 continue;
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
-                // special case: a node that holds the shard is on an old version
-                if (nodes.get(shard.currentNodeId()).getVersion().before(Version.V_8_2_0)) {
+                // special case: The minimum TransportVersion in the cluster is on an old version
+                if (state.getMinTransportVersion().before(TransportVersion.V_8_2_0)) {
                     throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
                 }
 

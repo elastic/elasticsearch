@@ -48,7 +48,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         boolean hasPolicyStats = policyStats != null;
         out.writeBoolean(hasPolicyStats);
         if (hasPolicyStats) {
-            out.writeList(policyStats);
+            out.writeCollection(policyStats);
         }
     }
 

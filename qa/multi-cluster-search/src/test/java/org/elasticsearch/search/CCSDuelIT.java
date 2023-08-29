@@ -1055,7 +1055,6 @@ public class CCSDuelIT extends ESRestTestCase {
             SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.get();
 
             responseChecker.accept(minimizeRoundtripsSearchResponse);
-            SearchResponse.Clusters clusters = minimizeRoundtripsSearchResponse.getClusters();
 
             // if only the remote cluster was searched, then only one reduce phase is expected
             int expectedReducePhasesMinRoundTrip = 1;
@@ -1067,10 +1066,22 @@ public class CCSDuelIT extends ESRestTestCase {
             SearchResponse fanOutSearchResponse = fanOutResponse.get();
             responseChecker.accept(fanOutSearchResponse);
             assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+            // compare Clusters objects
+            SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+            SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+            assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+            assertEquals(clustersMRT.getSuccessful(), clustersMRTFalse.getSuccessful());
+            assertEquals(clustersMRT.getSkipped(), clustersMRTFalse.getSkipped());
+
+            boolean removeSkipped = searchRequest.source().collapse() != null;
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-            Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
-            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+            if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+                Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+                compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
+                assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+            }
             return minimizeRoundtripsResponseMap;
         }
     }
@@ -1128,10 +1139,22 @@ public class CCSDuelIT extends ESRestTestCase {
 
         responseChecker.accept(fanOutSearchResponse);
         assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+        // compare Clusters objects
+        SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+        SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+        assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+        assertEquals(clustersMRT.getSuccessful(), clustersMRTFalse.getSuccessful());
+        assertEquals(clustersMRT.getSkipped(), clustersMRTFalse.getSkipped());
+
+        boolean removeSkipped = searchRequest.source().collapse() != null;
         Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-        Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-        compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
-        assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+        if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+            Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+        }
         return minimizeRoundtripsResponseMap;
     }
 
@@ -1276,7 +1299,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 replaceProfileTime(shard);
                 /*
                  * The way we try to reduce round trips is by fetching all
-                 * of the results we could possibly need from the remote
+                 * the results we could possibly need from the remote
                  * cluster and then merging *those* together locally. This
                  * will end up fetching more documents total. So we can't
                  * really compare the fetch profiles here.
@@ -1288,6 +1311,8 @@ public class CCSDuelIT extends ESRestTestCase {
         if (shards != null) {
             shards.remove("skipped");
         }
+        Map<String, Object> clusters = (Map<String, Object>) responseMap.get("_clusters");
+        homogenizeClustersEntries(clusters);
         return responseMap;
     }
 
@@ -1317,4 +1342,52 @@ public class CCSDuelIT extends ESRestTestCase {
             }
         }
     }
+
+    private static void homogenizeClustersEntries(Map<String, Object> map) {
+        replaceTookTime(map);
+        replaceSkippedEntries(map);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void replaceSkippedEntries(Map<String, Object> map) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey().contains("skipped")) {
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                assertNotNull(entry.setValue(0));
+            }
+            if (entry.getValue() instanceof Map) {
+                replaceSkippedEntries((Map<String, Object>) entry.getValue());
+            }
+            if (entry.getValue() instanceof List) {
+                List<Object> list = (List<Object>) entry.getValue();
+                for (Object obj : list) {
+                    if (obj instanceof Map) {
+                        replaceSkippedEntries((Map<String, Object>) obj);
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void replaceTookTime(Map<String, Object> map) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey().contains("took")) {
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                assertNotNull(entry.setValue(-1));
+            }
+            if (entry.getValue() instanceof Map) {
+                replaceTookTime((Map<String, Object>) entry.getValue());
+            }
+            if (entry.getValue() instanceof List) {
+                List<Object> list = (List<Object>) entry.getValue();
+                for (Object obj : list) {
+                    if (obj instanceof Map) {
+                        replaceTookTime((Map<String, Object>) obj);
+                    }
+                }
+            }
+        }
+    }
+
 }

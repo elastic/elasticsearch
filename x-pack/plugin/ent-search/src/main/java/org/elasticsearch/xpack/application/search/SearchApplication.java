@@ -49,6 +49,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplication implements Writeable, ToXContentObject {
 
+    public static final String NO_TEMPLATE_STORED_WARNING = "Using default search application template which is subject to change. "
+        + "We recommend storing a template to avoid breaking changes.";
+
     private final String name;
     private final String[] indices;
     private final long updatedAtMillis;
@@ -82,9 +85,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
-        this.searchApplicationTemplate = searchApplicationTemplate != null
-            ? searchApplicationTemplate
-            : SearchApplicationTemplate.DEFAULT_TEMPLATE;
+        this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
     public SearchApplication(StreamInput in) throws IOException {
@@ -227,8 +228,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
         return updatedAtMillis;
     }
 
-    public @Nullable SearchApplicationTemplate searchApplicationTemplate() {
-        return searchApplicationTemplate;
+    public boolean hasStoredTemplate() {
+        return searchApplicationTemplate != null;
+    }
+
+    public SearchApplicationTemplate searchApplicationTemplateOrDefault() {
+        return hasStoredTemplate() ? searchApplicationTemplate : SearchApplicationTemplate.DEFAULT_TEMPLATE;
     }
 
     @Override

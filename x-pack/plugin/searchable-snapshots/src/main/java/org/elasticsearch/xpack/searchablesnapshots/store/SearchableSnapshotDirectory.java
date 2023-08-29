@@ -502,6 +502,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 try {
                     final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
+                    CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
 
                     final AtomicBoolean alreadyCached = new AtomicBoolean();
                     try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire().map(v -> {
@@ -511,21 +512,16 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                             recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.length());
                         }
                         return v;
-                    }), () -> IOUtils.closeWhileHandlingException(input)))) {
-
-                        if (input instanceof CachedBlobContainerIndexInput cachedIndexInput) {
-                            if (cachedIndexInput.getPersistentCacheInitialLength() == file.length()) {
-                                alreadyCached.set(true);
-                                logger.trace(
-                                    () -> format(
-                                        "%s file [%s] is already available in cache (%d bytes)",
-                                        shardId,
-                                        file.physicalName(),
-                                        file.length()
-                                    )
-                                );
-                                continue;
-                            }
+                    }), () -> IOUtils.closeWhileHandlingException(cachedIndexInput)))) {
+                        if (cachedIndexInput.getPersistentCacheInitialLength() == file.length()) {
+                            alreadyCached.set(true);
+                            logger.trace(
+                                "{} file [{}] is already available in cache ({} bytes)",
+                                shardId,
+                                file.physicalName(),
+                                file.length()
+                            );
+                            continue;
                         }
 
                         for (int p = 0; p < file.numberOfParts(); p++) {
@@ -534,18 +530,16 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                 try (releasable) {
                                     var fileName = file.physicalName();
                                     final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                    var prefetchedPartBytes = ((CachedBlobContainerIndexInput) input).prefetchPart(part, cancelPreWarming);
-                                    if (prefetchedPartBytes > -1L) {
+                                    var prefetchedPartBytes = cachedIndexInput.prefetchPart(part, cancelPreWarming);
+                                    if (prefetchedPartBytes > -1L && logger.isTraceEnabled()) {
                                         logger.trace(
-                                            () -> format(
-                                                "%s part [%s/%s] of [%s] warmed in [%s] ms (%d bytes)",
-                                                shardId,
-                                                part + 1,
-                                                file.numberOfParts(),
-                                                fileName,
-                                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis(),
-                                                prefetchedPartBytes
-                                            )
+                                            "{} part [{}/{}] of [{}] warmed in [{}] ms ({} bytes)",
+                                            shardId,
+                                            part + 1,
+                                            file.numberOfParts(),
+                                            fileName,
+                                            timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis(),
+                                            prefetchedPartBytes
                                         );
                                     }
                                     return null;

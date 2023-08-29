@@ -861,6 +861,7 @@ public class TasksIT extends ESIntegTestCase {
                 new TaskInfo(
                     new TaskId("fake", 1),
                     "test",
+                    "fake",
                     "test",
                     "",
                     null,

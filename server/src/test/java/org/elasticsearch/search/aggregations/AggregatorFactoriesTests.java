@@ -23,7 +23,12 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -39,6 +44,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -308,6 +314,49 @@ public class AggregatorFactoriesTests extends ESTestCase {
         builder.addAggregator(AggregationBuilders.avg("real").field("target"));
         PipelineTree tree = builder.buildPipelineTree();
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()), equalTo(List.of("foo", "bar")));
+    }
+
+    public void testSupportsParallelCollection() {
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            assertTrue(builder.supportsParallelCollection());
+            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
+            assertTrue(builder.supportsParallelCollection());
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertFalse(builder.supportsParallelCollection());
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertFalse(builder.supportsParallelCollection());
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
+            assertFalse(builder.supportsParallelCollection());
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
+            assertFalse(builder.supportsParallelCollection());
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(
+                new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
+            );
+            assertFalse(builder.supportsParallelCollection());
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
+                @Override
+                public boolean isInSortOrderExecutionRequired() {
+                    return true;
+                }
+            });
+            assertFalse(builder.supportsParallelCollection());
+        }
     }
 
     @Override

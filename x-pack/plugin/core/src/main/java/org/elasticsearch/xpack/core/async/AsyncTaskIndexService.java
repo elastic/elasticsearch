@@ -88,6 +88,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
+    private static final int ASYNC_TASK_INDEX_MAPPINGS_VERSION = 0;
 
     // Usually the settings, mappings and system index descriptor below
     // would be co-located with the SystemIndexPlugin implementation,
@@ -110,6 +111,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, ASYNC_TASK_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

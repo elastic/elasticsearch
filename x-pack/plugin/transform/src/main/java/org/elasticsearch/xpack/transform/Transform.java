@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
@@ -293,6 +294,32 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(NUM_FAILURE_RETRIES_SETTING, SCHEDULER_FREQUENCY);
+    }
+
+    @Override
+    public Settings additionalSettings() {
+
+        String transformConfigVersionAttrName = "node.attr." + TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR;
+
+        Settings.Builder additionalSettings = Settings.builder();
+
+        addTransformNodeAttribute(additionalSettings, transformConfigVersionAttrName, TransformConfigVersion.CURRENT.toString());
+        return additionalSettings.build();
+    }
+
+    private void addTransformNodeAttribute(Settings.Builder additionalSettings, String attrName, String value) {
+        String oldValue = settings.get(attrName);
+        if (oldValue == null) {
+            additionalSettings.put(attrName, value);
+        } else {
+            reportClashingNodeAttribute(attrName);
+        }
+    }
+
+    private void reportClashingNodeAttribute(String attrName) {
+        throw new IllegalArgumentException(
+            "Directly setting [" + attrName + "] is not permitted - it is reserved for the transform plugin."
+        );
     }
 
     @Override

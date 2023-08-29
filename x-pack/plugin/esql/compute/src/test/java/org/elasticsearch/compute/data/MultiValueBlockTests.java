@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;

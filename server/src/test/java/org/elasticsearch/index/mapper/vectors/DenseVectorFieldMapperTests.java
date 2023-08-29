@@ -506,7 +506,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertNull(denseVectorFieldType.getSimilarity());
     }
 
-    public void testtParamsBeforeIndexByDefault() throws Exception {
+    public void testParamsBeforeIndexByDefault() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "dot_product");
         }));
@@ -523,7 +523,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 
         assertTrue(denseVectorFieldType.isIndexed());
-        assertEquals(VectorSimilarity.DOT_PRODUCT, denseVectorFieldType.getSimilarity());
+        assertEquals(VectorSimilarity.COSINE, denseVectorFieldType.getSimilarity());
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {

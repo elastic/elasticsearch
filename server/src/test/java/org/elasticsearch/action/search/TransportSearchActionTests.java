@@ -56,6 +56,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DummyQueryBuilder;
@@ -116,6 +117,10 @@ import java.util.function.Function;
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH_THROTTLED;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -123,6 +128,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1565,5 +1571,71 @@ public class TransportSearchActionTests extends ESTestCase {
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }
+    }
+
+    public void testAsyncSearchExecutor() {
+        Settings settings = Settings.builder()
+            .put("node.name", TransportSearchAction.class.getSimpleName())
+            .build();
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        TransportService transportService = MockTransportService.createNewService(
+            settings,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
+        NodeClient client = new NodeClient(settings, threadPool);
+        SearchService searchService = mock(SearchService.class);
+        ClusterService clusterService = new ClusterService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            null
+        );
+        ExecutorSelector executorSelector = mock(ExecutorSelector.class);
+        when(executorSelector.executorForSearch(anyString()))
+            .thenAnswer(i -> ((String) i.getArguments()[0]).split("-")[0]);
+        TransportSearchAction action = new TransportSearchAction(
+            threadPool,
+            new NoneCircuitBreakerService(),
+            transportService,
+            searchService,
+            new SearchTransportService(transportService, client, null),
+            null,
+            clusterService,
+            actionFilters,
+            null,
+            null,
+            executorSelector
+        );
+
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SEARCH + "-index" }));
+        assertSame(threadPool.executor(SEARCH_THROTTLED),
+            action.asyncSearchExecutor(new String[] { SEARCH_THROTTLED + "-index" }));
+        assertSame(threadPool.executor(SYSTEM_CRITICAL_READ),
+            action.asyncSearchExecutor(new String[] { SYSTEM_CRITICAL_READ + "-index" }));
+
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SEARCH + "-index", SEARCH + "-other", SEARCH + "-backup" }));
+        assertSame(threadPool.executor(SEARCH_THROTTLED),
+            action.asyncSearchExecutor(new String[] { SEARCH_THROTTLED + "-index", SEARCH_THROTTLED + "-other" }));
+
+        assertSame(threadPool.executor(SYSTEM_READ),
+            action.asyncSearchExecutor(new String[] { SYSTEM_READ + "-index", SYSTEM_CRITICAL_READ + "-other" }));
+        assertSame(threadPool.executor(SYSTEM_READ),
+            action.asyncSearchExecutor(new String[] { SYSTEM_READ + "-index", SYSTEM_CRITICAL_READ + "-other", SYSTEM_READ + "-backup" }));
+
+        // fallback to SEARCH
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { }));
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SYSTEM_READ + "-index", SEARCH_THROTTLED + "-other" }));
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SEARCH + "-index", SEARCH_THROTTLED + "-other" }));
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SEARCH + "-index", SYSTEM_READ + "-other" }));
+        assertSame(threadPool.executor(SEARCH),
+            action.asyncSearchExecutor(new String[] { SEARCH + "-index", SYSTEM_CRITICAL_READ + "-other" }));
     }
 }

@@ -441,6 +441,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return Strings.EMPTY_ARRAY;
     }
 
+    protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
+        return getParseMinimalWarnings();
+    }
+
     protected String[] getParseMaximalWarnings() {
         // Most mappers don't emit any warnings
         return Strings.EMPTY_ARRAY;
@@ -501,7 +505,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("boost", 2.0);
             }));
             String[] warnings = Strings.concatStringArrays(
-                getParseMinimalWarnings(),
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
                 new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
             );
             assertWarnings(warnings);

@@ -141,7 +141,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeList(tombstones);
+        out.writeCollection(tombstones);
     }
 
     @Override
@@ -298,7 +298,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeList(added);
+            out.writeCollection(added);
             out.writeVInt(removedCount);
         }
 

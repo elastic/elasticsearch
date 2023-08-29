@@ -383,8 +383,8 @@ public class ClusterFormationFailureHelper {
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
             lastCommittedConfiguration.writeTo(out);
-            out.writeList(resolvedAddresses);
-            out.writeList(foundPeers);
+            out.writeCollection(resolvedAddresses);
+            out.writeCollection(foundPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

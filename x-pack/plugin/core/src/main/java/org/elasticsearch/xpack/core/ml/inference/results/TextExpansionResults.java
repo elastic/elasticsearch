@@ -112,7 +112,7 @@ public class TextExpansionResults extends NlpInferenceResults {
     @Override
     void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
-        out.writeList(weightedTokens);
+        out.writeCollection(weightedTokens);
     }
 
     @Override

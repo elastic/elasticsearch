@@ -239,7 +239,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeList(docs);
+                out.writeCollection(docs);
             }
         }
         out.writeNamedWriteable(organicQuery);

@@ -46,6 +46,6 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(repositoryStatsSnapshots);
+        out.writeCollection(repositoryStatsSnapshots);
     }
 }

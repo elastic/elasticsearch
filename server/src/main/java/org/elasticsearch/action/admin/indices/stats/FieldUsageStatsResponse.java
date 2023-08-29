@@ -41,7 +41,7 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(stats, StreamOutput::writeString, (streamOutput, list) -> streamOutput.writeCollection(list));
     }
 
     public Map<String, List<FieldUsageShardResponse>> getStats() {

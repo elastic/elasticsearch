@@ -86,7 +86,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(featureName);
         out.writeOptionalWriteable(importance);
-        out.writeList(classImportances);
+        out.writeCollection(classImportances);
     }
 
     @Override

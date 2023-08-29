@@ -156,7 +156,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            out.writeList(roleTemplates);
+            out.writeCollection(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);
         out.writeGenericMap(metadata);

@@ -144,7 +144,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }).toList();
 
         profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
-            if (resultsAndErrors.errors().isEmpty()) {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
                 assert users.size() == resultsAndErrors.results().size();
                 final Map<String, String> profileUidLookup = resultsAndErrors.results()
                     .stream()

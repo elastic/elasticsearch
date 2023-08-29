@@ -160,6 +160,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
                     .values()
                     .stream()
+                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
                     .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
                     .sum())
             )

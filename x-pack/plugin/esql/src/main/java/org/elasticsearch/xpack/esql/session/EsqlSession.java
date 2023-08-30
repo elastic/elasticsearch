@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
 
@@ -209,11 +210,11 @@ public class EsqlSession {
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 AttributeSet dissectRefs = p.references();
                 // don't add to the list of fields the extracted ones (they are not real fields in mappings)
-                dissectRefs.subtract(new AttributeSet(re.extractedFields()));
+                dissectRefs.removeAll(re.extractedFields());
                 references.addAll(dissectRefs);
                 // also remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> isAttributeEqualTo(attr, extracted.qualifiedName(), false));
+                    references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
             } else {
                 references.addAll(p.references());
@@ -231,7 +232,7 @@ public class EsqlSession {
                 if (p.references().names().contains(alias.qualifiedName())) {
                     return;
                 }
-                references.removeIf(attr -> isAttributeEqualTo(attr, alias.qualifiedName(), keepCommandReferences.contains(attr)));
+                references.removeIf(attr -> matchByName(attr, alias.qualifiedName(), keepCommandReferences.contains(attr)));
             });
         });
 
@@ -239,13 +240,17 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
-
-        return fieldNames.isEmpty()
-            ? IndexResolver.ALL_FIELDS
-            : fieldNames.stream().map(name -> name.endsWith("*") ? name : name + "*").collect(Collectors.toSet());
+        if (fieldNames.isEmpty()) {
+            return IndexResolver.ALL_FIELDS;
+        } else {
+            fieldNames.addAll(
+                fieldNames.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet())
+            );
+            return fieldNames;
+        }
     }
 
-    private static boolean isAttributeEqualTo(Attribute attr, String other, boolean skipIfPattern) {
+    private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
         boolean isPattern = Regex.isSimpleMatchPattern(attr.qualifiedName());
         if (skipIfPattern && isPattern) {
             return false;

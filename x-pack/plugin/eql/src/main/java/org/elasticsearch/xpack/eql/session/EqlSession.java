@@ -27,10 +27,11 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class EqlSession {
 
@@ -131,11 +132,13 @@ public class EqlSession {
     }
 
     static Set<String> fieldNames(LogicalPlan parsed) {
-        Set<String> fieldNames = new HashSet<>();
-        parsed.forEachExpressionDown(
-            UnresolvedAttribute.class,
-            ua -> { fieldNames.add(ua.name().endsWith("*") ? ua.name() : ua.name() + "*"); }
-        );
+        Set<String> fieldNames = new LinkedHashSet<>();
+        parsed.forEachExpressionDown(UnresolvedAttribute.class, ua -> {
+            fieldNames.add(ua.name());
+            if (ua.name().endsWith(WILDCARD) == false) {
+                fieldNames.add(ua.name() + ".*");
+            }
+        });
         return fieldNames.isEmpty() ? IndexResolver.ALL_FIELDS : fieldNames;
     }
 

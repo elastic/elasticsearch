@@ -28,29 +28,38 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSimple1() {
-        assertFieldNames("from employees | sort emp_no | keep emp_no, still_hired | limit 3", Set.of("emp_no*", "still_hired*"));
+        assertFieldNames(
+            "from employees | sort emp_no | keep emp_no, still_hired | limit 3",
+            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
+        );
     }
 
     public void testDirectFilter() {
-        assertFieldNames("from employees | sort emp_no | where still_hired | keep emp_no | limit 3", Set.of("emp_no*", "still_hired*"));
+        assertFieldNames(
+            "from employees | sort emp_no | where still_hired | keep emp_no | limit 3",
+            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
+        );
     }
 
     public void testSort1() {
         assertFieldNames(
             "from employees | sort still_hired, emp_no | keep emp_no, still_hired | limit 3",
-            Set.of("emp_no*", "still_hired*")
+            Set.of("emp_no", "emp_no.*", "still_hired", "still_hired.*")
         );
     }
 
     public void testStatsBy() {
-        assertFieldNames("from employees | stats avg(salary) by still_hired | sort still_hired", Set.of("salary*", "still_hired*"));
+        assertFieldNames(
+            "from employees | stats avg(salary) by still_hired | sort still_hired",
+            Set.of("salary", "salary.*", "still_hired", "still_hired.*")
+        );
     }
 
     public void testStatsByAlwaysTrue() {
         assertFieldNames(
             "from employees | where first_name is not null | eval always_true = starts_with(first_name, \"\") "
                 + "| stats avg(salary) by always_true",
-            Set.of("first_name*", "salary*")
+            Set.of("first_name", "first_name.*", "salary", "salary.*")
         );
     }
 
@@ -59,7 +68,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             "from employees | where first_name is not null "
                 + "| eval always_false = starts_with(first_name, \"nonestartwiththis\") "
                 + "| stats avg(salary) by always_false",
-            Set.of("first_name*", "salary*")
+            Set.of("first_name", "first_name.*", "salary", "salary.*")
         );
     }
 
@@ -67,7 +76,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames(
             "from employees | keep emp_no, is_rehired, still_hired "
                 + "| where is_rehired in (still_hired, true) | where is_rehired != still_hired",
-            Set.of("emp_no*", "is_rehired*", "still_hired*")
+            Set.of("emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "still_hired", "still_hired.*")
         );
     }
 
@@ -79,7 +88,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval rehired_bool = to_boolean(rehired_str)
             | eval all_false = to_boolean(first_name)
             | drop first_name
-            | limit 5""", Set.of("emp_no*", "is_rehired*", "first_name*"));
+            | limit 5""", Set.of("emp_no", "emp_no.*", "is_rehired", "is_rehired.*", "first_name", "first_name.*"));
     }
 
     public void testConvertFromDouble1() {
@@ -87,16 +96,24 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval h_2 = height - 2.0, double2bool = to_boolean(h_2)
             | where emp_no in (10036, 10037, 10038)
-            | keep emp_no, height, *2bool""", Set.of("height*", "emp_no*", "h_2*", "*2bool*"));
+            | keep emp_no, height, *2bool""", Set.of("height", "height.*", "emp_no", "emp_no.*", "h_2", "h_2.*", "*2bool.*", "*2bool"));
         // TODO asking for more shouldn't hurt. Can we do better? ("h_2" shouldn't be in the list of fields)
-        // Set.of("height*", "emp_no*", "*2bool*"));
+        // Set.of("height", "height.*", "emp_no", "emp_no.*", "*2bool.*", "*2bool"));
     }
 
     public void testConvertFromIntAndLong() {
         assertFieldNames(
             "from employees | keep emp_no, salary_change*"
                 + "| eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10",
-            Set.of("emp_no*", "salary_change*", "salary_change.int*", "salary_change.long*")
+            Set.of(
+                "emp_no",
+                "emp_no.*",
+                "salary_change*",
+                "salary_change.int.*",
+                "salary_change.int",
+                "salary_change.long.*",
+                "salary_change.long"
+            )
         );
     }
 
@@ -104,15 +121,18 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from employees
             | where emp_no < 10002
-            | keep emp_no""", Set.of("emp_no*"));
+            | keep emp_no""", Set.of("emp_no", "emp_no.*"));
     }
 
     public void testLongToLong() {
-        assertFieldNames("""
-            from employees
-            | where languages.long < avg_worked_seconds
-            | limit 1
-            | keep emp_no""", Set.of("emp_no*", "languages.long*", "avg_worked_seconds*"));
+        assertFieldNames(
+            """
+                from employees
+                | where languages.long < avg_worked_seconds
+                | limit 1
+                | keep emp_no""",
+            Set.of("emp_no", "emp_no.*", "languages.long", "languages.long.*", "avg_worked_seconds", "avg_worked_seconds.*")
+        );
     }
 
     public void testDateToDate() {
@@ -121,7 +141,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where birth_date < hire_date
             | keep emp_no
             | sort emp_no
-            | limit 1""", Set.of("birth_date*", "emp_no*", "hire_date*"));
+            | limit 1""", Set.of("birth_date", "birth_date.*", "emp_no", "emp_no.*", "hire_date", "hire_date.*"));
     }
 
     public void testTwoConditionsWithDefault() {
@@ -129,7 +149,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval type = case(languages <= 1, "monolingual", languages <= 2, "bilingual", "polyglot")
             | keep emp_no, type
-            | limit 10""", Set.of("emp_no*", "languages*"));
+            | limit 10""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testSingleCondition() {
@@ -137,7 +157,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval g = case(gender == "F", true)
             | keep gender, g
-            | limit 10""", Set.of("gender*"));
+            | limit 10""", Set.of("gender", "gender.*"));
     }
 
     public void testConditionIsNull() {
@@ -145,24 +165,24 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval g = case(gender == "F", 1, languages > 1, 2, 3)
             | keep gender, languages, g
-            | limit 25""", Set.of("gender*", "languages*"));
+            | limit 25""", Set.of("gender", "gender.*", "languages", "languages.*"));
     }
 
     public void testEvalAssign() {
         assertFieldNames(
             "from employees | sort hire_date | eval x = hire_date | keep emp_no, x | limit 5",
-            Set.of("hire_date*", "emp_no*")
+            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
     public void testMinMax() {
-        assertFieldNames("from employees | stats min = min(hire_date), max = max(hire_date)", Set.of("hire_date*"));
+        assertFieldNames("from employees | stats min = min(hire_date), max = max(hire_date)", Set.of("hire_date", "hire_date.*"));
     }
 
     public void testEvalDateTruncIntervalExpressionPeriod() {
         assertFieldNames(
             "from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | keep emp_no, hire_date, x | limit 5",
-            Set.of("hire_date*", "emp_no*")
+            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -173,7 +193,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | stats count(emp_no) by y
             | sort y
             | keep y, count(emp_no)
-            | limit 5""", Set.of("hire_date*", "emp_no*"));
+            | limit 5""", Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*"));
     }
 
     public void testIn2() {
@@ -183,7 +203,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where birth_date not in (x, hire_date)
             | keep x, hire_date
             | sort x desc
-            | limit 4""", Set.of("hire_date*", "birth_date*"));
+            | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
     public void testAutoBucketMonth() {
@@ -192,13 +212,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
             | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
-            | keep hire_date, hd""", Set.of("hire_date*"));
+            | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
     }
 
     public void testBorn_before_today() {
         assertFieldNames(
             "from employees | where birth_date < now() | sort emp_no asc | keep emp_no, birth_date| limit 1",
-            Set.of("birth_date*", "emp_no*")
+            Set.of("birth_date", "birth_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -208,7 +228,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
             | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
-            | SORT bucket""", Set.of("salary*", "hire_date*"));
+            | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
     }
 
     public void testEvalDateParseDynamic() {
@@ -219,7 +239,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval birth_date_string = date_format(birth_date, "yyyy-MM-dd")
             | eval new_date = date_parse(birth_date_string, "yyyy-MM-dd")
             | eval bool = new_date == birth_date
-            | keep emp_no, new_date, birth_date, bool""", Set.of("emp_no*", "birth_date*"));
+            | keep emp_no, new_date, birth_date, bool""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
 
     public void testDateFields() {
@@ -227,7 +247,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | where emp_no == 10049 or emp_no == 10050
             | eval year = date_extract(birth_date, "year"), month = date_extract(birth_date, "month_of_year")
-            | keep emp_no, year, month""", Set.of("emp_no*", "birth_date*"));
+            | keep emp_no, year, month""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
 
     public void testEvalDissect() {
@@ -237,7 +257,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect full_name "%{a} %{b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name*", "last_name*", "emp_no*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testDissectExpression() {
@@ -246,7 +266,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | dissect concat(first_name, " ", last_name) "%{a} %{b}"
             | sort emp_no asc
             | keep a, b
-            | limit 3""", Set.of("first_name*", "last_name*", "emp_no*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMultivalueInput1() {
@@ -255,7 +275,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where emp_no <= 10006
             | dissect job_positions "%{a} %{b} %{c}"
             | sort emp_no
-            | keep emp_no, a, b, c""", Set.of("emp_no*", "job_positions*"));
+            | keep emp_no, a, b, c""", Set.of("emp_no", "emp_no.*", "job_positions", "job_positions.*"));
     }
 
     public void testDocsDropHeight() {
@@ -278,7 +298,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | KEEP first_name, last_name, height
             | EVAL height_feet = height * 3.281, height_cm = height * 100
             | WHERE first_name == "Georgi"
-            | LIMIT 1""", Set.of("first_name*", "last_name*", "height*"));
+            | LIMIT 1""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "height", "height.*"));
     }
 
     public void testDocsKeepWildcard() {
@@ -300,7 +320,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             FROM employees
             | KEEP first_name, last_name, still_hired
             | RENAME  still_hired AS employed
-            | LIMIT 0""", Set.of("first_name*", "last_name*", "still_hired*"));
+            | LIMIT 0""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "still_hired", "still_hired.*"));
     }
 
     public void testDocsRenameMultipleColumns() {
@@ -308,14 +328,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             FROM employees
             | KEEP first_name, last_name
             | RENAME first_name AS fn, last_name AS ln
-            | LIMIT 0""", Set.of("first_name*", "last_name*"));
+            | LIMIT 0""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
     }
 
     public void testDocsStats() {
         assertFieldNames("""
             FROM employees
             | STATS count = COUNT(emp_no) BY languages
-            | SORT languages""", Set.of("emp_no*", "languages*"));
+            | SORT languages""", Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
     }
 
     public void testSortWithLimitOne_DropHeight() {
@@ -323,13 +343,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testDropAllColumns() {
-        assertFieldNames("from employees | keep height | drop height | eval x = 1", Set.of("height*"));
+        assertFieldNames("from employees | keep height | drop height | eval x = 1", Set.of("height", "height.*"));
     }
 
     public void testDropAllColumns_WithStats() {
         assertFieldNames(
             "from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x)",
-            Set.of("height*")
+            Set.of("height", "height.*")
         );
     }
 
@@ -340,7 +360,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | limit 1
             | eval x = to_string(languages)
             | enrich languages_policy on x
-            | keep emp_no, language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+            | keep emp_no, language_name""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
     }
 
     public void testEnrichOn2() {
@@ -350,7 +370,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("emp_no*", "languages*", "language_name*"));
+            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
     }
 
     public void testUselessEnrich() {
@@ -368,31 +388,43 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x
             | keep emp_no, language_name
             | sort emp_no
-            | limit 1""", Set.of("languages*", "emp_no*", "language_name*"));
+            | limit 1""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
     }
 
     public void testWith() {
-        assertFieldNames("""
-            from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1
-            | enrich languages_policy on x with language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees | eval x = to_string(languages) | keep emp_no, x | sort emp_no | limit 1
+                | enrich languages_policy on x with language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+        );
     }
 
     public void testWithAlias() {
-        assertFieldNames("""
-            from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x
-            | enrich languages_policy on x with lang = language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees  | sort emp_no | limit 3 | eval x = to_string(languages) | keep emp_no, x
+                | enrich languages_policy on x with lang = language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+        );
     }
 
     public void testWithAliasSort() {
-        assertFieldNames("""
-            from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3
-            | enrich languages_policy on x with lang = language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees | eval x = to_string(languages) | keep emp_no, x  | sort emp_no | limit 3
+                | enrich languages_policy on x with lang = language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+        );
     }
 
     public void testWithAliasAndPlain() {
-        assertFieldNames("""
-            from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x
-            | enrich languages_policy on x with lang = language_name, language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees  | sort emp_no desc | limit 3 | eval x = to_string(languages) | keep emp_no, x
+                | enrich languages_policy on x with lang = language_name, language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+        );
     }
 
     public void testWithTwoAliasesSameProp() {
@@ -400,31 +432,40 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """
                 from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
                 | enrich languages_policy on x with lang = language_name, lang2 = language_name""",
-            Set.of("emp_no*", "languages*", "language_name*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
         );
     }
 
     public void testRedundantWith() {
-        assertFieldNames("""
-            from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
-            | enrich languages_policy on x with language_name, language_name""", Set.of("emp_no*", "languages*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | keep emp_no, x
+                | enrich languages_policy on x with language_name, language_name""",
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*")
+        );
     }
 
     public void testNullInput() {
-        assertFieldNames("""
-            from employees
-            | where emp_no == 10017
-            | keep emp_no, gender
-            | enrich languages_policy on gender with language_name, language_name""", Set.of("gender*", "emp_no*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees
+                | where emp_no == 10017
+                | keep emp_no, gender
+                | enrich languages_policy on gender with language_name, language_name""",
+            Set.of("gender", "gender.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
+        );
     }
 
     public void testConstantNullInput() {
-        assertFieldNames("""
-            from employees
-            | where emp_no == 10020
-            | eval x = to_string(languages)
-            | keep emp_no, x
-            | enrich languages_policy on x with language_name, language_name""", Set.of("languages*", "emp_no*", "language_name*"));
+        assertFieldNames(
+            """
+                from employees
+                | where emp_no == 10020
+                | eval x = to_string(languages)
+                | keep emp_no, x
+                | enrich languages_policy on x with language_name, language_name""",
+            Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*")
+        );
     }
 
     public void testEnrichEval() {
@@ -434,7 +475,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on x with lang = language_name
             | eval language = concat(x, "-", lang)
             | keep emp_no, x, lang, language
-            | sort emp_no desc | limit 3""", Set.of("languages*", "emp_no*", "language_name*"));
+            | sort emp_no desc | limit 3""", Set.of("languages", "languages.*", "emp_no", "emp_no.*", "language_name", "language_name.*"));
     }
 
     public void testSimple() {
@@ -444,13 +485,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | enrich languages_policy on y
             | where x > 1
             | keep emp_no, language_name
-            | limit 1""", Set.of("emp_no*", "languages*", "language_name*"));
+            | limit 1""", Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*"));
     }
 
     public void testEvalNullSort() {
         assertFieldNames(
             "from employees | eval x = null | sort x asc, emp_no desc | keep emp_no, x, last_name | limit 2",
-            Set.of("last_name*", "emp_no*")
+            Set.of("last_name", "last_name.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -461,29 +502,43 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval name_len = length(first_name)
             | where name_len < 4
             | keep first_name
-            | sort first_name""", Set.of("emp_no*", "first_name*"));
+            | sort first_name""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testEvalWithIsNullIsNotNull() {
-        assertFieldNames("""
-            from employees
-            | eval true_bool = null is null, false_bool = null is not null, negated_true = not(null is null)
-            | sort emp_no
-            | limit 1
-            | keep *true*, *false*, first_name, last_name""", Set.of("emp_no*", "first_name*", "last_name*", "*true*", "*false*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval true_bool = null is null, false_bool = null is not null, negated_true = not(null is null)
+                | sort emp_no
+                | limit 1
+                | keep *true*, *false*, first_name, last_name""",
+            Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "*true*", "*false*")
+        );
     }
 
     public void testInDouble() {
         assertFieldNames(
             "from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03)",
-            Set.of("emp_no*", "height*", "height.float*", "height.half_float*", "height.scaled_float*")
+            Set.of(
+                "emp_no",
+                "emp_no.*",
+                "height",
+                "height.*",
+                "height.float",
+                "height.float.*",
+                "height.half_float",
+                "height.half_float.*",
+                "height.scaled_float",
+                "height.scaled_float.*"
+            )
         );
     }
 
     public void testConvertFromDatetime() {
         assertFieldNames(
             "from employees | sort emp_no | eval hire_double = to_double(hire_date) | keep emp_no, hire_date, hire_double | limit 3",
-            Set.of("emp_no*", "hire_date*")
+            Set.of("emp_no", "emp_no.*", "hire_date", "hire_date.*")
         );
     }
 
@@ -493,7 +548,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
             | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
-            | KEEP hire_date, height, bh""", Set.of("hire_date*", "height*"));
+            | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
     }
 
     public void testEvalGrok() {
@@ -503,7 +558,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort emp_no asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name*", "last_name*", "emp_no*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testGrokExpression() {
@@ -512,7 +567,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
             | sort emp_no asc
             | keep a, b
-            | limit 3""", Set.of("first_name*", "last_name*", "emp_no*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testEvalGrokSort() {
@@ -522,7 +577,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok full_name "%{WORD:a} %{WORD:b}"
             | sort a asc
             | keep full_name, a, b
-            | limit 3""", Set.of("first_name*", "last_name*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*"));
     }
 
     public void testGrokStats() {
@@ -532,7 +587,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | grok x "%{WORD:a} %{WORD:b}"
             | stats n = max(emp_no) by a
             | keep a, n
-            | sort a asc""", Set.of("gender*", "emp_no*"));
+            | sort a asc""", Set.of("gender", "gender.*", "emp_no", "emp_no.*"));
     }
 
     public void testNullOnePattern() {
@@ -540,7 +595,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | where emp_no == 10030
             | grok first_name "%{WORD:a}"
-            | keep first_name, a""", Set.of("first_name*", "emp_no*"));
+            | keep first_name, a""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMultivalueInput() {
@@ -549,7 +604,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where emp_no <= 10006
             | grok job_positions "%{WORD:a} %{WORD:b} %{WORD:c}"
             | sort emp_no
-            | keep emp_no, a, b, c, job_positions""", Set.of("job_positions*", "emp_no*"));
+            | keep emp_no, a, b, c, job_positions""", Set.of("job_positions", "job_positions.*", "emp_no", "emp_no.*"));
     }
 
     public void testSelectAll() {
@@ -561,7 +616,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testKeepId() {
-        assertFieldNames("FROM apps [metadata _id] | WHERE id == 3 | KEEP _id", Set.of("id*"));
+        assertFieldNames("FROM apps [metadata _id] | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
     }
 
     public void testIdRangeAndSort() {
@@ -569,19 +624,19 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             FROM apps [metadata _id]
             | WHERE _id >= "2" AND _id <= "7"
             | SORT _id
-            | keep id, name, _id""", Set.of("id*", "name*"));
+            | keep id, name, _id""", Set.of("id", "id.*", "name", "name.*"));
     }
 
     public void testOrderById() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id", Set.of("name*"));
+        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
     }
 
     public void testOrderByIdDesc() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC", Set.of("name*"));
+        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
     }
 
     public void testConcatId() {
-        assertFieldNames("FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name*"));
+        assertFieldNames("FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
     }
 
     public void testStatsOnId() {
@@ -589,36 +644,45 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testStatsOnIdByGroup() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name*"));
+        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
     }
 
     public void testSimpleProject() {
-        assertFieldNames("from hosts | keep card, host, ip0, ip1", Set.of("card*", "host*", "ip0*", "ip1*"));
+        assertFieldNames(
+            "from hosts | keep card, host, ip0, ip1",
+            Set.of("card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
+        );
     }
 
     public void testEquals() {
-        assertFieldNames("from hosts | sort host, card | where ip0 == ip1 | keep card, host", Set.of("card*", "host*", "ip0*", "ip1*"));
+        assertFieldNames(
+            "from hosts | sort host, card | where ip0 == ip1 | keep card, host",
+            Set.of("card", "card.*", "host", "host.*", "ip0", "ip0.*", "ip1", "ip1.*")
+        );
     }
 
     public void testConditional() {
-        assertFieldNames("from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1", Set.of("ip1*", "ip0*"));
+        assertFieldNames("from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1", Set.of("ip1", "ip1.*", "ip0", "ip0.*"));
     }
 
     public void testWhereWithAverageBySubField() {
         assertFieldNames(
             "from employees | where languages + 1 == 6 | stats avg(avg_worked_seconds) by languages.long",
-            Set.of("languages*", "avg_worked_seconds*", "languages.long*")
+            Set.of("languages", "languages.*", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*")
         );
     }
 
     public void testAverageOfEvalValue() {
-        assertFieldNames("from employees | eval ratio = salary / height | stats avg(ratio)", Set.of("salary*", "height*"));
+        assertFieldNames(
+            "from employees | eval ratio = salary / height | stats avg(ratio)",
+            Set.of("salary", "salary.*", "height", "height.*")
+        );
     }
 
     public void testTopNProjectEvalProject() {
         assertFieldNames(
             "from employees | sort salary | limit 1 | keep languages, salary | eval x = languages + 1 | keep x",
-            Set.of("salary*", "languages*")
+            Set.of("salary", "salary.*", "languages", "languages.*")
         );
     }
 
@@ -629,11 +693,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval salary_change = mv_sum(salary_change.int)
             | sort emp_no
             | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("emp_no*", "salary_change.int*"));
+            | limit 7""", Set.of("emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*"));
     }
 
     public void testMetaIndexAliasedInAggs() {
-        assertFieldNames("from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i", Set.of("emp_no*"));
+        assertFieldNames(
+            "from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i",
+            Set.of("emp_no", "emp_no.*")
+        );
     }
 
     public void testCoalesceFolding() {
@@ -642,11 +709,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | EVAL foo=COALESCE(true, false, null)
             | SORT emp_no ASC
             | KEEP emp_no, first_name, foo
-            | limit 3""", Set.of("emp_no*", "first_name*"));
+            | limit 3""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRenameEvalProject() {
-        assertFieldNames("from employees | rename languages as x | keep x | eval z = 2 * x | keep x, z | limit 3", Set.of("languages*"));
+        assertFieldNames(
+            "from employees | rename languages as x | keep x | eval z = 2 * x | keep x, z | limit 3",
+            Set.of("languages", "languages.*")
+        );
     }
 
     public void testRenameProjectEval() {
@@ -657,27 +727,27 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | keep x, y
             | eval x2 = x + 1
             | eval y2 = y + 2
-            | limit 3""", Set.of("languages*"));
+            | limit 3""", Set.of("languages", "languages.*"));
     }
 
     public void testRenameWithFilterPushedToES() {
         assertFieldNames(
             "from employees | rename emp_no as x | keep languages, first_name, last_name, x | where x > 10030 and x < 10040 | limit 5",
-            Set.of("emp_no*", "languages*", "first_name*", "last_name*")
+            Set.of("emp_no", "emp_no.*", "languages", "languages.*", "first_name", "first_name.*", "last_name", "last_name.*")
         );
     }
 
     public void testRenameOverride() {
         assertFieldNames(
             "from employees | rename emp_no as languages | keep languages, last_name | limit 3",
-            Set.of("emp_no*", "last_name*")
+            Set.of("emp_no", "emp_no.*", "last_name", "last_name.*")
         );
     }
 
     public void testProjectRenameDate() {
         assertFieldNames(
             "from employees | sort hire_date | rename hire_date as x | keep emp_no, x | limit 5",
-            Set.of("hire_date*", "emp_no*")
+            Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*")
         );
     }
 
@@ -692,13 +762,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMaxOfLong() {
-        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("languages.long*"));
+        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("languages.long", "languages.long.*"));
     }
 
     public void testGroupByAlias() {
         assertFieldNames(
             "from employees | rename languages as l | keep l, height | stats m = min(height) by l | sort l",
-            Set.of("languages*", "height*")
+            Set.of("languages", "languages.*", "height", "height.*")
         );
     }
 
@@ -707,7 +777,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
             | stats c = count(gender) by gender, trunk_worked_seconds
-            | sort c desc""", Set.of("avg_worked_seconds*", "gender*"));
+            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
     }
 
     public void testByStringAndLongWithAlias() {
@@ -717,7 +787,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | rename gender as g, trunk_worked_seconds as tws
             | keep g, tws
             | stats c = count(g) by g, tws
-            | sort c desc""", Set.of("avg_worked_seconds*", "gender*"));
+            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "gender", "gender.*"));
     }
 
     public void testByStringAndString() {
@@ -726,7 +796,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval hire_year_str = date_format(hire_date, "yyyy")
             | stats c = count(gender) by gender, hire_year_str
             | sort c desc, gender, hire_year_str
-            | where c >= 5""", Set.of("hire_date*", "gender*"));
+            | where c >= 5""", Set.of("hire_date", "hire_date.*", "gender", "gender.*"));
     }
 
     public void testByLongAndLong() {
@@ -734,7 +804,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
             | stats c = count(languages.long) by languages.long, trunk_worked_seconds
-            | sort c desc""", Set.of("avg_worked_seconds*", "languages.long*"));
+            | sort c desc""", Set.of("avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*"));
     }
 
     public void testByDateAndKeywordAndIntWithAlias() {
@@ -745,49 +815,58 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | keep d, g, l, e
             | stats c = count(e) by d, g, l
             | sort c desc, d, l desc
-            | limit 10""", Set.of("hire_date*", "gender*", "languages*", "emp_no*"));
+            | limit 10""", Set.of("hire_date", "hire_date.*", "gender", "gender.*", "languages", "languages.*", "emp_no", "emp_no.*"));
     }
 
     public void testCountDistinctOfKeywords() {
-        assertFieldNames("""
-            from employees
-            | eval hire_year_str = date_format(hire_date, "yyyy")
-            | stats g = count_distinct(gender), h = count_distinct(hire_year_str)""", Set.of("hire_date*", "gender*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval hire_year_str = date_format(hire_date, "yyyy")
+                | stats g = count_distinct(gender), h = count_distinct(hire_year_str)""",
+            Set.of("hire_date", "hire_date.*", "gender", "gender.*")
+        );
     }
 
     public void testCountDistinctOfIpPrecision() {
         assertFieldNames("""
             FROM hosts
-            | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)""", Set.of("ip0*", "ip1*"));
+            | STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)""", Set.of("ip0", "ip0.*", "ip1", "ip1.*"));
     }
 
     public void testPercentileOfLong() {
-        assertFieldNames("""
-            from employees
-            | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""", Set.of("salary_change.long*"));
+        assertFieldNames(
+            """
+                from employees
+                | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""",
+            Set.of("salary_change.long", "salary_change.long.*")
+        );
     }
 
     public void testMedianOfInteger() {
         assertFieldNames("""
             FROM employees
-            | STATS MEDIAN(salary), PERCENTILE(salary, 50)""", Set.of("salary*"));
+            | STATS MEDIAN(salary), PERCENTILE(salary, 50)""", Set.of("salary", "salary.*"));
     }
 
     public void testMedianAbsoluteDeviation() {
         assertFieldNames("""
             FROM employees
-            | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)""", Set.of("salary*"));
+            | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)""", Set.of("salary", "salary.*"));
     }
 
     public void testIn3VLWithComputedNull() {
-        assertFieldNames("""
-            from employees
-            | where mv_count(job_positions) <= 1
-            | where emp_no >= 10024
-            | limit 3
-            | keep emp_no, job_positions
-            | eval nil = concat("", null)
-            | eval is_in = job_positions in ("Accountant", "Internship", nil)""", Set.of("job_positions*", "emp_no*"));
+        assertFieldNames(
+            """
+                from employees
+                | where mv_count(job_positions) <= 1
+                | where emp_no >= 10024
+                | limit 3
+                | keep emp_no, job_positions
+                | eval nil = concat("", null)
+                | eval is_in = job_positions in ("Accountant", "Internship", nil)""",
+            Set.of("job_positions", "job_positions.*", "emp_no", "emp_no.*")
+        );
     }
 
     public void testCase() {
@@ -804,29 +883,32 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             version IS NULL, "none",
             "low")
             | SORT version DESC NULLS LAST, id DESC
-            | KEEP v, version, version_text, id, m, g, i, c""", Set.of("version*", "id*"));
+            | KEEP v, version, version_text, id, m, g, i, c""", Set.of("version", "version.*", "id", "id.*"));
     }
 
     public void testLikePrefix() {
         assertFieldNames("""
             from employees
             | where first_name like "Eberhar*"
-            | keep emp_no, first_name""", Set.of("emp_no*", "first_name*"));
+            | keep emp_no, first_name""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRLikePrefix() {
         assertFieldNames("""
             from employees
             | where first_name rlike "Aleja.*"
-            | keep emp_no""", Set.of("first_name*", "emp_no*"));
+            | keep emp_no""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testByUnmentionedLongAndLong() {
-        assertFieldNames("""
-            from employees
-            | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
-            | stats c = count(gender) by languages.long, trunk_worked_seconds
-            | sort c desc""", Set.of("avg_worked_seconds*", "languages.long*", "gender*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+                | stats c = count(gender) by languages.long, trunk_worked_seconds
+                | sort c desc""",
+            Set.of("avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "gender", "gender.*")
+        );
     }
 
     public void testRenameNopProject() {
@@ -834,7 +916,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | rename emp_no as emp_no
             | keep emp_no, last_name
-            | limit 3""", Set.of("emp_no*", "last_name*"));
+            | limit 3""", Set.of("emp_no", "emp_no.*", "last_name", "last_name.*"));
     }
 
     public void testRename() {
@@ -842,7 +924,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | rename emp_no as e
             | keep first_name, e
-            """, Set.of("emp_no*", "first_name*"));
+            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testChainedRename() {
@@ -850,8 +932,9 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3
             | keep first_name, r3
-            """, Set.of("emp_no*", "first_name*", "r1*", "r2*"));// TODO asking for more shouldn't hurt. Can we do better?
-        // Set.of("emp_no*", "first_name*"));
+            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
+                                                                                                         // hurt. Can we do better?
+        // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testChainedRenameReuse() {
@@ -859,8 +942,9 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3, first_name as r1
             | keep r1, r3
-            """, Set.of("emp_no*", "first_name*", "r1*", "r2*"));// TODO asking for more shouldn't hurt. Can we do better?
-        // Set.of("emp_no*", "first_name*"));
+            """, Set.of("emp_no", "emp_no.*", "first_name", "first_name.*", "r1", "r1.*", "r2", "r2.*"));// TODO asking for more shouldn't
+                                                                                                         // hurt. Can we do better?
+        // Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     public void testRenameBackAndForth() {
@@ -868,8 +952,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | rename emp_no as r1, r1 as emp_no
             | keep emp_no
-            """, Set.of("emp_no*", "r1*"));// TODO asking for more shouldn't hurt. Can we do better?
-        // Set.of("emp_no*"));
+            """, Set.of("emp_no", "emp_no.*", "r1", "r1.*"));// TODO asking for more shouldn't hurt. Can we do better?
+        // Set.of("emp_no", "emp_no.*"));
     }
 
     public void testRenameReuseAlias() {
@@ -882,7 +966,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testIfDuplicateNamesGroupingHasPriority() {
         assertFieldNames(
             "from employees | stats languages = avg(height), languages = min(height) by languages | sort languages",
-            Set.of("height*", "languages*")
+            Set.of("height", "height.*", "languages", "languages.*")
         );
     }
 
@@ -892,7 +976,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | EVAL first_name = COALESCE(first_name, "X")
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 10""", Set.of("first_name*", "emp_no*"));
+            | limit 10""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testCoalesceBackwards() {
@@ -901,7 +985,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | EVAL first_name = COALESCE("X", first_name)
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 10""", Set.of("first_name*", "emp_no*"));
+            | limit 10""", Set.of("first_name", "first_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testGroupByVersionCast() {
@@ -910,7 +994,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | EVAL g = TO_VER(CONCAT("1.", TO_STR(version)))
             | STATS id = MAX(id) BY g
             | SORT id
-            | DROP g""", Set.of("version*", "id*"));
+            | DROP g""", Set.of("version", "version.*", "id", "id.*"));
     }
 
     public void testCoalesceEndsInNull() {
@@ -919,7 +1003,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | EVAL first_name = COALESCE(first_name, last_name, null)
             | SORT first_name DESC, emp_no ASC
             | KEEP emp_no, first_name
-            | limit 3""", Set.of("first_name*", "last_name*", "emp_no*"));
+            | limit 3""", Set.of("first_name", "first_name.*", "last_name", "last_name.*", "emp_no", "emp_no.*"));
     }
 
     public void testMvAvg() {
@@ -929,7 +1013,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval salary_change = mv_avg(salary_change)
             | sort emp_no
             | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("emp_no*", "salary_change*", "salary_change.int*"));
+            | limit 7""", Set.of("emp_no", "emp_no.*", "salary_change", "salary_change.*", "salary_change.int", "salary_change.int.*"));
     }
 
     public void testEvalOverride() {
@@ -938,7 +1022,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval languages = languages + 1
             | eval languages = languages + 1
             | limit 5
-            | keep l*""", Set.of("languages*", "l*"));// subtlety here. Keeping only "languages*" can remove any other "l*" named fields
+            | keep l*""", Set.of("languages", "languages.*", "l*"));// subtlety here. Keeping only "languages*" can remove any other "l*"
+                                                                    // named fields
     }
 
     public void testBasicWildcardKeep() {
@@ -964,7 +1049,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | keep *name
             | drop first_name
-            """, Set.of("*name*", "first_name*"));
+            """, Set.of("*name", "*name.*", "first_name", "first_name.*"));
     }
 
     public void testProjectAfterDropName() {
@@ -972,7 +1057,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | drop first_name
             | keep *name
-            """, Set.of("*name*", "first_name*"));
+            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
     }
 
     public void testProjectKeepAndDropName() {
@@ -980,7 +1065,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | drop first_name
             | keep last_name
-            """, Set.of("last_name*", "first_name*"));
+            """, Set.of("last_name", "last_name.*", "first_name", "first_name.*"));
     }
 
     public void testProjectDropPattern() {
@@ -1010,7 +1095,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | drop l*
             | keep first_name, salary
-            """, Set.of("l*", "first_name*", "salary*"));
+            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
 
     public void testAliasesThatGetDropped() {

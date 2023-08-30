@@ -489,8 +489,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // realm configuration AND multiple realms of that type can exist this can be an issue. This is an issue because realm1 might
     // result in the token principal "abc", but realm2 (same JWT) might result in the token principal as "xyz". Since we short circuit the
     // extraction of the token principal (i.e. use the first one that does not error) then the same JWT token can result in a
-    // token principal of either "abc" or "xyz" depending on which came first. To compound issue the order in which realms are evaluated is
-    // effectively non-deterministic due to smart re-ordering and caching. This means that we can not rely on the value calculated here
+    // token principal of either "abc" or "xyz" depending on which came first. This means that we can not rely on the value calculated here
     // to be logically correct within the context of a given realm. The value is technically correct as the value is a function of
     // the JWT itself, but which function (from realm1 or realm2) can not be known. The value emitted here should be used judiciously.
     private String buildTokenPrincipal(JWTClaimsSet jwtClaimsSet) {

@@ -30,11 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -55,30 +52,11 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     private final AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();
     private EmbeddedChannel channel;
     private Netty4HttpHeaderValidator netty4HttpHeaderValidator;
-    private List<ByteBuf> allocatedBuffers = new ArrayList<>();
 
-    @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         reset();
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        for (ByteBuf byteBuf : allocatedBuffers) {
-            if (byteBuf.refCnt() > 0) {
-                byteBuf.release(byteBuf.refCnt());
-            }
-        }
-    }
-
-    private ByteBuf allocateNewBuf() {
-        ByteBuf buf = channel.alloc().buffer();
-        allocatedBuffers.add(buf);
-        return buf;
     }
 
     private void reset() {
@@ -618,7 +596,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
-        ByteBuf buf = allocateNewBuf();
+        ByteBuf buf = channel.alloc().buffer();
         ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
         final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);
         channel.writeInbound(request);
@@ -653,7 +631,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
-        ByteBuf buf = allocateNewBuf();
+        ByteBuf buf = channel.alloc().buffer();
         ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
         final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);
         channel.writeInbound(request);
@@ -686,7 +664,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertTrue(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
-        ByteBuf buf = allocateNewBuf();
+        ByteBuf buf = channel.alloc().buffer();
         ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
         // a request with a decoder error prior to validation
         final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);

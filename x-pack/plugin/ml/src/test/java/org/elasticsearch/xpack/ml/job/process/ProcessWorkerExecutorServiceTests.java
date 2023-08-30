@@ -40,7 +40,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         ProcessWorkerExecutorService executor = createExecutorService();
 
         threadPool.generic().execute(executor::start);
-        executor.shutdown();
+        executor.shutdownNow();
         AtomicBoolean rejected = new AtomicBoolean(false);
         AtomicBoolean initialized = new AtomicBoolean(false);
         executor.execute(new AbstractInitializableRunnable() {
@@ -108,7 +108,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         if (shutdownWithError) {
             executor.shutdownNowWithError(new ElasticsearchException("stopping the executor because an error occurred"));
         } else {
-            executor.shutdown();
+            executor.shutdownNow();
         }
         latch.countDown();
         executorFinished.get();

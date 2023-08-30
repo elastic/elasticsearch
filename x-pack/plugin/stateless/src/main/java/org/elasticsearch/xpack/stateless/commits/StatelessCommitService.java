@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -124,9 +125,10 @@ public class StatelessCommitService implements ClusterStateListener {
         this.commitCleaner = commitCleaner;
     }
 
-    public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit commit) {
+    public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit recoveredCommit, Set<BlobFile> unreferencedFiles) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.markCommitRecovered(commit);
+        assert recoveredCommit != null;
+        commitState.markCommitRecovered(recoveredCommit, unreferencedFiles);
     }
 
     public long getRecoveredGeneration(ShardId shardId) {
@@ -487,30 +489,91 @@ public class StatelessCommitService implements ClusterStateListener {
             return writer;
         }
 
-        private void markCommitRecovered(StatelessCompoundCommit recoveredCommit) {
+        private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> unreferencedBlobs) {
+            assert recoveredCommit != null;
             assert compoundCommitBlobs.isEmpty() : compoundCommitBlobs;
             assert blobLocations.isEmpty() : blobLocations;
 
-            final long primaryTerm = recoveredCommit.primaryTerm();
-            final long generation = recoveredCommit.generation();
-            recoveredGeneration = generation;
-
-            // create the compound commit blob instance
-            var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, recoveredCommit.getInternalFiles());
-            compoundCommitBlobs.put(generation, compoundCommitBlob);
-
-            // add blob location for internal and referenced files
-            recoveredCommit.commitFiles().forEach((file, location) -> {
-
-                // Files that are not internal to the recovered commit are also associated to the recovered commit (with their exact blob
-                // location) until the compound commits they belong to are initialized too. This is OK for now but once the recovered commit
-                // is released the referenced files will remain in the blobLocations map forever
-                // TODO initialize all existing compound commits from the blob store (ES-6479)
-
-                if (blobLocations.putIfAbsent(file, new CommitAndBlobLocation(compoundCommitBlob, location)) != null) {
-                    throw new IllegalArgumentException("Blob location already exists for file [" + file + ']');
+            Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> toInit = new HashMap<>();
+            for (Map.Entry<String, BlobLocation> referencedBlob : recoveredCommit.commitFiles().entrySet()) {
+                if (recoveredCommit.getInternalFiles().contains(referencedBlob.getKey()) == false) {
+                    toInit.computeIfAbsent(
+                        new PrimaryTermAndGeneration(
+                            referencedBlob.getValue().primaryTerm(),
+                            referencedBlob.getValue().compoundFileGeneration()
+                        ),
+                        primaryTermAndGeneration -> new HashMap<>()
+                    ).put(referencedBlob.getKey(), referencedBlob.getValue());
                 }
+
+            }
+
+            for (BlobFile blobFile : unreferencedBlobs) {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(blobFile.blobName())) {
+                    PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
+                        blobFile.primaryTerm(),
+                        StatelessCompoundCommit.parseGenerationFromBlobName(blobFile.blobName())
+                    );
+                    Map<String, BlobLocation> internalFiles = toInit.getOrDefault(primaryTermAndGeneration, Collections.emptyMap());
+
+                    // create a compound commit blob instance for the new commit
+                    var compoundCommitBlob = new CompoundCommitBlob(
+                        primaryTermAndGeneration.primaryTerm(),
+                        primaryTermAndGeneration.generation(),
+                        internalFiles.keySet()
+                    );
+                    compoundCommitBlobs.put(primaryTermAndGeneration.generation(), compoundCommitBlob);
+
+                    internalFiles.forEach((key, value) -> {
+                        var previous = blobLocations.put(key, new CommitAndBlobLocation(compoundCommitBlob, value));
+                        assert previous == null : key + ':' + previous;
+                    });
+
+                } else {
+                    logger.warn("Found object store file which does not match compound commit file naming pattern: " + blobFile);
+                }
+            }
+
+            // create a compound commit blob instance for the new commit
+            var compoundCommitBlob = new CompoundCommitBlob(
+                recoveredCommit.primaryTerm(),
+                recoveredCommit.generation(),
+                recoveredCommit.getInternalFiles()
+            );
+
+            // TODO: We should maybe make each commit blob reference the prior commit
+            compoundCommitBlobs.forEach((generation, toReference) -> compoundCommitBlob.incRef(toReference));
+
+            // Decrement the references so that only the recovery commit retains this compound commit
+            compoundCommitBlobs.values().forEach(b -> {
+                b.decRef();
+                assert b.refCount() == 1;
             });
+
+            compoundCommitBlobs.put(recoveredCommit.generation(), compoundCommitBlob);
+
+            recoveredCommit.getInternalFiles().forEach(fileName -> {
+                var previous = blobLocations.put(
+                    fileName,
+                    new CommitAndBlobLocation(compoundCommitBlob, recoveredCommit.commitFiles().get(fileName))
+                );
+                assert previous == null : fileName + ':' + previous;
+            });
+
+            var currentUnpromotableShardAssignedNodes = shardRouting.apply(shardId)
+                .unpromotableShards()
+                .stream()
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toSet());
+            updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+
+            HashSet<CompoundCommitBlob> blobsToTrack = new HashSet<>(compoundCommitBlobs.values());
+            for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
+                unpromotableShardCommitReferences.trackReferencedCommits(blobsToTrack);
+            }
+
+            recoveredGeneration = recoveredCommit.generation();
+
             handleUploadedCommit(recoveredCommit);
         }
 
@@ -522,6 +585,15 @@ public class StatelessCommitService implements ClusterStateListener {
         ) {
             pendingUploadGenerations.add(generation);
 
+            return addCommitData(primaryTerm, generation, commitFiles, additionalFiles);
+        }
+
+        private CompoundCommitBlob addCommitData(
+            long primaryTerm,
+            long generation,
+            Collection<String> commitFiles,
+            Set<String> additionalFiles
+        ) {
             // create a compound commit blob instance for the new commit
             var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, additionalFiles);
             if (compoundCommitBlobs.putIfAbsent(generation, compoundCommitBlob) != null) {
@@ -895,5 +967,4 @@ public class StatelessCommitService implements ClusterStateListener {
             return "CommitAndBlobLocation [compoundCommitBlob=" + compoundCommitBlob + ", blobLocation=" + blobLocation + ']';
         }
     }
-
 }

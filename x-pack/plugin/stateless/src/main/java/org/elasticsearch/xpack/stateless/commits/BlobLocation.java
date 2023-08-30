@@ -33,26 +33,37 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * References a location where a file is written on the blob store.
  *
- * @param primaryTerm the primary term where the file was first created
- * @param blobName the name of the blob in which the file is written
- * @param blobLength the length of the enclosing blob
- * @param offset the offset inside the blob where the file is written
+ * @param blobFile the blob file in which this location points
+ * @param offset the offset inside the blob file where the file is written
  * @param fileLength the length of the file
  */
-public record BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength)
-    implements
-        Writeable,
-        ToXContentObject {
+public record BlobLocation(BlobFile blobFile, long offset, long fileLength) implements Writeable, ToXContentObject {
 
     public BlobLocation {
-        assert offset + fileLength <= blobLength : "(offset + file) length is greater than blobLength " + this;
+        assert offset + fileLength <= blobFile.blobLength() : "(offset + file) length is greater than blobLength " + this;
+    }
+
+    public BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength) {
+        this(new BlobFile(primaryTerm, blobName, blobLength), offset, fileLength);
+    }
+
+    public long primaryTerm() {
+        return blobFile.primaryTerm();
+    }
+
+    public String blobName() {
+        return blobFile.blobName();
+    }
+
+    public long blobLength() {
+        return blobFile.blobLength();
     }
 
     /**
      * @return parse the generation from the blob name
      */
     public long compoundFileGeneration() {
-        return StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+        return StatelessCompoundCommit.parseGenerationFromBlobName(blobName());
     }
 
     public static BlobLocation readFromStore(StreamInput streamInput, boolean includesBlobLength) throws IOException {
@@ -96,12 +107,12 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
     }
 
     public void writeToStore(StreamOutput out, boolean includeBlobLength) throws IOException {
-        out.writeVLong(primaryTerm);
-        out.writeString(blobName);
+        out.writeVLong(primaryTerm());
+        out.writeString(blobName());
         if (includeBlobLength) {
-            out.writeVLong(blobLength);
+            out.writeVLong(blobLength());
         } else {
-            assert blobLength == fileLength;
+            assert blobLength() == fileLength;
         }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
@@ -109,9 +120,9 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(primaryTerm);
-        out.writeString(blobName);
-        out.writeVLong(blobLength);
+        out.writeVLong(primaryTerm());
+        out.writeString(blobName());
+        out.writeVLong(blobLength());
         out.writeVLong(offset);
         out.writeVLong(fileLength);
     }
@@ -119,9 +130,9 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-            .field("primary_term", primaryTerm)
-            .field("blob_name", blobName)
-            .field("blob_length", blobLength)
+            .field("primary_term", primaryTerm())
+            .field("blob_name", blobName())
+            .field("blob_length", blobLength())
             .field("offset", offset)
             .field("file_length", fileLength)
             .endObject();
@@ -155,12 +166,12 @@ public record BlobLocation(long primaryTerm, String blobName, long blobLength, l
     public String toString() {
         return "BlobLocation{"
             + "primaryTerm="
-            + primaryTerm
+            + primaryTerm()
             + ", blobName='"
-            + blobName
+            + blobName()
             + '\''
             + ", blobLength="
-            + blobLength
+            + blobLength()
             + ", offset="
             + offset
             + ", fileLength="

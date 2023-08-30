@@ -8,14 +8,14 @@
 {esql} can access <<mapping-fields, metadata fields>>. The currently
 supported ones are:
 
-  * <<mapping-index-field, _index>>: the index to which the document belongs.
+  * <<mapping-index-field,`_index`>>: the index to which the document belongs.
   The field is of the type <<keyword, keyword>>.
 
-  * <<mapping-id-field, _id>>: the source document's ID. The field is of the
+  * <<mapping-id-field,`_id`>>: the source document's ID. The field is of the
   type <<keyword, keyword>>.
 
-  * _version: the source document's version. The field is of the type
-  <<number, long>>.
+  * `_version`: the source document's version. The field is of the type
+  <<number,long>>.
 
 To enable the access to these fields, the <<esql-from, from>> source command needs
 to be provided with a dedicated directive:

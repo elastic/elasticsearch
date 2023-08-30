@@ -72,7 +72,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
 
     @Override
@@ -113,33 +112,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
         assertTrue(freq1 < freq2);
-    }
-
-    public void testNegativeScoreImpact() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "sparse_vector").field("positive_score_impact", false))
-        );
-
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
-
-        List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = null;
-        FeatureField featureField2 = null;
-        for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (FeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (FeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 > freq2);
     }
 
     public void testDotinFieldname() throws Exception {

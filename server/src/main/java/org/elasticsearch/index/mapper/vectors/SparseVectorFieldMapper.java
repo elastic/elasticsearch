@@ -49,12 +49,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
-            "positive_score_impact",
-            false,
-            m -> ft(m).positiveScoreImpact,
-            true
-        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -63,17 +57,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { positiveScoreImpact, meta };
+            return new Parameter<?>[] { meta };
         }
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
                 name,
-                new SparseVectorFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                positiveScoreImpact.getValue()
+                copyTo.build()
             );
         }
     }
@@ -87,11 +80,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        private final boolean positiveScoreImpact;
-
-        public SparseVectorFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
+        public SparseVectorFieldType(String name, Map<String, String> meta) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
@@ -127,17 +117,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean positiveScoreImpact;
-
-    private SparseVectorFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        boolean positiveScoreImpact
-    ) {
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
-        this.positiveScoreImpact = positiveScoreImpact;
     }
 
     @Override
@@ -198,9 +179,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
                                 + key
                                 + "] in the same document"
                         );
-                    }
-                    if (positiveScoreImpact == false) {
-                        value = 1 / value;
                     }
                     context.doc().addWithKey(key, new FeatureField(name(), feature, value));
                 } else {

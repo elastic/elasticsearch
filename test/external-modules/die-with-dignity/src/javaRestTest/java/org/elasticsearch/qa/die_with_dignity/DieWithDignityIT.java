@@ -8,6 +8,7 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.PathUtils;
@@ -27,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -76,11 +78,28 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertTrue(fatalErrorInThreadExiting);
     }
 
-    private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException {
+    private Process startJcmd(long pid) throws IOException {
         final String jcmdPath = PathUtils.get(System.getProperty("tests.runtime.java"), "bin/jcmd").toString();
-        final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line")
+        return new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line")
             .redirectErrorStream(true)
             .start();
+    }
+
+    private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException, InterruptedException {
+        Process jcmdProcess = startJcmd(pid);
+
+        if (Constants.WINDOWS) {
+            // jcmd on windows appears to have a subtle bug where if the process being connected to
+            // dies while jcmd is running, it can hang indefinitely. Here we detect this case by
+            // waiting a fixed amount of time, and then killing/retrying the process
+            boolean exited = jcmdProcess.waitFor(10, TimeUnit.SECONDS);
+            if (exited == false) {
+                logger.warn("jcmd hung, killing process and retrying");
+                jcmdProcess.destroyForcibly();
+                jcmdProcess = startJcmd(pid);
+            }
+        }
+
         List<String> outputLines = readLines(jcmdProcess.getInputStream());
 
         String jvmArgs = null;

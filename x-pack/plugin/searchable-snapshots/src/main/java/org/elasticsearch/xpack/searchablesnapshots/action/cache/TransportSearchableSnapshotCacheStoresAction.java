@@ -186,7 +186,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeCacheFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 }

@@ -268,7 +268,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     protected void doWriteTo(StreamOutput out) throws IOException {
         emptyBucketInfo.writeTo(out);
         out.writeNamedWriteable(format);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         out.writeVInt(targetNumBuckets);
     }
 

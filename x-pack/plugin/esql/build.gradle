@@ -57,23 +57,22 @@ sourceSets.main.java {
 
 tasks.getByName('test') {
   if (BuildParams.isCi() == false) {
-    dependsOn 'cleanGeneratedDocs'
-    finalizedBy 'copyGeneratedDocs'
     systemProperty 'generateDocs', true
-  }
-}
-
-tasks.register('cleanGeneratedDocs', Delete) {
-  delete "${projectDir}/build/testrun/test/temp/esql/functions"
-}
-
-tasks.register('copyGeneratedDocs', Sync) {
-  dependsOn 'test'
-  from "${projectDir}/build/testrun/test/temp/esql/functions"
-  into "${rootDir}/docs/reference/esql/functions"
-  include '**/*.asciidoc', '**/*.svg'
-  preserve {
-    include '/*.asciidoc'
+    doFirst {
+      project.delete(
+        files("${projectDir}/build/testrun/test/temp/esql/functions")
+      )
+    }
+    doLast {
+      project.sync {
+        from "${projectDir}/build/testrun/test/temp/esql/functions"
+        into "${rootDir}/docs/reference/esql/functions"
+        include '**/*.asciidoc', '**/*.svg'
+        preserve {
+          include '/*.asciidoc'
+        }
+      }
+    }
   }
 }
 

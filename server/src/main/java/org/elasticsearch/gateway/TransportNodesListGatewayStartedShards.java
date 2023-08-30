@@ -248,7 +248,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 

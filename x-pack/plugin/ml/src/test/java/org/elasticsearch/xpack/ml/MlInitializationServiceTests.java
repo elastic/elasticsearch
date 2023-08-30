@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -57,7 +58,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
 
         Scheduler.ScheduledCancellable scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
-        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
+        when(threadPool.schedule(any(), any(), anyString())).thenReturn(scheduledCancellable);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
 

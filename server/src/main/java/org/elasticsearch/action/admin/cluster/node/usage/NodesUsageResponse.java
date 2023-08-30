@@ -41,7 +41,7 @@ public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements 
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeUsage> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

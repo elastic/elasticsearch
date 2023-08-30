@@ -230,6 +230,9 @@ Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}
 
+[[restore-snapshot-api-example-rename]]
+===== Restore renamed
+
 The following request restores `index_1` and `index_2` from `snapshot_2`. The `rename_pattern` and `rename_replacement` parameters indicate any index matching the regular expression `index_(.+)` will be renamed using the pattern `restored_index_$1` when restored.
 
 For example, `index_1` will be renamed to `restored_index_1`. `index_2` will be renamed to `restored_index_2`.
@@ -249,3 +252,20 @@ POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 
 The API returns an acknowledgement if the request succeeds. If the request encounters errors, the response indicates any issues found, such as
 open indices that are blocking the restore operation from completing.
+
+[[restore-snapshot-api-example-inplace]]
+===== Restore in place
+
+The following <<indices-close,closes>> `index_1` and then restores it in place from repository `my_repository`'s snapshot `snapshot_A`.
+
+[source,console]
+----
+POST index_1/_close 
+
+POST /_snapshot/my_repository/snapshot_A/_restore?wait_for_completion=true
+{
+  "indices": "index_1"
+}
+----
+
+This is only usually done in response to no alternative options surfacing from investigation <<cluster-allocation-explain,Allocation Explain>> reporting `no_valid_shard_copy`. 

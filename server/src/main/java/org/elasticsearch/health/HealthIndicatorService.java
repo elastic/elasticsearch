@@ -58,8 +58,8 @@ public interface HealthIndicatorService {
 
     /**
      * A preflight indicator is an indicator that is run first and represents a serious cascading health problem. For example, the
-     * `stable_master` health indicator is a preflight indicator. When it is red it means that we do not have a formed cluster so running further
-     * diagnostics is not valuable.
+     * `stable_master` health indicator is a preflight indicator. When it is red it means that we do not have a formed cluster so running
+     * further diagnostics is not valuable.
      * @return true if this is a preflight indicator, false otherwise.
      */
     default boolean isPreflight() {

@@ -161,7 +161,7 @@ public record ScriptStats(
             out.writeVLong(cacheEvictions);
         }
         out.writeVLong(compilationLimitTriggered);
-        out.writeList(contextStats);
+        out.writeCollection(contextStats);
     }
 
     public List<ScriptContextStats> getContextStats() {

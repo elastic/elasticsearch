@@ -146,7 +146,7 @@ public class TransformIndexTests extends ESTestCase {
         TransformIndex.createDestinationIndex(
             client,
             TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
-            TransformIndex.createTransformDestIndexSettings(new HashMap<>(), TRANSFORM_ID, clock),
+            TransformIndex.createTransformDestIndexSettings(Settings.EMPTY, new HashMap<>(), TRANSFORM_ID, clock),
             ActionTestUtils.assertNoFailureListener(Assert::assertTrue)
         );
 

@@ -40,6 +40,6 @@ public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.indexMetaData);
+        out.writeCollection(this.indexMetaData);
     }
 }

@@ -103,7 +103,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         private List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this fuction invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate
          */
         String evaluatorToString;
         /**
@@ -121,6 +121,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         private String[] expectedWarnings;
 
         private final String expectedTypeError;
+
+        private final boolean allTypesAreRepresentable;
 
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
             this(data, evaluatorToString, expectedType, matcher, null, null);
@@ -145,6 +147,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             this.matcher = matcher;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
+            this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
         }
 
         public Source getSource() {
@@ -165,6 +168,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
         public List<Object> getDataValues() {
             return data.stream().map(t -> t.data()).collect(Collectors.toList());
+        }
+
+        public boolean allTypesAreRepresentable() {
+            return allTypesAreRepresentable;
         }
 
         public Matcher<Object> getMatcher() {
@@ -531,6 +538,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
         Expression expression = buildFieldExpression(testCase);
         if (testCase.expectedTypeError != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
@@ -550,6 +558,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -576,6 +585,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
         int count = 10_000;
         int threads = 5;
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -603,6 +613,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
         var supplier = evaluator(buildFieldExpression(testCase));
         var ev = supplier.get();
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
@@ -626,6 +637,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
         assertSerialization(buildFieldExpression(testCase));
     }
 
@@ -845,6 +857,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
+    @AfterClass
+    public static void renderSignature() throws IOException {
+        if (System.getProperty("generateDocs") == null) {
+            return;
+        }
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
+            return;
+        }
+
+        String rendered = RailRoadDiagram.functionSignature(definition);
+        LogManager.getLogger(getTestClass()).info("Writing function signature");
+        writeToTempDir("signature", rendered, "svg");
+    }
+
     /**
      * Unique signatures encountered by this test.
      * <p>
@@ -880,6 +908,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderTypesTable() throws IOException {
+        if (System.getProperty("generateDocs") == null) {
+            return;
+        }
         FunctionDefinition definition = definition();
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");

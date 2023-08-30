@@ -516,7 +516,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeList(expected);
+        out.writeCollection(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 

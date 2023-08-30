@@ -95,7 +95,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

@@ -149,7 +149,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         out.writeStringArray(indices);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {

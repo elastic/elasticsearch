@@ -60,7 +60,7 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
 
         Scheduler.ScheduledCancellable cancellable = mock(Scheduler.ScheduledCancellable.class);
         ThreadPool tp = mock(ThreadPool.class);
-        when(tp.schedule(any(), any(), any())).thenReturn(cancellable);
+        when(tp.schedule(any(), any(), anyString())).thenReturn(cancellable);
 
         {
             ActionListener<ThreadSettings> listener = mock(ActionListener.class);
@@ -116,7 +116,7 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
 
         Scheduler.ScheduledCancellable cancellable = mock(Scheduler.ScheduledCancellable.class);
         ThreadPool tp = mock(ThreadPool.class);
-        when(tp.schedule(any(), any(), any())).thenReturn(cancellable);
+        when(tp.schedule(any(), any(), anyString())).thenReturn(cancellable);
 
         ActionListener<ThreadSettings> listener = mock(ActionListener.class);
         ArgumentCaptor<BytesReference> messageCapture = ArgumentCaptor.forClass(BytesReference.class);

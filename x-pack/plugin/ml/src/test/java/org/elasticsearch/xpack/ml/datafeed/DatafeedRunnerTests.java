@@ -167,7 +167,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), anyString());
         verify(auditor).warning(JOB_ID, "Datafeed lookback retrieved no data");
     }
 
@@ -178,7 +178,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), anyString());
     }
 
     public void testStart_extractionProblem() throws Exception {
@@ -188,7 +188,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), anyString());
         verify(auditor, times(1)).error(eq(JOB_ID), anyString());
     }
 
@@ -202,7 +202,7 @@ public class DatafeedRunnerTests extends ESTestCase {
                 r.run();
             }
             return mock(Scheduler.ScheduledCancellable.class);
-        }).when(threadPool).schedule(any(), any(), any());
+        }).when(threadPool).schedule(any(), any(), anyString());
 
         when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
         when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));

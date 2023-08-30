@@ -538,7 +538,7 @@ environment variable. Example:
 
 [source,sh]
 ----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" --name es01 --net elastic -p 9200:9200 -it -m 2GB {docker-image}
 ----
 
 The `ES_JAVA_OPTS` variable overrides all other JVM options. We don't recommend

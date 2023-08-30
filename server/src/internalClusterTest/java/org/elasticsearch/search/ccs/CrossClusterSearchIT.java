@@ -99,7 +99,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         if (randomBoolean()) {
             searchRequest = searchRequest.scroll("1m");
@@ -117,11 +116,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setPreFilterShardSize(1);
         }
-
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -162,7 +159,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(false);
         boolean minimizeRoundtrips = randomBoolean();
@@ -182,9 +178,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .to(EARLIEST_TIMESTAMP - 1000);
 
         searchRequest.source(new SearchSourceBuilder().query(rangeQueryBuilder).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -231,7 +226,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
         boolean minimizeRoundtrips = randomBoolean();
@@ -249,9 +243,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         // shardId 0 means to throw the Exception only on shard 0; all others should work
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -261,27 +254,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
-        assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-        assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-        assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards - 1));
-        assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-        assertThat(localClusterSearchInfo.getFailedShards(), equalTo(1));
-        assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
-        assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
-        ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+        assertOneFailedShard(localClusterSearchInfo, localNumShards);
 
         SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
         assertNotNull(remoteClusterSearchInfo);
-        assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-        assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-        assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
-        assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-        assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
-        assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-        assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
-        ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        assertOneFailedShard(remoteClusterSearchInfo, remoteNumShards);
     }
 
     public void testClusterDetailsAfterCCSWithFailuresOnRemoteClusterOnly() throws Exception {
@@ -382,7 +359,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
         boolean minimizeRoundtrips = randomBoolean();
@@ -404,9 +380,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         SlowRunningQueryBuilder slowRunningQueryBuilder = new SlowRunningQueryBuilder(searchTimeout.millis() * 5);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
         searchRequest.source(sourceBuilder);
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -444,7 +419,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(false);
         boolean minimizeRoundtrips = randomBoolean();
@@ -460,9 +434,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             searchRequest.setPreFilterShardSize(1);
         }
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -489,7 +462,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         String remoteIndex = (String) testClusterInfo.get("remote.index");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
 
-        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
         boolean minimizeRoundtrips = randomBoolean();
@@ -508,9 +480,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         // shardId 0 means to throw the Exception only on shard 0; all others should work
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
-        SearchResponse searchResponse = queryFuture.get();
+        SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
         assertNotNull(searchResponse);
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
@@ -522,15 +493,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
         assertNotNull(remoteClusterSearchInfo);
-        assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-        assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-        assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards - 1));
-        assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-        assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(1));
-        assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-        assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
-        ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        assertOneFailedShard(remoteClusterSearchInfo, remoteNumShards);
     }
 
     public void testRemoteClusterOnlyCCSWithFailuresOnAllShards() throws Exception {
@@ -592,6 +555,20 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
             assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
         }
+    }
+
+    /// MP TODO use this
+    private static void assertOneFailedShard(SearchResponse.Cluster cluster, int totalShards) {
+        assertNotNull(cluster);
+        assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+        assertThat(cluster.getTotalShards(), equalTo(totalShards));
+        assertThat(cluster.getSuccessfulShards(), equalTo(totalShards - 1));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(1));
+        assertThat(cluster.getFailures().size(), equalTo(1));
+        assertThat(cluster.getTook().millis(), greaterThan(0L));
+        ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
+        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
     }
 
     private Map<String, Object> setupTwoClusters() {

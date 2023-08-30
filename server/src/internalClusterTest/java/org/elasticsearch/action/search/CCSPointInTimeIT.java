@@ -114,26 +114,12 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             if (includeLocalIndex) {
                 AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                 assertNotNull(localClusterRef);
-                SearchResponse.Cluster localCluster = localClusterRef.get();
-                assertThat(localCluster.getTotalShards(), equalTo(1));
-                assertThat(localCluster.getSuccessfulShards(), equalTo(1));
-                assertThat(localCluster.getFailedShards(), equalTo(0));
-                assertThat(localCluster.getFailures().size(), equalTo(0));
-                assertThat(localCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-                assertFalse(localCluster.isTimedOut());
+                assertOneSuccessfulShard(localClusterRef.get());
             }
 
             AtomicReference<SearchResponse.Cluster> remoteClusterRef = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterRef);
-            SearchResponse.Cluster remoteCluster = remoteClusterRef.get();
-            assertThat(remoteCluster.getTotalShards(), equalTo(1));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(1));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailures().size(), equalTo(0));
-            assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertFalse(remoteCluster.isTimedOut());
+            assertOneSuccessfulShard(remoteClusterRef.get());
 
         } finally {
             closePointInTime(pitId);
@@ -183,32 +169,35 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             if (includeLocalIndex) {
                 AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                 assertNotNull(localClusterRef);
-                SearchResponse.Cluster localCluster = localClusterRef.get();
-                assertThat(localCluster.getTotalShards(), equalTo(numShards));
-                assertThat(localCluster.getSuccessfulShards(), equalTo(numShards - 1));
-                assertThat(localCluster.getFailedShards(), equalTo(1));
-                assertThat(localCluster.getFailures().size(), equalTo(1));
-                assertThat(localCluster.getFailures().get(0).reason(), containsString("index corrupted"));
-                assertThat(localCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-                assertFalse(localCluster.isTimedOut());
+                assertOneFailedShard(localClusterRef.get(), numShards);
             }
-
             AtomicReference<SearchResponse.Cluster> remoteClusterRef = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterRef);
-            SearchResponse.Cluster remoteCluster = remoteClusterRef.get();
-            assertThat(remoteCluster.getTotalShards(), equalTo(numShards));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(numShards - 1));
-            assertThat(remoteCluster.getFailedShards(), equalTo(1));
-            assertThat(remoteCluster.getFailures().size(), equalTo(1));
-            assertThat(remoteCluster.getFailures().get(0).reason(), containsString("index corrupted"));
-            assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertFalse(remoteCluster.isTimedOut());
+            assertOneFailedShard(remoteClusterRef.get(), numShards);
 
         } finally {
             closePointInTime(pitId);
         }
+    }
+
+    private static void assertOneSuccessfulShard(SearchResponse.Cluster cluster) {
+        assertThat(cluster.getTotalShards(), equalTo(1));
+        assertThat(cluster.getSuccessfulShards(), equalTo(1));
+        assertThat(cluster.getFailedShards(), equalTo(0));
+        assertThat(cluster.getFailures().size(), equalTo(0));
+        assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertFalse(cluster.isTimedOut());
+    }
+
+    private static void assertOneFailedShard(SearchResponse.Cluster cluster, int totalShards) {
+        assertThat(cluster.getSuccessfulShards(), equalTo(totalShards - 1));
+        assertThat(cluster.getFailedShards(), equalTo(1));
+        assertThat(cluster.getFailures().size(), equalTo(1));
+        assertThat(cluster.getFailures().get(0).reason(), containsString("index corrupted"));
+        assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertFalse(cluster.isTimedOut());
     }
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {

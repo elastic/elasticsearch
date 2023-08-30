@@ -17,7 +17,7 @@ supported ones are:
   * `_version`: the source document's version. The field is of the type
   <<number,long>>.
 
-To enable the access to these fields, the <<esql-from, from>> source command needs
+To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
 to be provided with a dedicated directive:
 
 [source,esql]

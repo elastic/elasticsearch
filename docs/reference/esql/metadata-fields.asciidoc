@@ -25,8 +25,9 @@ to be provided with a dedicated directive:
 FROM index [METADATA _index, _id]
 ----
 
-Consequently, the metadata fields are only available if the source of the data
-is an index; i.e., the source command is `FROM`.
+Metadata fields are only available if the source of the data is an index.
+Consequently, `FROM` is the only source commands that supports the `METADATA`
+directive.
 
 Once enabled, the fields are then available to subsequent processing commands, just
 like the other index fields:

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -44,6 +46,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -55,12 +58,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
@@ -230,6 +237,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             );
     }
 
+    public BlobContainer getBlobContainer(ShardId shardId) {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore()
+            .blobContainer(objectStore.basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())));
+    }
+
     public BlobContainer getTermLeaseBlobContainer() {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
@@ -379,10 +392,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    public static StatelessCompoundCommit findSearchShardFiles(BlobContainer blobContainer) throws IOException {
-        // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
-        // TODO ES-5869 Tracks the work to attempt previous primary terms if the current term lacks a commit
-        final var allBlobs = Map.copyOf(blobContainer.listBlobs());
+    private static StatelessCompoundCommit readNewestCommit(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs)
+        throws IOException {
         OptionalLong maxGeneration = allBlobs.keySet()
             .stream()
             .filter(StatelessCompoundCommit::startsWithBlobPrefix)
@@ -396,6 +407,62 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             long fileLength = allBlobs.get(commitFileName).length();
             return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
         }
+    }
+
+    public static StatelessCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
+        StatelessCompoundCommit latestCommit = null;
+        List<Tuple<Long, BlobContainer>> containersToSearch = shardContainer.children()
+            .entrySet()
+            .stream()
+            .map(e -> new Tuple<>(Long.valueOf(e.getKey()), e.getValue()))
+            .filter(t -> t.v1() <= primaryTerm)
+            .sorted(Comparator.comparingLong((Tuple<Long, BlobContainer> o) -> o.v1()).reversed())
+            .toList();
+        for (Tuple<Long, BlobContainer> container : containersToSearch) {
+            latestCommit = ObjectStoreService.readNewestCommit(container.v2(), container.v2().listBlobs());
+            if (latestCommit != null) {
+                break;
+            }
+        }
+        return latestCommit;
+    }
+
+    public static Tuple<StatelessCompoundCommit, Set<BlobFile>> readIndexingShardState(BlobContainer shardContainer, long primaryTerm)
+        throws IOException {
+        HashMap<String, BlobFile> unreferencedBlobs = new HashMap<>();
+        StatelessCompoundCommit latestCommit = null;
+        List<Tuple<Long, BlobContainer>> containersToSearch = shardContainer.children().entrySet().stream().filter(e -> {
+            try {
+                Long.parseLong(e.getKey());
+                return true;
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+        })
+            .map(e -> new Tuple<>(Long.parseLong(e.getKey()), e.getValue()))
+            .filter(t -> t.v1() <= primaryTerm)
+            .sorted(Comparator.comparingLong((Tuple<Long, BlobContainer> o) -> o.v1()).reversed())
+            .toList();
+        for (Tuple<Long, BlobContainer> container : containersToSearch) {
+            Map<String, BlobMetadata> allBlobs = container.v2().listBlobs();
+            if (latestCommit == null) {
+                latestCommit = ObjectStoreService.readNewestCommit(container.v2(), allBlobs);
+                if (latestCommit != null) {
+                    allBlobs.entrySet()
+                        .stream()
+                        .map(entry -> new BlobFile(container.v1(), entry.getKey(), entry.getValue().length()))
+                        .forEach(f -> unreferencedBlobs.put(f.blobName(), f));
+                    BlobFile removed = unreferencedBlobs.remove(StatelessCompoundCommit.blobNameFromGeneration(latestCommit.generation()));
+                    assert removed != null;
+                }
+            } else {
+                allBlobs.values()
+                    .stream()
+                    .map(metadata -> new BlobFile(container.v1(), metadata.name(), metadata.length()))
+                    .forEach(f -> unreferencedBlobs.put(f.blobName(), f));
+            }
+        }
+        return new Tuple<>(latestCommit, new HashSet<>(unreferencedBlobs.values()));
     }
 
     /**

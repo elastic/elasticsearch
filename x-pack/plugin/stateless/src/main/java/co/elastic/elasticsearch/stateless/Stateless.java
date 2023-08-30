@@ -46,6 +46,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
+import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -114,6 +115,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -595,18 +597,28 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             basePath.add(String.valueOf(primaryTerm))
                         );
                         searchDirectory.setBlobContainer(containerSupplier);
+                        boolean indexingShard = indexShard.routingEntry().isPromotableToPrimary();
+
+                        Set<BlobFile> unreferencedFiles = null;
                         StatelessCompoundCommit latestCommit = null;
                         final long primaryTerm = indexShard.getOperationPrimaryTerm();
                         if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
                             logger.debug("Skipping checking for existing commit for empty store recovery of [{}]", shardId);
                         } else {
                             logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
-                            for (long term = primaryTerm; term >= 0; term--) {
-                                latestCommit = ObjectStoreService.findSearchShardFiles(containerSupplier.apply(term));
-                                if (latestCommit != null) {
-                                    logger.debug("Found usable commit [{}] at term [{}]", latestCommit, term);
-                                    break;
-                                }
+                            if (indexingShard) {
+                                Tuple<StatelessCompoundCommit, Set<BlobFile>> state = ObjectStoreService.readIndexingShardState(
+                                    objectStore.blobContainer(basePath),
+                                    primaryTerm
+                                );
+                                latestCommit = state.v1();
+                                unreferencedFiles = state.v2();
+                            } else {
+                                latestCommit = ObjectStoreService.readSearchShardState(objectStore.blobContainer(basePath), primaryTerm);
+                            }
+
+                            if (latestCommit != null) {
+                                logger.debug("Found usable commit [{}] at term [{}]", latestCommit, primaryTerm);
                             }
                         }
                         final StatelessCompoundCommit commit = latestCommit;
@@ -625,7 +637,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             searchDirectory.updateCommit(commit);
                         }
 
-                        if (indexShard.routingEntry().isPromotableToPrimary()) {
+                        if (indexingShard) {
                             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                             if (commit != null) {
                                 indexDirectory.updateCommit(commit);
@@ -645,8 +657,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             } else {
                                 bootstrap(indexShard, store);
                             }
+
                             if (commit != null) {
-                                statelessCommitService.markRecoveredCommit(shardId, commit);
+                                statelessCommitService.markRecoveredCommit(shardId, commit, unreferencedFiles);
                             }
                             statelessCommitService.addConsumerForNewUploadedCommit(shardId, indexDirectory::updateCommit);
 

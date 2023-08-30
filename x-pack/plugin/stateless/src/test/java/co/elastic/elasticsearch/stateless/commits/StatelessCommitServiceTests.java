@@ -68,6 +68,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -408,14 +409,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             uploadedBlobs.clear();
 
-            StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm)
+            Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
+                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
+                primaryTerm
             );
 
             testHarness.commitService.unregister(testHarness.shardId);
 
             testHarness.commitService.register(testHarness.shardId);
-            testHarness.commitService.markRecoveredCommit(testHarness.shardId, commit);
+            testHarness.commitService.markRecoveredCommit(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             testHarness.commitService.onCommitCreation(commitRef);
             PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
@@ -825,6 +827,84 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 )
                 .collect(Collectors.toSet());
             assertThat(deletedCommits, is(equalTo(expectedDeletedCommits)));
+        }
+    }
+
+    public void testCommitsAreSuccessfullyInitializedAfterRecovery() throws Exception {
+        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var commitCleaner = new StatelessCommitCleaner(null) {
+            @Override
+            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                deletedCommits.add(staleCompoundCommit);
+            }
+        };
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+                return commitCleaner;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(state);
+
+            var initialCommits = generateIndexCommits(testHarness, 10);
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
+                pendingNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()));
+            }
+
+            Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
+                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
+                primaryTerm
+            );
+
+            testHarness.commitService.unregister(testHarness.shardId);
+
+            testHarness.commitService.register(testHarness.shardId);
+            testHarness.commitService.markRecoveredCommit(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
+
+            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            commitService.onCommitCreation(mergedCommit);
+
+            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
+
+            StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
+            assert recoveryCommit.getGeneration() == indexingShardState.v1().generation();
+            commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
+
+            // The search node is still using commit 9, that contains references to all previous commits;
+            // therefore we should retain all commits.
+            assertThat(deletedCommits, empty());
+
+            mergedCommitPendingNotification.respondWithUsedCommits(
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
+            );
+
+            var expectedDeletedCommits = initialCommits.stream()
+                .map(
+                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                        shardId,
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                    )
+                )
+                .collect(Collectors.toSet());
+            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
 

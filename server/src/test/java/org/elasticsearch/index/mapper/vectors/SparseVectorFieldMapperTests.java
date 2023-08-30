@@ -114,7 +114,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 < freq2);
     }
 
-    public void testDotinFieldname() throws Exception {
+    public void testDotInFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         DocumentParsingException ex = expectThrows(
             DocumentParsingException.class,
@@ -158,7 +158,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testCannotBeUsedInMultifields() {
+    public void testCannotBeUsedInMultiFields() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "keyword");
             b.startObject("fields");
@@ -200,6 +200,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         return Strings.concatStringArrays(super.getParseMinimalWarnings(indexVersion), additionalWarnings);
     }
 
+    @Override
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersion.V_8_11_0;
+    }
+
     public void testSparseVectorWith7xIndex() throws Exception {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
 
@@ -236,5 +241,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
         );
         assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE_7X));
+    }
+
+    public void testSparseVectorUnsupportedIndex() throws Exception {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.V_8_10_0);
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
+            b.field("type", "sparse_vector");
+        })));
+        assertThat(e.getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE_8X));
     }
 }

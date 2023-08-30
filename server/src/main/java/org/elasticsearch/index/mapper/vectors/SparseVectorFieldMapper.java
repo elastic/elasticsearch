@@ -42,6 +42,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
         + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
+    static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported for 8.0 to 8.10 versions.";
 
     private static SparseVectorFieldType ft(FieldMapper in) {
         return ((SparseVectorFieldMapper) in).fieldType();
@@ -74,7 +75,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         if (c.indexVersionCreated().before(IndexVersion.V_8_0_0)) {
             deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+        } else if (c.indexVersionCreated().before(IndexVersion.V_8_11_0)) {
+            throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
+
         return new Builder(n);
     }, notInMultiFields(CONTENT_TYPE));
 
@@ -147,6 +151,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         // No support for indexing / searching 7.x sparse_vector field types
         if (context.indexSettings().getIndexVersionCreated().before(IndexVersion.V_8_0_0)) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
+        } else if (context.indexSettings().getIndexVersionCreated().before(IndexVersion.V_8_11_0)) {
+            throw new UnsupportedOperationException(ERROR_MESSAGE_8X);
         }
 
         if (context.parser().currentToken() != Token.START_OBJECT) {

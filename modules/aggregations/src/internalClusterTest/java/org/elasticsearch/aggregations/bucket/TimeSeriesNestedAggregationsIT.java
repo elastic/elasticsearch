@@ -34,7 +34,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
+public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
     private static int numberOfDimensions;
     private static int numberOfDocuments;
 
@@ -59,9 +58,8 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
         numberOfDocuments = randomIntBetween(100, 200);
         final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocuments);
         // NOTE: use also the last (changing) dimension so to make sure documents are not indexed all in the same shard.
-        final String[] routingDimensions = new String[] { "dim_000000", "dim_" + formatDim(numberOfDimensions - 1)};
+        final String[] routingDimensions = new String[] { "dim_000000", formatDim(numberOfDimensions - 1) };
         assertTrue(prepareTimeSeriesIndex(mapping, startMillis, endMillis, routingDimensions).isAcknowledged());
-
         logger.info("Dimensions: " + numberOfDimensions + " docs: " + numberOfDocuments + " start: " + startMillis + " end: " + endMillis);
 
         final BulkRequestBuilder bulkIndexRequest = client().prepareBulk();
@@ -69,7 +67,8 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
             final XContentBuilder document = timeSeriesDocument(FOO_DIM_VALUE, BAR_DIM_VALUE, BAZ_DIM_VALUE, docId, timestamps::next);
             bulkIndexRequest.add(client().prepareIndex("index").setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
         }
-        BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        final BulkResponse bulkIndexResponse = bulkIndexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertFalse(bulkIndexResponse.hasFailures());
         assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
     }
@@ -87,9 +86,9 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
         // This way we are going to have just two time series (and two distinct tsid) and the last dimension identifies
         // which time series the document belongs to.
         for (int dimId = 0; dimId < numberOfDimensions - 1; dimId++) {
-            docSource.field("dim_" + formatDim(dimId), fooDimValue);
+            docSource.field(formatDim(dimId), fooDimValue);
         }
-        docSource.field("dim_" + formatDim(numberOfDimensions - 1), docId % 2 == 0 ? barDimValue : bazDimValue);
+        docSource.field(formatDim(numberOfDimensions - 1), docId % 2 == 0 ? barDimValue : bazDimValue);
         docSource.field("counter_metric", docId + 1);
         docSource.field("gauge_metric", randomDoubleBetween(1000.0, 2000.0, true));
         docSource.field("@timestamp", timestampSupplier.get());
@@ -131,7 +130,7 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
         builder.startObject();
         builder.startObject("properties");
         for (int i = 0; i < numberOfDimensions; i++) {
-            builder.startObject("dim_" + formatDim(i));
+            builder.startObject(formatDim(i));
             builder.field("type", "keyword");
             builder.field("time_series_dimension", true);
             builder.endObject();
@@ -150,7 +149,7 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
     }
 
     private static String formatDim(int i) {
-        return String.format("%06d", i);
+        return String.format("dim_%06d", i);
     }
 
     public void testTimeSeriesAggregation() {
@@ -191,14 +190,12 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
 
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
-            new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + formatDim(numberOfDimensions - 1))
+            new CardinalityAggregationBuilder("dim_n_cardinality").field(formatDim(numberOfDimensions - 1))
         );
         final SearchResponse aggregationResponse = client().prepareSearch("index").addAggregation(timeSeries).setSize(0).get();
         final InternalTimeSeries ts = (InternalTimeSeries) aggregationResponse.getAggregations().asList().get(0);
         assertTimeSeriesAggregation(ts);
-        ts.getBuckets().forEach(bucket -> {
-            assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1);
-        });
+        ts.getBuckets().forEach(bucket -> { assertCardinality(bucket.getAggregations().get("dim_n_cardinality"), 1); });
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {
@@ -220,7 +217,7 @@ public class TimeSeriesNestedAggregations extends AggregationIntegTestCase {
         timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).limit(numberOfDimensions - 2).forEach(entry -> {
             assertThat(entry.getValue().toString(), Matchers.equalTo(FOO_DIM_VALUE));
         });
-        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).skip(numberOfDimensions - 1).forEach( entry -> {
+        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).skip(numberOfDimensions - 1).forEach(entry -> {
             assertThat(entry.getValue().toString(), Matchers.oneOf(BAR_DIM_VALUE, BAZ_DIM_VALUE));
         });
     }

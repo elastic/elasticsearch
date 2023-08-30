@@ -375,23 +375,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(localClusterSearchInfo.getTotalShards());
-                assertNull(localClusterSearchInfo.getSuccessfulShards());
-                assertNull(localClusterSearchInfo.getSkippedShards());
-                assertNull(localClusterSearchInfo.getFailedShards());
-                assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getFailedShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getFailures().size(), equalTo(localNumShards));
-            }
-            assertNull(localClusterSearchInfo.getTook());
-            assertFalse(localClusterSearchInfo.isTimedOut());
-            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), localClusterSearchInfo, localNumShards);
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
             assertNotNull(remoteClusterSearchInfo);
@@ -399,23 +383,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(remoteClusterSearchInfo.getTotalShards());
-                assertNull(remoteClusterSearchInfo.getSuccessfulShards());
-                assertNull(remoteClusterSearchInfo.getSkippedShards());
-                assertNull(remoteClusterSearchInfo.getFailedShards());
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(remoteNumShards));
-            }
-            assertNull(remoteClusterSearchInfo.getTook());
-            assertFalse(remoteClusterSearchInfo.isTimedOut());
-            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -428,23 +396,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(localClusterSearchInfo.getTotalShards());
-                assertNull(localClusterSearchInfo.getSuccessfulShards());
-                assertNull(localClusterSearchInfo.getSkippedShards());
-                assertNull(localClusterSearchInfo.getFailedShards());
-                assertThat(localClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(localClusterSearchInfo.getFailedShards(), equalTo(localNumShards));
-                assertThat(localClusterSearchInfo.getFailures().size(), equalTo(localNumShards));
-            }
-            assertNull(localClusterSearchInfo.getTook());
-            assertFalse(localClusterSearchInfo.isTimedOut());
-            ShardSearchFailure localShardSearchFailure = localClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", localShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), localClusterSearchInfo, localNumShards);
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
             assertNotNull(remoteClusterSearchInfo);
@@ -452,23 +404,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(remoteClusterSearchInfo.getTotalShards());
-                assertNull(remoteClusterSearchInfo.getSuccessfulShards());
-                assertNull(remoteClusterSearchInfo.getSkippedShards());
-                assertNull(remoteClusterSearchInfo.getFailedShards());
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(remoteNumShards));
-            }
-            assertNull(remoteClusterSearchInfo.getTook());
-            assertFalse(remoteClusterSearchInfo.isTimedOut());
-            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
         }
     }
 
@@ -1013,23 +949,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(remoteClusterSearchInfo.getTotalShards());
-                assertNull(remoteClusterSearchInfo.getSuccessfulShards());
-                assertNull(remoteClusterSearchInfo.getSkippedShards());
-                assertNull(remoteClusterSearchInfo.getFailedShards());
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(remoteNumShards));
-            }
-            assertNull(remoteClusterSearchInfo.getTook());
-            assertFalse(remoteClusterSearchInfo.isTimedOut());
-            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -1047,23 +967,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
-                assertNull(remoteClusterSearchInfo.getTotalShards());
-                assertNull(remoteClusterSearchInfo.getSuccessfulShards());
-                assertNull(remoteClusterSearchInfo.getSkippedShards());
-                assertNull(remoteClusterSearchInfo.getFailedShards());
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
-            } else {
-                assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
-                assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(remoteNumShards));
-                assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(remoteNumShards));
-            }
-            assertNull(remoteClusterSearchInfo.getTook());
-            assertFalse(remoteClusterSearchInfo.isTimedOut());
-            ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-            assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
         }
     }
 
@@ -1408,6 +1312,26 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+    }
+
+    private static void assertAllShardsFailed(boolean minimizeRoundtrips, SearchResponse.Cluster cluster, int numShards) {
+        if (minimizeRoundtrips) {
+            assertNull(cluster.getTotalShards());
+            assertNull(cluster.getSuccessfulShards());
+            assertNull(cluster.getSkippedShards());
+            assertNull(cluster.getFailedShards());
+            assertThat(cluster.getFailures().size(), equalTo(1));
+        } else {
+            assertThat(cluster.getTotalShards(), equalTo(numShards));
+            assertThat(cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(numShards));
+            assertThat(cluster.getFailures().size(), equalTo(numShards));
+        }
+        assertNull(cluster.getTook());
+        assertFalse(cluster.isTimedOut());
+        ShardSearchFailure shardSearchFailure = cluster.getFailures().get(0);
+        assertTrue("should have 'index corrupted' in reason", shardSearchFailure.reason().contains("index corrupted"));
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {

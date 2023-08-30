@@ -13,13 +13,13 @@ security model to the API key based model.
 While it is possible to migrate by defining a new remote cluster connection,
 using a new alias, this has several downsides:
 
-- It's not possible to change the leader cluster alias for existing {ccr} tasks.
-As a result, with a new remote cluster, follower indices would need to be
+- For {ccr}, it's not possible to change the leader cluster alias for existing
+tasks. As a result, with a new remote cluster, follower indices would need to be
 re-created from scratch.
-- Transform and anomaly detection jobs do allow updating the remote cluster
-alias. However, if the job was created with wildcards, for example 
-`*:source_index`, and `superuser`, adding a new remote cluster will cause the 
-job to do double the amount of work and potentially skew results with 
+- For {ccs}, transform and anomaly detection jobs do allow updating the remote
+cluster alias. However, if the job was created with wildcards, for example
+`*:source_index`, and `superuser`, adding a new remote cluster will cause the
+job to do double the amount of work and potentially skew results with
 duplications.
 
 For these reasons, you may prefer to migrate a remote cluster in-place, by
@@ -66,8 +66,13 @@ On the local cluster:
 . Enhance any roles used by local cluster users with the required
 <<roles-remote-indices-priv,remote indices privileges>> for {ccr} and {ccs}.
 Refer to <<remote-clusters-privileges-api-key>>. Note:
+
 ** You only need to assign additional `remote_indices` privileges to existing
-roles.
+roles used for cross-cluster operations. You should be able to copy these
+privileges from the original roles on the remote cluster, where they are defined
+under the certification based security model.
+** The roles on the local cluster can't exceed the `access` privilege granted by
+the cross-cluster API key.
 ** No update is needed if the {ccr} or {ccs} tasks have been configured with a
 `superuser` role. The `superuser` role is automatically updated to allow access
 to all remote indices.
@@ -97,7 +102,20 @@ copy the `cluster.remote` settings from `elasticsearch.yml`, and store them
 in a safe place. You may need them later in case you need to
 <<remote-clusters-migration-rollback,roll back>>.
 
+
 include::remote-clusters-api-key.asciidoc[tag=local-cluster-steps]
+
+.. Add the cross-cluster API key, created on the remote cluster earlier, to the
+keystore:
++
+[source,sh]
+----
+./bin/elasticsearch-keystore add cluster.remote.ALIAS.credentials
+----
++
+Replace `ALIAS` with the same alias that was used for cross-cluster operations
+before the migration. When prompted, enter the encoded cross-cluster API key
+created on the remote cluster earlier.
 
 . If you've dynamically configured the remote cluster (via the cluster settings
 API):
@@ -124,7 +142,8 @@ PUT /_cluster/settings
 }
 ----
 // TEST[skip:TODO]
-<1> The remote cluster alias.
+<1> The remote cluster alias. Use the same alias that was used before the
+migration.
 <2> The remote cluster address with the remote cluster port, which defaults to
 `9443`.
 
@@ -172,7 +191,12 @@ authentication.
 [[remote-clusters-migration-resume]]
 ==== Resume cross-cluster operations
 
-Resume any persistent tasks that you stopped earlier:
+Resume any persistent tasks that you stopped earlier. Tasks should be restarted
+by the same user or API key that created the task before the migration. Ensure
+the roles of this user or API key have been updated with the required
+`remote_indices` privileges. For users, tasks capture the caller's credentials
+when started and run in that user's security context. For API keys, restarting a
+task will update the task with the updated API key.
 
 * Use the <<start-transform>> API to start any transforms.
 * Use the <<ml-open-job>> API to open any anomaly detection jobs.
@@ -189,7 +213,8 @@ the local cluster. If the migration is unsuccessful, either find out what the
 problem is and attempt to fix it or <<remote-clusters-migration-rollback,roll
 back>>.
 
-Next, disable the certification based connection and revoke the authorization.
+Next, disable the certification based connection. Optionally, you can also
+revoke the authorization.
 
 . There is no particular setting to enable or disable a certificate based cross
 cluster connection, because it shares the same transport protocol with the
@@ -197,20 +222,17 @@ intra-cluster node-to-node communication.
 +
 One way a remote cluster administrator can stop an existing local cluster from
 connecting, is by changing TLS trust. The exact steps vary, depending on how the
-clusters have been configured. A generic solution is to recreate the CA and
-certificate/key used by the remote transport interface so that any existing
-certificate/key, locally or distributed, is no longer trusted.
+clusters have been configured. A generic solution is to
+<<encrypt-internode-communication,recreate the CA and certificate/key used by
+the remote transport interface>> so that any existing certificate/key, locally
+or distributed, is no longer trusted.
 +
 Another solution is to apply IP filters to the transport interface, blocking
 traffic from outside the cluster.
 
-. For certificate based cross-cluster operations, the remote cluster manages the
-role definitions. A remote cluster administrator can delete any roles used
-purely for cross-cluster operations. However:
-+
-* You can't disable the `superuser` role.
-* API keys bring their privilege definition across clusters. They do not rely on
-named roles on the remote cluster.
+. Optionally, delete any roles on the remote cluster that were only used for 
+cross-cluster operations. These roles are no longer used under the API key based 
+security model.
 
 [[remote-clusters-migration-rollback]]
 ==== Rollback
@@ -237,6 +259,6 @@ remote cluster connection has been configured statically (using the
 
 . Use the <<cluster-remote-info,remote cluster info API>> to verify that the
 local cluster has connected to the remote cluster. The response should have
-`"connected": true`.
+`"connected": true` and not have `"cluster_credentials": "::es_redacted::"`.
 
 . Restart any persistent tasks that you've stopped earlier.

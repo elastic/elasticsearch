@@ -39,6 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
+
+    public static final BigInteger MAX_UNSIGNED_LONG = BigInteger.valueOf(1 << 64).subtract(BigInteger.ONE);
     /**
      * Build a test case without types.
      *
@@ -90,16 +92,34 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
             DataTypes.DOUBLE,
-            i -> expected.applyAsDouble(i)
+            i -> expected.applyAsDouble(i),
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE
         );
-        forUnaryLong(suppliers, eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]", DataTypes.DOUBLE, l -> expected.applyAsDouble(l));
+        forUnaryLong(
+            suppliers,
+            eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
+            DataTypes.DOUBLE,
+            l -> expected.applyAsDouble(l),
+            Long.MIN_VALUE,
+            Long.MAX_VALUE
+        );
         forUnaryUnsignedLong(
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
             DataTypes.DOUBLE,
-            ul -> expected.applyAsDouble(ul.doubleValue())
+            ul -> expected.applyAsDouble(ul.doubleValue()),
+            BigInteger.ZERO,
+            MAX_UNSIGNED_LONG
         );
-        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i));
+        forUnaryDouble(
+            suppliers,
+            eval + read + "]",
+            DataTypes.DOUBLE,
+            i -> expected.applyAsDouble(i),
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
         return suppliers;
     }
 
@@ -162,9 +182,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        IntFunction<Object> expectedValue
+        IntFunction<Object> expectedValue,
+        int lowerBound,
+        int upperBound
     ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.INTEGER, expectedType, n -> expectedValue.apply(n.intValue()));
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.INTEGER,
+            intCases(lowerBound, upperBound),
+            expectedType,
+            n -> expectedValue.apply(n.intValue())
+        );
     }
 
     /**
@@ -174,9 +203,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        LongFunction<Object> expectedValue
+        LongFunction<Object> expectedValue,
+        long lowerBound,
+        long upperBound
     ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.LONG, expectedType, n -> expectedValue.apply(n.longValue()));
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.LONG,
+            longCases(lowerBound, upperBound),
+            expectedType,
+            n -> expectedValue.apply(n.longValue())
+        );
     }
 
     /**
@@ -186,9 +224,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<BigInteger, Object> expectedValue
+        Function<BigInteger, Object> expectedValue,
+        BigInteger lowerBound,
+        BigInteger upperBound
     ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.UNSIGNED_LONG, expectedType, n -> expectedValue.apply((BigInteger) n));
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.UNSIGNED_LONG,
+            ulongCases(lowerBound, upperBound),
+            expectedType,
+            n -> expectedValue.apply((BigInteger) n)
+        );
     }
 
     /**
@@ -198,19 +245,29 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        DoubleFunction<Object> expectedValue
+        DoubleFunction<Object> expectedValue,
+        double lowerBound,
+        double upperBound
     ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.DOUBLE, expectedType, n -> expectedValue.apply(n.doubleValue()));
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.DOUBLE,
+            doubleCases(lowerBound, upperBound),
+            expectedType,
+            n -> expectedValue.apply(n.doubleValue())
+        );
     }
 
     private static void unaryNumeric(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType inputType,
+        List<Map.Entry<String, Supplier<Object>>> valueSuppliers,
         DataType expectedOutputType,
         Function<Number, Object> expected
     ) {
-        for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(inputType)) {
+        for (Map.Entry<String, Supplier<Object>> supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
                 Number value = (Number) supplier.getValue().get();
                 TypedData typed = new TypedData(
@@ -222,6 +279,141 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
             }));
         }
+    }
+
+    private static List<Map.Entry<String, Supplier<Object>>> intCases(int min, int max) {
+        List<Map.Entry<String, Supplier<Object>>> cases = new ArrayList<>();
+        if (0 <= max && 0 >= min) {
+            cases.add(Map.entry("<0 int>", () -> 0));
+        }
+
+        int lower = Math.max(min, 1);
+        int upper = Math.min(max, Integer.MAX_VALUE);
+        if (lower < upper) {
+            cases.add(Map.entry("<positive int>", () -> ESTestCase.randomIntBetween(lower, upper)));
+        } else if (lower == upper) {
+            cases.add(Map.entry("<" + lower + " int>", () -> lower));
+        }
+
+        int lower1 = Math.max(min, Integer.MIN_VALUE);
+        int upper1 = Math.min(max, -1);
+        if (lower1 < upper1) {
+            cases.add(Map.entry("<negative int>", () -> ESTestCase.randomIntBetween(lower1, upper1)));
+        } else if (lower1 == upper1) {
+            cases.add(Map.entry("<" + lower1 + " int>", () -> lower1));
+        }
+        return cases;
+    }
+
+    private static List<Map.Entry<String, Supplier<Object>>> longCases(long min, long max) {
+        List<Map.Entry<String, Supplier<Object>>> cases = new ArrayList<>();
+        if (0L <= max && 0L >= min) {
+            cases.add(Map.entry("<0 int>", () -> 0));
+        }
+
+        long lower = Math.max(min, 1);
+        long upper = Math.min(max, Long.MAX_VALUE);
+        if (lower < upper) {
+            cases.add(Map.entry("<positive long>", () -> ESTestCase.randomLongBetween(lower, upper)));
+        } else if (lower == upper) {
+            cases.add(Map.entry("<" + lower + " long>", () -> lower));
+        }
+
+        long lower1 = Math.max(min, Long.MIN_VALUE);
+        long upper1 = Math.min(max, -1);
+        if (lower1 < upper1) {
+            cases.add(Map.entry("<negative long>", () -> ESTestCase.randomLongBetween(lower1, upper1)));
+        } else if (lower1 == upper1) {
+            cases.add(Map.entry("<" + lower1 + " long>", () -> lower1));
+        }
+
+        return cases;
+    }
+
+    private static List<Map.Entry<String, Supplier<Object>>> ulongCases(BigInteger min, BigInteger max) {
+        List<Map.Entry<String, Supplier<Object>>> cases = new ArrayList<>();
+
+        // Zero
+        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0) {
+            cases.add(Map.entry("<0 unsigned long>", () -> BigInteger.ZERO));
+        }
+
+        // small values, less than Long.MAX_VALUE
+        BigInteger lower1 = min.max(BigInteger.ONE);
+        BigInteger upper1 = max.min(BigInteger.valueOf(Integer.MAX_VALUE));
+        if (lower1.compareTo(upper1) < 0) {
+            cases.add(
+                Map.entry(
+                    "<small unsigned long>",
+                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower1.longValue(), upper1.longValue()))
+                )
+            );
+        } else if (lower1.compareTo(upper1) == 0) {
+            cases.add(Map.entry("<small unsigned long>", () -> lower1));
+        }
+
+        // Big values, greater than Long.MAX_VALUE
+        BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
+        BigInteger upper2 = max.min(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(Integer.MAX_VALUE)));
+        if (lower2.compareTo(upper2) < 0) {
+            cases.add(
+                Map.entry(
+                    "<small unsigned long>",
+                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower2.longValue(), upper2.longValue()))
+                )
+            );
+        } else if (lower2.compareTo(upper2) == 0) {
+            cases.add(Map.entry("<small unsigned long>", () -> lower2));
+        }
+        return cases;
+    }
+
+    private static List<Map.Entry<String, Supplier<Object>>> doubleCases(double min, double max) {
+        List<Map.Entry<String, Supplier<Object>>> cases = new ArrayList<>();
+
+        // Zeros
+        if (0d <= max && 0d >= min) {
+            cases.add(Map.entry("<0 double>", () -> 0.0d));
+            cases.add(Map.entry("<-0 double>", () -> -0.0d));
+        }
+
+        // Positive small double
+        double lower1 = Math.max(0d, min);
+        double upper1 = Math.min(1d, max);
+        if (lower1 < upper1) {
+            cases.add(Map.entry("<small positive double>", () -> ESTestCase.randomDoubleBetween(lower1, upper1, true)));
+        } else if (lower1 == upper1) {
+            cases.add(Map.entry("<small positive double>", () -> lower1));
+        }
+
+        // Negative small double
+        double lower2 = Math.max(-1d, min);
+        double upper2 = Math.min(0d, max);
+        if (lower2 < upper2) {
+            cases.add(Map.entry("<small negative double>", () -> ESTestCase.randomDoubleBetween(lower2, upper2, true)));
+        } else if (lower2 == upper2) {
+            cases.add(Map.entry("<small negative double>", () -> lower2));
+        }
+
+        // Positive big double
+        double lower3 = Math.max(1d, min); // start at 1 (inclusive) because the density of values between 0 and 1 is very high
+        double upper3 = Math.min(Double.MAX_VALUE, max);
+        if (lower3 < upper3) {
+            cases.add(Map.entry("<big positive double>", () -> ESTestCase.randomDoubleBetween(lower3, upper3, true)));
+        } else if (lower3 == upper3) {
+            cases.add(Map.entry("<big positive double>", () -> lower3));
+        }
+
+        // Negative big double
+        // note: Double.MIN_VALUE is the smallest non-zero positive double, not the smallest non-infinite negative double.
+        double lower4 = Math.max(-Double.MAX_VALUE, min);
+        double upper4 = Math.min(-1, max); // because again, the interval from -1 to 0 is very high density
+        if (lower4 < upper4) {
+            cases.add(Map.entry("<big negative double>", () -> ESTestCase.randomDoubleBetween(lower4, upper4, true)));
+        } else if (lower4 == upper4) {
+            cases.add(Map.entry("<big negative double>", () -> lower4));
+        }
+        return cases;
     }
 
     private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(

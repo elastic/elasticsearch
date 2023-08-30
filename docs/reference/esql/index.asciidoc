@@ -95,9 +95,8 @@ POST /_query?format=txt
 [discrete]
 ==== {kib}
 
-{esql} can be used in Discover to explore a data set, and in Lens to visualize it.
-First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
-Discover or Lens, from the data view dropdown, select *{esql}*.
+Use {esql} in Discover to explore a data set. From the data view dropdown,
+select *Try {esql}* to get started.
 
 NOTE: {esql} queries in Discover and Lens are subject to the time range selected
 with the time filter.
@@ -135,6 +134,8 @@ include::esql-functions.asciidoc[]
 include::aggregation-functions.asciidoc[]
 
 include::multivalued-fields.asciidoc[]
+
+include::metadata-fields.asciidoc[]
 
 include::task-management.asciidoc[]
 

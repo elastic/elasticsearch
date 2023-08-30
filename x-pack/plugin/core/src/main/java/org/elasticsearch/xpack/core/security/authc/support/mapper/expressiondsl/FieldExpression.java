@@ -51,7 +51,7 @@ public final class FieldExpression implements RoleMapperExpression {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeList(values);
+        out.writeCollection(values);
     }
 
     @Override

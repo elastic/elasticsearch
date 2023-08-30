@@ -38,6 +38,6 @@ public class PrevalidateShardPathResponse extends BaseNodesResponse<NodePrevalid
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodePrevalidateShardPathResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 }

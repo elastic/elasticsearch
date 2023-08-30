@@ -113,7 +113,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(features);
+        out.writeCollection(features);
     }
 
     @Override

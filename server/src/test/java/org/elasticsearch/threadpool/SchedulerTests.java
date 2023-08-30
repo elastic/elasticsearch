@@ -9,6 +9,7 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -53,16 +54,13 @@ public class SchedulerTests extends ESTestCase {
 
     public void testCancelOnScheduler() {
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
-            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
-
+        Scheduler scheduler = new ScheduledExecutorServiceScheduler(executor);
         AtomicLong executed = new AtomicLong();
         try {
             Scheduler.ScheduledCancellable scheduled = scheduler.schedule(
                 executed::incrementAndGet,
                 TimeValue.timeValueSeconds(20),
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             assertEquals(1, executor.getQueue().size());
             assertFalse(scheduled.isCancelled());
@@ -132,16 +130,14 @@ public class SchedulerTests extends ESTestCase {
     public void testScheduledOnScheduler() throws InterruptedException {
         final String schedulerName = "test-scheduler";
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, schedulerName);
-        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
-            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-        );
+        Scheduler scheduler = new ScheduledExecutorServiceScheduler(executor);
 
         CountDownLatch missingExecutions = new CountDownLatch(1);
         try {
             scheduler.schedule(() -> {
                 assertThat(Thread.currentThread().getName(), containsString("[" + schedulerName + "]"));
                 missingExecutions.countDown();
-            }, TimeValue.timeValueMillis(randomInt(5)), ThreadPool.Names.SAME);
+            }, TimeValue.timeValueMillis(randomInt(5)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);

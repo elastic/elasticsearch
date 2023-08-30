@@ -844,7 +844,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * Edge case ---
      * Typically we don't need to update a Cluster object after the SearchShards API call, since the
      * skipped shards will be passed into SearchProgressListener.onListShards.
-     * However, there are edge cases where the remote SearchShards API call returns no shards at all.
+     * However, there is an edge case where the remote SearchShards API call returns no shards at all.
      * So in that case, nothing for this cluster will be passed to onListShards, so we need to update
      * the Cluster object to SUCCESSFUL status with shard counts of 0 and a filled in 'took' value.
      *
@@ -858,12 +858,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider
     ) {
         if (response.getGroups().isEmpty()) {
-            boolean swapped;
-            do {
-                SearchResponse.Cluster orig = clusterRef.get();
-                SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(
-                    SearchResponse.Cluster.Status.SUCCESSFUL
-                )
+            clusterRef.updateAndGet(
+                orig -> new SearchResponse.Cluster.Builder(orig).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                     .setTotalShards(0)
                     .setSuccessfulShards(0)
                     .setSkippedShards(0)
@@ -871,10 +867,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     .setFailures(Collections.emptyList())
                     .setTook(new TimeValue(timeProvider.buildTookInMillis()))
                     .setTimedOut(false)
-                    .build();
-                swapped = clusterRef.compareAndSet(orig, updated);
-                assert swapped : "CAS swap should never fail in this location";
-            } while (swapped == false);
+                    .build()
+            );
         }
     }
 

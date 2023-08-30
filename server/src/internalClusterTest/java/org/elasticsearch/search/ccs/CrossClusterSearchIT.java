@@ -557,7 +557,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    /// MP TODO use this
     private static void assertOneFailedShard(SearchResponse.Cluster cluster, int totalShards) {
         assertNotNull(cluster);
         assertThat(cluster.getStatus(), equalTo(SearchResponse.Cluster.Status.PARTIAL));

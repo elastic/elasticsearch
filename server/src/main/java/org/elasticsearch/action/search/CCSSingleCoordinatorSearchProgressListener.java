@@ -16,11 +16,11 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -56,9 +56,10 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         this.timeProvider = timeProvider;
 
         // Partition by clusterAlias and get counts
-        Map<String, Integer> skippedByClusterAlias = partitionCountsByClusterAlias(skipped.stream());
+        Map<String, Integer> skippedByClusterAlias = partitionCountsByClusterAlias(skipped);
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
-        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(Stream.concat(shards.stream(), skipped.stream()));
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
+        skippedByClusterAlias.forEach((cluster, count) -> totalByClusterAlias.merge(cluster, count, Integer::sum));
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -195,7 +196,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards.stream());
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -247,7 +248,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             return;
         }
 
-        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards.stream());
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -306,10 +307,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     @Override
     public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
-    private Map<String, Integer> partitionCountsByClusterAlias(Stream<SearchShard> shards) {
-        return shards.collect(Collectors.groupingBy(shard -> {
-            String clusterAlias = shard.clusterAlias();
-            return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }, Collectors.reducing(0, e -> 1, Integer::sum)));
+    private Map<String, Integer> partitionCountsByClusterAlias(List<SearchShard> shards) {
+        final Map<String, Integer> res = new HashMap<>();
+        for (SearchShard shard : shards) {
+            res.merge(Objects.requireNonNullElse(shard.clusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), 1, Integer::sum);
+        }
+        return res;
     }
 }

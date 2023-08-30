@@ -737,13 +737,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         /**
          * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
+         *              or any Cluster is marked as timedOut.
          */
         public boolean hasPartialResults() {
-            for (AtomicReference<Cluster> cluster : clusterInfo.values()) {
-                switch (cluster.get().getStatus()) {
+            for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
+                Cluster cluster = clusterRef.get();
+                switch (cluster.getStatus()) {
                     case PARTIAL, SKIPPED, FAILED, RUNNING -> {
                         return true;
                     }
+                }
+                if (cluster.isTimedOut()) {
+                    return true;
                 }
             }
             return false;
@@ -944,22 +949,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return this;
             }
 
-            public Builder setTotalShards(Integer totalShards) {
+            public Builder setTotalShards(int totalShards) {
                 this.totalShards = totalShards;
                 return this;
             }
 
-            public Builder setSuccessfulShards(Integer successfulShards) {
+            public Builder setSuccessfulShards(int successfulShards) {
                 this.successfulShards = successfulShards;
                 return this;
             }
 
-            public Builder setSkippedShards(Integer skippedShards) {
+            public Builder setSkippedShards(int skippedShards) {
                 this.skippedShards = skippedShards;
                 return this;
             }
 
-            public Builder setFailedShards(Integer failedShards) {
+            public Builder setFailedShards(int failedShards) {
                 this.failedShards = failedShards;
                 return this;
             }
@@ -974,7 +979,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return this;
             }
 
-            public Builder setTimedOut(Boolean timedOut) {
+            public Builder setTimedOut(boolean timedOut) {
                 this.timedOut = timedOut;
                 return this;
             }

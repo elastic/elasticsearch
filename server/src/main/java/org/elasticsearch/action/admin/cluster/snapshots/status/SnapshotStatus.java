@@ -164,7 +164,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         snapshot.writeTo(out);
         out.writeByte(state.value());
-        out.writeList(shards);
+        out.writeCollection(shards);
         out.writeOptionalBoolean(includeGlobalState);
         out.writeLong(stats.getStartTime());
         out.writeLong(stats.getTime());

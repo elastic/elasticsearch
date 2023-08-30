@@ -40,7 +40,7 @@ public class PeersResponse extends TransportResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(masterNode.orElse(null));
-        out.writeList(knownPeers);
+        out.writeCollection(knownPeers);
         out.writeLong(term);
     }
 

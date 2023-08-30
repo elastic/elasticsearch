@@ -272,7 +272,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
             StreamOutput::writeString,
             (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection)
         );
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     @Override

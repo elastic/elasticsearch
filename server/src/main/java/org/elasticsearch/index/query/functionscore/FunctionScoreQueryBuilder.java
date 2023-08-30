@@ -148,7 +148,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        out.writeList(Arrays.asList(filterFunctionBuilders));
+        out.writeCollection(Arrays.asList(filterFunctionBuilders));
         out.writeFloat(maxBoost);
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);

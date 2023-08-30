@@ -42,6 +42,6 @@ public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglin
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeFindDanglingIndexResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 }

@@ -236,3 +236,18 @@ The watchdog interrupts expressions that take too long to execute.
 When interrupted, the Redact processor fails with an error.
 The same <<grok-watchdog-options, settings>> that control the
 Grok Watchdog timeout also apply to the Redact processor.
+
+[[redact-licensing]]
+==== Licensing
+
+The `redact` processor is a commercial feature that requires an
+appropriate license. For more information, refer to
+https://www.elastic.co/subscriptions.
+
+The `skip_if_unlicensed` option can be set on a redact processor to
+control behavior when the cluster's license is not sufficient to run
+such a processor. `skip_if_unlicensed` defaults to `false`, and the
+redact processor will throw an exception if the cluster's license is
+not sufficient. If you set the `skip_if_unlicensed` option to `true`,
+however, then the redact processor not throw an exception (it will do
+nothing at all) in the case of an insufficient license.

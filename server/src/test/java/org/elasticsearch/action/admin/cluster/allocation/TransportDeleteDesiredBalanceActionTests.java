@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -55,7 +56,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCase {
 
@@ -63,10 +66,16 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         new TransportDeleteDesiredBalanceAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
@@ -131,8 +140,12 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         var action = new TransportDeleteDesiredBalanceAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
             threadPool,
             mock(ActionFilters.class),

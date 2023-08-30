@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
@@ -32,9 +33,11 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests that the ReservedRepositoryAction does validation, can add and remove repositories
@@ -132,14 +135,20 @@ public class ReservedRepositoryActionTests extends ESTestCase {
             }
         };
 
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         RepositoriesService repositoriesService = spy(
             new RepositoriesService(
                 Settings.EMPTY,
                 mock(ClusterService.class),
-                mock(TransportService.class),
+                transportService,
                 Map.of(),
                 Map.of("fs", fsFactory),
-                mock(ThreadPool.class),
+                threadPool,
                 null
             )
         );

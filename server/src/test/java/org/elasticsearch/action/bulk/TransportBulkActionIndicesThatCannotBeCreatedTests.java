@@ -107,7 +107,10 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(clusterService.localNode()).thenReturn(localNode);
         when(localNode.isIngestNode()).thenReturn(randomBoolean());
 
+        // TODO: temporary, remove in #97879
+        final TransportService transportService = mock(TransportService.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
@@ -122,7 +125,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
         TransportBulkAction action = new TransportBulkAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             clusterService,
             null,
             null,

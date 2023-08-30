@@ -13,9 +13,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +34,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final PatternBank LEGACY_TEST_PATTERNS = new PatternBank(Map.of("PATTERN2", "foo2", "PATTERN1", "foo1"));
@@ -60,8 +64,15 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testResponseSorting() {
         List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
+
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             LEGACY_TEST_PATTERNS,
             ECS_TEST_PATTERNS
@@ -109,8 +120,15 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testEcsCompatibilityMode() {
         List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
+
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             LEGACY_TEST_PATTERNS,
             ECS_TEST_PATTERNS

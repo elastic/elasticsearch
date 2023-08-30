@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
@@ -34,9 +35,11 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportUpdateSettingsActionTests extends ESTestCase {
 
@@ -68,10 +71,17 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
         MetadataUpdateSettingsService metadataUpdateSettingsService = mock(MetadataUpdateSettingsService.class);
+
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         this.action = new TransportUpdateSettingsAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             metadataUpdateSettingsService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

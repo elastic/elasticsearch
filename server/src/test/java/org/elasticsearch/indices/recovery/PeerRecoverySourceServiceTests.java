@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -20,6 +21,7 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.Actions.START_RECOVERY;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,8 +41,15 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
         when(indicesService.clusterService()).thenReturn(clusterService);
+
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
-            mock(TransportService.class),
+            transportService,
             indicesService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(RecoveryPlannerService.class)
@@ -50,6 +60,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             getFakeDiscoNode("source"),
             getFakeDiscoNode("target"),
             Store.MetadataSnapshot.EMPTY,
+
             randomBoolean(),
             randomLong(),
             SequenceNumbers.UNASSIGNED_SEQ_NO,

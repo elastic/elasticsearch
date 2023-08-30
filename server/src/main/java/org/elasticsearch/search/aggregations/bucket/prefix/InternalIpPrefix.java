@@ -216,7 +216,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
         out.writeVLong(minDocCount);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

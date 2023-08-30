@@ -116,7 +116,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(lifecycles);
+            out.writeCollection(lifecycles);
         }
 
         @Override

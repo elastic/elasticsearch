@@ -568,9 +568,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
-                    out.writeList(clusterList);
+                    out.writeCollection(clusterList);
                 } else {
-                    out.writeList(Collections.emptyList());
+                    out.writeCollection(Collections.emptyList());
                 }
             }
         }
@@ -869,7 +869,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalInt(failedShards);
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
-            out.writeList(failures);
+            out.writeCollection(failures);
         }
 
         @Override

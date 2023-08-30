@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1269,6 +1271,169 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             testRetentionReference.set(TimeValue.timeValueMillis(9000));
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now);
             assertThat(backingIndices.isEmpty(), is(true));
+        }
+    }
+
+    public void testGetDownsampleRounds() {
+        String dataStreamName = "metrics-foo";
+        long now = System.currentTimeMillis();
+
+        List<DataStreamMetadata> creationAndRolloverTimes = List.of(
+            DataStreamMetadata.dataStreamMetadata(now - 5000, now - 4000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000, now - 2000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000, now - 1000),
+            DataStreamMetadata.dataStreamMetadata(now, null)
+        );
+
+        {
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "@timestamp"),
+                DataStreamLifecycle.newBuilder()
+                    .downsampling(
+                        new DataStreamLifecycle.Downsampling(
+                            List.of(
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(2000),
+                                    new DownsampleConfig(new DateHistogramInterval("10s"))
+                                ),
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(3200),
+                                    new DownsampleConfig(new DateHistogramInterval("100s"))
+                                ),
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(3500),
+                                    new DownsampleConfig(new DateHistogramInterval("1000s"))
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            );
+            Metadata metadata = builder.build();
+
+            // generation time is now - 2000
+            String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+            Index thirdIndex = metadata.index(thirdGeneration).getIndex();
+            List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
+                thirdIndex,
+                metadata::index,
+                () -> now
+            );
+
+            assertThat(roundsForThirdIndex.size(), is(1));
+            assertThat(roundsForThirdIndex.get(0).after(), is(TimeValue.timeValueMillis(2000)));
+
+            // generation time is now - 40000
+            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+                firstIndex,
+                metadata::index,
+                () -> now
+            );
+            // expecting all rounds to match this index
+            assertThat(roundsForFirstIndex.size(), is(3));
+            // assert the order is maintained
+            assertThat(
+                roundsForFirstIndex.stream().map(DataStreamLifecycle.Downsampling.Round::after).toList(),
+                is(List.of(TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(3200), TimeValue.timeValueMillis(3500)))
+            );
+        }
+
+        {
+            // non-timeseries indices should be skipped
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                // no TSDB settings
+                settings(IndexVersion.current()),
+                DataStreamLifecycle.newBuilder()
+                    .downsampling(
+                        new DataStreamLifecycle.Downsampling(
+                            List.of(
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(2000),
+                                    new DownsampleConfig(new DateHistogramInterval("10s"))
+                                ),
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(3200),
+                                    new DownsampleConfig(new DateHistogramInterval("100s"))
+                                ),
+                                new DataStreamLifecycle.Downsampling.Round(
+                                    TimeValue.timeValueMillis(3500),
+                                    new DownsampleConfig(new DateHistogramInterval("1000s"))
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            );
+            Metadata metadata = builder.build();
+
+            // generation time is now - 40000
+            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+                firstIndex,
+                metadata::index,
+                () -> now
+            );
+            assertThat(roundsForFirstIndex.size(), is(0));
+        }
+
+        {
+            // backing indices for data streams without lifecycle don't match any rounds
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "@timestamp"),
+                null
+            );
+            Metadata metadata = builder.build();
+
+            // generation time is now - 40000
+            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+                firstIndex,
+                metadata::index,
+                () -> now
+            );
+            assertThat(roundsForFirstIndex.size(), is(0));
+        }
+
+        {
+            // backing indices for data streams without downsampling configured don't match any rounds
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                dataStreamName,
+                creationAndRolloverTimes,
+                settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put("index.routing_path", "@timestamp"),
+                DataStreamLifecycle.newBuilder().build()
+            );
+            Metadata metadata = builder.build();
+
+            String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+                firstIndex,
+                metadata::index,
+                () -> now
+            );
+            assertThat(roundsForFirstIndex.size(), is(0));
         }
     }
 

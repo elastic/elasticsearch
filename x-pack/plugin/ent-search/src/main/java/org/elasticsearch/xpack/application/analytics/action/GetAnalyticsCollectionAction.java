@@ -134,7 +134,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(collections);
+            out.writeCollection(collections);
         }
 
         public List<AnalyticsCollection> getAnalyticsCollections() {

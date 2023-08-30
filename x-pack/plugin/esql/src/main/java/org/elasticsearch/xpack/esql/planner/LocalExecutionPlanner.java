@@ -383,15 +383,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
 
-        for (NamedExpression namedExpression : eval.fields()) {
+        for (Alias field : eval.fields()) {
             Supplier<ExpressionEvaluator> evaluatorSupplier;
-            if (namedExpression instanceof Alias alias) {
-                evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
-            } else {
-                throw new EsqlIllegalArgumentException("source fields for eval nodes have to be aliases");
-            }
+            evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(namedExpression.toAttribute().id());
+            layout.appendChannel(field.toAttribute().id());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
@@ -483,13 +479,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> {
-            if (f instanceof Alias) {
-                return ((Alias) f).child().fold();
-            } else {
-                return f.fold();
-            }
-        }).toList();
+        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
         Layout.Builder layout = new Layout.Builder();
         var output = row.output();
         for (Attribute attribute : output) {

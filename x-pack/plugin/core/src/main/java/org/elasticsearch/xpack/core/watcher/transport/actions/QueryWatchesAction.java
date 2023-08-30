@@ -154,7 +154,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             out.writeOptionalNamedWriteable(query);
             if (sorts != null) {
                 out.writeBoolean(true);
-                out.writeList(sorts);
+                out.writeCollection(sorts);
             } else {
                 out.writeBoolean(false);
             }
@@ -230,7 +230,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(watches);
+            out.writeCollection(watches);
             out.writeVLong(watchTotalCount);
         }
 

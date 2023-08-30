@@ -54,7 +54,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(resultsField.getPreferredName());
-        out.writeList(results);
+        out.writeCollection(results);
         out.writeLong(count);
     }
 

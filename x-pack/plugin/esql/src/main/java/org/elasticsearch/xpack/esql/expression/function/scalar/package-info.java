@@ -38,9 +38,11 @@
  *         Open Elasticsearch in IntelliJ.
  *     </li>
  *     <li>
- *         Open {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java}
- *         and run it. IntelliJ will take a few minutes to compile everything but the test itself
- *         should take only a few seconds. This is a fast path to running ESQL's integration tests.
+ *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
+ *         from within Intellij or, alternatively, via Gradle:
+ *         {@code ./gradlew -p x-pack/plugin/esql test --tests "org.elasticsearch.xpack.esql.CsvTests"}
+ *         IntelliJ will take a few minutes to compile everything but the test itself should take only a few seconds.
+ *         This is a fast path to running ESQL's integration tests.
  *     </li>
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
@@ -119,6 +121,15 @@
  *         This includes the bit of the csv-spec file fenced by {@code // tag::mv_min[]}. You'll
  *         want a fence descriptive for your function. Consider the non-includes lines to be
  *         asciidoc ceremony to make the result look right in the rendered docs.
+ *     </li>
+ *     <li>
+ *         Auto-generate a syntax diagram and a table with supported types by running
+ *         {@code ./gradlew x-pack:plugin:esql:copyGeneratedDocs}
+ *         The generated files can be found here
+ *         {@code docs/reference/esql/functions/signature/myfunction.svg }
+ *         and here
+ *         {@code docs/reference/esql/functions/types/myfunction.asciidoc}
+ *         Make sure to commit them and reference them in your doc file.
  *     </li>
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>

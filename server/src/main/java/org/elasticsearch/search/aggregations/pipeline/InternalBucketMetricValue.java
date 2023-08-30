@@ -96,11 +96,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
         }
-        builder.startArray(KEYS_FIELD.getPreferredName());
-        for (String key : keys) {
-            builder.value(key);
-        }
-        builder.endArray();
+        builder.array(KEYS_FIELD.getPreferredName(), keys);
         return builder;
     }
 

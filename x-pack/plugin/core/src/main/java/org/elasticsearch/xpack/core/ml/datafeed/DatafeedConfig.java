@@ -529,7 +529,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }
@@ -837,7 +837,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
             if (scriptFields != null) {
                 out.writeBoolean(true);
-                out.writeList(scriptFields);
+                out.writeCollection(scriptFields);
             } else {
                 out.writeBoolean(false);
             }

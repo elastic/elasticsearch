@@ -38,7 +38,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        out.writeList(clientStats);
+        out.writeCollection(clientStats);
     }
 
     public long getServerOpen() {

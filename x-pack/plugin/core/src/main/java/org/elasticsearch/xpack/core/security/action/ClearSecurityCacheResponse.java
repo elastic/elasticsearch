@@ -37,7 +37,7 @@ public class ClearSecurityCacheResponse extends BaseNodesResponse<ClearSecurityC
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

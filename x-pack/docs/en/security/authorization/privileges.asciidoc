@@ -231,7 +231,7 @@ on all {es} API keys.
 
 `transport_client`::
 All privileges necessary for a transport client to connect. Required by the remote
-cluster to enable <<remote-clusters-security,{ccs}>>.
+cluster to enable <<remote-clusters,{ccs}>>.
 
 [[privileges-list-indices]]
 ==== Indices privileges
@@ -371,7 +371,7 @@ more like this, multi percolate/search/termvector, percolate, scroll,
 clear_scroll, search, suggest, tv).
 
 `read_cross_cluster`::
-Read-only access to the search action from a <<remote-clusters-security,remote cluster>>.
+Read-only access to the search action from a <<remote-clusters,remote cluster>>.
 
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, exists,

@@ -10,8 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.sandbox.search.ProfilerCollector;
 import org.apache.lucene.search.Collector;
-import org.elasticsearch.search.aggregations.BucketCollector;
-import org.elasticsearch.search.query.QueryPhaseCollector;
+import org.elasticsearch.search.internal.TwoPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ import java.util.List;
  * <p>
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector extends ProfilerCollector {
+public class InternalProfileCollector extends ProfilerCollector implements TwoPhaseCollector {
 
     private final InternalProfileCollector[] children;
     private final Collector wrappedCollector;
@@ -78,13 +77,10 @@ public class InternalProfileCollector extends ProfilerCollector {
         return new CollectorResult(getName(), getReason(), getTime(), childResults);
     }
 
+    @Override
     public void doPostCollection() throws IOException {
-        if (wrappedCollector instanceof InternalProfileCollector profileCollector) {
-            profileCollector.doPostCollection();
-        } else if (wrappedCollector instanceof QueryPhaseCollector queryPhaseCollector) {
-            queryPhaseCollector.doPostCollection();
-        } else if (wrappedCollector instanceof BucketCollector.BucketCollectorWrapper aggsCollector) {
-            aggsCollector.bucketCollector().postCollection();
+        if (wrappedCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+            twoPhaseCollector.doPostCollection();
         }
     }
 }

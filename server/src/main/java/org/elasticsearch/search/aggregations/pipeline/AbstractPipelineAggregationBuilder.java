@@ -92,11 +92,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         builder.startObject(type);
 
         if (overrideBucketsPath() == false && bucketsPaths != null) {
-            builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
-            for (String path : bucketsPaths) {
-                builder.value(path);
-            }
-            builder.endArray();
+            builder.array(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPaths);
         }
 
         internalXContent(builder, params);

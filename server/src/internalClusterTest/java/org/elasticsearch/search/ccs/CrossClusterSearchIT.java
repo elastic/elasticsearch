@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -272,8 +273,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
-        boolean minimizeRoundtrips = randomBoolean();
-        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
@@ -292,8 +292,10 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             remoteIndex
         );
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest);
+
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
         // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
@@ -361,14 +363,12 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
-        boolean minimizeRoundtrips = randomBoolean();
-        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
 
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
+        if (randomBoolean()) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
         if (randomBoolean()) {
@@ -421,13 +421,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(false);
-        boolean minimizeRoundtrips = randomBoolean();
-        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
+        if (randomBoolean()) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
         if (randomBoolean()) {
@@ -464,13 +462,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
-        boolean minimizeRoundtrips = randomBoolean();
-        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
+        if (randomBoolean()) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
         if (randomBoolean()) {
@@ -504,13 +500,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.allowPartialSearchResults(true);
-        boolean minimizeRoundtrips = randomBoolean();
-        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
+        if (randomBoolean()) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
         if (randomBoolean()) {
@@ -520,11 +514,13 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
         searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
-        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
 
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(searchRequest);
+
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
-        if (skipUnavailable == false || minimizeRoundtrips == false || dfs) {
+        if (skipUnavailable == false || minimizeRoundtrips == false) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);

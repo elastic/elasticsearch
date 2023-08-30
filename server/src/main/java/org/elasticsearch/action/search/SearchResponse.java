@@ -474,7 +474,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         // updates to the Cluster occur by CAS swapping in new Cluster objects into the AtomicReference in the map.
         private final Map<String, AtomicReference<Cluster>> clusterInfo;
 
-        private final boolean ccsMinimizeRoundtrips;
+        // not Writeable since it is only needed on the (primary) CCS coordinator
+        private transient Boolean ccsMinimizeRoundtrips;
 
         /**
          * For use with cross-cluster searches.
@@ -548,11 +549,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
-                this.ccsMinimizeRoundtrips = in.readBoolean();
-            } else {
-                this.ccsMinimizeRoundtrips = false;
-            }
             assert total >= 0 : "total is negative: " + total;
             assert total >= successful + skipped
                 : "successful + skipped is larger than total. total: " + total + " successful: " + successful + " skipped: " + skipped;
@@ -580,9 +576,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 } else {
                     out.writeCollection(Collections.emptyList());
                 }
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
-                out.writeBoolean(ccsMinimizeRoundtrips);
             }
         }
 
@@ -701,7 +694,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         /**
          * @return whether this search was a cross cluster search done with ccsMinimizeRoundtrips=true
          */
-        public boolean isCcsMinimizeRoundtrips() {
+        public Boolean isCcsMinimizeRoundtrips() {
             return ccsMinimizeRoundtrips;
         }
 

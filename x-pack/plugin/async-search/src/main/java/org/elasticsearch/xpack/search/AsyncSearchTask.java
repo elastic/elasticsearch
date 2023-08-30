@@ -431,6 +431,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         ) {
             // best effort to cancel expired tasks
             checkCancellation();
+            assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();

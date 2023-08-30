@@ -447,7 +447,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
+    public static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
         if (searchRequest.isCcsMinimizeRoundtrips() == false) {
             return false;
         }

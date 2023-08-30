@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -253,8 +254,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.blockQueryPhase();
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        boolean minimizeRoundtrips = randomBoolean();
-        request.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        request.setCcsMinimizeRoundtrips(randomBoolean());
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
         if (randomBoolean()) {
@@ -266,6 +266,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp").from(100).to(2000);
         request.getSearchRequest().source(new SearchSourceBuilder().query(rangeQueryBuilder).size(10));
+
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
 
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
@@ -295,11 +297,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
-            if (dfs == false) {
-                assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
-            } else {
-                assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(false));
-            }
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getSuccessful(), equalTo(2));
             assertThat(clusters.getSkipped(), equalTo(0));
@@ -325,7 +322,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
-            if (clusters.isCcsMinimizeRoundtrips()) {
+            if (minimizeRoundtrips) {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
             } else {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
@@ -359,6 +356,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
+
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
@@ -375,7 +374,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), localClusterSearchInfo, localNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, localClusterSearchInfo, localNumShards);
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
             assertNotNull(remoteClusterSearchInfo);
@@ -383,7 +382,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -396,7 +395,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.FAILED));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), localClusterSearchInfo, localNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, localClusterSearchInfo, localNumShards);
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
             assertNotNull(remoteClusterSearchInfo);
@@ -404,7 +403,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
         }
     }
 
@@ -550,6 +549,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         );
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
+
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
         assertTrue(response.isRunning());
@@ -596,7 +597,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
+            if (minimizeRoundtrips) {
                 assertNull(remoteClusterSearchInfo.getTotalShards());
                 assertNull(remoteClusterSearchInfo.getSuccessfulShards());
                 assertNull(remoteClusterSearchInfo.getSkippedShards());
@@ -638,7 +639,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            if (clusters.isCcsMinimizeRoundtrips()) {
+            if (minimizeRoundtrips) {
                 assertNull(remoteClusterSearchInfo.getTotalShards());
                 assertNull(remoteClusterSearchInfo.getFailedShards());
                 assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(1));
@@ -928,11 +929,12 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
 
+        boolean minimizeRoundtrips = TransportSearchAction.shouldMinimizeRoundtrips(request.getSearchRequest());
+
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
 
         waitForSearchTasksToFinish();
-
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
 
@@ -949,7 +951,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
         }
         // check that the async_search/status response includes the same cluster details
         {
@@ -967,7 +969,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 ? SearchResponse.Cluster.Status.SKIPPED
                 : SearchResponse.Cluster.Status.FAILED;
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(expectedStatus));
-            assertAllShardsFailed(clusters.isCcsMinimizeRoundtrips(), remoteClusterSearchInfo, remoteNumShards);
+            assertAllShardsFailed(minimizeRoundtrips, remoteClusterSearchInfo, remoteNumShards);
         }
     }
 

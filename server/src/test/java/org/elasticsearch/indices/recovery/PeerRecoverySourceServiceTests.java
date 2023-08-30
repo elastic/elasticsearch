@@ -42,10 +42,10 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
         when(indicesService.clusterService()).thenReturn(clusterService);
 
+        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
@@ -60,7 +60,6 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             getFakeDiscoNode("source"),
             getFakeDiscoNode("target"),
             Store.MetadataSnapshot.EMPTY,
-
             randomBoolean(),
             randomLong(),
             SequenceNumbers.UNASSIGNED_SEQ_NO,

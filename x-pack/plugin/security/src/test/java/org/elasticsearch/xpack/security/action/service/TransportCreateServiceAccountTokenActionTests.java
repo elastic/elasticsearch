@@ -44,10 +44,10 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         serviceAccountService = mock(ServiceAccountService.class);
         securityContext = mock(SecurityContext.class);
 
+        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(

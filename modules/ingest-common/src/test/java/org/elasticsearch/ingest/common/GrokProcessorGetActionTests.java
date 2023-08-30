@@ -65,10 +65,10 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
 
+        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
@@ -121,10 +121,10 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
 
+        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        // Always returning EsExecutors.DIRECT_EXECUTOR_SERVICE isn't strictly correct, but it's sufficient for testing.
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(

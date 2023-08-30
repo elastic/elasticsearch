@@ -316,10 +316,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         int finalGeneration = randomIntBetween(2, 10);
-        List<String> backingIndicesNames = getBackingIndices(dataStreamName);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
             // This is currently the write index, but it will be rolled over as soon as data stream lifecycle runs:
-            final String toBeRolledOverIndex = backingIndicesNames.get(currentGeneration - 1);
+            final String toBeRolledOverIndex = getBackingIndices(dataStreamName).get(currentGeneration - 1);
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
                 // Make sure the segments get written:
@@ -331,7 +330,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             if (currentGeneration == 1) {
                 toBeForceMergedIndex = null; // Not going to be used
             } else {
-                toBeForceMergedIndex = backingIndicesNames.get(currentGeneration - 2);
+                toBeForceMergedIndex = getBackingIndices(dataStreamName).get(currentGeneration - 2);
             }
             int currentBackingIndexCount = currentGeneration;
             DataStreamLifecycleService dataStreamLifecycleService = internalCluster().getInstance(

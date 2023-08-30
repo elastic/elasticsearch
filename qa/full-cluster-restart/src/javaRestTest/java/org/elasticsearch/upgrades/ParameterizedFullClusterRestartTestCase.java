@@ -24,6 +24,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.OLD;
 import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADED;
+import static org.hamcrest.Matchers.lessThan;
 
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
@@ -84,6 +85,11 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         if (version.equals(org.elasticsearch.Version.CURRENT)) {
             return IndexVersion.current();
         } else {
+            assertThat(
+                "Index version needs to be added to restart test parameters",
+                version,
+                lessThan(org.elasticsearch.Version.fromId(8_11_00_99))
+            );
             return IndexVersion.fromId(version.id);
         }
     }

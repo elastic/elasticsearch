@@ -476,7 +476,7 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeList(expected);
+        out.writeCollection(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 

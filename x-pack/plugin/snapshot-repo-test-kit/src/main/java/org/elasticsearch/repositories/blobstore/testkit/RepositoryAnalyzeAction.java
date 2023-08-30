@@ -1102,7 +1102,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeDouble(rareActionProbability);
             out.writeString(blobPath);
             summary.writeTo(out);
-            out.writeList(blobResponses);
+            out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
         }

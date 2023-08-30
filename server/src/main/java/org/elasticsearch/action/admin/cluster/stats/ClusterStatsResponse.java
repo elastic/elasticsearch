@@ -131,7 +131,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {
         // nodeStats and indicesStats are rebuilt from nodes
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -97,7 +97,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override
@@ -133,7 +133,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override

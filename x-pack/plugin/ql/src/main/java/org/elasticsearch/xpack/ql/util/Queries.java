@@ -26,10 +26,10 @@ public class Queries {
         MUST_NOT(BoolQueryBuilder::mustNot),
         SHOULD(BoolQueryBuilder::should);
 
-        final Function<BoolQueryBuilder, List<QueryBuilder>> operation;
+        final Function<BoolQueryBuilder, List<QueryBuilder>> innerQueries;
 
-        Clause(Function<BoolQueryBuilder, List<QueryBuilder>> operation) {
-            this.operation = operation;
+        Clause(Function<BoolQueryBuilder, List<QueryBuilder>> innerQueries) {
+            this.innerQueries = innerQueries;
         }
     }
 
@@ -68,7 +68,7 @@ public class Queries {
     }
 
     private static BoolQueryBuilder combine(Clause clause, BoolQueryBuilder bool, QueryBuilder query) {
-        var list = clause.operation.apply(bool);
+        var list = clause.innerQueries.apply(bool);
         if (list.contains(query) == false) {
             list.add(query);
         }

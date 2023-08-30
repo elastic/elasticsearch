@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class QueriesTests extends ESTestCase {
 
-    private static QueryBuilder randomNonBool() {
+    private static QueryBuilder randomNonBoolQuery() {
         return randomFrom(
             random(),
             QueryBuilders::matchAllQuery,
@@ -32,31 +32,31 @@ public class QueriesTests extends ESTestCase {
         );
     }
 
-    private static BoolQueryBuilder randomBool() {
+    private static BoolQueryBuilder randomBoolQuery() {
         var bool = QueryBuilders.boolQuery();
         if (randomBoolean()) {
-            bool.filter(randomNonBool());
+            bool.filter(randomNonBoolQuery());
         }
         if (randomBoolean()) {
-            bool.must(randomNonBool());
+            bool.must(randomNonBoolQuery());
         }
         if (randomBoolean()) {
-            bool.mustNot(randomNonBool());
+            bool.mustNot(randomNonBoolQuery());
         }
         if (randomBoolean()) {
-            bool.should(randomNonBool());
+            bool.should(randomNonBoolQuery());
         }
         return bool;
     }
 
     public void testCombineNotCreatingBool() {
         var clause = randomFrom(Queries.Clause.values());
-        var nonBool = randomNonBool();
+        var nonBool = randomNonBoolQuery();
         assertThat(nonBool, sameInstance(Queries.combine(clause, asList(null, null, nonBool, null))));
     }
 
     public void testCombineNonBoolQueries() {
-        var queries = randomArray(2, 10, QueryBuilder[]::new, QueriesTests::randomNonBool);
+        var queries = randomArray(2, 10, QueryBuilder[]::new, QueriesTests::randomNonBoolQuery);
 
         var clause = randomFrom(Queries.Clause.values());
         var list = asList(queries);
@@ -64,7 +64,7 @@ public class QueriesTests extends ESTestCase {
 
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
-        var clauseList = clause.operation.apply(bool);
+        var clauseList = clause.innerQueries.apply(bool);
         assertThat(list, everyItem(in(clauseList)));
     }
 
@@ -72,16 +72,16 @@ public class QueriesTests extends ESTestCase {
         var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
             var bool = QueryBuilders.boolQuery();
             if (randomBoolean()) {
-                bool.filter(randomNonBool());
+                bool.filter(randomNonBoolQuery());
             }
             if (randomBoolean()) {
-                bool.must(randomNonBool());
+                bool.must(randomNonBoolQuery());
             }
             if (randomBoolean()) {
-                bool.mustNot(randomNonBool());
+                bool.mustNot(randomNonBoolQuery());
             }
             if (randomBoolean()) {
-                bool.should(randomNonBool());
+                bool.should(randomNonBoolQuery());
             }
             return bool;
         });
@@ -93,7 +93,7 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
 
-        var clauseList = clause.operation.apply(bool);
+        var clauseList = clause.innerQueries.apply(bool);
 
         for (QueryBuilder query : queries) {
             if (query != bool) {
@@ -105,9 +105,9 @@ public class QueriesTests extends ESTestCase {
     public void testCombineMixedBoolAndNonBoolQueries() {
         var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
             if (randomBoolean()) {
-                return QueriesTests.randomBool();
+                return QueriesTests.randomBoolQuery();
             } else {
-                return QueriesTests.randomNonBool();
+                return QueriesTests.randomNonBoolQuery();
             }
         });
 
@@ -118,7 +118,7 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
 
-        var clauseList = clause.operation.apply(bool);
+        var clauseList = clause.innerQueries.apply(bool);
 
         for (QueryBuilder query : queries) {
             if (query != bool) {

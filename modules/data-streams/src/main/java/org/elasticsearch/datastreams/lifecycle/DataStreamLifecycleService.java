@@ -654,7 +654,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             new ErrorRecordingActionListener(
                 indexName,
                 errorStore,
-                Strings.format("Data stream lifecycle service encountered an error trying to mark index [{}] as readonly", indexName)
+                Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName)
             ),
             (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
         );

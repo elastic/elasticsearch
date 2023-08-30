@@ -30,6 +30,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.readiness.MockReadinessService;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -182,6 +184,14 @@ public class MockNode extends Node {
             return super.newScriptService(settings, engines, contexts, timeProvider);
         }
         return new MockScriptService(settings, engines, contexts);
+    }
+
+    @Override
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        if (getPluginsService().filterPlugins(MockReadinessService.TestPlugin.class).isEmpty()) {
+            return super.newReadinessService(clusterService, environment);
+        }
+        return new MockReadinessService(clusterService, environment);
     }
 
     @Override

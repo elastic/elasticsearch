@@ -41,7 +41,12 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener, FileChangedListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
+    interface SocketChannelFactory {
+        ServerSocketChannel open(String nodeName) throws IOException;
+    }
+
     private final Environment environment;
+    private final SocketChannelFactory socketChannelFactory;
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
@@ -55,15 +60,15 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
-    interface SocketChannelFactory {
-        ServerSocketChannel open(String nodeName) throws IOException;
+    public ReadinessService(ClusterService clusterService, Environment environment) {
+        this(clusterService, environment, nodeName -> ServerSocketChannel.open());
     }
 
-    static SocketChannelFactory socketChannelFactory = nodeName -> ServerSocketChannel.open();
-
-    public ReadinessService(ClusterService clusterService, Environment environment) {
+    // package private to enable mocking (for testing)
+    ReadinessService(ClusterService clusterService, Environment environment, SocketChannelFactory socketChannelFactory) {
         this.serverChannel = null;
         this.environment = environment;
+        this.socketChannelFactory = socketChannelFactory;
         clusterService.addListener(this);
     }
 

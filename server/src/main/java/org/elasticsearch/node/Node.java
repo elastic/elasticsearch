@@ -1027,14 +1027,16 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            final ReadinessService readinessService = newReadinessService(clusterService, environment);
+
+            final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
                 transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(
+            final HealthService healthService = createHealthService(
                 clusterService,
                 clusterModule,
                 coordinationDiagnosticsService,
@@ -1155,7 +1157,7 @@ public class Node implements Closeable {
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(readinessService));
             }
 
             injector = modules.createInjector();
@@ -1949,6 +1951,13 @@ public class Node implements Closeable {
         LongSupplier timeProvider
     ) {
         return new ScriptService(settings, engines, contexts, timeProvider);
+    }
+
+    /**
+     * Creates a new the ReadinessService. This method can be overwritten by tests to inject mock implementations.
+     */
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        return new ReadinessService(clusterService, environment);
     }
 
     /**

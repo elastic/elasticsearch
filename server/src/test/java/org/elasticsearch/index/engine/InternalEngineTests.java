@@ -64,7 +64,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -7455,7 +7454,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush(true, true);
                 Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                 assertThat(userData, hasKey(ES_VERSION));
-                assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+                assertThat(userData.get(ES_VERSION), is(equalTo(IndexVersion.current().toString())));
             }
         }
     }
@@ -7465,7 +7464,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config()) {
             @Override
             protected Map<String, String> getCommitExtraUserData() {
-                return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
+                return Map.of("userkey", "userdata", ES_VERSION, IndexVersion.ZERO.toString());
             }
         };
         engine.skipTranslogRecovery();
@@ -7476,7 +7475,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
         assertThat(userData, hasEntry("userkey", "userdata"));
-        assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
+        assertThat(userData, hasEntry(ES_VERSION, IndexVersion.current().toString()));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
@@ -7527,20 +7526,20 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
             try (IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
                 Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
-                commitUserDataWithOlderVersion.put(ES_VERSION, Version.V_7_0_0.toString());
+                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersion.V_7_0_0.toString());
                 indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
                 indexWriter.commit();
             }
 
             Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.V_7_0_0.toString())));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersion.V_7_0_0.toString())));
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
 
             Map<String, String> userDataAfterTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataAfterTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersion.current().toString())));
         }
     }
 

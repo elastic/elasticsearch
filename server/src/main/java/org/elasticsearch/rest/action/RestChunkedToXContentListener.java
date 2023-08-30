@@ -36,7 +36,9 @@ public class RestChunkedToXContentListener<Response extends ChunkedToXContent> e
 
     @Override
     protected void processResponse(Response response) throws IOException {
-        channel.sendResponse(new RestResponse(getRestStatus(response), ChunkedRestResponseBody.fromXContent(response, params, channel)));
+        channel.sendResponse(
+            RestResponse.chunked(getRestStatus(response), ChunkedRestResponseBody.fromXContent(response, params, channel))
+        );
     }
 
     protected RestStatus getRestStatus(Response response) {

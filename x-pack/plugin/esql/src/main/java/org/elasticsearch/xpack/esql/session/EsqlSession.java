@@ -136,12 +136,12 @@ public class EsqlSession {
         Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
         EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
         AtomicReference<IndexResolution> resolvedIndex = new AtomicReference<>();
-        ActionListener<Void> groupedListener = ActionListener.wrap(unused -> {
+        ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
             assert resolution.resolvedPolicies().size() == policyNames.size()
                 : resolution.resolvedPolicies().size() + " != " + policyNames.size();
             assert resolvedIndex.get() != null : "index wasn't resolved";
-            listener.onResponse(action.apply(resolvedIndex.get(), resolution));
-        }, listener::onFailure);
+            l.onResponse(action.apply(resolvedIndex.get(), resolution));
+        });
         try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
             preAnalyzeIndices(parsed, refs.acquire(resolvedIndex::set));
             for (String policyName : policyNames) {

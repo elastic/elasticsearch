@@ -67,6 +67,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
@@ -1730,8 +1731,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 // If .tasks was created in a 7.x version, it should have an alias on it that we need to make sure got upgraded properly.
                 final String tasksCreatedVersionString = tasksIndex.get("settings.index.version.created");
                 assertThat(tasksCreatedVersionString, notNullValue());
-                final Version tasksCreatedVersion = Version.fromId(Integer.parseInt(tasksCreatedVersionString));
-                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+                final IndexVersion tasksCreatedVersion = IndexVersion.fromId(Integer.parseInt(tasksCreatedVersionString));
+                if (tasksCreatedVersion.before(SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION)) {
                     // Verify that the alias survived the upgrade
                     Request getAliasRequest = new Request("GET", "/_alias/test-system-alias");
                     getAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {

@@ -84,7 +84,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public List<DiscoveryNode> getNodes() {

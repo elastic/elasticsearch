@@ -36,8 +36,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.action.ActionListener.wrap;
-
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
     private final PlanExecutor planExecutor;
@@ -96,15 +94,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
-        planExecutor.esql(request, sessionId, configuration, wrap(r -> {
-            computeService.execute(sessionId, (CancellableTask) task, r, configuration, listener.map(pages -> {
-                List<ColumnInfo> columns = r.output()
-                    .stream()
-                    .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
-                    .toList();
-                return new EsqlQueryResponse(columns, pages, request.columnar());
-            }));
-        }, listener::onFailure));
+        planExecutor.esql(
+            request,
+            sessionId,
+            configuration,
+            listener.delegateFailureAndWrap(
+                (delegate, r) -> computeService.execute(sessionId, (CancellableTask) task, r, configuration, delegate.map(pages -> {
+                    List<ColumnInfo> columns = r.output()
+                        .stream()
+                        .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                        .toList();
+                    return new EsqlQueryResponse(columns, pages, request.columnar());
+                }))
+            )
+        );
     }
 
     /**

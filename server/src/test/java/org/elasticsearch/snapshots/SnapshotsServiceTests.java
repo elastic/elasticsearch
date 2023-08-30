@@ -503,8 +503,7 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.SnapshotTask... updates) throws Exception {
         return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(state, batchExecutionContext -> {
-            final SnapshotsInProgress existing = batchExecutionContext.initialState()
-                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final SnapshotsInProgress existing = SnapshotsInProgress.get(batchExecutionContext.initialState());
             final var context = new SnapshotsService.SnapshotShardsUpdateContext(batchExecutionContext);
             final SnapshotsInProgress updated = context.computeUpdatedState();
             context.completeWithUpdatedState(updated);

@@ -124,7 +124,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int failureCount() {

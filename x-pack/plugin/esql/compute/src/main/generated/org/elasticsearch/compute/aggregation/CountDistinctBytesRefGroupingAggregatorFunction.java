@@ -15,9 +15,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -66,11 +65,11 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       state.enableGroupIdTracking(seenGroupIds);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, LongBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
         }
 
         @Override
-        public void add(int positionOffset, LongVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds) {
         }
       };
     }
@@ -82,33 +81,33 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, LongBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
         @Override
-        public void add(int positionOffset, LongVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, LongBlock groupIds) {
+      public void add(int positionOffset, IntBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
       @Override
-      public void add(int positionOffset, LongVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
     };
   }
 
-  private void addRawInput(int positionOffset, LongVector groups, BytesRefBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -120,15 +119,15 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
-  private void addRawInput(int positionOffset, LongVector groups, BytesRefVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       CountDistinctBytesRefAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
-  private void addRawInput(int positionOffset, LongBlock groups, BytesRefBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -137,7 +136,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
+        int groupId = Math.toIntExact(groups.getInt(g));
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -150,7 +149,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
     }
   }
 
-  private void addRawInput(int positionOffset, LongBlock groups, BytesRefVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -159,20 +158,20 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
+        int groupId = Math.toIntExact(groups.getInt(g));
         CountDistinctBytesRefAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
       }
     }
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1088,7 +1087,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testBuildIndexMetadata() {
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .primaryTerm(0, 3L)
@@ -1105,7 +1104,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
         Settings indexSettings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
             .build();
         int targetRoutingNumberOfShards = getIndexNumberOfRoutingShards(indexSettings, null);
@@ -1149,7 +1148,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3).build();
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(6)
             .numberOfReplicas(0)
             .build();

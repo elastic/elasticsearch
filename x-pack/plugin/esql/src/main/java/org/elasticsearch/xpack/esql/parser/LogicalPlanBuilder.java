@@ -194,7 +194,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = visitFields(ctx.fields());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping());
         if (aggregates.isEmpty() && groupings.isEmpty()) {
             throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
@@ -215,7 +215,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        List<NamedExpression> aggregates = visitFields(ctx.fields());
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.fields()));
         List<NamedExpression> groupings = visitGrouping(ctx.grouping());
         aggregates.addAll(groupings);
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
@@ -228,8 +228,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public List<NamedExpression> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.field(), NamedExpression.class) : new ArrayList<>();
+    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
     }
 
     @Override

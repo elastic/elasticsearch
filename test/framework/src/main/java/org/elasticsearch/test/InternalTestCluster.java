@@ -1224,7 +1224,7 @@ public final class InternalTestCluster extends TestCluster {
                 .prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                .get()
+                .get(TimeValue.timeValueSeconds(40))
                 .isTimedOut()
         );
         try {

@@ -457,7 +457,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super.writeTo(out);
             out.writeInt(id);
             node.writeTo(out);
-            out.writeList(subRequests);
+            out.writeCollection(subRequests);
             out.writeBoolean(timeout);
         }
 

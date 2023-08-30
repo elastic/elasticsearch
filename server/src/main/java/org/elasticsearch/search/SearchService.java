@@ -1301,6 +1301,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indicesService.getAnalysis(),
                 context.getSearchExecutionContext(),
                 bigArrays,
+                clusterService.getClusterSettings(),
                 source.aggregations().bytesToPreallocate(),
                 /*
                  * The query on the search context right now doesn't include

@@ -569,6 +569,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RemoteClusterPortSettings.TCP_NO_DELAY,
         RemoteClusterPortSettings.TCP_REUSE_ADDRESS,
         RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE,
+        RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE,
         HealthPeriodicLogger.POLL_INTERVAL_SETTING,
         HealthPeriodicLogger.ENABLED_SETTING,
         DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING,

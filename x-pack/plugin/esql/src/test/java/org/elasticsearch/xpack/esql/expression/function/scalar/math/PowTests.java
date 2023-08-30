@@ -10,17 +10,16 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PowTests extends AbstractScalarFunctionTestCase {
@@ -39,71 +38,309 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 equalTo(Math.pow(base, exponent))
             );
-        })));
-    }
-
-    public void testExamples() {
-        // Test NaN
-        assertEquals(null, process(Double.NaN, 1));
-        assertEquals(null, process(1, Double.NaN));
-
-        // Test with Integers
-        assertEquals(1, process(1, 1));
-        assertEquals(1, process(randomIntBetween(-1000, 1000), 0));
-        int baseInt = randomIntBetween(-1000, 1000);
-        assertEquals(baseInt, process(baseInt, 1));
-        assertEquals((int) Math.pow(baseInt, 2), process(baseInt, 2));
-        assertEquals(0, process(123, -1));
-        double exponentDouble = randomDoubleBetween(-10.0, 10.0, true);
-        assertWithNanCheck(Math.pow(baseInt, exponentDouble), baseInt, exponentDouble);
-
-        // Test with Longs
-        assertEquals(1L, process(1L, 1));
-        assertEquals(1L, process(randomLongBetween(-1000, 1000), 0));
-        long baseLong = randomLongBetween(-1000, 1000);
-        assertEquals(baseLong, process(baseLong, 1));
-        assertEquals((long) Math.pow(baseLong, 2), process(baseLong, 2));
-        assertEquals(0, process(123, -1));
-        assertWithNanCheck(Math.pow(baseLong, exponentDouble), baseLong, exponentDouble);
-
-        // Test with Doubles
-        assertEquals(1.0, process(1.0, 1));
-        assertEquals(1.0, process(randomDoubleBetween(-1000.0, 1000.0, true), 0));
-        double baseDouble = randomDoubleBetween(-1000.0, 1000.0, true);
-        assertEquals(baseDouble, process(baseDouble, 1));
-        assertEquals(Math.pow(baseDouble, 2), process(baseDouble, 2));
-        assertEquals(0, process(123, -1));
-        assertWithNanCheck(Math.pow(baseDouble, exponentDouble), baseDouble, exponentDouble);
-    }
-
-    private void assertWithNanCheck(double expected, Number base, double exponent) {
-        if (Double.isNaN(expected)) {
-            ignoreWarning("java.lang.ArithmeticException: invalid result: pow(" + base.doubleValue() + ", " + exponent + ")");
-            assertNull("pow(" + base + "," + exponent + ") yields NaN, so we expect NULL", process(base, exponent));
-        } else {
-            assertEquals("pow(" + base + "," + exponent + ")", expected, process(base, exponent));
-        }
-    }
-
-    private Object process(Number base, Number exponent) {
-        return toJavaObject(
-            evaluator(new Pow(Source.EMPTY, field("base", typeOf(base)), field("exponent", typeOf(exponent)))).get()
-                .eval(row(List.of(base, exponent))),
-            0
-        );
-    }
-
-    private DataType typeOf(Number val) {
-        if (val instanceof Integer) {
-            return DataTypes.INTEGER;
-        }
-        if (val instanceof Long) {
-            return DataTypes.LONG;
-        }
-        if (val instanceof Double) {
-            return DataTypes.DOUBLE;
-        }
-        throw new UnsupportedOperationException("unsupported type [" + val.getClass() + "]");
+        }),
+            new TestCaseSupplier(
+                "pow(NaN, 1)",
+                () -> new TestCase(
+                    List.of(new TypedData(Double.NaN, DataTypes.DOUBLE, "base"), new TypedData(1.0d, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)")
+            ),
+            new TestCaseSupplier(
+                "pow(1, NaN)",
+                () -> new TestCase(
+                    List.of(new TypedData(1.0d, DataTypes.DOUBLE, "base"), new TypedData(Double.NaN, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)")
+            ),
+            new TestCaseSupplier(
+                "pow(NaN, 0)",
+                () -> new TestCase(
+                    List.of(new TypedData(Double.NaN, DataTypes.DOUBLE, "base"), new TypedData(0d, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1d)
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(0, 0)",
+                () -> new TestCase(
+                    List.of(new TypedData(0d, DataTypes.DOUBLE, "base"), new TypedData(0d, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1d)
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(1, 1)",
+                () -> new TestCase(
+                    List.of(new TypedData(1, DataTypes.INTEGER, "base"), new TypedData(1, DataTypes.INTEGER, "base")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(1)
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(integer, 0)",
+                () -> new TestCase(
+                    List.of(
+                        new TypedData(randomValueOtherThan(0, ESTestCase::randomInt), DataTypes.INTEGER, "base"),
+                        new TypedData(0, DataTypes.INTEGER, "exp")
+                    ),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(1)
+                )
+            ),
+            new TestCaseSupplier("pow(integer, 2)", () -> {
+                int base = randomIntBetween(-1000, 1000);
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo((int) Math.pow(base, 2))
+                );
+            }),
+            new TestCaseSupplier(
+                "integer overflow case",
+                () -> new TestCase(
+                    List.of(new TypedData(Integer.MAX_VALUE, DataTypes.INTEGER, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: integer overflow")
+            ),
+            new TestCaseSupplier(
+                "long overflow case",
+                () -> new TestCase(
+                    List.of(new TypedData(Long.MAX_VALUE, DataTypes.LONG, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: long overflow")
+            ),
+            new TestCaseSupplier(
+                "pow(2, 0.5) == sqrt(2)",
+                () -> new TestCase(
+                    List.of(new TypedData(2, DataTypes.INTEGER, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.sqrt(2))
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(2.0, 0.5) == sqrt(2)",
+                () -> new TestCase(
+                    List.of(new TypedData(2d, DataTypes.DOUBLE, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.sqrt(2))
+                )
+            ),
+            new TestCaseSupplier("pow(integer, double)", () -> {
+                // Negative numbers to a non-integer power are NaN
+                int base = randomIntBetween(0, 1000);
+                double exp = randomDoubleBetween(-10.0, 10.0, true);
+                double expected = Math.pow(base, exp);
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(expected)
+                );
+                return testCase;
+            }),
+            new TestCaseSupplier("fractional power of negative integer is null", () -> {
+                // Negative numbers to a non-integer power are NaN
+                int base = randomIntBetween(-1000, -1);
+                double exp = randomDouble(); // between 0 and 1
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("java.lang.ArithmeticException: invalid result: pow(" + (double) base + ", " + exp + ")");
+                return testCase;
+            }),
+            new TestCaseSupplier(
+                "pow(123, -1)",
+                () -> new TestCase(
+                    List.of(new TypedData(123, DataTypes.INTEGER, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(0)
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(123L, -1)",
+                () -> new TestCase(
+                    List.of(new TypedData(123L, DataTypes.LONG, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(0L)
+                )
+            ),
+            new TestCaseSupplier(
+                "pow(123D, -1)",
+                () -> new TestCase(
+                    List.of(new TypedData(123.0, DataTypes.DOUBLE, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1D / 123D)
+                )
+            ),
+            new TestCaseSupplier("pow(integer, 1)", () -> {
+                int base = randomInt();
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.INTEGER,
+                    equalTo(base)
+                );
+            }),
+            new TestCaseSupplier(
+                "pow(1L, 1)",
+                () -> new TestCase(
+                    List.of(new TypedData(1L, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(1L)
+                )
+            ),
+            new TestCaseSupplier("pow(long, 1)", () -> {
+                // Avoid double precision loss
+                long base = randomLongBetween(-1L << 51, 1L << 51);
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(base)
+                );
+            }),
+            new TestCaseSupplier("long-double overflow", () -> {
+                long base = 4339622345450989181L; // Not exactly representable as a double
+                long expected = 4339622345450989056L;
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(expected)
+                );
+            }),
+            new TestCaseSupplier("pow(long, 0)", () -> {
+                long base = randomLong();
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(0, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo(1L)
+                );
+            }),
+            new TestCaseSupplier("pow(long, 2)", () -> {
+                long base = randomLongBetween(-1000, 1000);
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
+                        + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.LONG,
+                    equalTo((long) Math.pow(base, 2))
+                );
+            }),
+            new TestCaseSupplier("pow(long, double)", () -> {
+                // Negative numbers to non-integer power are NaN
+                long base = randomLongBetween(0, 1000);
+                double exp = randomDoubleBetween(-10.0, 10.0, true);
+                double expected = Math.pow(base, exp);
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(expected)
+                );
+                return testCase;
+            }),
+            new TestCaseSupplier(
+                "pow(1D, 1)",
+                () -> new TestCase(
+                    List.of(new TypedData(1D, DataTypes.DOUBLE, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1D)
+                )
+            ),
+            new TestCaseSupplier("pow(double, 1)", () -> {
+                double base;
+                if (randomBoolean()) {
+                    base = randomDouble();
+                } else {
+                    // Sometimes pick a large number
+                    base = 1 / randomDouble();
+                }
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(base)
+                );
+            }),
+            new TestCaseSupplier("pow(double, 0)", () -> {
+                double base;
+                if (randomBoolean()) {
+                    base = randomDouble();
+                } else {
+                    // Sometimes pick a large number
+                    base = 1 / randomDouble();
+                }
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(0, DataTypes.INTEGER, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1D)
+                );
+            }),
+            new TestCaseSupplier("pow(double, 2)", () -> {
+                double base = randomDoubleBetween(-1000, 1000, true);
+                return new TestCase(
+                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.pow(base, 2))
+                );
+            }),
+            new TestCaseSupplier("pow(double, double)", () -> {
+                // Negative numbers to a non-integer power are NaN
+                double base = randomDoubleBetween(0, 1000, true);
+                double exp = randomDoubleBetween(-10.0, 10.0, true);
+                TestCase testCase = new TestCase(
+                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                    "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
+                    DataTypes.DOUBLE,
+                    equalTo(Math.pow(base, exp))
+                );
+                return testCase;
+            })
+        ));
     }
 
     @Override
@@ -129,27 +366,4 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         return new Pow(source, args.get(0), args.get(1));
     }
 
-    private List<String> ignoreWarnings = new ArrayList<>();
-
-    private void ignoreWarning(String warning) {
-        ignoreWarnings.add(warning);
-    }
-
-    @Override
-    public void ensureNoWarnings() {
-        super.ensureNoWarnings();
-        ignoreWarnings.clear();
-    }
-
-    @Override
-    protected List<String> filteredWarnings() {
-        // TODO: This avoids failing the tests for ArithmeticExceptions, but it would be better to assert on the expected warnings
-        // That would involve overriding ensureWarnings() and getting access to the threadContext
-        List<String> filteredWarnings = super.filteredWarnings();
-        filteredWarnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
-        filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)");
-        filteredWarnings.add("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)");
-        filteredWarnings.addAll(ignoreWarnings);
-        return filteredWarnings;
-    }
 }

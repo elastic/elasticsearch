@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 /**
  * Creates all indices that are required for using Elastic Universal Profiling.
  */
-public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
+class ProfilingIndexManager extends AbstractProfilingPersistenceManager<ProfilingIndexManager.ProfilingIndex> {
     // For testing
     public static final List<ProfilingIndex> PROFILING_INDICES = List.of(
         ProfilingIndex.regular(
@@ -68,8 +68,8 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         ProfilingIndex.kv("profiling-symbols-global", ProfilingIndexTemplateRegistry.PROFILING_SYMBOLS_VERSION)
     );
 
-    public ProfilingIndexManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
-        super(threadPool, client, clusterService);
+    ProfilingIndexManager(ThreadPool threadPool, Client client, ClusterService clusterService, IndexStateResolver indexStateResolver) {
+        super(threadPool, client, clusterService, indexStateResolver);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         IndexState<ProfilingIndex> indexState,
         ActionListener<? super ActionResponse> listener
     ) {
-        Status status = indexState.getStatus();
+        IndexStatus status = indexState.getStatus();
         switch (status) {
             case NEEDS_CREATION -> createIndex(clusterState, indexState.getIndex(), listener);
             case NEEDS_VERSION_BUMP -> bumpVersion(clusterState, indexState.getIndex(), listener);
@@ -89,38 +89,6 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
                 listener.onResponse(null);
             }
         }
-    }
-
-    @Override
-    protected IndexMetadata indexMetadata(ClusterState state, ProfilingIndex index) {
-        Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
-        if (indicesMetadata == null) {
-            return null;
-        }
-        IndexMetadata metadata = indicesMetadata.get(index.toString());
-        // prioritize the most recent generation from the current version
-        if (metadata == null && index.isKvIndex()) {
-            metadata = indicesMetadata.entrySet()
-                .stream()
-                .filter(e -> index.isMatchWithoutGeneration(e.getKey()))
-                // use the most recent index to make sure we use the most recent version info from the _meta field
-                .max(Comparator.comparingLong(e -> e.getValue().getCreationDate()))
-                .map(Map.Entry::getValue)
-                .orElse(null);
-        }
-
-        // attempt to find an index from an earlier generation
-        if (metadata == null) {
-            metadata = indicesMetadata.entrySet()
-                .stream()
-                .filter(e -> index.isMatchWithoutVersion(e.getKey()))
-                // use the most recent index to make sure we use the most recent version info from the _meta field
-                .max(Comparator.comparingLong(e -> e.getValue().getCreationDate()))
-                .map(Map.Entry::getValue)
-                .orElse(null);
-        }
-
-        return metadata;
     }
 
     private void bumpVersion(ClusterState state, ProfilingIndex index, ActionListener<? super ActionResponse> listener) {
@@ -377,6 +345,38 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
                 : Collections.emptyList();
         }
 
+        @Override
+        public IndexMetadata indexMetadata(ClusterState state) {
+            Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
+            if (indicesMetadata == null) {
+                return null;
+            }
+            IndexMetadata metadata = indicesMetadata.get(this.toString());
+            // prioritize the most recent generation from the current version
+            if (metadata == null && isKvIndex()) {
+                metadata = indicesMetadata.entrySet()
+                    .stream()
+                    .filter(e -> isMatchWithoutGeneration(e.getKey()))
+                    // use the most recent index to make sure we use the most recent version info from the _meta field
+                    .max(Comparator.comparingLong(e -> e.getValue().getCreationDate()))
+                    .map(Map.Entry::getValue)
+                    .orElse(null);
+            }
+
+            // attempt to find an index from an earlier generation
+            if (metadata == null) {
+                metadata = indicesMetadata.entrySet()
+                    .stream()
+                    .filter(e -> isMatchWithoutVersion(e.getKey()))
+                    // use the most recent index to make sure we use the most recent version info from the _meta field
+                    .max(Comparator.comparingLong(e -> e.getValue().getCreationDate()))
+                    .map(Map.Entry::getValue)
+                    .orElse(null);
+            }
+
+            return metadata;
+        }
+
         public OnVersionBump getOnVersionBump() {
             return onVersionBump;
         }
@@ -409,5 +409,23 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         public int hashCode() {
             return Objects.hash(namePrefix, version, generation, onVersionBump);
         }
+    }
+
+    public static boolean isAllResourcesCreated(ClusterState state, IndexStateResolver indexStateResolver) {
+        for (ProfilingIndex profilingIndex : PROFILING_INDICES) {
+            if (indexStateResolver.getIndexState(state, profilingIndex).getStatus() != IndexStatus.UP_TO_DATE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean isAnyResourceTooOld(ClusterState state, IndexStateResolver indexStateResolver) {
+        for (ProfilingIndex profilingIndex : PROFILING_INDICES) {
+            if (indexStateResolver.getIndexState(state, profilingIndex).getStatus() == IndexStatus.TOO_OLD) {
+                return true;
+            }
+        }
+        return false;
     }
 }

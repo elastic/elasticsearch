@@ -59,6 +59,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterval;
@@ -213,6 +214,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             try {
                 client().admin().indices().updateSettings(request).actionGet(TimeValue.timeValueSeconds(10));
             } catch (Exception e) {
+                logger.warn(() -> format("encountered failure while updating [%s] index's ilm policy", sourceIndex), e);
                 throw new AssertionError(e);
             }
         }, 1, TimeUnit.MINUTES);

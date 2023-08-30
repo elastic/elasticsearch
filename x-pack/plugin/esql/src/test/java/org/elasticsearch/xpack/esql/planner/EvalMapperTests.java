@@ -104,7 +104,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, DATE, dateInterval) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 

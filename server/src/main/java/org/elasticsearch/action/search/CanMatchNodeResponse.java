@@ -33,7 +33,7 @@ public class CanMatchNodeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(responses);
+        out.writeCollection(responses);
     }
 
     public List<ResponseOrFailure> getResponses() {

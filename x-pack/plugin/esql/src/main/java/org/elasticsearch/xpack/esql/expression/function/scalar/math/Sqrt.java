@@ -11,12 +11,14 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
@@ -26,8 +28,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
-    public Sqrt(Source source, Expression field) {
-        super(source, field);
+    public Sqrt(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
@@ -47,6 +49,9 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         if (fieldType == DataTypes.LONG) {
             return () -> new SqrtLongEvaluator(eval);
         }
+        if (fieldType == DataTypes.UNSIGNED_LONG) {
+            return () -> new SqrtUnsignedLongEvaluator(eval);
+        }
 
         throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
     }
@@ -59,6 +64,11 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Long")
     static double process(long val) {
         return Math.sqrt(val);
+    }
+
+    @Evaluator(extraName = "UnsignedLong")
+    static double processUnsignedLong(long val) {
+        return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int")

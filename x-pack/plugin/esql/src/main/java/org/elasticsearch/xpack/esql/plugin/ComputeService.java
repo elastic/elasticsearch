@@ -77,6 +77,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -140,35 +141,41 @@ public class ComputeService {
         }
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
-        computeTargetNodes(rootTask, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetNodes -> {
-            final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
-                sessionId,
-                queryPragmas.exchangeBufferSize(),
-                ESQL_THREAD_POOL_NAME
-            );
-            try (
-                Releasable ignored = exchangeSource::decRef;
-                RefCountingListener requestRefs = new RefCountingListener(listener.map(unused -> collectedPages))
-            ) {
-                final AtomicBoolean cancelled = new AtomicBoolean();
-                // wait until the source handler is completed
-                exchangeSource.addCompletionListener(requestRefs.acquire());
-                // run compute on the coordinator
-                var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
-                runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
-                // run compute on remote nodes
-                // TODO: This is wrong, we need to be able to cancel
-                runComputeOnRemoteNodes(
+        computeTargetNodes(
+            rootTask,
+            requestFilter,
+            concreteIndices,
+            originalIndices,
+            listener.delegateFailureAndWrap((delegate, targetNodes) -> {
+                final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
                     sessionId,
-                    rootTask,
-                    configuration,
-                    dataNodePlan,
-                    exchangeSource,
-                    targetNodes,
-                    () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                    queryPragmas.exchangeBufferSize(),
+                    ESQL_THREAD_POOL_NAME
                 );
-            }
-        }, listener::onFailure));
+                try (
+                    Releasable ignored = exchangeSource::decRef;
+                    RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
+                ) {
+                    final AtomicBoolean cancelled = new AtomicBoolean();
+                    // wait until the source handler is completed
+                    exchangeSource.addCompletionListener(requestRefs.acquire());
+                    // run compute on the coordinator
+                    var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
+                    runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
+                    // run compute on remote nodes
+                    // TODO: This is wrong, we need to be able to cancel
+                    runComputeOnRemoteNodes(
+                        sessionId,
+                        rootTask,
+                        configuration,
+                        dataNodePlan,
+                        exchangeSource,
+                        targetNodes,
+                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                    );
+                }
+            })
+        );
     }
 
     private void runComputeOnRemoteNodes(
@@ -198,7 +205,7 @@ public class ComputeService {
                     sessionId,
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
-                    ActionListener.wrap(unused -> {
+                    targetNodeListener.delegateFailureAndWrap((delegate, unused) -> {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, targetNode.node);
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                         transportService.sendChildRequest(
@@ -207,9 +214,9 @@ public class ComputeService {
                             new DataNodeRequest(sessionId, configuration, targetNode.shardIds, targetNode.aliasFilters, dataNodePlan),
                             rootTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(targetNodeListener, DataNodeResponse::new, esqlExecutor)
+                            new ActionListenerResponseHandler<>(delegate, DataNodeResponse::new, esqlExecutor)
                         );
-                    }, targetNodeListener::onFailure)
+                    })
                 );
             }
         }
@@ -254,7 +261,12 @@ public class ComputeService {
             listener.onFailure(e);
             return;
         }
-        driverRunner.executeDrivers(task, drivers, ActionListener.releaseAfter(listener, () -> Releasables.close(drivers)));
+        driverRunner.executeDrivers(
+            task,
+            drivers,
+            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+            ActionListener.releaseAfter(listener, () -> Releasables.close(drivers))
+        );
     }
 
     private void acquireSearchContexts(

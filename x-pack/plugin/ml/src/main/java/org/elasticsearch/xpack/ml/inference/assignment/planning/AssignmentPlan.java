@@ -365,7 +365,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         boolean canAssign(Deployment deployment, Node node, int allocations) {
             return (isAlreadyAssigned(deployment, node)
-                || (deployment.memoryBytes() <= remainingNodeMemory.get(node))
+                || (deployment.estimateMemoryUsageBytes(allocations) <= remainingNodeMemory.get(node))
                     && (deployment.priority == Priority.LOW
                         || allocations * deployment.threadsPerAllocation() <= remainingNodeCores.get(node)));
         }

@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -65,7 +64,8 @@ public class QueriesTests extends ESTestCase {
 
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
-        assertEquals(clause.operation.apply(bool), list);
+        var clauseList = clause.operation.apply(bool);
+        assertThat(list, everyItem(in(clauseList)));
     }
 
     public void testCombineBoolQueries() {
@@ -93,23 +93,20 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
 
+        var clauseList = clause.operation.apply(bool);
+
         for (QueryBuilder query : queries) {
-            assertThat(query, instanceOf(BoolQueryBuilder.class));
-            BoolQueryBuilder bqb = (BoolQueryBuilder) query;
-            assertThat(bqb.filter(), everyItem(in(bool.filter())));
-            assertThat(bqb.must(), everyItem(in(bool.must())));
-            assertThat(bqb.mustNot(), everyItem(in(bool.mustNot())));
-            assertThat(bqb.should(), everyItem(in(bool.should())));
+            if (query != bool) {
+                assertThat(query, in(clauseList));
+            }
         }
     }
 
     public void testCombineMixedBoolAndNonBoolQueries() {
-        var nonBool = new int[] { 0 };
         var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
             if (randomBoolean()) {
                 return QueriesTests.randomBool();
             } else {
-                nonBool[0]++;
                 return QueriesTests.randomNonBool();
             }
         });
@@ -121,61 +118,11 @@ public class QueriesTests extends ESTestCase {
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
 
-        var innerQueries = clause.operation.apply(bool);
-        assertThat(innerQueries, hasSize(nonBool[0]));
+        var clauseList = clause.operation.apply(bool);
 
         for (QueryBuilder query : queries) {
-            if (query instanceof BoolQueryBuilder bqb) {
-                assertThat(bqb.filter(), everyItem(in(bool.filter())));
-                assertThat(bqb.must(), everyItem(in(bool.must())));
-                assertThat(bqb.mustNot(), everyItem(in(bool.mustNot())));
-                assertThat(bqb.should(), everyItem(in(bool.should())));
-            } else {
-                assertThat(query, in(innerQueries));
-            }
-        }
-    }
-
-    public void testCombineBoolQueryWithMinClauseSet() {
-        var nonBool = new int[] { 0 };
-        var nonMixedBool = new int[] { 0 };
-        var queries = randomArray(2, 10, QueryBuilder[]::new, () -> {
-            if (randomBoolean()) {
-                var b = QueriesTests.randomBool();
-                if (randomBoolean()) {
-                    nonMixedBool[0]++;
-                    b.minimumShouldMatch(1);
-                }
-                return b;
-            } else {
-                nonBool[0]++;
-                return QueriesTests.randomNonBool();
-            }
-        });
-
-        var clause = randomFrom(Queries.Clause.values());
-        var list = asList(queries);
-        var combination = Queries.combine(clause, list);
-
-        assertThat(combination, instanceOf(BoolQueryBuilder.class));
-        var bool = (BoolQueryBuilder) combination;
-
-        var innerQueries = clause.operation.apply(bool);
-        assertThat(innerQueries, hasSize(nonBool[0] + nonMixedBool[0]));
-
-
-        for (QueryBuilder query : queries) {
-            if (query instanceof BoolQueryBuilder bqb) {
-                if (bqb.minimumShouldMatch() != "0") {
-                    assertThat(query, in(innerQueries));
-                } else {
-                    assertThat(bqb.filter(), everyItem(in(bool.filter())));
-                    assertThat(bqb.must(), everyItem(in(bool.must())));
-                    assertThat(bqb.mustNot(), everyItem(in(bool.mustNot())));
-                    assertThat(bqb.should(), everyItem(in(bool.should())));
-                }
-            } else {
-                assertThat(query, in(innerQueries));
+            if (query != bool) {
+                assertThat(query, in(clauseList));
             }
         }
     }

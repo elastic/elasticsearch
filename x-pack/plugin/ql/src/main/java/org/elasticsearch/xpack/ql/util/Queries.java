@@ -36,11 +36,8 @@ public class Queries {
     /**
      * Combines the given queries while attempting to NOT create a new bool query and avoid
      * unnecessary nested queries.
-     * The method tries to detect and reuses existing bool queries instead of simply combining
-     * them to avoid creating unnecessary nested queries.
-     * If a bool query is detected and its {@link BoolQueryBuilder#minimumShouldMatch()} is set,
-     * said query will be added using the given clause instead of being merged onto the existing
-     * ones.
+     * The method tries to detect if the first query is a bool query - if that is the case it will
+     * reuse that for adding the rest of the clauses.
      */
     public static QueryBuilder combine(Clause clause, List<QueryBuilder> queries) {
         QueryBuilder firstQuery = null;
@@ -52,6 +49,9 @@ public class Queries {
             }
             if (firstQuery == null) {
                 firstQuery = query;
+                if (firstQuery instanceof BoolQueryBuilder bqb) {
+                    bool = bqb;
+                }
             }
             // at least two entries, start copying
             else {
@@ -68,23 +68,10 @@ public class Queries {
     }
 
     private static BoolQueryBuilder combine(Clause clause, BoolQueryBuilder bool, QueryBuilder query) {
-        if (query instanceof BoolQueryBuilder boolQuery && hasDefaultMinMatch(boolQuery)) {
-            bool.filter().addAll(boolQuery.filter());
-            bool.should().addAll(boolQuery.should());
-            bool.must().addAll(boolQuery.must());
-            bool.mustNot().addAll(boolQuery.mustNot());
-        } else {
-            var list = clause.operation.apply(bool);
-            if (list.contains(query) == false) {
-                list.add(query);
-            }
+        var list = clause.operation.apply(bool);
+        if (list.contains(query) == false) {
+            list.add(query);
         }
         return bool;
     }
-
-    private static boolean hasDefaultMinMatch(BoolQueryBuilder boolQuery) {
-        var minMatch = boolQuery.minimumShouldMatch();
-        return minMatch == null || "0".equals(minMatch);
-    }
-
 }

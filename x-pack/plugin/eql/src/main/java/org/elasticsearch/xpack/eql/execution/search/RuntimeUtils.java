@@ -191,7 +191,9 @@ public final class RuntimeUtils {
      * additionally checks whether the given query exists for safe decoration
      */
     public static SearchSourceBuilder combineFilters(SearchSourceBuilder source, QueryBuilder filter) {
-        return source.query(Queries.combine(FILTER, List.of(source.query(), filter)));
+        var query = Queries.combine(FILTER, Arrays.asList(source.query(), filter));
+        query = query == null ? boolQuery() : query;
+        return source.query(query);
     }
 
     public static SearchSourceBuilder replaceFilter(
@@ -201,7 +203,11 @@ public final class RuntimeUtils {
     ) {
         var query = source.query();
         query = removeFilters(query, oldFilters);
-        query = Queries.combine(FILTER, org.elasticsearch.xpack.ql.util.CollectionUtils.combine(newFilters, query));
+        query = Queries.combine(
+            FILTER,
+            org.elasticsearch.xpack.ql.util.CollectionUtils.combine(Collections.singletonList(query), newFilters)
+        );
+        query = query == null ? boolQuery() : query;
         return source.query(query);
     }
 

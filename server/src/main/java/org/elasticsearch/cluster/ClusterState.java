@@ -143,12 +143,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
         };
 
-    // TODO[wrb]: mappings versions serializer?
-    private static final DiffableUtils.ValueSerializer<String, VersionsWrapper> SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER =
+    private static final DiffableUtils.ValueSerializer<String, VersionsWrapper> VERSIONS_WRAPPER_SERIALIZER =
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(VersionsWrapper value, StreamOutput out) throws IOException {
-                // TODO[wrb] this needs to be modified for multiple kinds of versions
+                // Currently this only handles system index mappings versions
+                // TODO[wrb]: put in a key for system indices so we can have other kinds of versions
                 out.writeMap(value.systemIndexMappingsVersions(), StreamOutput::writeString, (o, v) -> {
                     out.writeInt(v.version());
                     out.writeInt(v.hash());
@@ -1115,7 +1115,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 before.versionsWrappers,
                 after.versionsWrappers,
                 DiffableUtils.getStringKeySerializer(),
-                SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
+                VERSIONS_WRAPPER_SERIALIZER
             );
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
@@ -1139,11 +1139,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 transportVersions = null;   // infer at application time
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
-                versionsWrappers = DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    SYSTEM_INDEX_MAPPINGS_VERSION_SERIALIZER
-                );
+                versionsWrappers = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), VERSIONS_WRAPPER_SERIALIZER);
             } else {
                 versionsWrappers = DiffableUtils.emptyDiff();
             }

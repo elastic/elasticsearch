@@ -33,6 +33,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.node.VersionsWrapper;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -45,8 +46,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -62,6 +65,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -177,6 +181,61 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 versions
             )
         );
+    }
+
+    public void testPreventJoinClusterWithUnsupportedSystemIndexMappingsVersion() {
+        final int minimumMappingsVersion = 3;
+
+        Function<Integer, SystemIndexDescriptor.MappingsVersion> getVersion = v -> new SystemIndexDescriptor.MappingsVersion(
+            v,
+            randomInt()
+        );
+
+        NodeJoinExecutor.ensureSystemIndicesMappingsVersionsBarrier(
+            new VersionsWrapper(Map.of(".system-index", getVersion.apply(randomIntBetween(minimumMappingsVersion, 100)))),
+            List.of(
+                new VersionsWrapper(Map.of(".system-index", getVersion.apply(minimumMappingsVersion))),
+                new VersionsWrapper(Map.of(".system-index", getVersion.apply(randomIntBetween(minimumMappingsVersion, 100))))
+            )
+        );
+
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> NodeJoinExecutor.ensureSystemIndicesMappingsVersionsBarrier(
+                new VersionsWrapper(
+                    Map.of(
+                        ".good-system-index",
+                        getVersion.apply(randomIntBetween(minimumMappingsVersion, 100)),
+                        ".bad-system-index",
+                        getVersion.apply(randomIntBetween(0, minimumMappingsVersion - 1))
+                    )
+                ),
+                List.of(
+                    new VersionsWrapper(
+                        Map.of(
+                            ".good-system-index",
+                            getVersion.apply(minimumMappingsVersion),
+                            ".bad-system-index",
+                            getVersion.apply(minimumMappingsVersion),
+                            ".another-system-index",
+                            getVersion.apply(0)
+                        )
+                    ),
+                    new VersionsWrapper(
+                        Map.of(
+                            ".good-system-index",
+                            getVersion.apply(randomIntBetween(minimumMappingsVersion, 100)),
+                            ".bad-system-index",
+                            getVersion.apply(randomIntBetween(minimumMappingsVersion, 100))
+                        )
+                    )
+                )
+            )
+        );
+
+        assertThat(e.getMessage(), containsString(".bad-system-index"));
+        assertThat(e.getMessage(), not(containsString(".good-system-index")));
+        assertThat(e.getMessage(), not(containsString(".another-system-index")));
     }
 
     public void testSuccess() {

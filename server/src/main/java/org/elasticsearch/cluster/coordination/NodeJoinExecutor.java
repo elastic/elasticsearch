@@ -143,12 +143,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 } else {
                     try {
                         TransportVersion transportVersion = nodeJoinTask.transportVersion();
-                        Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions = nodeJoinTask.versionsWrapper()
-                            .systemIndexMappingsVersions();
+                        VersionsWrapper versionsWrapper = nodeJoinTask.versionsWrapper();
                         // TODO[wrb]: add system index versions to version barrier?
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             ensureTransportVersionBarrier(transportVersion, transportVersions.values());
+                            ensureSystemIndicesMappingsVersionsBarrier(versionsWrapper, versionsWrappers.values());
                         }
                         blockForbiddenVersions(transportVersion);
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
@@ -157,7 +157,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         transportVersions.put(node.getId(), transportVersion);
-                        versionsWrappers.put(node.getId(), new VersionsWrapper(systemIndexMappingsVersions));
+                        versionsWrappers.put(node.getId(), versionsWrapper);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -227,7 +227,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            // TODO[wrb]: system index versions
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
                 newState.nodes(nodesBuilder).transportVersions(transportVersions).versionsWrappers(versionsWrappers).build()
             );
@@ -252,7 +251,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         return clusterState.transportVersions();
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
+    @SuppressForbidden(reason = "maintaining ClusterState#versionsWrappers requires reading them")
     private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
         return clusterState.versionsWrappers();
     }
@@ -422,6 +421,38 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + joiningTransportVersion
                     + "] may not join a cluster with minimum transport version ["
                     + minClusterTransportVersion
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    static void ensureSystemIndicesMappingsVersionsBarrier(VersionsWrapper joiningVersions, Collection<VersionsWrapper> existingVersions) {
+        Map<String, SystemIndexDescriptor.MappingsVersion> minVersions = new HashMap<>();
+        for (VersionsWrapper wrapper : existingVersions) {
+            for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> entry : wrapper.systemIndexMappingsVersions().entrySet()) {
+                minVersions.merge(entry.getKey(), entry.getValue(), (v1, v2) -> v1.version() < v2.version() ? v1 : v2);
+            }
+        }
+
+        Map<String, SystemIndexDescriptor.MappingsVersion> illegalMappingsVersions = new HashMap<>();
+        Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions = joiningVersions.systemIndexMappingsVersions();
+        for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> entry : minVersions.entrySet()) {
+            SystemIndexDescriptor.MappingsVersion joiningVersion = systemIndexMappingsVersions.get(entry.getKey());
+            if (Objects.nonNull(joiningVersion) && joiningVersion.version() < entry.getValue().version()) {
+                illegalMappingsVersions.put(entry.getKey(), joiningVersion);
+            }
+        }
+        if (illegalMappingsVersions.isEmpty() == false) {
+            minVersions.keySet().retainAll(illegalMappingsVersions.keySet());
+            throw new IllegalStateException(
+                "node with system index mappings versions ["
+                    + illegalMappingsVersions
+                    + "] may not join a cluster with minimum system index mappings versions ["
+                    + minVersions
                     + "]"
             );
         }

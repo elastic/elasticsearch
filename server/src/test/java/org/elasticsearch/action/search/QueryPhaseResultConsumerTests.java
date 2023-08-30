@@ -92,10 +92,11 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             searchShards.add(new SearchShard(null, new ShardId("index", "uuid", i)));
         }
+        long timestamp = randomLongBetween(1000, Long.MAX_VALUE - 1000);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            System::nanoTime
+            timestamp,
+            timestamp,
+            () -> timestamp + 1000
         );
         searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 

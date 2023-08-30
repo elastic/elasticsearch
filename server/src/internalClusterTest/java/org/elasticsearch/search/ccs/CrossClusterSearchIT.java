@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -612,15 +611,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int numShardsRemote = randomIntBetween(2, 10);
         final InternalTestCluster remoteCluster = cluster(REMOTE_CLUSTER);
         remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
-        final Settings.Builder remoteSettings = Settings.builder();
-        remoteSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShardsRemote);
-        remoteSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1));
-
         assertAcked(
             client(REMOTE_CLUSTER).admin()
                 .indices()
                 .prepareCreate(remoteIndex)
-                .setSettings(Settings.builder().put(remoteSettings.build()))
+                .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
                 .setMapping("@timestamp", "type=date", "f", "type=text")
         );
         assertFalse(

@@ -85,8 +85,8 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER = "cluster_a";
-    private static long EARLIEST_TIMESTAMP = 1691348810000L;
-    private static long LATEST_TIMESTAMP = 1691348820000L;
+    private static final long EARLIEST_TIMESTAMP = 1691348810000L;
+    private static final long LATEST_TIMESTAMP = 1691348820000L;
 
     @Override
     protected Collection<String> remoteClusterAlias() {

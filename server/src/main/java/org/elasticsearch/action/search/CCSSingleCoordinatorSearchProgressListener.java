@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Use this progress listener for cross-cluster searches where a single
@@ -55,18 +56,17 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         this.timeProvider = timeProvider;
 
         // Partition by clusterAlias and get counts
-        Map<String, Integer> skippedByClusterAlias = partitionCountsByClusterAlias((skipped));
-        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias((shards));
-        // the 'shards' list does NOT include the shards in the 'skipped' list, so to get total counts, combine counts from both
-        skippedByClusterAlias.forEach((cluster, skipCount) -> totalByClusterAlias.merge(cluster, skipCount, Integer::sum));
+        Map<String, Integer> skippedByClusterAlias = partitionCountsByClusterAlias(skipped.stream());
+        // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(Stream.concat(shards.stream(), skipped.stream()));
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
             AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
             assert clusterRef.get().getTotalShards() == null : "total shards should not be set on a Cluster before onListShards";
 
-            Integer totalCount = entry.getValue();
-            Integer skippedCount = skippedByClusterAlias.getOrDefault(clusterAlias, 0);
+            int totalCount = entry.getValue();
+            int skippedCount = skippedByClusterAlias.getOrDefault(clusterAlias, 0);
             TimeValue took = null;
 
             boolean swapped;
@@ -76,7 +76,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 assert status == SearchResponse.Cluster.Status.RUNNING : "should have RUNNING status during onListShards but has " + status;
 
                 // if all shards are marked as skipped, the search is done - mark as SUCCESSFUL
-                if (skippedCount != null && skippedCount == totalCount) {
+                if (skippedCount == totalCount) {
                     took = new TimeValue(timeProvider.buildTookInMillis());
                     status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 }
@@ -195,7 +195,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
-        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards);
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards.stream());
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -247,10 +247,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             return;
         }
 
-        Map<String, Integer> totalByClusterAlias = shards.stream().collect(Collectors.groupingBy(shard -> {
-            String clusterAlias = shard.clusterAlias();
-            return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        }, Collectors.reducing(0, e -> 1, Integer::sum)));
+        Map<String, Integer> totalByClusterAlias = partitionCountsByClusterAlias(shards.stream());
 
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -309,8 +306,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     @Override
     public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
-    private Map<String, Integer> partitionCountsByClusterAlias(List<SearchShard> shards) {
-        return shards.stream().collect(Collectors.groupingBy(shard -> {
+    private Map<String, Integer> partitionCountsByClusterAlias(Stream<SearchShard> shards) {
+        return shards.collect(Collectors.groupingBy(shard -> {
             String clusterAlias = shard.clusterAlias();
             return clusterAlias != null ? clusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }, Collectors.reducing(0, e -> 1, Integer::sum)));

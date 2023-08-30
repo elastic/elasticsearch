@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -169,15 +168,11 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
                 remoteClient.prepareIndex("remote_test").setId("remote_new").setSource().get();
                 remoteClient.admin().indices().prepareRefresh().get();
             }
-            PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
-
             // shardId 0 means to throw the Exception only on shard 0; all others should work
             ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), 0);
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10).pointInTimeBuilder(new PointInTimeBuilder(pitId)));
-            client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
-
-            SearchResponse searchResponse = queryFuture.get();
+            SearchResponse searchResponse = client(LOCAL_CLUSTER).search(searchRequest).get();
 
             SearchResponse.Clusters clusters = searchResponse.getClusters();
             int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);

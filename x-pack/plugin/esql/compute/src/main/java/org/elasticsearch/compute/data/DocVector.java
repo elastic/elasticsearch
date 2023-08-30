@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
 
+import java.util.Objects;
+
 /**
  * {@link Vector} where each entry references a lucene document.
  */
@@ -177,5 +179,19 @@ public class DocVector extends AbstractVector implements Vector {
     @Override
     public boolean isConstant() {
         return shards.isConstant() && segments.isConstant() && docs.isConstant();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shards, segments, docs);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocVector == false) {
+            return false;
+        }
+        DocVector other = (DocVector) obj;
+        return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
     }
 }

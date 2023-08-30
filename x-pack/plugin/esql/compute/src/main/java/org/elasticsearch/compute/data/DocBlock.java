@@ -47,6 +47,19 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return new DocBlock(asVector().filter(positions));
     }
 
+    @Override
+    public int hashCode() {
+        return vector.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocBlock == false) {
+            return false;
+        }
+        return vector.equals(((DocBlock) obj).vector);
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */

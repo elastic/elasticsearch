@@ -127,7 +127,7 @@ public final class CreateApiKeyRequest extends AbstractCreateApiKeyRequest {
             out.writeString(name);
         }
         out.writeOptionalTimeValue(expiration);
-        out.writeList(getRoleDescriptors());
+        out.writeCollection(getRoleDescriptors());
         refreshPolicy.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeGenericMap(metadata);

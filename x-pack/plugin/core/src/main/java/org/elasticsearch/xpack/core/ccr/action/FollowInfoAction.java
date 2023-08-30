@@ -102,7 +102,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(followInfos);
+            out.writeCollection(followInfos);
         }
 
         @Override

@@ -200,7 +200,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 if (errors != null) {
                     out.writeBoolean(true);
-                    out.writeList(errors);
+                    out.writeCollection(errors);
                 } else {
                     out.writeBoolean(false);
                 }

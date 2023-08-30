@@ -70,6 +70,6 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
-        out.writeList(segments);
+        out.writeCollection(segments);
     }
 }

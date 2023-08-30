@@ -205,7 +205,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
-            out.writeList(detectorUpdates);
+            out.writeCollection(detectorUpdates);
         }
         out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalWriteable(analysisLimits);
@@ -725,7 +725,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeOptionalString(description);
             out.writeBoolean(rules != null);
             if (rules != null) {
-                out.writeList(rules);
+                out.writeCollection(rules);
             }
         }
 

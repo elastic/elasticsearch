@@ -16,6 +16,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -37,7 +39,7 @@ import java.util.Locale;
 import java.util.concurrent.Executor;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
-
+    private static final Logger LOGGER = LogManager.getLogger(TransportEsqlQueryAction.class);
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
@@ -84,6 +86,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        long startTime = System.currentTimeMillis();
+
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -104,7 +108,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         .stream()
                         .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
                         .toList();
-                    return new EsqlQueryResponse(columns, pages, request.columnar());
+                    EsqlQueryResponse response = new EsqlQueryResponse(columns, pages, request.columnar());
+
+                    long endTime = System.currentTimeMillis();
+
+                    LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}",
+                        endTime-startTime,
+                        request.query());
+
+                    return response;
                 }))
             )
         );

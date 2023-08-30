@@ -580,11 +580,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     private void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
@@ -595,11 +591,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.field("rename_replacement", renameReplacement);
         }
         if (featureStates != null && featureStates.length > 0) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
@@ -611,11 +603,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             }
             builder.endObject();
         }
-        builder.startArray("ignore_index_settings");
-        for (String ignoreIndexSetting : ignoreIndexSettings) {
-            builder.value(ignoreIndexSetting);
-        }
-        builder.endArray();
+        builder.array("ignore_index_settings", ignoreIndexSettings);
     }
 
     @Override

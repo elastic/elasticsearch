@@ -38,10 +38,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -252,9 +250,9 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        for (Mapper mapper : context.getDynamicMappers()) {
-            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
-        }
+        context.getDynamicMappers()
+            .forEach((name, mappers) -> mappers.forEach(mapper -> rootBuilder.addDynamic(name, null, mapper, context)));
+
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
@@ -596,43 +594,31 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
-        postProcessDynamicMappers(context);
+        postProcessDynamicMappers(context, lastFieldName);
     }
 
-    private static void postProcessDynamicMappers(DocumentParserContext context) {
+    private static void postProcessDynamicMappers(DocumentParserContext context, String simpleName) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
-            List<Mapper> postProcessedMappers = new ArrayList<>();
+            final Map<String, List<Mapper>> dynamicMappers = context.getDynamicMappers();
 
-            Set<String> dynamicDenseVectorFieldNames = context.getDynamicMappers()
-                .stream()
-                .filter(subClassObj -> subClassObj instanceof NumberFieldMapper)
-                .map(NumberFieldMapper.class::cast)
-                .filter(m -> "float".equals(m.typeName()) && context.isFieldAppliedFromTemplate(m.name()) == false)
-                .collect(Collectors.groupingBy(FieldMapper::name, Collectors.counting()))
-                .entrySet()
-                .stream()
-                .filter(e -> e.getValue() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING && e.getValue() <= MAX_DIMS_COUNT)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
 
-            if (dynamicDenseVectorFieldNames.isEmpty()) {
-                return;
-            }
+            for (String fieldName : dynamicMappers.keySet()) {
+                List<Mapper> mappers = dynamicMappers.get(fieldName);
+                boolean shouldBeDenseVector = mappers.stream()
+                    .allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())
+                    && context.isFieldAppliedFromTemplate(fieldName) == false && context.isCopyToField(fieldName) == false
+                    && mappers.size() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                    && mappers.size() <= MAX_DIMS_COUNT);
 
-            for (Mapper mapper : context.getDynamicMappers()) {
-                if (dynamicDenseVectorFieldNames.contains(mapper.name())) {
+                if (shouldBeDenseVector) {
                     DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                        mapper.name(),
+                        simpleName,
                         context.indexSettings().getIndexVersionCreated()
                     );
-
                     DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());
-                    postProcessedMappers.add(denseVectorFieldMapper);
-                } else {
-                    postProcessedMappers.add(mapper);
+                    context.updateDynamicMappers(fieldName, List.of(denseVectorFieldMapper));
                 }
             }
-            context.setDynamicMappers(postProcessedMappers);
         }
     }
 
@@ -723,6 +709,7 @@ public final class DocumentParser {
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
             innerParseObject(copyToContext);
+            context.markFieldAsCopyTo(field);
         }
     }
 

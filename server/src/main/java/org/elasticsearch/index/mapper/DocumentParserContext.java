@@ -84,7 +84,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private List<Mapper> dynamicMappers;
+    private final Map<String, List<Mapper>> dynamicMappers;
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
@@ -95,13 +95,14 @@ public abstract class DocumentParserContext {
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+    private final Set<String> copyToFields;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
-        List<Mapper> dynamicMappers,
+        Map<String, List<Mapper>> dynamicMappers,
         Set<String> newFieldsSeen,
         Map<String, ObjectMapper> dynamicObjectMappers,
         List<RuntimeField> dynamicRuntimeFields,
@@ -111,7 +112,8 @@ public abstract class DocumentParserContext {
         DocumentDimensions dimensions,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
-        Set<String> fieldsAppliedFromTemplates
+        Set<String> fieldsAppliedFromTemplates,
+        Set<String> copyToFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -128,6 +130,7 @@ public abstract class DocumentParserContext {
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
+        this.copyToFields = copyToFields;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -146,7 +149,8 @@ public abstract class DocumentParserContext {
             in.dimensions,
             parent,
             dynamic,
-            in.fieldsAppliedFromTemplates
+            in.fieldsAppliedFromTemplates,
+            in.copyToFields
         );
     }
 
@@ -162,7 +166,7 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
-            new ArrayList<>(),
+            new HashMap<>(),
             new HashSet<>(),
             new HashMap<>(),
             new ArrayList<>(),
@@ -172,6 +176,7 @@ public abstract class DocumentParserContext {
             DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
+            new HashSet<>(),
             new HashSet<>()
         );
     }
@@ -288,6 +293,14 @@ public abstract class DocumentParserContext {
         return fieldsAppliedFromTemplates.contains(name);
     }
 
+    public void markFieldAsCopyTo(String fieldName) {
+        copyToFields.add(fieldName);
+    }
+
+    public boolean isCopyToField(String name) {
+        return copyToFields.contains(name);
+    }
+
     /**
      * Add a new mapper dynamically created while parsing.
      */
@@ -321,7 +334,7 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.add(mapper);
+        dynamicMappers.computeIfAbsent(mapper.name(), k -> new ArrayList<>()).add(mapper);
     }
 
     /**
@@ -330,8 +343,12 @@ public abstract class DocumentParserContext {
      * Consists of a flat set of {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
-    public final List<Mapper> getDynamicMappers() {
+    public final Map<String, List<Mapper>> getDynamicMappers() {
         return dynamicMappers;
+    }
+
+    public void updateDynamicMappers(String name, List<Mapper> mappers) {
+        dynamicMappers.put(name, mappers);
     }
 
     /**
@@ -542,10 +559,6 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
-    }
-
-    public void setDynamicMappers(List<Mapper> dynamicMappers) {
-        this.dynamicMappers = dynamicMappers;
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

@@ -606,7 +606,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 backingIndexName,
                 errorStore,
                 Strings.format(
-                    "Data stream lifecycle encountered an error trying to replace index [%s] with index [%s] in data stream [%]",
+                    "Data stream lifecycle encountered an error trying to replace index [%s] with index [%s] in data stream [%s]",
                     backingIndexName,
                     downsampleIndexName,
                     dataStream

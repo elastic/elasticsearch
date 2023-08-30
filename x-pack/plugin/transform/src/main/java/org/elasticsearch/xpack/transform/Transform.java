@@ -485,11 +485,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Deprecated
     public boolean includeNodeInfo() {
-        return transformExtension.includeNodeInfo();
+        return getTransformExtension().includeNodeInfo();
     }
 
     @Deprecated
     public Settings getTransformInternalIndexAdditionalSettings() {
-        return transformExtension.getTransformInternalIndexAdditionalSettings();
+        return getTransformExtension().getTransformInternalIndexAdditionalSettings();
     }
 }

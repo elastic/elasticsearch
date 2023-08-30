@@ -1,0 +1,5 @@
+pr: 98847
+summary: "ESQL: Add `CEIL` function"
+area: ES|QL
+type: enhancement
+issues: []

@@ -14,6 +14,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.hamcrest.Matchers;
 
@@ -27,13 +28,13 @@ public class EnrollmentBaseRestHandlerTests extends ESTestCase {
     public void testInEnrollmentMode() {
         final Settings settings = Settings.builder().put(XPackSettings.ENROLLMENT_ENABLED.getKey(), true).build();
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
-        assertThat(handler.checkFeatureAvailable(), Matchers.nullValue());
+        assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
     public void testNotInEnrollmentMode() {
         final Settings settings = Settings.builder().put(XPackSettings.ENROLLMENT_ENABLED.getKey(), false).build();
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
-        Exception ex = handler.checkFeatureAvailable();
+        Exception ex = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
         assertThat(
             ex.getMessage(),
@@ -50,7 +51,7 @@ public class EnrollmentBaseRestHandlerTests extends ESTestCase {
             .put(XPackSettings.ENROLLMENT_ENABLED.getKey(), true)
             .build();
         final EnrollmentBaseRestHandler handler = buildHandler(settings);
-        Exception ex = handler.checkFeatureAvailable();
+        Exception ex = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(ex, instanceOf(IllegalStateException.class));
         assertThat(ex.getMessage(), Matchers.containsString("Security is not enabled but a security rest handler is registered"));
     }

@@ -225,7 +225,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 assert out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
+            out.writeCollection(peerRecoveryRetentionLeases);
         }
 
         public boolean isEmpty() {
@@ -334,7 +334,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 

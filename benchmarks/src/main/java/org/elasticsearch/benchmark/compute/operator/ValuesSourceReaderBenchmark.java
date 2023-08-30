@@ -196,7 +196,7 @@ public class ValuesSourceReaderBenchmark {
                 case "double" -> {
                     DoubleVector values = op.getOutput().<DoubleBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
-                        sum += values.getDouble(p);
+                        sum += (long) values.getDouble(p);
                     }
                 }
                 case "keyword" -> {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -20,7 +21,10 @@ import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -32,13 +36,13 @@ import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 
 /**
  * Performs global (coordinator) optimization of the physical plan.
@@ -88,7 +92,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             var projectAll = new Holder<>(TRUE);
             var keepCollecting = new Holder<>(TRUE);
             var attributes = new LinkedHashSet<Attribute>();
-            var aliases = new HashMap<Attribute, Expression>();
+            var aliases = new AttributeMap<Expression>();
 
             return plan.transformDown(UnaryExec.class, p -> {
                 // no need for project all
@@ -113,6 +117,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     }
                     if (p instanceof EnrichExec ee) {
                         for (NamedExpression enrichField : ee.enrichFields()) {
+                            // TODO: why is this different then the remove above?
                             attributes.remove(enrichField instanceof Alias a ? a.child() : enrichField);
                         }
                     }
@@ -123,13 +128,21 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     // otherwise expect a Fragment
                     if (child instanceof FragmentExec fragmentExec) {
                         var logicalFragment = fragmentExec.fragment();
+
                         // no need for projection when dealing with aggs
-                        if (logicalFragment instanceof Aggregate) {
-                            attributes.clear();
-                        }
-                        var selectAll = projectAll.get();
-                        if (attributes.isEmpty() == false || selectAll) {
+                        if (logicalFragment instanceof Aggregate == false) {
+                            var selectAll = projectAll.get();
                             var output = selectAll ? exec.child().output() : new ArrayList<>(attributes);
+                            // if all the fields are filtered out, it's only the count that matters
+                            // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
+                            // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
+                            // to avoid the block from being trimmed
+                            if (output.isEmpty()) {
+                                var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", null, Literal.NULL, null, true);
+                                List<Alias> fields = singletonList(alias);
+                                logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
+                                output = Expressions.asAttributes(fields);
+                            }
                             // add a logical projection (let the local replanning remove it if needed)
                             p = exec.replaceChild(
                                 new FragmentExec(

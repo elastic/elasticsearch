@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.TopNEncoder;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -335,10 +336,28 @@ public class LocalExecutionPlanner {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
 
+            TopNEncoder encoder = switch (a.dataType().typeName()) {
+                case "ip": {
+                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
+                }
+                case "text", "keyword": {
+                    yield TopNOperator.BYTESREF_UTF8_ENCODER;
+                }
+                case "version": {
+                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
+                }
+                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long": {
+                    yield TopNOperator.DEFAULT_ENCODER;
+                }
+                default:
+                    throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + a.dataType().typeName());
+            };
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+                order.nullsPosition().equals(Order.NullsPosition.FIRST),
+                encoder
             );
         }).toList();
 
@@ -364,15 +383,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
 
-        for (NamedExpression namedExpression : eval.fields()) {
+        for (Alias field : eval.fields()) {
             Supplier<ExpressionEvaluator> evaluatorSupplier;
-            if (namedExpression instanceof Alias alias) {
-                evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
-            } else {
-                throw new EsqlIllegalArgumentException("source fields for eval nodes have to be aliases");
-            }
+            evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(namedExpression.toAttribute().id());
+            layout.appendChannel(field.toAttribute().id());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
@@ -464,13 +479,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> {
-            if (f instanceof Alias) {
-                return ((Alias) f).child().fold();
-            } else {
-                return f.fold();
-            }
-        }).toList();
+        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
         Layout.Builder layout = new Layout.Builder();
         var output = row.output();
         for (Attribute attribute : output) {

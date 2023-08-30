@@ -203,13 +203,15 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "kwd"),
+                        testCaseName(paramCount, multivalued, DataTypes.KEYWORD),
+                        dataTypes(paramCount, DataTypes.KEYWORD),
                         () -> stringCase(DataTypes.KEYWORD, paramCount, multivalued)
                     )
                 );
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "text"),
+                        testCaseName(paramCount, multivalued, DataTypes.TEXT),
+                        dataTypes(paramCount, DataTypes.TEXT),
                         () -> stringCase(DataTypes.TEXT, paramCount, multivalued)
                     )
                 );
@@ -240,7 +242,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "long"),
+                        testCaseName(paramCount, multivalued, DataTypes.LONG),
+                        dataTypes(paramCount, DataTypes.LONG),
                         () -> longCase(paramCount, multivalued)
                     )
                 );
@@ -276,7 +279,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "int"),
+                        testCaseName(paramCount, multivalued, DataTypes.INTEGER),
+                        dataTypes(paramCount, DataTypes.INTEGER),
                         () -> intCase(paramCount, multivalued)
                     )
                 );
@@ -306,7 +310,8 @@ public class VaragsTestCaseBuilder {
                 int paramCount = count;
                 suppliers.add(
                     new AbstractFunctionTestCase.TestCaseSupplier(
-                        testCaseName(paramCount, multivalued, "bool"),
+                        testCaseName(paramCount, multivalued, DataTypes.BOOLEAN),
+                        dataTypes(paramCount, DataTypes.BOOLEAN),
                         () -> booleanCase(paramCount, multivalued)
                     )
                 );
@@ -335,8 +340,12 @@ public class VaragsTestCaseBuilder {
         return testCase(typedData, expectedEvaluatorPrefix.apply("Boolean"), DataTypes.BOOLEAN, expectedBoolean.apply(data));
     }
 
-    private String testCaseName(int count, boolean multivalued, String type) {
-        return "(" + IntStream.range(0, count).mapToObj(i -> (multivalued ? "mv_" : "") + type).collect(Collectors.joining(", ")) + ")";
+    private String testCaseName(int count, boolean multivalued, DataType type) {
+        return "("
+            + IntStream.range(0, count)
+                .mapToObj(i -> "<" + (multivalued ? "mv_" : "") + type.typeName() + ">")
+                .collect(Collectors.joining(", "))
+            + ")";
     }
 
     protected AbstractFunctionTestCase.TestCase testCase(
@@ -360,5 +369,9 @@ public class VaragsTestCaseBuilder {
                 .mapToObj(i -> expectedEvaluatorValueMap.apply("Attribute[channel=" + i + "]"))
                 .collect(Collectors.joining(", "))
             + "]]";
+    }
+
+    private List<DataType> dataTypes(int paramCount, DataType dataType) {
+        return IntStream.range(0, paramCount).mapToObj(i -> dataType).toList();
     }
 }

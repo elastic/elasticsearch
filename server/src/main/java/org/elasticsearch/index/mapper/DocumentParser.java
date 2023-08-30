@@ -396,7 +396,15 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
+            if (shouldFlattenObject(context, fieldMapper)) {
+                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
+                String currentFieldName = fieldMapper.simpleName();
+                context.path().remove();
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                context.path().add(currentFieldName);
+            } else {
+                fieldMapper.parse(context);
+            }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
                 if (copyToFields.isEmpty() == false) {
@@ -413,6 +421,12 @@ public final class DocumentParser {
         } else {
             throwOnUnrecognizedMapperType(mapper);
         }
+    }
+
+    private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT
+            && context.parent().subobjects() == false
+            && fieldMapper.supportsParsingObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {
@@ -472,7 +486,6 @@ public final class DocumentParser {
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -486,15 +499,16 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add subobject ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
-                    );
+                    // We have an ObjectMapper but subobjects are disallowed
+                    // therefore we create a new DocumentParserContext that
+                    // prepends currentFieldName to any immediate children.
+                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    return;
                 }
+
+            }
+            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
+                context.addDynamicMapper(dynamicObjectMapper);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);

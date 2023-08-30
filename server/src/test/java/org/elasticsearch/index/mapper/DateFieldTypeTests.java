@@ -22,7 +22,6 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -209,7 +208,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             0,
             0,
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

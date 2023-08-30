@@ -100,7 +100,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(sorts);
+        out.writeCollection(sorts);
         out.writeVInt(from);
         out.writeOptionalVInt(size);
         gapPolicy.writeTo(out);

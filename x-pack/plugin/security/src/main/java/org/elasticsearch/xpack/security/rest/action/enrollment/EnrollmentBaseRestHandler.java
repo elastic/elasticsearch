@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -24,7 +25,7 @@ public abstract class EnrollmentBaseRestHandler extends SecurityBaseRestHandler 
     }
 
     @Override
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (XPackSettings.ENROLLMENT_ENABLED.get(settings) == false) {
             return new ElasticsearchSecurityException(
                 "Enrollment mode is not enabled. Set ["

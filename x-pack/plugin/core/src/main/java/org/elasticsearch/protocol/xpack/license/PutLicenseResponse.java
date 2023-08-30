@@ -82,11 +82,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
             builder.startObject("acknowledge");
             builder.field("message", acknowledgeHeader);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-                builder.startArray(entry.getKey());
-                for (String message : entry.getValue()) {
-                    builder.value(message);
-                }
-                builder.endArray();
+                builder.array(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }

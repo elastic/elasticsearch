@@ -38,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.ENROLLMENT_ENABLED;
 
@@ -76,7 +75,8 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             if (null == transportInfo || null == httpInfo) {
                 if (backoff.hasNext()) {
                     LOGGER.debug("Local node's HTTP/transport info is not yet available, will retry...");
-                    client.threadPool().schedule(() -> maybeCreateNodeEnrollmentToken(consumer, backoff), backoff.next(), GENERIC);
+                    client.threadPool()
+                        .schedule(() -> maybeCreateNodeEnrollmentToken(consumer, backoff), backoff.next(), client.threadPool().generic());
                 } else {
                     LOGGER.warn("Unable to get local node's HTTP/transport info after all retries.");
                     consumer.accept(null);
@@ -141,7 +141,8 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             if (null == httpInfo) {
                 if (backoff.hasNext()) {
                     LOGGER.info("Local node's HTTP info is not yet available, will retry...");
-                    client.threadPool().schedule(() -> createKibanaEnrollmentToken(consumer, backoff), backoff.next(), GENERIC);
+                    client.threadPool()
+                        .schedule(() -> createKibanaEnrollmentToken(consumer, backoff), backoff.next(), client.threadPool().generic());
                 } else {
                     LOGGER.warn("Unable to get local node's HTTP info after all retries.");
                     consumer.accept(null);

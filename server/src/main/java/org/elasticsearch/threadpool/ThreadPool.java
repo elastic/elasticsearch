@@ -459,7 +459,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     @Override
     @SuppressWarnings("removal")
     @Deprecated(forRemoval = true)
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+    public final ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
         return schedule(command, delay, executor(executor));
     }
 

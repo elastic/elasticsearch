@@ -237,7 +237,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                             removeCompletionListener(id);
                             listener.onResponse(getResponseWithHeaders());
                         }
-                    }, waitForCompletion, "generic");
+                    }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
                     listener.onFailure(exc);
                     return;

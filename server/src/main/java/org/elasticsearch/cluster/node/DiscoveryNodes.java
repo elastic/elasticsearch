@@ -39,6 +39,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.allocation.DataTier.ALL_DATA_TIERS;
+
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
@@ -67,7 +69,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
 
-    private final Map<String, Set<String>> rolesToNodeIds;
+    private final Map<String, Set<String>> tiersToNodeIds;
 
     private DiscoveryNodes(
         long nodeLeftGeneration,
@@ -82,7 +84,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
-        Map<String, Set<String>> rolesToNodeIds
+        Map<String, Set<String>> tiersToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
@@ -100,7 +102,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
         assert (localNodeId == null) == (localNode == null);
-        this.rolesToNodeIds = rolesToNodeIds;
+        this.tiersToNodeIds = tiersToNodeIds;
     }
 
     public DiscoveryNodes withMasterNodeId(@Nullable String masterNodeId) {
@@ -118,7 +120,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
-            rolesToNodeIds
+            tiersToNodeIds
         );
     }
 
@@ -155,8 +157,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      *
      * @return {@link Map} of node roles to node IDs which have those roles.
      */
-    public Map<String, Set<String>> getRolesToNodeIds() {
-        return rolesToNodeIds;
+    public Map<String, Set<String>> getTiersToNodeIds() {
+        return tiersToNodeIds;
     }
 
     /**
@@ -876,21 +878,26 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
-                computeRolesToNodesMap(dataNodes)
+                computeTiersToNodesMap(dataNodes)
             );
         }
 
-        private static Map<String, Set<String>> computeRolesToNodesMap(final Map<String, DiscoveryNode> dataNodes) {
-            Map<String, Set<String>> rolesToNodes = new HashMap<>();
+        private static Map<String, Set<String>> computeTiersToNodesMap(final Map<String, DiscoveryNode> dataNodes) {
+            Map<String, Set<String>> tiersToNodes = new HashMap<>(ALL_DATA_TIERS.size() + 1);
             for (var node : dataNodes.values()) {
-                for (var role : node.getRoles()) {
-                    rolesToNodes.computeIfAbsent(role.roleName(), (key) -> new HashSet<>()).add(node.getId());
+                if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
+                    tiersToNodes.computeIfAbsent(DiscoveryNodeRole.DATA_ROLE.roleName(), (key) -> new HashSet<>()).add(node.getId());
+                }
+                for (var role : ALL_DATA_TIERS) {
+                    if (node.hasRole(role)) {
+                        tiersToNodes.computeIfAbsent(role, (key) -> new HashSet<>()).add(node.getId());
+                    }
                 }
             }
-            for (var entry : rolesToNodes.entrySet()) {
+            for (var entry : tiersToNodes.entrySet()) {
                 entry.setValue(Collections.unmodifiableSet(entry.getValue()));
             }
-            return Collections.unmodifiableMap(rolesToNodes);
+            return Collections.unmodifiableMap(tiersToNodes);
         }
 
         public boolean isLocalNodeElectedMaster() {

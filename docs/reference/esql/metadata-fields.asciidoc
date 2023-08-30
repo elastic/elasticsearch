@@ -42,7 +42,7 @@ include::{esql-specs}/metadata-ignoreCsvTests.csv-spec[tag=multipleIndices-resul
 |===
 
 Also, similar to the index fields, once an aggregation is performed, a
-metadata field will no longer be "accessible" to subsequent commands, unless
+metadata field will no longer be accessible to subsequent commands, unless
 used as grouping field:
 
 [source.merge.styled,esql]

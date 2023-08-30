@@ -171,22 +171,23 @@ public class SysColumns extends Command {
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(indexPattern, IndexResolver.ALL_FIELDS, includeFrozen, emptyMap(), ActionListener.wrap(r -> {
-                List<List<?>> rows = new ArrayList<>();
-                // populate the data only when a target is found
-                if (r.isValid()) {
-                    fillInRows(
-                        tableCat,
-                        indexName,
-                        IndexCompatibility.compatible(r, version).get().mapping(),
-                        null,
-                        rows,
-                        columnMatcher,
-                        mode
-                    );
-                }
-                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-            }, listener::onFailure));
+            session.indexResolver()
+                .resolveAsMergedMapping(indexPattern, IndexResolver.ALL_FIELDS, includeFrozen, emptyMap(), ActionListener.wrap(r -> {
+                    List<List<?>> rows = new ArrayList<>();
+                    // populate the data only when a target is found
+                    if (r.isValid()) {
+                        fillInRows(
+                            tableCat,
+                            indexName,
+                            IndexCompatibility.compatible(r, version).get().mapping(),
+                            null,
+                            rows,
+                            columnMatcher,
+                            mode
+                        );
+                    }
+                    listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                }, listener::onFailure));
         }
     }
 

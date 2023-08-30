@@ -40,6 +40,7 @@ patterns. Legacy Grok patterns are not supported.
 | `suffix`               | no        | >                   | End a redacted section with this token
 | `ignore_missing`       | no        | `true`              | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
+| `skip_if_unlicensed`   | no        | `false`             | If `true` and the current license does not support running redact processors, then the processor quietly exits without modifying the document
 |======
 
 In this example the predefined `IP` Grok pattern is used to match

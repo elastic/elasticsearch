@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class ReadinessClusterIT extends ESIntegTestCase {
+
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String testErrorJSON = """
@@ -112,7 +113,6 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     public void testReadinessDuringRestarts() throws Exception {
-
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
         String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));

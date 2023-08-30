@@ -1027,8 +1027,6 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            final ReadinessService readinessService = newReadinessService(clusterService, environment);
-
             final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
             final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
@@ -1157,7 +1155,7 @@ public class Node implements Closeable {
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(readinessService));
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(newReadinessService(clusterService, environment)));
             }
 
             injector = modules.createInjector();

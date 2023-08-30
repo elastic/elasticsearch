@@ -11,6 +11,7 @@ package org.elasticsearch.readiness;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 
 import java.net.InetAddress;
@@ -90,7 +91,7 @@ public class MockReadinessService extends ReadinessService {
     }
 
     public MockReadinessService(ClusterService clusterService, Environment environment) {
-        super(clusterService, environment, MockServerSocketChannel::open);
+        super(clusterService, environment, () -> MockServerSocketChannel.open(Node.NODE_NAME_SETTING.get(environment.settings())));
     }
 
     static void tcpReadinessProbeTrue(String nodeName) {

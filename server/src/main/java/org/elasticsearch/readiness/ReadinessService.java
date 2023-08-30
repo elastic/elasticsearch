@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
@@ -42,7 +41,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     interface SocketChannelFactory {
-        ServerSocketChannel open(String nodeName) throws IOException;
+        ServerSocketChannel open() throws IOException;
     }
 
     private final Environment environment;
@@ -61,7 +60,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
     public ReadinessService(ClusterService clusterService, Environment environment) {
-        this(clusterService, environment, nodeName -> ServerSocketChannel.open());
+        this(clusterService, environment, ServerSocketChannel::open);
     }
 
     // package private to enable mocking (for testing)
@@ -131,7 +130,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         });
 
         try {
-            serverChannel = socketChannelFactory.open(Node.NODE_NAME_SETTING.get(settings));
+            serverChannel = socketChannelFactory.open();
 
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {

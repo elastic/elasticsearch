@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
@@ -347,10 +348,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             final DesiredNodes desiredNodes = randomBoolean()
                 ? null
                 : createDesiredNodesWithPendingNodes(HOT_DESIRED_NODE, WARM_DESIRED_NODE, COLD_DESIRED_NODE);
-            final var shutdownMetadata = new NodesShutdownMetadata(Collections.emptyMap());
 
             assertThat(
-                DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data"), nodes, desiredNodes, shutdownMetadata),
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data"),
+                    nodes,
+                    desiredNodes,
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
+                ),
                 equalTo(Optional.empty())
             );
             assertThat(
@@ -358,7 +365,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_hot,data_warm"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.empty())
             );
@@ -367,7 +376,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_warm,data_content"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.empty())
             );
@@ -376,7 +387,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_cold"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.empty())
             );
@@ -387,10 +400,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             final var desiredNodes = randomBoolean()
                 ? null
                 : createDesiredNodesWithActualizedNodes(WARM_DESIRED_NODE, CONTENT_DESIRED_NODE);
-            final var shutdownMetadata = irrelevantNodesShutdownMetadata(nodes);
 
             assertThat(
-                DataTierAllocationDecider.preferredAvailableTier(DataTier.parseTierList("data"), nodes, desiredNodes, shutdownMetadata),
+                DataTierAllocationDecider.preferredAvailableTier(
+                    DataTier.parseTierList("data"),
+                    nodes,
+                    desiredNodes,
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
+                ),
                 equalTo(Optional.empty())
             );
             assertThat(
@@ -398,7 +417,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_hot,data_warm"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.of("data_warm"))
             );
@@ -407,7 +428,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_warm,data_content"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.of("data_warm"))
             );
@@ -416,7 +439,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_content,data_warm"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.of("data_content"))
             );
@@ -425,7 +450,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_hot,data_content,data_warm"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.of("data_content"))
             );
@@ -434,7 +461,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     DataTier.parseTierList("data_hot,data_cold,data_warm"),
                     nodes,
                     desiredNodes,
-                    shutdownMetadata
+                    desiredNodes == null
+                        ? irrelevantNodesShutdownMetadata(nodes)
+                        : nodesShutdownMetadataForDesiredNodesTests(desiredNodes, nodes)
                 ),
                 equalTo(Optional.of("data_warm"))
             );
@@ -924,11 +953,34 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
      * decider logic.
      */
     private NodesShutdownMetadata irrelevantNodesShutdownMetadata(DiscoveryNodes currentNodes) {
-        int kind = randomFrom(1, 2, 3);
+        final Set<String> currentNodeIds = currentNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        int kind = currentNodes.size() == 0 ? randomFrom(1, 2) : randomFrom(1, 2, 3);
         return switch (kind) {
             case 1 -> new NodesShutdownMetadata(Collections.emptyMap());
-            case 2 -> randomRemovalNotInCluster(currentNodes);
-            case 3 -> randomRestartInCluster(currentNodes);
+            case 2 -> randomRemovalNotInCluster(currentNodeIds);
+            case 3 -> randomRestartInCluster(currentNodeIds);
+            default -> throw new AssertionError("not all randomization branches covered in test");
+        };
+    }
+
+    /**
+     * Desired Nodes should take precedence over node shutdown if it's in use, so this method generates node shutdown metadata that
+     * intersects with current or desired nodes. The output of this function shouldn't matter, whatever node shutdowns it generates; if it
+     * does there's a bug.
+     */
+    private NodesShutdownMetadata nodesShutdownMetadataForDesiredNodesTests(DesiredNodes desiredNodes, DiscoveryNodes currentNodes) {
+        // Note that the desired node's External ID is not the same as the final node ID, but mix them in anyway
+        Set<String> nodeIds = Stream.concat(
+            desiredNodes != null ? desiredNodes.nodes().stream().map(DesiredNodeWithStatus::externalId) : Stream.empty(),
+            currentNodes.stream().map(DiscoveryNode::getId)
+        ).collect(Collectors.toSet());
+        if (nodeIds.isEmpty()) {
+            return new NodesShutdownMetadata(Collections.emptyMap());
+        }
+        int kind = randomFrom(1, 2);
+        return switch (kind) {
+            case 1 -> new NodesShutdownMetadata(Collections.emptyMap());
+            case 2 -> randomRemovalInCluster(nodeIds);
             default -> throw new AssertionError("not all randomization branches covered in test");
         };
     }
@@ -944,13 +996,18 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         return nodeIds;
     }
 
-    private NodesShutdownMetadata randomRemovalNotInCluster(DiscoveryNodes currentNodes) {
-        String nodeId = randomValueOtherThanMany(currentNodes::nodeExists, () -> randomAlphaOfLength(10));
+    private NodesShutdownMetadata randomRemovalNotInCluster(Set<String> currentNodes) {
+        String nodeId = randomValueOtherThanMany(currentNodes::contains, () -> randomAlphaOfLength(10));
         return new NodesShutdownMetadata(Map.of(nodeId, randomShutdownMetadataRemovingNode(nodeId)));
     }
 
-    private NodesShutdownMetadata randomRestartInCluster(DiscoveryNodes currentNodes) {
-        String nodeId = randomFrom(currentNodes.stream().map(DiscoveryNode::getId).toList());
+    private NodesShutdownMetadata randomRemovalInCluster(Set<String> currentNodes) {
+        String nodeId = randomFrom(currentNodes);
+        return new NodesShutdownMetadata(Map.of(nodeId, randomShutdownMetadataRemovingNode(nodeId)));
+    }
+
+    private NodesShutdownMetadata randomRestartInCluster(Set<String> currentNodes) {
+        String nodeId = randomFrom(currentNodes);
         return new NodesShutdownMetadata(
             Map.of(
                 nodeId,

@@ -202,7 +202,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new UnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
+        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -256,7 +256,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw new UnsupportedOperationException("no corresponding element type for [" + dataType.typeName() + "]");
+        throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -364,7 +364,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new UnsupportedOperationException("limit only supported with literal values");
+            throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down

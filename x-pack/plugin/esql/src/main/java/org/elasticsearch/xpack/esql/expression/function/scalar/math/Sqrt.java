@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -52,7 +53,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return () -> new SqrtUnsignedLongEvaluator(eval);
         }
 
-        throw new UnsupportedOperationException("SQRT not supported for type [" + fieldType.typeName() + "]");
+        throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
     @Evaluator(extraName = "Double")

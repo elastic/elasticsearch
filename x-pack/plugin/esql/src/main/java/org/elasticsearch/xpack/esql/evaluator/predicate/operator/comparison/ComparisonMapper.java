@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -111,9 +112,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> {
-            throw new UnsupportedOperationException("cannot map comparison for type [" + DataTypes.BOOLEAN.typeName() + "]");
-        };
+        this.bools = (lhs, rhs) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
     }
 
     @Override
@@ -146,7 +145,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        throw new UnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
+        throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
     public static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(

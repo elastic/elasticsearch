@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -46,7 +47,7 @@ public class MvSum extends AbstractMultivalueFunction {
                 : () -> new MvSumLongEvaluator(source(), fieldEval.get());
             case NULL -> () -> EvalOperator.CONSTANT_NULL;
 
-            default -> throw new UnsupportedOperationException("MV_SUM not supported for type [" + field.dataType().typeName() + "]");
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
 

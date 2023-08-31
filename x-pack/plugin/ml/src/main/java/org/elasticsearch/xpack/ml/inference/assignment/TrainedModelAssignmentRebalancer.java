@@ -41,8 +41,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_LOW_PRIORITY_MODELS_PER_NODE;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
 class TrainedModelAssignmentRebalancer {
 
@@ -53,22 +51,19 @@ class TrainedModelAssignmentRebalancer {
     private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd;
     private final int allocatedProcessorsScale;
-    private final Set<String> shuttingDownNodeIds;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd,
-        int allocatedProcessorsScale,
-        Set<String> shuttingDownNodeIds
+        int allocatedProcessorsScale
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
         this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.deploymentToAdd = Objects.requireNonNull(deploymentToAdd);
         this.allocatedProcessorsScale = allocatedProcessorsScale;
-        this.shuttingDownNodeIds = shuttingDownNodeIds;
     }
 
     TrainedModelAssignmentMetadata.Builder rebalance() {
@@ -86,56 +81,7 @@ class TrainedModelAssignmentRebalancer {
         }
 
         AssignmentPlan assignmentPlan = computeAssignmentPlan();
-        TrainedModelAssignmentMetadata.Builder builder = buildAssignmentsFromPlan(assignmentPlan);
-
-        if (shuttingDownNodeIds.isEmpty()) {
-            return builder;
-        }
-
-        return setShuttingDownNodeRoutesToStopping(builder);
-    }
-
-    private TrainedModelAssignmentMetadata.Builder setShuttingDownNodeRoutesToStopping(TrainedModelAssignmentMetadata.Builder builder) {
-        for (TrainedModelAssignment existingAssignment : currentMetadata.allAssignments().values()) {
-            boolean foundShuttingDownNodeForAssignment = false;
-
-            String existingDeploymentId = existingAssignment.getDeploymentId();
-            TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
-                ? builder.getAssignment(existingDeploymentId)
-                : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
-                    .stopAssignment(NODES_CHANGED_REASON)
-                    // If there are other routes that are now outdated after the rebalance we don't want to include them, so let's start
-                    // with a fresh table
-                    .clearNodeRoutingTable();
-
-            for (String nodeId : shuttingDownNodeIds) {
-                if (existingAssignment.isRoutedToNode(nodeId)
-                    && existingAssignment.getNodeRoutingTable()
-                        .get(nodeId)
-                        .getState()
-                        .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
-                    logger.debug(
-                        () -> format(
-                            "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
-                            existingDeploymentId,
-                            nodeId
-                        )
-                    );
-
-                    foundShuttingDownNodeForAssignment = true;
-                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId));
-
-                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
-                }
-            }
-
-            // if we didn't find a shutting down routing info then we don't want to add an empty assignment here
-            if (foundShuttingDownNodeForAssignment) {
-                builder.addOrOverwriteAssignment(existingDeploymentId, assignmentBuilder);
-            }
-        }
-
-        return builder;
+        return buildAssignmentsFromPlan(assignmentPlan);
     }
 
     private boolean areAllModelsSatisfiedAndNoOutdatedRoutingEntries() {

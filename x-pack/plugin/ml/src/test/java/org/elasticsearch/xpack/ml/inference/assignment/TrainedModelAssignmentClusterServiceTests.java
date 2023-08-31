@@ -1587,6 +1587,181 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         }
     }
 
+    public void testSetShuttingDownNodeRoutesToStopping_GivenAnAssignmentRoutedToShuttingDownNode_ItSetsShuttingDownNodeRouteToStopping() {
+        var availableNode = "node-1";
+        var availableNodeModelId = "available-model-id";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsRunning = newParams(availableNodeModelId, 100);
+
+        var shuttingDownNodeId = "shutting-down-1";
+        var shuttingDownModelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = newParams(shuttingDownModelId, 100);
+
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                availableNodeModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                availableNodeModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsRunning)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+            );
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(shuttingDownModelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId).getState(), is(RoutingState.STOPPING));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public
+        void
+        testSetShuttingDownNodeRoutesToStopping_GivenTwoAssignmentsWithOneOnAShuttingDownNode_ItSetsShuttingDownNodeRouteToStopping() {
+        var availableNode = "node-1";
+
+        var shuttingDownModelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = newParams(shuttingDownModelId, 300);
+
+        var notShuttingDownModelId = "id2";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsNotShuttingDown = newParams(notShuttingDownModelId, 300);
+
+        var shuttingDownNodeId = "shutting-down-1";
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .addNewAssignment(
+                notShuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                shuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+            )
+            .addNewAssignment(
+                notShuttingDownModelId,
+                TrainedModelAssignment.Builder.empty(taskParamsNotShuttingDown)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            );
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment shuttingDownAssignment = result.getDeploymentAssignment(shuttingDownModelId);
+        assertThat(shuttingDownAssignment, is(notNullValue()));
+        assertThat(shuttingDownAssignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(shuttingDownAssignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTING));
+        assertThat(shuttingDownAssignment.getNodeRoutingTable().get(shuttingDownNodeId).getState(), is(RoutingState.STOPPING));
+        assertThat(shuttingDownAssignment.getReason().isPresent(), is(false));
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(notShuttingDownModelId);
+        assertThat(assignment, is(notNullValue()));
+        // assignment state is set to starting by default
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTED));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId), is(nullValue()));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public
+        void
+        testSetShuttingDownNodeRoutesToStopping_GivenShuttingDownNodeWithNoAssociatedAssignments_ItDoesNotMarkAnyAssignmentsAsStopping() {
+        var availableNode = "node-1";
+
+        var shuttingDownNodeId = "shutting-down-1";
+        var modelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = newParams(modelId, 300);
+
+        var disappearingNodeId = "disappearingNode";
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(disappearingNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata.Builder rebalanced = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(availableNode, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            );
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            rebalanced
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        // assignment state is set to starting by default
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
+        assertThat(assignment.getNodeRoutingTable().get(availableNode).getState(), is(RoutingState.STARTED));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId), is(nullValue()));
+        assertThat(assignment.getNodeRoutingTable().get(disappearingNodeId), is(nullValue()));
+        assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public void testSetShuttingDownNodeRoutesToStopping_GivenAssignmentDoesNotExist_ItSetsAssignmentStateToStoppingAndRouteToStopping() {
+        var shuttingDownNodeId = "shutting-down-1";
+        var modelId = "id1";
+        StartTrainedModelDeploymentAction.TaskParams taskParamsShuttingDown = newParams(modelId, 300);
+
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
+            .addNewAssignment(
+                modelId,
+                TrainedModelAssignment.Builder.empty(taskParamsShuttingDown)
+                    .addRoutingEntry(shuttingDownNodeId, new RoutingInfo(1, 1, RoutingState.STARTED, ""))
+            )
+            .build();
+
+        TrainedModelAssignmentMetadata result = TrainedModelAssignmentClusterService.setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            Set.of(shuttingDownNodeId),
+            TrainedModelAssignmentMetadata.Builder.empty()
+        ).build();
+
+        TrainedModelAssignment assignment = result.getDeploymentAssignment(modelId);
+        assertThat(assignment, is(notNullValue()));
+        assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STOPPING));
+        assertThat(assignment.getNodeRoutingTable().get(shuttingDownNodeId).getState(), is(RoutingState.STOPPING));
+        assertThat(assignment.getReason().isPresent(), is(true));
+        assertThat(assignment.getReason().get(), is("nodes changed"));
+    }
+
     private static ClusterState createClusterState(List<String> nodeIds, Metadata metadata) {
         DiscoveryNode[] nodes = nodeIds.stream()
             .map(id -> buildNode(id, true, ByteSizeValue.ofGb(4).getBytes(), 8))

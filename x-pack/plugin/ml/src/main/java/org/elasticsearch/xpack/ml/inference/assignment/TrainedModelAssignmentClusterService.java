@@ -247,6 +247,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     )
                 );
 
+                /*
+                 * This code is to handle the following edge case.
+                 *
+                 * This code was added in 8.11.0. This code path is hit if the version of a node in the cluster is less than 8.4.0.
+                 * - A rolling upgrade is performed from a version less than 8.4.0
+                 * - The versions of the nodes in the cluster is mixed between 8.11.0 and less than 8.4.0
+                 * - The master node upgrades to 8.11.0 (which will have this code change)
+                 * - An ML node upgrades to 8.11.0 and begins shutting down
+                 * - A data node exists on a version less than 8.4.0
+                 *
+                 * The ML node that is shutting down will go through the graceful shutdown by having any routes referencing it, set to
+                 * stopping. The TrainedModelAssignmentNodeService will be notified of the change and see that the route is in stopping
+                 * and complete any remaining work in the processes before stopping them.
+                 *
+                 * If in the future we can simplify and remove this edge case code that'd be ideal.
+                 */
                 TrainedModelAssignment.Builder assignmentBuilder = removeRoutingBuilder(
                     routedNodeIdsToRemove,
                     shuttingDownNodes,
@@ -533,23 +549,85 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
         Map<DiscoveryNode, NodeLoad> nodeLoads = detectNodeLoads(nodes, currentState);
-        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
 
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
-            TrainedModelAssignmentMetadata.fromState(currentState),
+            currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd,
-            allocatedProcessorsScale,
-            shuttingDownNodeIds
+            allocatedProcessorsScale
         );
-        TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
+
+        Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
+            currentMetadata,
+            shuttingDownNodeIds,
+            rebalancer.rebalance()
+        );
 
         if (modelToAdd.isPresent()) {
             checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
 
         return rebalanced;
+    }
+
+    // Default for testing
+    static TrainedModelAssignmentMetadata.Builder setShuttingDownNodeRoutesToStopping(
+        TrainedModelAssignmentMetadata currentMetadata,
+        Set<String> shuttingDownNodeIds,
+        TrainedModelAssignmentMetadata.Builder builder
+    ) {
+        if (shuttingDownNodeIds.isEmpty()) {
+            return builder;
+        }
+
+        for (TrainedModelAssignment existingAssignment : currentMetadata.allAssignments().values()) {
+            boolean foundShuttingDownNodeForAssignment = false;
+
+            String existingDeploymentId = existingAssignment.getDeploymentId();
+            TrainedModelAssignment.Builder assignmentBuilder = builder.hasModelDeployment(existingAssignment.getDeploymentId())
+                ? builder.getAssignment(existingDeploymentId)
+                : TrainedModelAssignment.Builder.fromAssignment(existingAssignment)
+                    /*
+                     * If this code path happens that means that the assignment originally existed prior to the rebalance and then
+                     * disappeared. This would be an anomaly so we'll set the assignment to stopping and attempt to gracefully shut down
+                     * the native process.
+                     */
+                    .stopAssignment(NODES_CHANGED_REASON)
+                    // If there are other routes that are now outdated after the rebalance we don't want to include them, so let's start
+                    // with a fresh table
+                    .clearNodeRoutingTable();
+
+            for (String nodeId : shuttingDownNodeIds) {
+                if (existingAssignment.isRoutedToNode(nodeId)
+                    && existingAssignment.getNodeRoutingTable()
+                        .get(nodeId)
+                        .getState()
+                        .isAnyOf(RoutingState.STARTED, RoutingState.STARTING)) {
+                    logger.debug(
+                        () -> format(
+                            "Found assignment deployment id: [%s] with route to shutting down node id: [%s], adding stopping route",
+                            existingDeploymentId,
+                            nodeId
+                        )
+                    );
+
+                    foundShuttingDownNodeForAssignment = true;
+                    RoutingInfo stoppingRouteInfo = createShuttingDownRoute(existingAssignment.getNodeRoutingTable().get(nodeId));
+
+                    assignmentBuilder.addOrOverwriteRoutingEntry(nodeId, stoppingRouteInfo);
+                }
+            }
+
+            // if we didn't find a shutting down routing info then we don't want to add an empty assignment here
+            if (foundShuttingDownNodeForAssignment) {
+                builder.addOrOverwriteAssignment(existingDeploymentId, assignmentBuilder);
+            }
+        }
+
+        return builder;
     }
 
     private void checkModelIsFullyAllocatedIfScalingIsNotPossible(

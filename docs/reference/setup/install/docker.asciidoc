@@ -120,7 +120,7 @@ endif::[]
 docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
 ----
 
-TIP: Use the `-m` flag to set a memory limit for the container.
+TIP: Use the `-m` flag to set a memory limit for the container. This escapes the need to <<docker-set-heap-size,set the JVM size manually>>.
 
 The command prints the `elastic` user password and an enrollment token for {kib}.
 --

@@ -39,7 +39,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         // ips are noop
         TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, v -> v.toBytesRef());
-        // None of are random strings ever look like versions
+        // None of the random strings ever look like versions
         // TODO even though they aren't valid versions, all strings get encoded into something. Is that what we really want?
         TestCaseSupplier.forUnaryStrings(
             suppliers,

@@ -37,7 +37,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         String read = "Attribute[channel=0]";
         String stringEvaluator = "ToVersionFromStringEvaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        // ips are noop
+        // Converting and IP to an IP doesn't change anything. Everything should succeed.
         TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, v -> v.toBytesRef());
         // None of the random strings ever look like versions
         // TODO even though they aren't valid versions, all strings get encoded into something. Is that what we really want?

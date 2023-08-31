@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -281,10 +282,10 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
-                    .directFieldAsBase64(
-                        SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
-                    )
+                    .directFieldAsBase64(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(), os -> {
+                        ClusterState clusterState = clusterService.state();
+                        writeSearchApplicationBinaryWithVersion(app, os, clusterState.getMinVersions().transportVersion());
+                    })
                     .endObject();
             }
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);

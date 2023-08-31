@@ -2434,7 +2434,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
-        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
+        when(clusterState.getMinVersions().transportVersion()).thenReturn(minTransportVersion);
 
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -2569,7 +2569,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION)
         );
-        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
+        when(clusterState.getMinVersions().transportVersion()).thenReturn(minTransportVersion);
 
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -2634,7 +2634,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             WORKFLOWS_RESTRICTION_VERSION,
             TransportVersion.current()
         );
-        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
+        when(clusterState.getMinVersions().transportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
             clock,

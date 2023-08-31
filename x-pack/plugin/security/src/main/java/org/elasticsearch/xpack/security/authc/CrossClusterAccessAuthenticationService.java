@@ -181,7 +181,7 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     private TransportVersion getMinTransportVersion() {
-        return clusterService.state().getMinTransportVersion();
+        return clusterService.state().getMinVersions().transportVersion();
     }
 
     private static void withRequestProcessingFailure(

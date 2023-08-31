@@ -280,14 +280,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
-    // TODO[wrb]: change method/signature
-    public Map<String, TransportVersion> transportVersions() {
-        return Maps.transformValues(versionsWrappers, VersionsWrapper::transportVersion);
+    public Map<String, VersionsWrapper> versionsWrappers() {
+        return Map.copyOf(this.versionsWrappers);
     }
 
-    // TODO[wrb]: change method/signature
-    public TransportVersion getMinTransportVersion() {
-        return this.minVersions.transportVersion();
+    public VersionsWrapper getMinVersions() {
+        return this.minVersions;
     }
 
     public Metadata metadata() {

@@ -418,7 +418,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+        when(clusterState.getMinVersions().transportVersion()).thenReturn(TransportVersion.current());
         final Map<String, String> headers1;
         if (randomBoolean()) {
             headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
@@ -447,7 +447,7 @@ public class ClientHelperTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion()
         );
-        when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);
+        when(clusterState.getMinVersions().transportVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {
             headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);

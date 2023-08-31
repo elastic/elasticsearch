@@ -106,7 +106,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 // special case: The minimum TransportVersion in the cluster is on an old version
-                if (state.getMinTransportVersion().before(TransportVersion.V_8_2_0)) {
+                if (state.getMinVersions().transportVersion().before(TransportVersion.V_8_2_0)) {
                     throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
                 }
 

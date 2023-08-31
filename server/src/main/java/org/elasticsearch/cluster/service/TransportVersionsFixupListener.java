@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -113,9 +115,10 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
+    // TODO[wrb]: change signature
     @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
     private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
     }
 
     @Override
@@ -125,17 +128,19 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
-        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
-            && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
+        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)) {
+            ClusterState clusterState = event.state();
+            if (clusterState.getMinVersions().transportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
-            // find all the relevant nodes
-            Set<String> nodes = getTransportVersions(event.state()).entrySet()
-                .stream()
-                .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
+                // find all the relevant nodes
+                Set<String> nodes = getTransportVersions(event.state()).entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
 
-            updateTransportVersions(nodes, 0);
+                updateTransportVersions(nodes, 0);
+            }
         }
     }
 

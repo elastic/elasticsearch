@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -138,9 +140,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         }
     }
 
+    // TODO[wrb]: change signature
     @SuppressForbidden(reason = "exposing ClusterState#transportVersions requires reading them")
     private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {

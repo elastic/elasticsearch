@@ -142,7 +142,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this(
-            () -> clusterService.state().getMinTransportVersion(),
+            () -> clusterService.state().getMinVersions().transportVersion(),
             indexSettings,
             indexAnalyzers,
             parserConfiguration,

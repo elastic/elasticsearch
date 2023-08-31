@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -239,9 +241,10 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
+    // TODO[wrb]: change signature
     @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
     private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(

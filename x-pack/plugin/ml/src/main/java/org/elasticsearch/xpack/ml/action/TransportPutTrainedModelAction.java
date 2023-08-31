@@ -194,7 +194,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
 
             TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
-            if (state.getMinTransportVersion().before(minCompatibilityVersion)) {
+            if (state.getMinVersions().transportVersion().before(minCompatibilityVersion)) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Cannot create model [{}] while cluster upgrade is in progress.",

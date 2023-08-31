@@ -94,7 +94,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(threadContext.getHeaders()),
             key -> new AuthenticationContextSerializer(key).readFromContext(threadContext),
-            clusterState.getMinTransportVersion()
+            clusterState.getMinVersions().transportVersion()
         );
     }
 
@@ -110,7 +110,7 @@ public final class ClientHelper {
         return maybeRewriteAuthenticationHeadersForVersion(
             filterSecurityHeaders(headers),
             authenticationReader,
-            clusterState.getMinTransportVersion()
+            clusterState.getMinVersions().transportVersion()
         );
     }
 

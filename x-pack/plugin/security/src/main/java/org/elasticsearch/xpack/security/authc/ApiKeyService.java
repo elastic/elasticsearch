@@ -359,7 +359,7 @@ public class ApiKeyService {
     }
 
     private TransportVersion getMinTransportVersion() {
-        return clusterService.state().getMinTransportVersion();
+        return clusterService.state().getMinVersions().transportVersion();
     }
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {

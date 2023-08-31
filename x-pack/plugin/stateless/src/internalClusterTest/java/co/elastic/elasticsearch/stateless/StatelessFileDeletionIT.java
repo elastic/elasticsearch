@@ -22,11 +22,15 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -39,14 +43,17 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -404,7 +411,206 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
     }
 
-    // copied from #793
+    public void testStaleCommitsArePrunedAfterBeingReleased() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+
+        int totalIndexedDocs = 0;
+        int numberOfCommitsBeforeMerge = 3;
+        for (int i = 0; i < numberOfCommitsBeforeMerge; i++) {
+            totalIndexedDocs += indexDocsAndFlush(indexName);
+        }
+
+        var blobsBeforeMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
+
+        forceMerge();
+        // We need to refresh so the local index reader releases the reference from the previous commit
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+
+        assertBusy(() -> {
+            var blobsAfterMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(blobsBeforeMerging, blobsAfterMerging), empty());
+        });
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+    }
+
+    public void testCommitsAreRetainedUntilScrollCloses() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+
+        int totalIndexedDocs = 0;
+
+        var numDocsBeforeOpenScroll = indexDocsAndFlush(indexName);
+        totalIndexedDocs += numDocsBeforeOpenScroll;
+
+        // We need to disregard the first empty commit
+        var blobsUsedForScroll = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+        var scrollSearchResponse = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
+
+        var numberOfCommitsAfterOpeningScroll = randomIntBetween(3, 5);
+        for (int i = 0; i < numberOfCommitsAfterOpeningScroll; i++) {
+            totalIndexedDocs += indexDocsAndFlush(indexName);
+        }
+
+        forceMerge();
+        // We need to refresh so the local index reader releases the reference from the previous commit
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+
+        // We request 1 document per search request
+        int numberOfScrollRequests = numDocsBeforeOpenScroll - 1;
+        for (int i = 0; i < numberOfScrollRequests; i++) {
+            var searchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .get();
+            var hit = searchResponse.getHits().getHits()[0];
+            assertThat(hit, is(notNullValue()));
+        }
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+
+        assertBusy(() -> {
+            var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
+        });
+
+        client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+
+        // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
+        totalIndexedDocs += indexDocsAndFlush(indexName);
+
+        assertBusy(() -> {
+            var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
+        });
+
+        var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+    }
+
+    public void testStaleNodeDoesNotDeleteCommitFiles() throws Exception {
+        startMasterOnlyNode(
+            Settings.builder()
+                .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+                .put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+                .build()
+        );
+        String indexNodeA = startIndexNode(
+            Settings.builder()
+                // This prevents triggering an election in the isolated node once the link between it and the master is blackholed
+                .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "200")
+                .build()
+        );
+        ensureStableCluster(2);
+
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+
+        final int numberOfSegments = randomIntBetween(2, 5);
+        for (int i = 0; i < numberOfSegments; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+            flush(indexName);
+        }
+
+        var indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // We need to disregard the first empty commit that's deleted right away
+        var blobsBeforeTriggeringForceMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+
+        MockTransportService indexNodeTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            indexNodeA
+        );
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            internalCluster().getMasterName()
+        );
+
+        var primaryShardNodeRemoved = new PlainActionFuture<>();
+        var shardRelocated = new PlainActionFuture<>();
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(clusterChangedEvent -> {
+            if (primaryShardNodeRemoved.isDone() == false
+                && clusterChangedEvent.nodesDelta().removedNodes().stream().anyMatch(d -> d.getName().equals(indexNodeA))) {
+                primaryShardNodeRemoved.onResponse(null);
+            }
+            if (shardRelocated.isDone() == false) {
+                var clusterState = clusterChangedEvent.state();
+                var primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
+                if (primaryShard.started() && primaryShard.currentNodeId().equals(clusterState.nodes().resolveNode(indexNodeB).getId())) {
+                    shardRelocated.onResponse(null);
+                }
+            }
+        });
+
+        var rejoinedCluster = new PlainActionFuture<>();
+        internalCluster().getInstance(ClusterService.class, indexNodeA).addListener(clusterChangedEvent -> {
+            if (rejoinedCluster.isDone() == false) {
+                var nodesDelta = clusterChangedEvent.nodesDelta();
+                if (nodesDelta.masterNodeChanged() && nodesDelta.previousMasterNode() == null) {
+                    rejoinedCluster.onResponse(null);
+                }
+            }
+        });
+
+        masterTransportService.addUnresponsiveRule(indexNodeTransportService);
+        primaryShardNodeRemoved.actionGet();
+
+        // Trigger a force merge in the stale primary to force a "possible" deletion of the previous commits
+        var forceMergeFuture = client(indexNodeA).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        // Ensure that the shard is relocated to indexNodeB
+        shardRelocated.get();
+
+        // The consistency check reads the blob store and notices that it's behind and waits until there's a new cluster state update
+        masterTransportService.clearAllRules();
+
+        forceMergeFuture.get();
+        // The consistency check is executed in an observer that's applied before the listener that triggers this future
+        rejoinedCluster.get();
+
+        var blobsAfterNodeIsStale = listBlobsWithAbsolutePath(shardCommitsContainer);
+        assertThat(blobsAfterNodeIsStale.containsAll(blobsBeforeTriggeringForceMerge), is(true));
+    }
+
+    private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+        var blobContainerPath = blobContainer.path().buildAsString();
+        return blobContainer.listBlobs().keySet().stream().map(blob -> blobContainerPath + blob).collect(Collectors.toSet());
+    }
+
+    private static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode) {
+        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(0);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        return indexObjectStoreService.getBlobContainer(shardId, primaryTerm);
+    }
+
     private int indexDocsAndFlush(String indexName) {
         int numDocsBeforeOpenScroll = randomIntBetween(10, 20);
         indexDocs(indexName, numDocsBeforeOpenScroll);

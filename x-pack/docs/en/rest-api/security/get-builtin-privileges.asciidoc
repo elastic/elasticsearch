@@ -128,6 +128,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "index",
     "maintenance",
     "manage",
+    "manage_data_stream_lifecycle",
     "manage_follow_index",
     "manage_ilm",
     "manage_leader_index",

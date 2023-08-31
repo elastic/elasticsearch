@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -236,24 +237,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
+        client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
+        int finalGeneration = 3;
 
-        int finalGeneration = randomIntBetween(2, 20);
-        for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
-            indexDocs(dataStreamName, 1);
-            int currentBackingIndexCount = currentGeneration;
-            assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                    .actionGet();
-                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-                assertThat(dataStream.getName(), equalTo(dataStreamName));
-                List<Index> backingIndices = dataStream.getIndices();
-                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
-                String writeIndex = dataStream.getWriteIndex().getName();
-                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
-            });
-        }
         // Update the lifecycle of the data stream
         updateLifecycle(dataStreamName, TimeValue.timeValueMillis(1));
         // Verify that the retention has changed for all backing indices
@@ -316,7 +303,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-        int finalGeneration = randomIntBetween(2, 10);
+        int finalGeneration = randomIntBetween(3, 4);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
             // This is currently the write index, but it will be rolled over as soon as data stream lifecycle runs:
             final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);

@@ -276,7 +276,7 @@ public class MultiGetRequest extends ActionRequest
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-        out.writeList(items);
+        out.writeCollection(items);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {

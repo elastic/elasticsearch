@@ -169,7 +169,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(current);
+            out.writeCollection(current);
             desired.writeTo(out);
         }
 

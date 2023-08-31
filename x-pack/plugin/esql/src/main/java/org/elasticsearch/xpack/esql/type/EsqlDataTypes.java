@@ -137,6 +137,14 @@ public final class EsqlDataTypes {
         return t != OBJECT && t != NESTED;
     }
 
+    public static boolean isDateTimeOrTemporal(DataType t) {
+        return DataTypes.isDateTime(t) || isTemporalAmount(t);
+    }
+
+    public static boolean isTemporalAmount(DataType t) {
+        return t == DATE_PERIOD || t == TIME_DURATION;
+    }
+
     /**
      * Supported types that can be contained in a block.
      */

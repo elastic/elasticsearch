@@ -66,7 +66,7 @@ public class ListTasksResponse extends BaseTasksResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(tasks);
+        out.writeCollection(tasks);
     }
 
     protected static <T> ConstructingObjectParser<T, Void> setupParser(

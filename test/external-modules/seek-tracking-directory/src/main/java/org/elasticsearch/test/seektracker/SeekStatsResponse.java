@@ -41,7 +41,7 @@ public class SeekStatsResponse extends BaseNodesResponse<NodeSeekStats> implemen
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeSeekStats> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -69,7 +69,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnumSet(actions);
         scope.writeTo(out);
-        out.writeList(conditions);
+        out.writeCollection(conditions);
     }
 
     @Override

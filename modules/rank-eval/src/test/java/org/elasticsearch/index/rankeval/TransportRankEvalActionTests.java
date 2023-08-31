@@ -16,12 +16,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -29,9 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportRankEvalActionTests extends ESTestCase {
 
@@ -78,12 +75,7 @@ public class TransportRankEvalActionTests extends ESTestCase {
             }
         };
 
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportRankEvalAction action = new TransportRankEvalAction(
             mock(ActionFilters.class),
             client,

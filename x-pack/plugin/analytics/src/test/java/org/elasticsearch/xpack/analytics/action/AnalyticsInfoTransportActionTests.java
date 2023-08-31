@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -31,7 +31,6 @@ import java.util.Collections;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -61,12 +60,8 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
@@ -92,12 +87,8 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());

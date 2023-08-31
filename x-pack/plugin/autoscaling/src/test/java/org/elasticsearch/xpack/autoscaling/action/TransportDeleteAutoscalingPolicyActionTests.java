@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -33,21 +33,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
     public void testWriteBlock() {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
             transportService,
             mock(ClusterService.class),
@@ -70,12 +64,8 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
     }
 
     public void testNoWriteBlock() {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportDeleteAutoscalingPolicyAction action = new TransportDeleteAutoscalingPolicyAction(
             transportService,
             mock(ClusterService.class),

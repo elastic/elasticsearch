@@ -34,11 +34,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,21 +56,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCase {
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
-
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
 
         new TransportDeleteDesiredBalanceAction(
             transportService,

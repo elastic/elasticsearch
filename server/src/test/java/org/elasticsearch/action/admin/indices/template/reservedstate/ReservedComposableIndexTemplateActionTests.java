@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -41,6 +40,7 @@ import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -64,10 +64,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * A unit test class that tests {@link ReservedComposableIndexTemplateAction}
@@ -676,13 +674,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testHandlerCorrectness() {
-
-        // TODO: temporary, remove in #97879
-        final TransportService transportService = mock(TransportService.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var putIndexAction = new TransportPutComposableIndexTemplateAction(
             transportService,
             null,
@@ -931,12 +924,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         PutComposableIndexTemplateAction.Request pr = new PutComposableIndexTemplateAction.Request(conflictingTemplateName);
 
-        // TODO: temporary, remove in #97879
-        final TransportService transportService = mock(TransportService.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var putTemplateAction = new TransportPutComposableIndexTemplateAction(
             transportService,
             null,

@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.security.action.service;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,12 +42,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         serviceAccountService = mock(ServiceAccountService.class);
         securityContext = mock(SecurityContext.class);
 
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             transportService,
             new ActionFilters(Collections.emptySet()),

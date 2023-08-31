@@ -133,7 +133,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testPrimaryNoRefreshCall() throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
@@ -147,7 +147,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testReplicaNoRefreshCall() throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
@@ -162,7 +162,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testPrimaryImmediateRefresh() throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
@@ -186,7 +186,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testReplicaImmediateRefresh() throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
@@ -207,7 +207,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
 
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
             result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
@@ -233,7 +233,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testReplicaWaitForRefresh() throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        TestAction testAction = new TestAction(threadPool);
+        TestAction testAction = new TestAction();
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
@@ -259,7 +259,6 @@ public class TransportWriteActionTests extends ESTestCase {
                 RuntimeException.class,
                 () -> PlainActionFuture.get(
                     (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future) -> new TestAction(
-                        threadPool,
                         true,
                         randomBoolean()
                     ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, future),
@@ -272,7 +271,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
         TestRequest request = new TestRequest();
-        TestAction testAction = new TestAction(threadPool, randomBoolean(), true);
+        TestAction testAction = new TestAction(randomBoolean(), true);
         final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
@@ -406,18 +405,18 @@ public class TransportWriteActionTests extends ESTestCase {
 
         private final PostWriteRefresh postWriteRefresh = mock(PostWriteRefresh.class);
 
-        protected TestAction(ThreadPool threadPool) {
-            this(threadPool, false, false);
+        protected TestAction() {
+            this(false, false);
         }
 
-        protected TestAction(ThreadPool threadPool, boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
+        protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(
                 Settings.EMPTY,
                 "internal:test",
                 new TransportService(
                     Settings.EMPTY,
                     mock(Transport.class),
-                    threadPool,
+                    TransportWriteActionTests.threadPool,
                     TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                     x -> null,
                     null,
@@ -425,7 +424,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 ),
                 TransportWriteActionTests.this.clusterService,
                 null,
-                threadPool,
+                TransportWriteActionTests.threadPool,
                 null,
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,

@@ -22,21 +22,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
     public void testRejectImmutableConflictClusterStateUpdate() {
@@ -51,12 +48,7 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         doReturn(clusterState).when(clusterService).state();
 
-        // TODO: temporary, remove in #97879
-        final TransportService transportService = mock(TransportService.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         Action handler = new Action("internal:testAction", clusterService, transportService, mock(ActionFilters.class));
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys

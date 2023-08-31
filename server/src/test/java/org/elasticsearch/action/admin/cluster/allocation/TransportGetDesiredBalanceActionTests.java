@@ -46,7 +46,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -70,10 +70,11 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
     private static DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private static ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
     private static TransportService transportService = mock(TransportService.class);
+    private static ThreadPool threadPool = mock(ThreadPool.class);
     private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
         transportService,
         mock(ClusterService.class),
-        mock(ThreadPool.class),
+        threadPool,
         mock(ActionFilters.class),
         mock(IndexNameExpressionResolver.class),
         desiredBalanceShardsAllocator,
@@ -81,10 +82,9 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         TEST_WRITE_LOAD_FORECASTER
     );
 
-    @BeforeClass
-    public static void beforeClass() {
+    @Before
+    public static void setup() {
         // TODO: temporary, remove in #97879
-        final ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
@@ -108,13 +108,6 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
-
-        // TODO: temporary, remove in #97879
-        final TransportService transportService = mock(TransportService.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
         final var action = new TransportGetDesiredBalanceAction(
             transportService,
             mock(ClusterService.class),

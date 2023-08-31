@@ -13,11 +13,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,9 +33,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final PatternBank LEGACY_TEST_PATTERNS = new PatternBank(Map.of("PATTERN2", "foo2", "PATTERN1", "foo1"));
@@ -64,13 +61,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testResponseSorting() {
         List<String> sortedKeys = new ArrayList<>(LEGACY_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
-
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
             transportService,
             mock(ActionFilters.class),
@@ -120,13 +111,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
     public void testEcsCompatibilityMode() {
         List<String> sortedKeys = new ArrayList<>(ECS_TEST_PATTERNS.bank().keySet());
         Collections.sort(sortedKeys);
-
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GrokProcessorGetAction.TransportAction transportAction = new GrokProcessorGetAction.TransportAction(
             transportService,
             mock(ActionFilters.class),

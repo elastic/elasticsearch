@@ -15,10 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
@@ -59,13 +58,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         index = mock(SamlServiceProviderIndex.class);
         idp = mock(SamlIdentityProvider.class);
         when(idp.getAllowedNameIdFormats()).thenReturn(Set.of(TRANSIENT));
-
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
         action = new TransportPutSamlServiceProviderAction(transportService, mock(ActionFilters.class), index, idp, clock);

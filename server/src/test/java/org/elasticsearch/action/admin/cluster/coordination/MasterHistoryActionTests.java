@@ -83,9 +83,11 @@ public class MasterHistoryActionTests extends ESTestCase {
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+
         // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);
         MasterHistoryAction.TransportAction action = new MasterHistoryAction.TransportAction(

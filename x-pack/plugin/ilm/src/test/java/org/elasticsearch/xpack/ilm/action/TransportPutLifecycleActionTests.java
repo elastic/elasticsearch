@@ -11,9 +11,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -28,9 +28,7 @@ import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransportPutLifecycleActionTests extends ESTestCase {
     public void testIsNoop() {
@@ -49,11 +47,8 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
     }
 
     public void testReservedStateHandler() throws Exception {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportPutLifecycleAction putAction = new TransportPutLifecycleAction(
             transportService,
             mock(ClusterService.class),

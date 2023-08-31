@@ -64,9 +64,11 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("mock-node");
         TransportService transportService = Mockito.mock(TransportService.class);
+
         // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);

@@ -27,6 +27,7 @@ public class TransportDeletePipelineActionTests extends ESTestCase {
 
     public void testDeletePipelineWithMissingIndex() throws Exception {
         try (Client client = getFailureClient(new IndexNotFoundException("missing .logstash"))) {
+
             final TransportDeletePipelineAction action = new TransportDeletePipelineAction(
                 mock(TransportService.class),
                 mock(ActionFilters.class),

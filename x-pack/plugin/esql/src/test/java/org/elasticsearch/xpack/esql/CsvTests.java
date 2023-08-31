@@ -233,12 +233,12 @@ public class CsvTests extends ESTestCase {
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, log);
+        assertResults(expected, actualResults, testCase.ignoreOrder, log);
         assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
     }
 
-    protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
-        CsvAssert.assertResults(expected, actual, logger);
+    protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
          * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
          * This is useful when creating a new test or trying to figure out what are the actual results.

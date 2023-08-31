@@ -1419,7 +1419,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void scheduleTimeout(TimeValue timeout) {
-            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
+            this.cancellable = threadPool.schedule(this, timeout, threadPool.generic());
         }
     }
 

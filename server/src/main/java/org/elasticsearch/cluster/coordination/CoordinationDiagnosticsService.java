@@ -1169,7 +1169,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             public String toString() {
                 return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
+        }, remoteRequestInitialDelay, clusterCoordinationExecutor);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {

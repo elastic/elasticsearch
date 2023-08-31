@@ -35,6 +35,13 @@ For more information about the native realm, see
   usernames as a comma-separated list. If you omit this parameter, the API
   retrieves information about all users.
 
+[[security-api-get-user-query-params]]
+==== {api-query-parms-title}
+
+`with_profile_uid`::
+(Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
+if exists, for the users. Defaults to `false`.
+
 [[security-api-get-user-response-body]]
 ==== {api-response-body-title}
 
@@ -73,6 +80,32 @@ GET /_security/user/jacknich
   }
 }
 --------------------------------------------------
+
+To retrieve the user `profile_uid` as part of the response:
+
+[source,console]
+--------------------------------------------------
+GET /_security/user/jacknich?with_profile_uid=true
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "jacknich": {
+    "username": "jacknich",
+    "roles": [
+      "admin", "other_role1"
+    ],
+    "full_name": "Jack Nicholson",
+    "email": "jacknich@example.com",
+    "metadata": { "intelligence" : 7 },
+    "enabled": true,
+    "profile_uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+  }
+}
+--------------------------------------------------
+
 
 Omit the username to retrieve all users:
 

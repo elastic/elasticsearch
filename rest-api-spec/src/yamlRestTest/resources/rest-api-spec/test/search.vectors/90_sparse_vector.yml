@@ -102,12 +102,13 @@
 ---
 "Sparse vector in 7.x":
   - skip:
-      features: warnings
+      features: allowed_warnings
       version: "8.0.0 - "
       reason: "sparse_vector field type supported in 7.x"
   - do:
-      warnings:
-        - The [sparse_vector] field type is deprecated and will be removed in 8.0.
+      allowed_warnings:
+        - "The [sparse_vector] field type is deprecated and will be removed in 8.0."
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
       indices.create:
         index: test
         body:
@@ -121,7 +122,6 @@
                 type: sparse_vector
 
   - match: { acknowledged: true }
-
 
 ---
 "Sparse vector in 8.x":

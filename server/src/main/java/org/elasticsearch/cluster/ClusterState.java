@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -163,8 +165,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private final DiscoveryNodes nodes;
 
-    private final Map<String, TransportVersion> transportVersions;
-    private final TransportVersion minTransportVersion;
+    private final Map<String, VersionsWrapper> versionsWrappers;
+    private final VersionsWrapper minVersions;
 
     private final Metadata metadata;
 
@@ -187,7 +189,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             state.metadata(),
             state.routingTable(),
             state.nodes(),
-            state.transportVersions,
+            state.versionsWrappers,
             state.blocks(),
             state.customs(),
             false,
@@ -202,7 +204,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         Metadata metadata,
         RoutingTable routingTable,
         DiscoveryNodes nodes,
-        Map<String, TransportVersion> transportVersions,
+        Map<String, VersionsWrapper> versionsWrappers,
         ClusterBlocks blocks,
         Map<String, Custom> customs,
         boolean wasReadFromDiff,
@@ -214,20 +216,24 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.metadata = metadata;
         this.routingTable = routingTable;
         this.nodes = nodes;
-        this.transportVersions = Map.copyOf(transportVersions);
+        this.versionsWrappers = Map.copyOf(versionsWrappers);
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
 
-        this.minTransportVersion = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? TransportVersion.MINIMUM_COMPATIBLE
-            : transportVersions.values()
-                .stream()
-                .min(Comparator.naturalOrder())
-                // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
-                .orElse(TransportVersion.MINIMUM_COMPATIBLE);
+        // TODO[wrb]: move logic for collecting minima to VersionsWrapper
+        this.minVersions = new VersionsWrapper(
+            blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+                ? TransportVersion.MINIMUM_COMPATIBLE
+                : versionsWrappers.values()
+                    .stream()
+                    .map(VersionsWrapper::transportVersion)
+                    .min(Comparator.naturalOrder())
+                    // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
+                    .orElse(TransportVersion.MINIMUM_COMPATIBLE)
+        );
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -283,12 +289,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
+    // TODO[wrb]: change method/signature
     public Map<String, TransportVersion> transportVersions() {
-        return this.transportVersions;
+        return Maps.transformValues(versionsWrappers, VersionsWrapper::transportVersion);
     }
 
+    // TODO[wrb]: change method/signature
     public TransportVersion getMinTransportVersion() {
-        return this.minTransportVersion;
+        return this.minVersions.transportVersion();
     }
 
     public Metadata metadata() {
@@ -477,10 +485,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
         sb.append(blocks());
         sb.append(nodes());
-        if (transportVersions.isEmpty() == false) {
+        if (versionsWrappers.isEmpty() == false) {
             sb.append("transport versions:\n");
-            for (var tv : transportVersions.entrySet()) {
-                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
+            for (var tv : versionsWrappers.entrySet()) {
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue().transportVersion()).append("\n");
             }
         }
         sb.append(routingTable());
@@ -638,11 +646,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             chunkedSection(
                 metrics.contains(Metric.NODES),
                 (builder, params) -> builder.startArray("transport_versions"),
-                transportVersions.entrySet().iterator(),
+                versionsWrappers.entrySet().iterator(),
                 e -> Iterators.single(
                     (builder, params) -> builder.startObject()
                         .field("node_id", e.getKey())
-                        .field("transport_version", e.getValue().toString())
+                        .field("transport_version", e.getValue().transportVersion().toString())
                         .endObject()
                 ),
                 (builder, params) -> builder.endArray()
@@ -740,7 +748,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private Metadata metadata = Metadata.EMPTY_METADATA;
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
-        private final Map<String, TransportVersion> transportVersions;
+        private final Map<String, VersionsWrapper> versionsWrappers;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
@@ -751,7 +759,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
-            this.transportVersions = new HashMap<>(state.transportVersions);
+            this.versionsWrappers = new HashMap<>(state.versionsWrappers);
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -760,7 +768,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder(ClusterName clusterName) {
-            this.transportVersions = new HashMap<>();
+            this.versionsWrappers = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -778,21 +786,24 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
+        // TODO[wrb]: change signature
         public Builder putTransportVersion(String nodeId, TransportVersion version) {
-            transportVersions.put(nodeId, Objects.requireNonNull(version, nodeId));
+            versionsWrappers.put(nodeId, new VersionsWrapper(Objects.requireNonNull(version, nodeId)));
             return this;
         }
 
+        // TODO[wrb]: change signature
         public Builder transportVersions(Map<String, TransportVersion> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in the new map
-            this.transportVersions.keySet().retainAll(versions.keySet());
-            this.transportVersions.putAll(versions);
+            this.versionsWrappers.keySet().retainAll(versions.keySet());
+            this.versionsWrappers.putAll(Maps.transformValues(versions, VersionsWrapper::new));
             return this;
         }
 
+        // TODO[wrb]: change signature
         public Map<String, TransportVersion> transportVersions() {
-            return Collections.unmodifiableMap(this.transportVersions);
+            return Collections.unmodifiableMap(Maps.transformValues(this.versionsWrappers, VersionsWrapper::transportVersion));
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -880,7 +891,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metadata,
                 routingTable,
                 nodes,
-                transportVersions,
+                versionsWrappers,
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -968,7 +979,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeMap(transportVersions, StreamOutput::writeString, (o, v) -> TransportVersion.writeVersion(v, o));
+            out.writeMap(versionsWrappers, StreamOutput::writeString, (o, v) -> TransportVersion.writeVersion(v.transportVersion(), o));
         }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
@@ -1007,9 +1018,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
+            // TODO[wrb]: update diff logic
             transportVersions = DiffableUtils.diff(
-                before.transportVersions,
-                after.transportVersions,
+                Maps.transformValues(before.versionsWrappers, VersionsWrapper::transportVersion),
+                Maps.transformValues(after.versionsWrappers, VersionsWrapper::transportVersion),
                 DiffableUtils.getStringKeySerializer(),
                 TRANSPORT_VERSION_VALUE_SERIALIZER
             );
@@ -1076,7 +1088,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
             if (transportVersions != null) {
-                builder.transportVersions(transportVersions.apply(state.transportVersions));
+                builder.transportVersions(
+                    // TODO[wrb]: update diff logic
+                    transportVersions.apply(Maps.transformValues(state.versionsWrappers, VersionsWrapper::transportVersion))
+                );
             } else {
                 // infer the versions from discoverynodes for now
                 builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));

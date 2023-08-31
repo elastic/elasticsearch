@@ -334,11 +334,7 @@ public abstract class DocumentParserContext {
      * The current implementation optimizes to avoid under-counting but may over-count.
      */
     private int getNewDynamicMappersSize() {
-        return dynamicMappers.values()
-            .stream()
-            .flatMap(List::stream)
-            .mapToInt(Mapper::mapperSize)
-            .sum();
+        return dynamicMappers.values().stream().flatMap(List::stream).mapToInt(Mapper::mapperSize).sum();
     }
 
     /**

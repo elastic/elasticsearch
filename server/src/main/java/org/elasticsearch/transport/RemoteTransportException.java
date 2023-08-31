@@ -21,8 +21,24 @@ import java.net.InetSocketAddress;
  */
 public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
+    private String clusterAlias;
+    private boolean fatalForCCS;  /// MP TODO: DOCUMENT ME
+
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, null, null, cause);
+    }
+
+    /**
+     * TODO: DOCUMENT ME
+     * @param msg
+     * @param clusterAlias
+     * @param fatalForCCS
+     * @param cause
+     */
+    public RemoteTransportException(String msg, String clusterAlias, boolean fatalForCCS, Throwable cause) {
+        super(msg, null, null, cause);
+        this.clusterAlias = clusterAlias;
+        this.fatalForCCS = fatalForCCS;
     }
 
     public RemoteTransportException(String name, TransportAddress address, String action, Throwable cause) {
@@ -35,6 +51,14 @@ public class RemoteTransportException extends ActionTransportException implement
 
     public RemoteTransportException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    public boolean isFatalForCCS() {
+        return fatalForCCS;
     }
 
     @Override

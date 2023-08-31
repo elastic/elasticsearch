@@ -286,8 +286,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
+        if (randomBoolean()) {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
         }
         if (randomBoolean()) {
@@ -307,8 +306,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         assertBusy(() -> assertTrue(queryFuture.isDone()));
 
-        // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
-        if (skipUnavailable == false && minimizeRoundtrips && dfs == false) {
+        if (skipUnavailable == false && minimizeRoundtrips) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
@@ -319,9 +317,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(searchResponse);
 
             SearchResponse.Clusters clusters = searchResponse.getClusters();
-            if (dfs == false) {
-                assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
-            }
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));

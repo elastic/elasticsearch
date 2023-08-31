@@ -239,6 +239,11 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     }
 
+    @Override
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
+
     public void testBackgroundVsSeparateSet() throws Exception {
         String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";

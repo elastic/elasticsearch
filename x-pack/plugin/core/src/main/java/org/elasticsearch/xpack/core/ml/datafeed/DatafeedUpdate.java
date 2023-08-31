@@ -194,7 +194,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Reques
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -58,6 +59,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     private final Client client;
     private final SecurityContext securityContext;
     private final Settings settings;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportResetTransformAction(
@@ -68,7 +70,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         Client client,
-        Settings settings
+        Settings settings,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             ResetTransformAction.NAME,
@@ -87,6 +90,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.settings = settings;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -131,6 +135,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // dry run
                     false, // check access
                     request.timeout(),
+                    destIndexSettings,
                     updateTransformListener
                 );
             },

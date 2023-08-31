@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,19 +54,19 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
     public void testLong() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("long");
         EsqlQueryResponse response = run("from test | stats sum(const)");
-        assertThat(response.values(), equalTo(List.of(List.of((long) SIZE))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of((long) SIZE))));
     }
 
     public void testDouble() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("double");
         EsqlQueryResponse response = run("from test | stats sum(const)");
-        assertThat(response.values(), equalTo(List.of(List.of((double) SIZE))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of((double) SIZE))));
     }
 
     public void testKeyword() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
         EsqlQueryResponse response = run("from test | keep const | limit 1");
-        assertThat(response.values(), equalTo(List.of(List.of("const"))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of("const"))));
     }
 
     /**
@@ -75,20 +76,20 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
     public void testKeywordBy() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
         EsqlQueryResponse response = run("from test | stats max(foo) by const");
-        assertThat(response.values(), equalTo(List.of(List.of(SIZE - 1L, "const"))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of(SIZE - 1L, "const"))));
     }
 
     public void testBoolean() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("boolean");
         EsqlQueryResponse response = run("from test | sort foo | limit 3");
-        assertThat(response.values(), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
     }
 
     public void testDate() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("date");
         EsqlQueryResponse response = run("""
             from test | eval d=date_format(const, "yyyy") | stats min (foo) by d""");
-        assertThat(response.values(), equalTo(List.of(List.of(0L, "2023"))));
+        assertThat(getValuesList(response), equalTo(List.of(List.of(0L, "2023"))));
     }
 
     private void createIndexWithConstRuntimeField(String type) throws InterruptedException, IOException {

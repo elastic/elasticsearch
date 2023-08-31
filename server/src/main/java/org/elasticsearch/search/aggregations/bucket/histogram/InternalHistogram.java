@@ -250,7 +250,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

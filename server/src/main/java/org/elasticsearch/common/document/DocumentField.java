@@ -118,7 +118,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            out.writeList(lookupFields);
+            out.writeCollection(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {
                 assert false : "Lookup fields require all nodes be on 8.2 or later";

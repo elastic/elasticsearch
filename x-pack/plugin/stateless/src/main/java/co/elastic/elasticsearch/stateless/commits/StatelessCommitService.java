@@ -1,5 +1,4 @@
 /*
-/*
  * ELASTICSEARCH CONFIDENTIAL
  * __________________
  *
@@ -28,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -426,7 +426,7 @@ public class StatelessCommitService implements ClusterStateListener {
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<StatelessCompoundCommit>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
-        private long generationUploaded = -1;
+        private volatile long generationUploaded = -1;
         private volatile boolean isClosed;
 
         // map generations to compound commit blob instances
@@ -959,6 +959,34 @@ public class StatelessCommitService implements ClusterStateListener {
 
     public static boolean isGenerationalFile(String file) {
         return file.startsWith("_") && IndexFileNames.parseGeneration(file) > 0L;
+    }
+
+    public PrimaryTermAndGeneration registerCommitForUnpromotableRecovery(PrimaryTermAndGeneration commit, ShardId shardId, String nodeId) {
+        var shardCommitsState = getSafe(shardsCommitsStates, shardId);
+        var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit.generation());
+        if (compoundCommit == null || compoundCommit.tryIncRef() == false) {
+            // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
+            // In that case, try the latest commit.
+            // TODO: add an accessor for the latest commit (should it also incRef?)
+            compoundCommit = shardCommitsState.compoundCommitBlobs.get(shardCommitsState.generationUploaded);
+            // if the indexing shard is not finished initializing from the object store, we are not
+            // able to register the commit for recovery. For now, fail the registration request.
+            // TODO (ES-6698): we should be able to handle this case by either retrying the registration or keep the
+            // registration and run it after the indexing shard is finished initializing.
+            if (compoundCommit == null) {
+                throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
+            }
+            compoundCommit.incRef();
+        }
+        try {
+            shardCommitsState.trackOutstandingUnpromotableShardCommitRef(nodeId, compoundCommit);
+        } finally {
+            compoundCommit.decRef();
+        }
+        assert compoundCommit.primaryTermAndGeneration.primaryTerm() >= commit.primaryTerm()
+            && (compoundCommit.primaryTermAndGeneration.primaryTerm() > commit.primaryTerm()
+                || compoundCommit.primaryTermAndGeneration.generation() >= commit.generation());
+        return compoundCommit.primaryTermAndGeneration;
     }
 
     private record CommitAndBlobLocation(ShardCommitState.CompoundCommitBlob compoundCommitBlob, @Nullable BlobLocation blobLocation) {

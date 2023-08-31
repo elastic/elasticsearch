@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
@@ -1507,4 +1508,32 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertHitCount(client().prepareSearch(indexName).get(), numDocs);
     }
 
+    public void testSearchShardRecoveryRegistersCommit() throws Exception {
+        startIndexNode();
+        var searchNode = startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS)).build()
+        );
+        ensureGreen(indexName);
+        // Create some commits
+        int commits = randomIntBetween(0, 3);
+        for (int i = 0; i < commits; i++) {
+            indexDocs(indexName, randomIntBetween(10, 50));
+            refresh(indexName);
+        }
+        AtomicInteger registerCommitRequestsSent = new AtomicInteger();
+        var searchNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
+        searchNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
+                registerCommitRequestsSent.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        // Start a search shard
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+        assertThat(registerCommitRequestsSent.get(), equalTo(1));
+    }
 }

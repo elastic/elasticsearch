@@ -9,7 +9,6 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -1158,7 +1157,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 10))
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .build();
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
         if (customDataStreamLifecycleMetadata != null) {

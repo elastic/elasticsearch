@@ -594,31 +594,30 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
-        postProcessDynamicMappers(context, lastFieldName);
+        postProcessDynamicArrayMapping(context, arrayFieldName, lastFieldName);
     }
 
-    private static void postProcessDynamicMappers(DocumentParserContext context, String simpleName) {
+    /**
+     * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
+     */
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, String simpleName) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
-            final Map<String, List<Mapper>> dynamicMappers = context.getDynamicMappers();
-
-
-            for (String fieldName : dynamicMappers.keySet()) {
-                List<Mapper> mappers = dynamicMappers.get(fieldName);
-                boolean shouldBeDenseVector = mappers.stream()
-                    .allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())
-                    && context.isFieldAppliedFromTemplate(fieldName) == false && context.isCopyToField(fieldName) == false
-                    && mappers.size() >= MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                    && mappers.size() <= MAX_DIMS_COUNT);
-
-                if (shouldBeDenseVector) {
-                    DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                        simpleName,
-                        context.indexSettings().getIndexVersionCreated()
-                    );
-                    DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());
-                    context.updateDynamicMappers(fieldName, List.of(denseVectorFieldMapper));
-                }
+            final List<Mapper> mappers = context.getDynamicMappers().get(fieldName);
+            if (mappers == null
+                || context.isFieldAppliedFromTemplate(fieldName)
+                || context.isCopyToField(fieldName)
+                || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || mappers.size() > MAX_DIMS_COUNT
+                || mappers.stream().allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())) == false) {
+                return;
             }
+
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                simpleName,
+                context.indexSettings().getIndexVersionCreated()
+            );
+            DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());
+            context.updateDynamicMappers(fieldName, List.of(denseVectorFieldMapper));
         }
     }
 

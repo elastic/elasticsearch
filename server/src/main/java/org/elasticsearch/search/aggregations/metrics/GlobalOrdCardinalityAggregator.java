@@ -211,7 +211,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                     dynamicPruningAttempts++;
                     return new LeafBucketCollector() {
-                        final SortedSetDocValues docValues = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
+                        final SortedSetDocValues docValues = values;
 
                         final BitArray bits;
                         final CompetitiveIterator competitiveIterator;
@@ -268,7 +268,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
         bruteForce++;
         return new LeafBucketCollector() {
-            final SortedSetDocValues docValues = valuesSource.globalOrdinalsValues(aggCtx.getLeafReaderContext());
+            final SortedSetDocValues docValues = values;
 
             @Override
             public void collect(int doc, long bucketOrd) throws IOException {

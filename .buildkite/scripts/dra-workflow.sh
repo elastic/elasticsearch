@@ -11,6 +11,8 @@ if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 
+echo --- Preparing
+
 RM_BRANCH="$BRANCH"
 if [[ "$BRANCH" == "main" ]]; then
   RM_BRANCH=master
@@ -39,12 +41,13 @@ if [[ "$WORKFLOW" == "staging" ]]; then
   BUILD_SNAPSHOT_ARG="-Dbuild.snapshot=false"
 fi
 
+echo --- Building release artifacts
+
 .ci/scripts/run-gradle.sh -Ddra.artifacts=true \
   -Ddra.artifacts.dependency.beats="${BEATS_BUILD_ID}" \
   -Ddra.artifacts.dependency.ml-cpp="${ML_CPP_BUILD_ID}" \
   -Ddra.workflow="$WORKFLOW" \
   -Dcsv="$WORKSPACE/build/distributions/dependencies-${ES_VERSION}${VERSION_SUFFIX}.csv" \
-  -Dbuild.snapshot=false \
   $LICENSE_KEY_ARG \
   $BUILD_SNAPSHOT_ARG \
   buildReleaseArtifacts \
@@ -62,6 +65,8 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
+
+echo --- Running release-manager
 
 # Artifacts should be generated
 # TODO remove echo, fix DRA_VAULT vars

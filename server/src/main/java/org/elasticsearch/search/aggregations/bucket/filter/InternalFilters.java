@@ -163,7 +163,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeBoolean(keyedBucket);
         }
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

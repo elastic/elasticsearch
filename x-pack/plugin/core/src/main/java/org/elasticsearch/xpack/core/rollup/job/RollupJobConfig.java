@@ -252,7 +252,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         out.writeString(rollupIndex);
         out.writeString(cron);
         out.writeOptionalWriteable(groupConfig);
-        out.writeList(metricsConfig);
+        out.writeCollection(metricsConfig);
         out.writeTimeValue(timeout);
         out.writeInt(pageSize);
     }

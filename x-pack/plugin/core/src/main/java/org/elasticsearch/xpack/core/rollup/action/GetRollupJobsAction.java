@@ -149,7 +149,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(jobs);
+            out.writeCollection(jobs);
         }
 
         public List<JobWrapper> getJobs() {

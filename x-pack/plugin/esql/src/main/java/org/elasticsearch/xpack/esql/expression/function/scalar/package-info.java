@@ -123,8 +123,8 @@
  *         asciidoc ceremony to make the result look right in the rendered docs.
  *     </li>
  *     <li>
- *         Auto-generate a syntax diagram and a table with supported types by running
- *         {@code ./gradlew x-pack:plugin:esql:copyGeneratedDocs}
+ *         Generate a syntax diagram and a table with supported types by running the tests via
+ *         gradle: {@code ./gradlew x-pack:plugin:esql:test}
  *         The generated files can be found here
  *         {@code docs/reference/esql/functions/signature/myfunction.svg }
  *         and here

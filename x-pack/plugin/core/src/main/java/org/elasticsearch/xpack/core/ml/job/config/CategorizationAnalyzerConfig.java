@@ -237,9 +237,9 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(analyzer);
-        out.writeList(charFilters);
+        out.writeCollection(charFilters);
         out.writeOptionalWriteable(tokenizer);
-        out.writeList(tokenFilters);
+        out.writeCollection(tokenFilters);
     }
 
     public String getAnalyzer() {

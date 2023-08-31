@@ -82,7 +82,7 @@ public class ReadinessClusterIT extends ESIntegTestCase implements ReadinessClie
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+            .put(Settings.builder().put(ReadinessService.PORT.getKey(), getReadinessPorts()).build());
         return settings.build();
     }
 

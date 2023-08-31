@@ -91,7 +91,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             threadpool,
             null
         );
-        env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+        env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), getReadinessPorts()).build());
 
         httpTransport = new FakeHttpTransport();
         readinessService = new ReadinessService(clusterService, env);

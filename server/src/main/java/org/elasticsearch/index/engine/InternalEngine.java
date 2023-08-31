@@ -731,8 +731,8 @@ public class InternalEngine extends Engine {
                     DirectoryReader.open(indexWriter),
                     shardId
                 );
-                internalReaderManager = new ElasticsearchReaderManager(directoryReader);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                internalReaderManager = createInternalReaderManager(directoryReader);
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
                 return externalReaderManager;
@@ -750,6 +750,10 @@ public class InternalEngine extends Engine {
                 IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
             }
         }
+    }
+
+    protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
+        return new ElasticsearchReaderManager(directoryReader);
     }
 
     public final AtomicLong translogGetCount = new AtomicLong(); // number of times realtime get was done on translog

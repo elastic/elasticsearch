@@ -103,6 +103,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
+    public boolean isPreflight() {
+        return true;
+    }
+
+    @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
             .diagnoseMasterStability(verbose);

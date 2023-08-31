@@ -173,6 +173,7 @@ public class IndexResolver {
         EnumSet.of(WildcardStates.OPEN)
     );
 
+    public static final Set<String> ALL_FIELDS = Set.of("*");
     private static final String UNMAPPED = "unmapped";
 
     private final Client client;
@@ -304,6 +305,7 @@ public class IndexResolver {
             IndicesOptions indicesOptions = retrieveFrozenIndices ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
             FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(
                 qualifyAndJoinIndices(clusterWildcard, indexWildcards),
+                ALL_FIELDS,
                 indicesOptions,
                 emptyMap()
             );
@@ -356,11 +358,12 @@ public class IndexResolver {
      */
     public void resolveAsMergedMapping(
         String indexWildcard,
+        Set<String> fieldNames,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
         ActionListener<IndexResolution> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
@@ -372,11 +375,12 @@ public class IndexResolver {
      */
     public void resolveAsMergedMapping(
         String indexWildcard,
+        Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
         ActionListener<IndexResolution> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
@@ -559,11 +563,12 @@ public class IndexResolver {
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         String index,
+        Set<String> fieldNames,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings
     ) {
         return new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
-            .fields("*")
+            .fields(fieldNames.toArray(String[]::new))
             .includeUnmapped(true)
             .runtimeFields(runtimeMappings)
             // lenient because we throw our own errors looking at the response e.g. if something was not resolved
@@ -573,11 +578,12 @@ public class IndexResolver {
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         String index,
+        Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings
     ) {
         IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-        return createFieldCapsRequest(index, indicesOptions, runtimeMappings);
+        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings);
     }
 
     /**
@@ -590,7 +596,7 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         ActionListener<List<EsIndex>> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));

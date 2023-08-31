@@ -300,7 +300,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
-            out.writeNamedWriteableList(rescoreBuilders);
+            out.writeNamedWriteableCollection(rescoreBuilders);
         }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
@@ -311,7 +311,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         boolean hasStats = stats != null;
         out.writeBoolean(hasStats);
@@ -324,7 +324,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
-        out.writeNamedWriteableList(extBuilders);
+        out.writeNamedWriteableCollection(extBuilders);
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);

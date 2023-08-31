@@ -157,7 +157,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);

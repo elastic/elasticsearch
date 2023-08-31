@@ -150,7 +150,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
         if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
+            out.writeMap(failures, StreamOutput::writeException);
             out.writeOptionalString(next);
         } else {
             if (failures.isEmpty() == false) {

@@ -187,7 +187,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             out.writeLong(eventTime);
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
+            out.writeMap(headers, StreamOutput::writeStringCollection);
             out.writeOptionalString(clientAddress);
         }
 

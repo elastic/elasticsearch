@@ -37,7 +37,7 @@ public class NodePrevalidateShardPathRequest extends TransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds, (o, value) -> value.writeTo(o));
+        out.writeCollection(shardIds);
     }
 
     public Set<ShardId> getShardIds() {

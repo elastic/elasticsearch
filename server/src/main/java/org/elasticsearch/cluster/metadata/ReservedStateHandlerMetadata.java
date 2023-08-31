@@ -42,7 +42,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(keys, StreamOutput::writeString);
+        out.writeStringCollection(keys);
     }
 
     /**

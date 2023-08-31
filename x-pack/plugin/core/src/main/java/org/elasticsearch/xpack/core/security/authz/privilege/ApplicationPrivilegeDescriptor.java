@@ -73,7 +73,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(application);
         out.writeString(name);
-        out.writeCollection(actions, StreamOutput::writeString);
+        out.writeStringCollection(actions);
         out.writeGenericMap(metadata);
     }
 

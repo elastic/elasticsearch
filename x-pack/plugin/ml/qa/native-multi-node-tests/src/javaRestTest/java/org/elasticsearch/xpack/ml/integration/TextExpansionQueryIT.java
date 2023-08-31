@@ -103,16 +103,8 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    public void testRankFeaturesTextExpansionQuery() throws IOException {
-        testTextExpansionQuery("rank_features");
-    }
-
-    public void testSparseVectorTextExpansionQuery() throws IOException {
-        testTextExpansionQuery("sparse_vector");
-    }
-
     @SuppressWarnings("unchecked")
-    private void testTextExpansionQuery(String tokensFieldType) throws IOException {
+    public void testTextExpansionQuery() throws IOException {
         String modelId = "text-expansion-test";
         String indexName = modelId + "-index";
 
@@ -148,7 +140,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
 
         // index tokens
-        createIndex(indexName, tokensFieldType);
+        createRankFeaturesIndex(indexName);
         bulkIndexDocs(inputs, tokenWeights, indexName);
 
         // Test text expansion search against the indexed rank features
@@ -165,15 +157,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testRankFeaturesWithPipelineIngest() throws IOException {
-        testWithPipelineIngest("rank_features");
-    }
-
-    public void testSparseVectorWithPipelineIngest() throws IOException {
-        testWithPipelineIngest("sparse_vector");
-    }
-
-    private void testWithPipelineIngest(String tokensFieldType) throws IOException {
+    public void testWithPipelineIngest() throws IOException {
         String modelId = "text-expansion-pipeline-test";
         String indexName = modelId + "-index";
 
@@ -198,7 +182,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         );
 
         // index tokens
-        createIndex(indexName, tokensFieldType);
+        createRankFeaturesIndex(indexName);
         var pipelineId = putPipeline(modelId);
         bulkIndexThroughPipeline(inputs, indexName, pipelineId);
 
@@ -217,15 +201,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testRankFeaturesWithDotsInTokenNames() throws IOException {
-        testWithDotsInTokenNames("rank_features");
-    }
-
-    public void testSparseVectorWithDotsInTokenNames() throws IOException {
-        testWithDotsInTokenNames("sparse_vector");
-    }
-
-    private void testWithDotsInTokenNames(String tokensFieldType) throws IOException {
+    public void testWithDotsInTokenNames() throws IOException {
         String modelId = "text-expansion-dots-in-tokens";
         String indexName = modelId + "-index";
 
@@ -238,7 +214,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         List<String> inputs = List.of("these are my words.");
 
         // index tokens
-        createIndex(indexName, tokensFieldType);
+        createRankFeaturesIndex(indexName);
         var pipelineId = putPipeline(modelId);
         bulkIndexThroughPipeline(inputs, indexName, pipelineId);
 
@@ -302,18 +278,18 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         client().performRequest(request);
     }
 
-    private void createIndex(String indexName, String tokensFieldType) throws IOException {
+    private void createRankFeaturesIndex(String indexName) throws IOException {
         Request createIndex = new Request("PUT", "/" + indexName);
         createIndex.setJsonEntity("""
-              {
-                "mappings": {
-                  "properties": {
-                    "text_field": {
-                      "type": "text"
-                    },
-                    "ml.tokens": {
-            """ + "\"type\": \"" + tokensFieldType + "\"" + """
-                    }
+            {
+              "mappings": {
+                "properties": {
+                  "text_field": {
+                    "type": "text"
+                  },
+                  "ml.tokens": {
+                    "type": "rank_features"
+                  }
                 }
               }
             }""");

@@ -221,9 +221,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            ClusterState.Builder builder = newState.nodes(nodesBuilder);
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                builder.versionsWrappers(versionsWrappers).build()
+                newState.nodes(nodesBuilder).versionsWrappers(versionsWrappers).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -293,8 +292,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above
-        ClusterState.Builder builder = ClusterState.builder(currentState).nodes(nodesBuilder);
-        ClusterState tmpState = builder.versionsWrappers(versionsWrappers)
+        ClusterState tmpState = ClusterState.builder(currentState)
+            .nodes(nodesBuilder)
+            .versionsWrappers(versionsWrappers)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())

@@ -107,8 +107,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         DiscoveryNodes.Builder remainingNodesBuilder,
         Map<String, VersionsWrapper> versionsWrappers
     ) {
-        ClusterState.Builder builder = ClusterState.builder(currentState).nodes(remainingNodesBuilder);
-        return builder.versionsWrappers(versionsWrappers).build();
+        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).versionsWrappers(versionsWrappers).build();
     }
 
 }

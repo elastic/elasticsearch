@@ -1020,15 +1020,15 @@ public class ClusterStateTests extends ESTestCase {
             .indexWriteLoadForecast(8.0)
             .build();
 
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT)
+        return ClusterState.builder(ClusterName.DEFAULT)
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
                     .masterNodeId("nodeId1")
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
-            );
-        return builder.putVersionsWrapper("nodeId1", new VersionsWrapper(TransportVersion.current()))
+            )
+            .putVersionsWrapper("nodeId1", new VersionsWrapper(TransportVersion.current()))
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1141,9 +1141,13 @@ public class ClusterStateTests extends ESTestCase {
         var newState = builder.build();
         assertThat(newState.getMinVersions().transportVersion(), equalTo(minVersion));
 
-        ClusterState clusterState = ClusterState.builder(newState)
-            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
-            .build();
-        assertEquals(TransportVersion.MINIMUM_COMPATIBLE, clusterState.getMinVersions().transportVersion());
+        assertEquals(
+            TransportVersion.MINIMUM_COMPATIBLE,
+            ClusterState.builder(newState)
+                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+                .build()
+                .getMinVersions()
+                .transportVersion()
+        );
     }
 }

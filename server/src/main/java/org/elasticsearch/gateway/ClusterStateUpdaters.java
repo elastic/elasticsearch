@@ -31,10 +31,10 @@ public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
     public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
-        ClusterState.Builder builder = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build());
-        String nodeId = localNode.getId();
-        return builder.putVersionsWrapper(nodeId, new VersionsWrapper(transportVersion)).build();
+        return ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .putVersionsWrapper(localNode.getId(), new VersionsWrapper(transportVersion))
+            .build();
     }
 
     public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(

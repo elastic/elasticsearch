@@ -125,10 +125,9 @@ public class ClusterServiceUtils {
             new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
         );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
-        String nodeId = localNode.getId();
-        ClusterState initialClusterState = builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
+        ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .putVersionsWrapper(localNode.getId(), new VersionsWrapper(TransportVersion.current()))
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);

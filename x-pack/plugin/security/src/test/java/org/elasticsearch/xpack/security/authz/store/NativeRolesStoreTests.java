@@ -463,8 +463,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
-        ClusterState clusterState = clusterService.state();
-        when(clusterState.getMinVersions().transportVersion()).thenReturn(transportVersion);
+        when(clusterService.state().getMinVersions().transportVersion()).thenReturn(transportVersion);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return clusterService;
     }

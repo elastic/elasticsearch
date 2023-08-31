@@ -1271,8 +1271,7 @@ public class TokenServiceTests extends ESTestCase {
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
-        String nodeId = anotherDataNode.getId();
-        newStateBuilder.putVersionsWrapper(nodeId, new VersionsWrapper(transportVersion));
+        newStateBuilder.putVersionsWrapper(anotherDataNode.getId(), new VersionsWrapper(transportVersion));
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }

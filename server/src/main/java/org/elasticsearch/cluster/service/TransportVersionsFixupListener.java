@@ -129,20 +129,17 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
-        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)) {
-            ClusterState clusterState = event.state();
-            if (clusterState.getMinVersions().transportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
+        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
+            && event.state().getMinVersions().transportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
-                // find all the relevant nodes
-                ClusterState clusterState1 = event.state();
-                Set<String> nodes = getVersionsWrappers(clusterState1).entrySet()
-                    .stream()
-                    .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
+            // find all the relevant nodes
+            Set<String> nodes = getVersionsWrappers(event.state()).entrySet()
+                .stream()
+                .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-                updateTransportVersions(nodes, 0);
-            }
+            updateTransportVersions(nodes, 0);
         }
     }
 

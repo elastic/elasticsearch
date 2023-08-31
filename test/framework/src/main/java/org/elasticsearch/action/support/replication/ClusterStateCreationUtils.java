@@ -536,8 +536,7 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         for (DiscoveryNode node : allNodes) {
-            String nodeId = node.getId();
-            state.putVersionsWrapper(nodeId, new VersionsWrapper(transportVersion));
+            state.putVersionsWrapper(node.getId(), new VersionsWrapper(transportVersion));
         }
 
         Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();

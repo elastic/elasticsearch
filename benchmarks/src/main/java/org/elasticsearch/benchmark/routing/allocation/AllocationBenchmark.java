@@ -147,8 +147,12 @@ public class AllocationBenchmark {
             nb.add(Allocators.newNode(id, Collections.singletonMap("tag", "tag_" + (i % numTags))));
             versionsWrappers.put(id, new VersionsWrapper(TransportVersion.current()));
         }
-        ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(nb);
-        initialClusterState = builder.versionsWrappers(versionsWrappers).build();
+        initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(nb)
+            .versionsWrappers(versionsWrappers)
+            .build();
     }
 
     private int toInt(String v) {

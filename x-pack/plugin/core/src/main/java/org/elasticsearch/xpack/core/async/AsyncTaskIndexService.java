@@ -23,7 +23,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -568,8 +567,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void writeResponse(R response, OutputStream os) throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        ClusterState clusterState = clusterService.state();
-        TransportVersion minNodeVersion = clusterState.getMinVersions().transportVersion();
+        TransportVersion minNodeVersion = clusterService.state().getMinVersions().transportVersion();
         TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
         if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);

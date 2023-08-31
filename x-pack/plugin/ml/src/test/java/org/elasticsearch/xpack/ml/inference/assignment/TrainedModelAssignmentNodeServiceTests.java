@@ -373,10 +373,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             List.of(deploymentOne, deploymentTwo, previouslyUsedDeployment),
             List.of(modelOne, modelTwo, previouslyUsedModel)
         );
-        ClusterState.Builder builder2 = ClusterState.builder(new ClusterName("testClusterChanged")).nodes(nodes);
         ClusterChangedEvent event = new ClusterChangedEvent(
             "testClusterChanged",
-            builder2.putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -430,10 +431,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        ClusterState.Builder builder1 = ClusterState.builder(new ClusterName("testClusterChanged")).nodes(nodes);
         event = new ClusterChangedEvent(
             "testClusterChanged",
-            builder1.putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -482,10 +484,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(requestCapture.getAllValues().get(0).getNodeId(), equalTo(NODE_ID));
         assertThat(requestCapture.getAllValues().get(0).getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STARTED));
 
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testClusterChanged")).nodes(nodes);
         event = new ClusterChangedEvent(
             "testClusterChanged",
-            builder.putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -522,10 +525,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(newParams(deploymentTwo, modelTwo));
         trainedModelAssignmentNodeService.loadQueuedModels();
 
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("shouldUpdateAllocations")).nodes(nodes);
         ClusterChangedEvent event = new ClusterChangedEvent(
             "shouldUpdateAllocations",
-            builder.putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+            ClusterState.builder(new ClusterName("shouldUpdateAllocations"))
+                .nodes(nodes)
+                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
                 .metadata(
                     Metadata.builder()
                         .putCustom(

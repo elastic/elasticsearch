@@ -154,8 +154,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        ClusterState clusterState = event.state();
-        if (clusterState.getMinVersions().transportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
+        if (event.state().getMinVersions().transportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -285,8 +284,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         ActionListener<TrainedModelAssignment> listener
     ) {
-        ClusterState clusterState = clusterService.state();
-        if (clusterState.getMinVersions().transportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
+        if (clusterService.state().getMinVersions().transportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",

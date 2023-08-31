@@ -77,11 +77,11 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNode masterNode = randomNode("master");
         DiscoveryNode otherNode = randomNode("other");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
-        ClusterState.Builder builder1 = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes);
-        VersionsWrapper versionsWrapper = new VersionsWrapper(TransportVersionUtils.randomVersion(random()));
-        ClusterState.Builder builder2 = builder1.putVersionsWrapper("master", versionsWrapper);
-        VersionsWrapper versionsWrapper1 = new VersionsWrapper(TransportVersionUtils.randomVersion(random()));
-        ClusterState clusterState = builder2.putVersionsWrapper("other", versionsWrapper1).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .putVersionsWrapper("master", new VersionsWrapper(TransportVersionUtils.randomVersion(random())))
+            .putVersionsWrapper("other", new VersionsWrapper(TransportVersionUtils.randomVersion(random())))
+            .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
             otherNode,
@@ -249,8 +249,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             versions.put(id, new VersionsWrapper(TransportVersionUtils.randomVersion(random())));
         }
 
-        ClusterState.Builder builder = ClusterState.builder(clusterState).nodes(nodes);
-        return builder.versionsWrappers(versions);
+        return ClusterState.builder(clusterState).nodes(nodes).versionsWrappers(versions);
     }
 
     /**

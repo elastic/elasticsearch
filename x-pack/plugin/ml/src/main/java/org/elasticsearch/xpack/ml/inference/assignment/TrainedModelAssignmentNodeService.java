@@ -334,8 +334,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
             final String currentNode = event.state().nodes().getLocalNodeId();
-            ClusterState clusterState = event.state();
-            final boolean isNewAllocationSupported = clusterState.getMinVersions()
+            final boolean isNewAllocationSupported = event.state()
+                .getMinVersions()
                 .transportVersion()
                 .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
 

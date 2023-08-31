@@ -1067,8 +1067,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()));
-            String nodeId = getLocalNode().getId();
-            ClusterState initialState = builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
+            ClusterState initialState = builder.putVersionsWrapper(getLocalNode().getId(), new VersionsWrapper(TransportVersion.current()))
                 .metadata(metadata)
                 .build();
             applierState = initialState;

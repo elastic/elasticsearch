@@ -319,10 +319,9 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
     private static ClusterState createClusterState() {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"))
-            .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build());
-        String nodeId = node0.getId();
-        return builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.V_8_0_0))
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
+            .putVersionsWrapper(node0.getId(), new VersionsWrapper(TransportVersion.V_8_0_0))
             .metadata(
                 Metadata.builder()
                     .put(

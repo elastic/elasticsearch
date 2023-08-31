@@ -62,7 +62,19 @@ class MutableSearchResponse {
     private ElasticsearchException failure;
     private Map<String, List<String>> responseHeaders;
 
-    private boolean frozen;
+    /**
+     * Flag to determine whether search is still running and whether
+     * after getting final results, whether it should throw an Exception
+     * upon receiving any late arriving data from cluster searches or
+     * just ignore it (in the case where the search was cancelled).
+     */
+    private State frozen;
+
+    private enum State {
+        UNFROZEN,           // search running, expecting data to still be coming in
+        FROZEN_NORMAL,      // search finished, no more cluster responses expected
+        FROZEN_RETURN_EARLY // search aborted early, ignore any other responses coming in from searches still running/cancelled
+    }
 
     /**
      * Creates a new mutable search response.
@@ -81,6 +93,7 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
+        this.frozen = State.UNFROZEN;
     }
 
     /**
@@ -120,7 +133,7 @@ class MutableSearchResponse {
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
-        this.frozen = true;
+        this.frozen = State.FROZEN_NORMAL;
     }
 
     private boolean isPartialResponse(SearchResponse response) {
@@ -134,7 +147,7 @@ class MutableSearchResponse {
      * Updates the response with a fatal failure. This method preserves the partial response
      * received from previous updates
      */
-    synchronized void updateWithFailure(ElasticsearchException exc) {
+    synchronized void updateWithFailure(ElasticsearchException exc, boolean failImmediately) {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
@@ -142,7 +155,11 @@ class MutableSearchResponse {
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = exc;
-        this.frozen = true;
+        this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
+        if (failImmediately && clusters != null) {
+            System.err.println("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
+            clusters.notifySearchCancelled();
+        }
     }
 
     /**
@@ -212,7 +229,7 @@ class MutableSearchResponse {
             searchResponse,
             failure,
             isPartial,
-            frozen == false,
+            frozen == State.UNFROZEN,
             task.getStartTime(),
             expirationTime
         );
@@ -293,14 +310,14 @@ class MutableSearchResponse {
             buildResponse(task.getStartTimeNanos(), null),
             reduceException,
             isPartial,
-            frozen == false,
+            frozen == State.UNFROZEN,
             task.getStartTime(),
             expirationTime
         );
     }
 
     private void failIfFrozen() {
-        if (frozen) {
+        if (frozen == State.FROZEN_NORMAL) {
             throw new IllegalStateException("invalid update received after the completion of the request");
         }
     }

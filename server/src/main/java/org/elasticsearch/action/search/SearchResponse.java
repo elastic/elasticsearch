@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
@@ -59,7 +61,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A response of a search request.
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
-
+    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -687,6 +689,46 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * Changes the status of any Cluster objects with RUNNING status to CANCELLED.
+         */
+        public void notifySearchCancelled() {
+            assert clusterInfo != null : "ClusterInfo map should never be null";
+            for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
+                boolean retry;
+                do {
+                    retry = false;
+                    Cluster curr = clusterRef.get();
+                    System.err.println(
+                        "Clusters.notifySearchCancelled: cluster '" + curr.getClusterAlias() + "' status BEFORE: " + curr.getStatus()
+                    );
+                    if (curr.getStatus() == Cluster.Status.RUNNING) {
+                        Cluster cancelledCluster = new Cluster(
+                            curr.getClusterAlias(),
+                            curr.getIndexExpression(),
+                            curr.isSkipUnavailable(),
+                            Cluster.Status.CANCELLED,
+                            curr.getTotalShards(),
+                            curr.getSuccessfulShards(),
+                            curr.getSkippedShards(),
+                            curr.getFailedShards(),
+                            curr.getFailures(),
+                            curr.getTook(),
+                            curr.isTimedOut()
+                        );
+                        retry = clusterRef.compareAndSet(curr, cancelledCluster) == false;
+                        logger.warn(
+                            "JJJ Clusters.notifySearchCancelled = swap on {} : retry: {} ; new status: {}",
+                            curr.getClusterAlias(),
+                            retry,
+                            clusterRef.get().getStatus()
+                        );
+                    }
+                } while (retry);
+                System.err.println("Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
+            }
+        }
+
+        /**
          * @return how many total clusters the search was requested to be executed on
          */
         public int getTotal() {
@@ -811,7 +853,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public boolean hasPartialResults() {
             for (Cluster cluster : clusterInfo.values()) {
                 switch (cluster.getStatus()) {
-                    case PARTIAL, SKIPPED, FAILED, RUNNING -> {
+                    case PARTIAL, SKIPPED, FAILED, RUNNING, CANCELLED -> {
                         return true;
                     }
                 }
@@ -874,7 +916,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             SUCCESSFUL,  // all shards completed search
             PARTIAL,     // only some shards completed the search, partial results from cluster
             SKIPPED,     // entire cluster was skipped
-            FAILED;      // search was failed due to errors on this cluster
+            FAILED,     // search was failed due to errors on this cluster
+            CANCELLED;   // search was cancelled before it completed
 
             @Override
             public String toString() {

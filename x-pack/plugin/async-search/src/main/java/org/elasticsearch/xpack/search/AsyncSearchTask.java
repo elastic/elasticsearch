@@ -494,8 +494,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
+
+            boolean failImmediately = false;
+
             searchResponse.get()
-                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
+                .updateWithFailure(
+                    new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc),
+                    failImmediately
+                );
             executeInitListeners();
             executeCompletionListeners();
         }

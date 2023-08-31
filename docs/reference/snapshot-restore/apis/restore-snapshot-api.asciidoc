@@ -29,7 +29,7 @@ PUT /index_4
 
 PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
-  "indices": "index_3,index_4",
+  "indices": "index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
@@ -254,18 +254,21 @@ The API returns an acknowledgement if the request succeeds. If the request encou
 open indices that are blocking the restore operation from completing.
 
 [[restore-snapshot-api-example-inplace]]
-===== Restore in place
+===== Restore in-place
 
-The following <<indices-close,closes>> `index_1` and then restores it in place from repository `my_repository`'s snapshot `snapshot_A`.
+You may want to restore an index in-place, for example when no alternative
+options surface after the <<cluster-allocation-explain>> API reports
+`no_valid_shard_copy`.
+
+The following request <<indices-close,closes>> `index_1` and then restores it 
+in-place from the `snapshot_2` snapshot in the `my_repository` repository.
 
 [source,console]
 ----
 POST index_1/_close 
 
-POST /_snapshot/my_repository/snapshot_A/_restore?wait_for_completion=true
+POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 {
   "indices": "index_1"
 }
 ----
-
-This is only usually done in response to no alternative options surfacing from investigation <<cluster-allocation-explain,Allocation Explain>> reporting `no_valid_shard_copy`. 

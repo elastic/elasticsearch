@@ -72,7 +72,8 @@ roles used for cross-cluster operations. You should be able to copy these
 privileges from the original roles on the remote cluster, where they are defined
 under the certification based security model.
 ** The roles on the local cluster can't exceed the `access` privilege granted by
-the cross-cluster API key.
+the cross-cluster API key. Any extra local privileges will be suppressed by the 
+cross-cluster API key's privileges.
 ** No update is needed if the {ccr} or {ccs} tasks have been configured with a
 `superuser` role. The `superuser` role is automatically updated to allow access
 to all remote indices.

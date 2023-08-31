@@ -7,26 +7,21 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -42,22 +37,9 @@ import java.util.stream.Collectors;
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
-public class LuceneTopNSourceOperator extends LuceneOperator {
-
-    private Thread currentThread;
-
-    private final TopFieldCollector topFieldCollector;// this should only be created via the collector manager
-
-    private LeafCollector currentLeafCollector;
-
-    private final List<LeafReaderContext> leafReaderContexts;
-
-    private final CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager;// one for each shard
-
-    private LeafReaderContext previousLeafReaderContext;
-
+public final class LuceneTopNSourceOperator extends LuceneOperator {
     /**
-     * Collected docs. {@code null} until we're {@link #doneCollecting}.
+     * Collected docs. {@code null} until we're {@link #emit(boolean)}.
      */
     private ScoreDoc[] scoreDocs;
     /**
@@ -65,43 +47,25 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
      */
     private int offset = 0;
 
-    public LuceneTopNSourceOperator(IndexReader reader, int shardId, Sort sort, Query query, int maxPageSize, int limit) {
-        super(reader, shardId, query, maxPageSize);
-        this.leafReaderContexts = reader.leaves();
-        this.collectorManager = TopFieldCollector.createSharedManager(sort, limit, null, 0);
-        try {
-            this.topFieldCollector = collectorManager.newCollector();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        this.currentThread = Thread.currentThread();
+    private PerShardCollector perShardCollector;
+    private final List<SortBuilder<?>> sorts;
+    private final int limit;
+
+    public LuceneTopNSourceOperator(int maxPageSize, List<SortBuilder<?>> sorts, int limit, LuceneSliceQueue sliceQueue) {
+        super(maxPageSize, sliceQueue);
+        this.sorts = sorts;
+        this.limit = limit;
     }
 
-    private LuceneTopNSourceOperator(
-        Weight weight,
-        int shardId,
-        List<PartialLeafReaderContext> leaves,
-        List<LeafReaderContext> leafReaderContexts,
-        CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager,
-        Thread currentThread,
-        int maxPageSize
-    ) {
-        super(weight, shardId, leaves, maxPageSize);
-        this.leafReaderContexts = leafReaderContexts;
-        this.collectorManager = collectorManager;
-        try {
-            this.topFieldCollector = collectorManager.newCollector();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        this.currentThread = currentThread;
-    }
-
-    public static class LuceneTopNSourceOperatorFactory extends LuceneOperatorFactory {
-
+    public static final class Factory implements LuceneOperator.Factory {
+        private final int taskConcurrency;
+        private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
+        private final int limit;
+        private final DataPartitioning dataPartitioning;
+        private final LuceneSliceQueue sliceQueue;
 
-        public LuceneTopNSourceOperatorFactory(
+        public Factory(
             List<SearchContext> searchContexts,
             Function<SearchContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
@@ -110,37 +74,36 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts
         ) {
-            super(searchContexts, queryFunction, dataPartitioning, taskConcurrency, maxPageSize, limit);
-            assert sorts != null;
+            this.maxPageSize = maxPageSize;
             this.sorts = sorts;
+            this.limit = limit;
+            this.dataPartitioning = dataPartitioning;
+            var weightFunction = weightFunction(queryFunction, ScoreMode.TOP_DOCS);
+            this.sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
         @Override
-        LuceneOperator luceneOperatorForShard(int shardIndex) {
-            final SearchContext ctx = searchContexts.get(shardIndex);
-            final Query query = queryFunction.apply(ctx);
-            Sort sort = null;
-            try {
-                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, ctx.getSearchExecutionContext());
-                if (optionalSort.isPresent()) {
-                    sort = optionalSort.get().sort;
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            return new LuceneTopNSourceOperator(
-                ctx.getSearchExecutionContext().getIndexReader(),
-                shardIndex,
-                sort,
-                query,
-                maxPageSize,
-                limit
-            );
+        public SourceOperator get(DriverContext driverContext) {
+            return new LuceneTopNSourceOperator(maxPageSize, sorts, limit, sliceQueue);
+        }
+
+        @Override
+        public int taskConcurrency() {
+            return taskConcurrency;
+        }
+
+        public int maxPageSize() {
+            return maxPageSize;
+        }
+
+        public int limit() {
+            return limit;
         }
 
         @Override
         public String describe() {
-            String notPrettySorts = sorts.stream().map(s -> Strings.toString(s)).collect(Collectors.joining(","));
+            String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
             return "LuceneTopNSourceOperator[dataPartitioning = "
                 + dataPartitioning
                 + ", maxPageSize = "
@@ -151,118 +114,76 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 + notPrettySorts
                 + "]]";
         }
-
-    }
-
-    @Override
-    LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice) {
-        return new LuceneTopNSourceOperator(weight, shardId, slice, leafReaderContexts, collectorManager, currentThread, maxPageSize);
-    }
-
-    @Override
-    LuceneOperator segmentSliceLuceneOperator(IndexSearcher.LeafSlice leafSlice) {
-        return new LuceneTopNSourceOperator(
-            weight,
-            shardId,
-            Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
-            leafReaderContexts,
-            collectorManager,
-            currentThread,
-            maxPageSize
-        );
-    }
-
-    @Override
-    void initializeWeightIfNecessary() {
-        if (weight == null) {
-            try {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                weight = indexSearcher.createWeight(indexSearcher.rewrite(new ConstantScoreQuery(query)), ScoreMode.TOP_DOCS, 1);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-    }
-
-    @Override
-    protected boolean doneCollecting() {
-        return currentLeaf >= leaves.size();
-    }
-
-    private boolean doneEmitting() {
-        /*
-         * If there aren't any leaves then we never initialize scoreDocs.
-         */
-        return leaves.isEmpty() || offset >= scoreDocs.length;
     }
 
     @Override
     public boolean isFinished() {
-        return doneCollecting() && doneEmitting();
+        return doneCollecting && isEmitting() == false;
+    }
+
+    @Override
+    public void finish() {
+        doneCollecting = true;
+        scoreDocs = null;
+        assert isFinished();
     }
 
     @Override
     public Page getOutput() {
-        if (doneCollecting()) {
-            return emit();
+        if (isFinished()) {
+            return null;
         }
-        return collect();
+        if (isEmitting()) {
+            return emit(false);
+        } else {
+            return collect();
+        }
     }
 
     private Page collect() {
-        assert false == doneCollecting();
-        // initialize weight if not done yet
-        initializeWeightIfNecessary();
-
-        // if there are documents matching, initialize currentLeafReaderContext and currentScorer when we switch to a new group in the slice
-        if (maybeReturnEarlyOrInitializeScorer()) {
-            // if there are no more documents matching and we reached the final slice, build the Page
-            scoreDocs = topFieldCollector.topDocs().scoreDocs;
-            return emit();
+        assert doneCollecting == false;
+        var scorer = getCurrentOrLoadNextScorer();
+        if (scorer == null) {
+            doneCollecting = true;
+            return emit(true);
         }
-
         try {
-            // one leaf collector per thread and per segment/leaf
-            if (currentLeafCollector == null
-                || currentThread.equals(Thread.currentThread()) == false
-                || previousLeafReaderContext != currentLeafReaderContext.leafReaderContext) {
-                currentLeafCollector = topFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext);
-                currentThread = Thread.currentThread();
-                previousLeafReaderContext = currentLeafReaderContext.leafReaderContext;
+            if (perShardCollector == null || perShardCollector.shardIndex != scorer.shardIndex()) {
+                // TODO: share the bottom between shardCollectors
+                perShardCollector = new PerShardCollector(scorer.shardIndex(), scorer.searchContext(), sorts, limit);
             }
-
-            try {
-                currentScorerPos = currentScorer.score(
-                    currentLeafCollector,
-                    currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
-                    currentScorerPos,
-                    Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize)
-                );
-            } catch (CollectionTerminatedException cte) {
-                // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
-                currentScorerPos = currentLeafReaderContext.maxDoc;
-            }
+            var leafCollector = perShardCollector.getLeafCollector(scorer.leafReaderContext());
+            scorer.scoreNextRange(leafCollector, scorer.leafReaderContext().reader().getLiveDocs(), maxPageSize);
+        } catch (CollectionTerminatedException cte) {
+            // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
+            scorer.markAsDone();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
-            // move to the next leaf if we are done reading from the current leaf (current scorer position reached the final doc)
-            currentLeaf++;
-            currentLeafReaderContext = null;
-            currentScorer = null;
-            currentScorerPos = 0;
-        }
-        if (doneCollecting()) {
-            // we reached the final leaf in this slice/operator, build the single Page this operator should create
-            scoreDocs = topFieldCollector.topDocs().scoreDocs;
-            return emit();
+        if (scorer.isDone()) {
+            var nextScorer = getCurrentOrLoadNextScorer();
+            if (nextScorer == null || nextScorer.shardIndex() != scorer.shardIndex()) {
+                return emit(true);
+            }
         }
         return null;
     }
 
-    private Page emit() {
-        assert doneCollecting();
-        if (doneEmitting()) {
+    private boolean isEmitting() {
+        return scoreDocs != null && offset < scoreDocs.length;
+    }
+
+    private Page emit(boolean startEmitting) {
+        if (startEmitting) {
+            assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
+            offset = 0;
+            if (perShardCollector != null) {
+                scoreDocs = perShardCollector.topFieldCollector.topDocs().scoreDocs;
+            } else {
+                scoreDocs = new ScoreDoc[0];
+            }
+        }
+        if (offset >= scoreDocs.length) {
             return null;
         }
         int size = Math.min(maxPageSize, scoreDocs.length - offset);
@@ -271,22 +192,52 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
         int start = offset;
         offset += size;
+        List<LeafReaderContext> leafContexts = perShardCollector.searchContext.searcher().getLeafContexts();
         for (int i = start; i < offset; i++) {
             int doc = scoreDocs[i].doc;
-            int segment = ReaderUtil.subIndex(doc, leafReaderContexts);
+            int segment = ReaderUtil.subIndex(doc, leafContexts);
             currentSegmentBuilder.appendInt(segment);
-            currentDocsBuilder.appendInt(doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
+            currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
         }
 
         pagesEmitted++;
         return new Page(
             size,
             new DocVector(
-                IntBlock.newConstantBlockWith(shardId, size).asVector(),
+                IntBlock.newConstantBlockWith(perShardCollector.shardIndex, size).asVector(),
                 currentSegmentBuilder.build(),
                 currentDocsBuilder.build(),
                 null
             ).asBlock()
         );
+    }
+
+    static final class PerShardCollector {
+        private final int shardIndex;
+        private final SearchContext searchContext;
+        private final TopFieldCollector topFieldCollector;
+        private int leafIndex;
+        private LeafCollector leafCollector;
+        private Thread currentThread;
+
+        PerShardCollector(int shardIndex, SearchContext searchContext, List<SortBuilder<?>> sorts, int limit) throws IOException {
+            this.shardIndex = shardIndex;
+            this.searchContext = searchContext;
+            Optional<SortAndFormats> sortAndFormats = SortBuilder.buildSort(sorts, searchContext.getSearchExecutionContext());
+            if (sortAndFormats.isEmpty()) {
+                throw new IllegalStateException("sorts must not be disabled in TopN");
+            }
+            // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
+            this.topFieldCollector = TopFieldCollector.create(sortAndFormats.get().sort, limit, 0);
+        }
+
+        LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
+            if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
+                leafCollector = topFieldCollector.getLeafCollector(leafReaderContext);
+                leafIndex = leafReaderContext.ord;
+                currentThread = Thread.currentThread();
+            }
+            return leafCollector;
+        }
     }
 }

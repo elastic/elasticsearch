@@ -21,7 +21,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
 
     public static String simpleToJson() {
         return """
-            {"current_leaf":0,"total_leaves":1,"leaf_position":123,"leaf_size":99990,"pages_emitted":5}""";
+            {"processed_sliced":0,"total_slices":1,"slice_position":123,"slice_size":99990,"pages_emitted":5}""";
     }
 
     public void testToXContent() {

@@ -1140,6 +1140,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         String previousError = errorStore.recordError(targetIndex, e);
         if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
             logger.error(logMessage, e);
+        } else {
+            logger.trace(logMessage, e);
         }
     }
 

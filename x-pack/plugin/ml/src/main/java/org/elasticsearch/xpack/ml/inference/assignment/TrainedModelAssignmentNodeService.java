@@ -365,6 +365,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
                 }
 
+                /*
+                 * Check if this is a shutting down node and if we can gracefully shut down the native process after draining its queues
+                 */
                 if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
@@ -443,16 +446,36 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return false;
         }
 
+        boolean isCurrentNodeShuttingDown = shuttingDownNodes.contains(currentNode);
+        boolean isRouteStopping = routingInfo.getState() == RoutingState.STOPPING;
+        boolean hasStartedRoutes = trainedModelAssignment.hasStartedRoutes();
+        boolean assignmentIsRoutedToOneOrFewerNodes = trainedModelAssignment.getNodeRoutingTable().size() <= 1;
+
+        logger.debug(
+            () -> format(
+                "[%s] Checking if deployment should be gracefully shutdown,"
+                    + "is node shutting down: %s,"
+                    + "is route stopping: %s,"
+                    + "has other started routes: %s,"
+                    + "single or no routed nodes: %s",
+                trainedModelAssignment.getDeploymentId(),
+                isCurrentNodeShuttingDown,
+                isRouteStopping,
+                hasStartedRoutes,
+                assignmentIsRoutedToOneOrFewerNodes
+            )
+        );
+
         // the current node is shutting down
-        return shuttingDownNodes.contains(currentNode)
+        return isCurrentNodeShuttingDown
             // the route is marked as ready to shut down during a rebalance
-            && routingInfo.getState() == RoutingState.STOPPING
+            && isRouteStopping
             // the deployment wasn't already being stopped by a stop deployment API call
             && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId())
             // the assignment has another allocation that can serve any additional requests or the shutting down node is the only node that
             // serves this model (maybe the other available nodes are already full or no other ML nodes exist) in which case we can't wait
             // for another node to become available so allow a graceful shutdown
-            && (trainedModelAssignment.hasStartedRoutes() || trainedModelAssignment.getNodeRoutingTable().size() <= 1);
+            && (hasStartedRoutes || assignmentIsRoutedToOneOrFewerNodes);
     }
 
     private void gracefullyStopDeployment(String deploymentId, String currentNode) {

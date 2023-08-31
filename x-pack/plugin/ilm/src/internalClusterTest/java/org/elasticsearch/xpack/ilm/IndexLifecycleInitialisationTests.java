@@ -595,7 +595,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
+            out.writeCollection(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
             out.writeBoolean(isSafeAction());
         }
     }

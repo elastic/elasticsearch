@@ -37,7 +37,7 @@ public class ClearPrivilegesCacheResponse extends BaseNodesResponse<ClearPrivile
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -1032,7 +1032,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         out.writeVLong(endTime);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-        out.writeList(shardFailures);
+        out.writeCollection(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
             IndexVersion.writeVersion(version, out);
@@ -1042,7 +1042,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         out.writeOptionalBoolean(includeGlobalState);
         out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
-        out.writeList(featureStates);
+        out.writeCollection(featureStates);
 
         out.writeMap(indexSnapshotDetails, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }

@@ -100,7 +100,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertNotNull(answer.get("values"));
         @SuppressWarnings("unchecked")
         List<List<Object>> actualValues = (List<List<Object>>) answer.get("values");
-        assertData(expectedColumnsWithValues, actualValues, LOGGER, value -> value == null ? "null" : value.toString());
+        assertData(
+            expectedColumnsWithValues,
+            actualValues,
+            testCase.ignoreOrder,
+            LOGGER,
+            value -> value == null ? "null" : value.toString()
+        );
     }
 
     private Throwable reworkException(Throwable th) {

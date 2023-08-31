@@ -16,6 +16,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MultiValueBlockTests extends SerializationTestCase {
 
@@ -232,5 +233,85 @@ public class MultiValueBlockTests extends SerializationTestCase {
         assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
         BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+    }
+
+    // Tests that the use of Block builder beginPositionEntry (or not) with just a single value,
+    // and no nulls, builds a block backed by a vector.
+    public void testSingleNonNullValues() {
+        List<Object> blockValues = new ArrayList<>();
+        int positions = randomInt(512);
+        for (int i = 0; i < positions; i++) {
+            blockValues.add(randomInt());
+        }
+
+        var blocks = List.of(
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.INT),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.INT),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.LONG),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.LONG),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.DOUBLE),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.DOUBLE),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BYTES_REF),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.BYTES_REF)
+        );
+        for (Block block : blocks) {
+            assertThat(block.asVector(), is(notNullValue()));
+            BlockValueAsserter.assertBlockValues(block, blockValues.stream().map(List::of).toList());
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, unused -> serializeDeserializeBlock(block));
+        }
+    }
+
+    // A default max iteration times, just to avoid an infinite loop.
+    static final int TIMES = 10_000;
+
+    // Tests that the use of Block builder beginPositionEntry (or not) with just a single value,
+    // with nulls, builds a block not backed by a vector.
+    public void testSingleWithNullValues() {
+        List<Object> blockValues = new ArrayList<>();
+        boolean atLeastOneNull = false;
+        int positions = randomIntBetween(1, 512);  // we must have at least one null entry
+        int times = 0;
+        while (atLeastOneNull == false && times < TIMES) {
+            times++;
+            for (int i = 0; i < positions; i++) {
+                boolean isNull = randomBoolean();
+                if (isNull) {
+                    atLeastOneNull = true;
+                    blockValues.add(null); // empty / null
+                } else {
+                    blockValues.add(randomInt());
+                }
+            }
+        }
+        assert atLeastOneNull : "Failed to create a values block with at least one null in " + times + " times";
+
+        var blocks = List.of(
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.INT),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.INT),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.LONG),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.LONG),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.DOUBLE),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.DOUBLE),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BYTES_REF),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.BYTES_REF)
+        );
+        for (Block block : blocks) {
+            assertThat(block.asVector(), is(nullValue()));
+            BlockValueAsserter.assertBlockValues(block, blockValues.stream().map(MultiValueBlockTests::mapToList).toList());
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, unused -> serializeDeserializeBlock(block));
+        }
+    }
+
+    // Returns a list containing the given obj, or an empty list if obj is null
+    static List<Object> mapToList(Object obj) {
+        if (obj == null) {
+            return List.of();
+        } else {
+            return List.of(obj);
+        }
     }
 }

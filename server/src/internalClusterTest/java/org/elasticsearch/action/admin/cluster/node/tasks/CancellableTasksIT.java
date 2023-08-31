@@ -457,7 +457,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super.writeTo(out);
             out.writeInt(id);
             node.writeTo(out);
-            out.writeList(subRequests);
+            out.writeCollection(subRequests);
             out.writeBoolean(timeout);
         }
 
@@ -538,7 +538,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     }
                     listener.onResponse(new TestResponse());
                 }
-            }, delay, ThreadPool.Names.GENERIC);
+            }, delay, transportService.getThreadPool().generic());
         }
 
         @Override

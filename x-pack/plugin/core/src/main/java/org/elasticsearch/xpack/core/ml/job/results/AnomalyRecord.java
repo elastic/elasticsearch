@@ -252,7 +252,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasCauses = causes != null;
         out.writeBoolean(hasCauses);
         if (hasCauses) {
-            out.writeList(causes);
+            out.writeCollection(causes);
         }
         out.writeDouble(recordScore);
         out.writeDouble(initialRecordScore);
@@ -261,7 +261,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasInfluencers = influences != null;
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
-            out.writeList(influences);
+            out.writeCollection(influences);
         }
         out.writeOptionalWriteable(geoResults);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {

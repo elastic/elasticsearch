@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -55,12 +54,14 @@ public enum TextFormat implements MediaType {
 
         @Override
         protected Character delimiter() {
-            throw new EsqlUnsupportedOperationException("plain text does not specify a delimiter character");
+            assert false;
+            throw new UnsupportedOperationException("plain text does not specify a delimiter character");
         }
 
         @Override
         protected String eol() {
-            throw new EsqlUnsupportedOperationException("plain text does not specify an end of line character");
+            assert false;
+            throw new UnsupportedOperationException("plain text does not specify an end of line character");
         }
 
         @Override
@@ -74,6 +75,11 @@ public enum TextFormat implements MediaType {
             );
         }
 
+        @Override
+        void writeEscaped(String value, Character delimiter, Writer writer) {
+            assert false;
+            throw new UnsupportedOperationException("plain text does not use writeEscaped()");
+        }
     },
 
     /**
@@ -141,33 +147,27 @@ public enum TextFormat implements MediaType {
         }
 
         @Override
-        String maybeEscape(String value, Character delimiter) {
-            boolean needsEscaping = false;
-
+        void writeEscaped(String value, Character delimiter, Writer writer) throws IOException {
+            int remainderStart = -1; // the index of the first character not copied to the output, or -1 if not escaping yet
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if (c == '"' || c == '\n' || c == '\r' || c == delimiter) {
-                    needsEscaping = true;
-                    break;
+                if (remainderStart == -1 && (c == '"' || c == '\n' || c == '\r' || c == delimiter)) {
+                    writer.write('"');
+                    remainderStart = 0;
+                }
+                if (c == '"') {
+                    writer.append(value, remainderStart, i + 1);
+                    writer.write('"');
+                    remainderStart = i + 1;
                 }
             }
 
-            if (needsEscaping) {
-                StringBuilder sb = new StringBuilder();
-
-                sb.append('"');
-                for (int i = 0; i < value.length(); i++) {
-                    char c = value.charAt(i);
-                    if (value.charAt(i) == '"') {
-                        sb.append('"');
-                    }
-                    sb.append(c);
-                }
-                sb.append('"');
-                value = sb.toString();
+            if (remainderStart == -1) {
+                writer.write(value);
+            } else {
+                writer.append(value, remainderStart, value.length());
+                writer.write('"');
             }
-
-            return value;
         }
 
         @Override
@@ -233,19 +233,24 @@ public enum TextFormat implements MediaType {
         }
 
         @Override
-        String maybeEscape(String value, Character __) {
-            StringBuilder sb = new StringBuilder();
-
+        void writeEscaped(String value, Character delimiter, Writer writer) throws IOException {
+            int remainderStart = 0; // the index of the first character not copied to the output
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
                 switch (c) {
-                    case '\n' -> sb.append("\\n");
-                    case '\t' -> sb.append("\\t");
-                    default -> sb.append(c);
+                    case '\n' -> {
+                        writer.append(value, remainderStart, i);
+                        writer.write("\\n");
+                        remainderStart = i + 1;
+                    }
+                    case '\t' -> {
+                        writer.append(value, remainderStart, i);
+                        writer.write("\\t");
+                        remainderStart = i + 1;
+                    }
                 }
             }
-
-            return sb.toString();
+            writer.append(value, remainderStart, value.length());
         }
 
         @Override
@@ -280,13 +285,12 @@ public enum TextFormat implements MediaType {
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
-        return Iterators.concat(hasHeader(request) && esqlResponse.columns() != null ?
-        // if the header is requested return the info
-            Iterators.single(writer -> row(writer, esqlResponse.columns(), ColumnInfo::name, delimiter)) : Collections.emptyIterator(),
-            Iterators.map(
-                esqlResponse.values().iterator(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter)
-            )
+        return Iterators.concat(
+            // if the header is requested return the info
+            hasHeader(request) && esqlResponse.columns() != null
+                ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter))
+                : Collections.emptyIterator(),
+            Iterators.map(esqlResponse.values(), row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter))
         );
     }
 
@@ -309,12 +313,15 @@ public enum TextFormat implements MediaType {
     }
 
     // utility method for consuming a row.
-    <F> void row(Writer writer, List<F> row, Function<F, String> toString, Character delimiter) throws IOException {
-        for (int i = 0; i < row.size(); i++) {
-            writer.append(maybeEscape(toString.apply(row.get(i)), delimiter));
-            if (i < row.size() - 1) {
+    <F> void row(Writer writer, Iterator<F> row, Function<F, String> toString, Character delimiter) throws IOException {
+        boolean firstColumn = true;
+        while (row.hasNext()) {
+            if (firstColumn) {
+                firstColumn = false;
+            } else {
                 writer.append(delimiter);
             }
+            writeEscaped(toString.apply(row.next()), delimiter, writer);
         }
         writer.append(eol());
     }
@@ -334,9 +341,7 @@ public enum TextFormat implements MediaType {
     protected abstract String eol();
 
     /**
-     * Method used for escaping (if needed) a given value.
+     * Write the given {@code value} to the {@code writer}, adding escaping if needed.
      */
-    String maybeEscape(String value, Character delimiter) {
-        return value;
-    }
+    abstract void writeEscaped(String value, Character delimiter, Writer writer) throws IOException;
 }

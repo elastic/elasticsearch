@@ -45,7 +45,7 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(profiles);
+        out.writeCollection(profiles);
         out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
     }
 

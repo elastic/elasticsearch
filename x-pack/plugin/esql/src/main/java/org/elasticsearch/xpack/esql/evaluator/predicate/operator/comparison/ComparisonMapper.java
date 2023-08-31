@@ -9,19 +9,13 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -112,7 +106,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw EsqlUnsupportedOperationException.unsupportedDataType(DataTypes.BOOLEAN); };
+        this.bools = (lhs, rhs) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
     }
 
     @Override
@@ -145,7 +139,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == DataTypes.DATETIME) {
             return () -> longs.apply(leftEval.get(), rightEval.get());
         }
-        throw new EsqlUnsupportedOperationException("resolved type for [" + bc + "] but didn't implement mapping");
+        throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
     public static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(

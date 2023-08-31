@@ -409,9 +409,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
-            out.writeList(aliases);
-            out.writeList(dataStreams);
+            out.writeCollection(indices);
+            out.writeCollection(aliases);
+            out.writeCollection(dataStreams);
         }
 
         @Override

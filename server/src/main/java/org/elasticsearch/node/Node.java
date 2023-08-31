@@ -108,7 +108,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -1289,26 +1288,18 @@ public class Node implements Closeable {
         ThreadPool threadPool,
         SystemIndices systemIndices
     ) {
-        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
+        var serverHealthIndicatorServices = List.of(
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
+            new DiskHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService)
         );
-        var serverHealthIndicatorServices = new ArrayList<>(
-            List.of(
-                new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
-            )
-        );
-        serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
-        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(
-            preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            threadPool
-        );
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
     }
 
     private HealthPeriodicLogger createHealthPeriodicLogger(

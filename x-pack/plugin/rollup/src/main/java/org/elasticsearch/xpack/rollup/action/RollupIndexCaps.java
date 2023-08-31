@@ -178,7 +178,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rollupIndexName);
-        out.writeList(jobCaps);
+        out.writeCollection(jobCaps);
     }
 
     @Override

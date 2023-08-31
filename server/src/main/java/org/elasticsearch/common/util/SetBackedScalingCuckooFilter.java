@@ -129,7 +129,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         if (isSetMode) {
             out.writeCollection(hashes, StreamOutput::writeZLong);
         } else {
-            out.writeList(filters);
+            out.writeCollection(filters);
         }
     }
 

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
@@ -24,6 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
@@ -42,12 +45,14 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
         super.setUp();
         apiKeyService = mock(ApiKeyService.class);
         securityContext = mock(SecurityContext.class);
-        action = new TransportCreateCrossClusterApiKeyAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            apiKeyService,
-            securityContext
-        );
+
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        action = new TransportCreateCrossClusterApiKeyAction(transportService, mock(ActionFilters.class), apiKeyService, securityContext);
     }
 
     public void testApiKeyWillBeCreatedWithEmptyUserRoleDescriptors() throws IOException {

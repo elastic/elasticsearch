@@ -16,13 +16,16 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ClusterGetSettingsTests extends ESTestCase {
 
@@ -47,10 +50,16 @@ public class ClusterGetSettingsTests extends ESTestCase {
     public void testTransportFilters() throws Exception {
         final SettingsFilter filter = new SettingsFilter(List.of("persistent.foo.filtered", "transient.foo.filtered"));
 
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         TransportClusterGetSettingsAction action = new TransportClusterGetSettingsAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             filter,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)

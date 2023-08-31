@@ -105,23 +105,16 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     private class CompetitiveIterator extends DocIdSetIterator {
 
         private final BitArray visitedOrds;
-        private final SortedSetDocValues values;
         private long numNonVisitedOrds;
         private final TermsEnum indexTerms;
         private final DocIdSetIterator docsWithField;
 
-        CompetitiveIterator(
-            SortedSetDocValues values,
-            int numNonVisitedOrds,
-            BitArray visitedOrds,
-            Terms indexTerms,
-            DocIdSetIterator docsWithField
-        ) throws IOException {
+        CompetitiveIterator(int numNonVisitedOrds, BitArray visitedOrds, Terms indexTerms, DocIdSetIterator docsWithField)
+            throws IOException {
             this.visitedOrds = visitedOrds;
             this.numNonVisitedOrds = numNonVisitedOrds;
             this.indexTerms = Objects.requireNonNull(indexTerms).iterator();
             this.docsWithField = docsWithField;
-            this.values = values;
         }
 
         private Map<Long, PostingsEnum> nonVisitedOrds;
@@ -234,7 +227,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                             }
                             this.bits = bits;
                             final DocIdSetIterator docsWithField = valuesSource.ordinalsValues(aggCtx.getLeafReaderContext());
-                            competitiveIterator = new CompetitiveIterator(docValues, numNonVisitedOrds, bits, indexTerms, docsWithField);
+                            competitiveIterator = new CompetitiveIterator(numNonVisitedOrds, bits, indexTerms, docsWithField);
                             if (numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                                 competitiveIterator.startPruning();
                             }

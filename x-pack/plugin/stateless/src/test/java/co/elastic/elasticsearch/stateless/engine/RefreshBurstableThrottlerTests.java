@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.ArgumentCaptor;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -87,7 +88,7 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         assertThat(throttler.getAcceptedPerSourceStats().size(), equalTo(2));
         assertThat(throttler.getAcceptedPerSourceStats().get("api"), equalTo(1L));
         assertThat(throttler.getAcceptedPerSourceStats().get("get"), equalTo(4L));
-        verify(threadPool, never()).scheduleUnlessShuttingDown(any(), any(), any());
+        verify(threadPool, never()).scheduleUnlessShuttingDown(any(), any(Executor.class), any());
     }
 
     public void testThrottle() {

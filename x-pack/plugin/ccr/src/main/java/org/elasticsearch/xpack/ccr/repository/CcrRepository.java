@@ -249,7 +249,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         imdBuilder.putMapping(leaderIndexMetadata.mapping());
         imdBuilder.setRoutingNumShards(leaderIndexMetadata.getRoutingNumShards());
         // We assert that insync allocation ids are not empty in `PrimaryShardAllocator`
-        for (var key : leaderIndexMetadata.getInSyncAllocationIds().keySet()) {
+        for (int key = 0; key < leaderIndexMetadata.getInSyncAllocationIds().size(); key++) {
             imdBuilder.putInSyncAllocationIds(key, Collections.singleton(IN_SYNC_ALLOCATION_ID));
         }
 

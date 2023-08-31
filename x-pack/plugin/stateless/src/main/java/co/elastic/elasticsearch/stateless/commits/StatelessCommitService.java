@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -432,9 +433,10 @@ public class StatelessCommitService implements ClusterStateListener {
         private volatile long recoveredGeneration = -1;
         private volatile long generationUploaded = -1;
         private volatile boolean isClosed;
-
+        // generations referenced locally
+        private final Map<Long, PrimaryTermAndGeneration> locallyReferencedGenerations = new ConcurrentHashMap<>();
         // map generations to compound commit blob instances
-        private final Map<Long, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
+        private final Map<PrimaryTermAndGeneration, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
         private final Map<String, UnpromotableShardCommitReferences> unpromotableShardCommitReferencesByNode = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
@@ -494,15 +496,16 @@ public class StatelessCommitService implements ClusterStateListener {
             return writer;
         }
 
-        private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> unreferencedBlobs) {
+        private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {
             assert recoveredCommit != null;
+            assert locallyReferencedGenerations.isEmpty() : locallyReferencedGenerations;
             assert compoundCommitBlobs.isEmpty() : compoundCommitBlobs;
             assert blobLocations.isEmpty() : blobLocations;
 
-            Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> toInit = new HashMap<>();
+            Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
             for (Map.Entry<String, BlobLocation> referencedBlob : recoveredCommit.commitFiles().entrySet()) {
                 if (recoveredCommit.getInternalFiles().contains(referencedBlob.getKey()) == false) {
-                    toInit.computeIfAbsent(
+                    referencedBlobs.computeIfAbsent(
                         new PrimaryTermAndGeneration(
                             referencedBlob.getValue().primaryTerm(),
                             referencedBlob.getValue().compoundFileGeneration()
@@ -510,60 +513,80 @@ public class StatelessCommitService implements ClusterStateListener {
                         primaryTermAndGeneration -> new HashMap<>()
                     ).put(referencedBlob.getKey(), referencedBlob.getValue());
                 }
-
             }
 
-            for (BlobFile blobFile : unreferencedBlobs) {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(blobFile.blobName())) {
-                    PrimaryTermAndGeneration primaryTermAndGeneration = new PrimaryTermAndGeneration(
-                        blobFile.primaryTerm(),
-                        StatelessCompoundCommit.parseGenerationFromBlobName(blobFile.blobName())
-                    );
-                    Map<String, BlobLocation> internalFiles = toInit.getOrDefault(primaryTermAndGeneration, Collections.emptyMap());
-
-                    // create a compound commit blob instance for the new commit
-                    var compoundCommitBlob = new CompoundCommitBlob(
-                        primaryTermAndGeneration.primaryTerm(),
-                        primaryTermAndGeneration.generation(),
-                        internalFiles.keySet()
-                    );
-                    compoundCommitBlobs.put(primaryTermAndGeneration.generation(), compoundCommitBlob);
-
-                    internalFiles.forEach((key, value) -> {
-                        var previous = blobLocations.put(key, new CommitAndBlobLocation(compoundCommitBlob, value));
-                        assert previous == null : key + ':' + previous;
-                    });
-
-                } else {
-                    logger.warn("Found object store file which does not match compound commit file naming pattern: " + blobFile);
-                }
-            }
-
-            // create a compound commit blob instance for the new commit
-            var compoundCommitBlob = new CompoundCommitBlob(
+            // create a compound commit blob instance for the recovery commit
+            var recoveryCommitBlob = new CompoundCommitBlob(
                 recoveredCommit.primaryTerm(),
                 recoveredCommit.generation(),
                 recoveredCommit.getInternalFiles()
             );
 
-            // TODO: We should maybe make each commit blob reference the prior commit
-            compoundCommitBlobs.forEach((generation, toReference) -> compoundCommitBlob.incRef(toReference));
-
-            // Deleted and unused locally such that only the recovery commit retains this compound commit
-            compoundCommitBlobs.values().forEach(b -> {
-                b.deleted();
-                b.closedLocalReaders();
-                assert b.refCount() == 2 : "recovery commit is assumed locally used and not deleted " + b.refCount();
+            PriorityQueue<CompoundCommitBlob> nonRecoveredCommits = new PriorityQueue<>((c1, c2) -> {
+                PrimaryTermAndGeneration o1 = c1.getPrimaryTermAndGeneration();
+                PrimaryTermAndGeneration o2 = c2.getPrimaryTermAndGeneration();
+                int primaryTermComparison = Long.compare(o1.primaryTerm(), o2.primaryTerm());
+                if (primaryTermComparison == 0) {
+                    return Long.compare(o1.generation(), o2.generation());
+                } else {
+                    return primaryTermComparison;
+                }
             });
+            for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
+                    PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
+                        nonRecoveredBlobFile.primaryTerm(),
+                        StatelessCompoundCommit.parseGenerationFromBlobName(nonRecoveredBlobFile.blobName())
+                    );
 
-            compoundCommitBlobs.put(recoveredCommit.generation(), compoundCommitBlob);
+                    Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
+
+                    // create a compound commit blob instance for the new commit
+                    var nonRecoveredCompoundCommitBlob = new CompoundCommitBlob(
+                        nonRecoveredTermGen.primaryTerm(),
+                        nonRecoveredTermGen.generation(),
+                        internalFiles.keySet()
+                    );
+                    nonRecoveredCommits.add(nonRecoveredCompoundCommitBlob);
+
+                    // If the recovery commit references files in this commit, ensure we increment a reference
+                    if (referencedBlobs.containsKey(nonRecoveredTermGen)) {
+                        assert internalFiles.isEmpty() == false;
+                        recoveryCommitBlob.incRef(nonRecoveredCompoundCommitBlob);
+                    }
+
+                    internalFiles.forEach((key, value) -> {
+                        var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredCompoundCommitBlob, value));
+                        assert previous == null : key + ':' + previous;
+                    });
+
+                } else {
+                    logger.warn(
+                        "Found object store file which does not match compound commit file naming pattern: " + nonRecoveredBlobFile
+                    );
+                }
+            }
+
+            ArrayList<CompoundCommitBlob> previousCommits = new ArrayList<>();
+            CompoundCommitBlob current;
+            while ((current = nonRecoveredCommits.poll()) != null) {
+                compoundCommitBlobs.put(current.getPrimaryTermAndGeneration(), current);
+                for (CompoundCommitBlob previous : previousCommits) {
+                    current.incRef(previous);
+                }
+
+                previousCommits.add(current);
+            }
+
+            locallyReferencedGenerations.put(recoveredCommit.generation(), recoveryCommitBlob.getPrimaryTermAndGeneration());
+            compoundCommitBlobs.put(recoveryCommitBlob.getPrimaryTermAndGeneration(), recoveryCommitBlob);
 
             recoveredCommit.getInternalFiles().forEach(fileName -> {
-                var previous = blobLocations.put(
+                var existing = blobLocations.put(
                     fileName,
-                    new CommitAndBlobLocation(compoundCommitBlob, recoveredCommit.commitFiles().get(fileName))
+                    new CommitAndBlobLocation(recoveryCommitBlob, recoveredCommit.commitFiles().get(fileName))
                 );
-                assert previous == null : fileName + ':' + previous;
+                assert existing == null : fileName + ':' + existing;
             });
 
             var currentUnpromotableShardAssignedNodes = shardRouting.apply(shardId)
@@ -573,10 +596,19 @@ public class StatelessCommitService implements ClusterStateListener {
                 .collect(Collectors.toSet());
             updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
 
-            HashSet<CompoundCommitBlob> blobsToTrack = new HashSet<>(compoundCommitBlobs.values());
             for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
-                unpromotableShardCommitReferences.trackReferencedCommits(blobsToTrack);
+                unpromotableShardCommitReferences.trackReferencedCommits(new HashSet<>(compoundCommitBlobs.values()));
             }
+
+            // Decrement all of the non-recovered commits since we do not referenced them locally
+            compoundCommitBlobs.values()
+                .stream()
+                .filter(b -> b.getPrimaryTermAndGeneration().equals(recoveryCommitBlob.getPrimaryTermAndGeneration()) == false)
+                .forEach(b -> {
+                    // Deleted and unused locally such that only the recovery commit retains this compound commit
+                    b.deleted();
+                    b.closedLocalReaders();
+                });
 
             recoveredGeneration = recoveredCommit.generation();
 
@@ -602,7 +634,12 @@ public class StatelessCommitService implements ClusterStateListener {
         ) {
             // create a compound commit blob instance for the new commit
             var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, additionalFiles);
-            if (compoundCommitBlobs.putIfAbsent(generation, compoundCommitBlob) != null) {
+            if (locallyReferencedGenerations.putIfAbsent(generation, compoundCommitBlob.getPrimaryTermAndGeneration()) != null) {
+                throw new IllegalArgumentException(
+                    "Locally referenced generation [primaryTerm=" + primaryTerm + ", generation=" + generation + " already exists"
+                );
+            }
+            if (compoundCommitBlobs.putIfAbsent(compoundCommitBlob.getPrimaryTermAndGeneration(), compoundCommitBlob) != null) {
                 throw new IllegalArgumentException(
                     "Compound commit blob [primaryTerm=" + primaryTerm + ", generation=" + generation + " already exists"
                 );
@@ -625,7 +662,9 @@ public class StatelessCommitService implements ClusterStateListener {
         }
 
         public void markCommitDeleted(long generation) {
-            final var compoundCommitBlob = compoundCommitBlobs.get(generation);
+            PrimaryTermAndGeneration primaryTermAndGeneration = locallyReferencedGenerations.get(generation);
+            assert primaryTermAndGeneration != null : generation;
+            final var compoundCommitBlob = compoundCommitBlobs.get(primaryTermAndGeneration);
             assert compoundCommitBlob != null : generation;
             compoundCommitBlob.deleted();
         }
@@ -758,7 +797,7 @@ public class StatelessCommitService implements ClusterStateListener {
             for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
                 Set<CompoundCommitBlob> currentlyReferencedCommits = new HashSet<>();
                 for (PrimaryTermAndGeneration usedPrimaryTermAndGeneration : usedPrimaryTermAndGenerations) {
-                    var compoundCommit = compoundCommitBlobs.get(usedPrimaryTermAndGeneration.generation());
+                    var compoundCommit = compoundCommitBlobs.get(usedPrimaryTermAndGeneration);
                     assert compoundCommit != null : usedPrimaryTermAndGeneration + " " + shardId + " " + compoundCommitBlobs;
                     // TODO: Implement two ref-counting approaches, one to keep track of commits used by the index node and
                     // one to keep track of outstanding references
@@ -815,10 +854,13 @@ public class StatelessCommitService implements ClusterStateListener {
 
         public LongConsumer closedLocalReadersForGeneration() {
             return generation -> {
-                CompoundCommitBlob compoundCommitBlob = compoundCommitBlobs.get(generation);
-                if (compoundCommitBlob != null) {
-                    compoundCommitBlob.closedLocalReaders();
-                } // else assume an idempotent call when already deleted.
+                PrimaryTermAndGeneration termAndGeneration = locallyReferencedGenerations.get(generation);
+                if (termAndGeneration != null) {
+                    CompoundCommitBlob compoundCommitBlob = compoundCommitBlobs.get(termAndGeneration);
+                    if (compoundCommitBlob != null) {
+                        compoundCommitBlob.closedLocalReaders();
+                    } // else assume an idempotent call when already deleted.
+                }
             };
         }
 
@@ -887,7 +929,8 @@ public class StatelessCommitService implements ClusterStateListener {
                     });
                 });
                 commitCleaner.deleteCommit(new StaleCompoundCommit(shardId, primaryTermAndGeneration, allocationPrimaryTerm));
-                var removed = compoundCommitBlobs.remove(primaryTermAndGeneration.generation());
+                locallyReferencedGenerations.remove(primaryTermAndGeneration.generation());
+                var removed = compoundCommitBlobs.remove(primaryTermAndGeneration);
                 assert removed == this;
             }
 
@@ -1017,12 +1060,18 @@ public class StatelessCommitService implements ClusterStateListener {
 
     public PrimaryTermAndGeneration registerCommitForUnpromotableRecovery(PrimaryTermAndGeneration commit, ShardId shardId, String nodeId) {
         var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-        var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit.generation());
+        var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit);
         if (compoundCommit == null || compoundCommit.tryIncRef() == false) {
             // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
             // In that case, try the latest commit.
             // TODO: add an accessor for the latest commit (should it also incRef?)
-            compoundCommit = shardCommitsState.compoundCommitBlobs.get(shardCommitsState.generationUploaded);
+
+            PrimaryTermAndGeneration termAndGeneration = shardCommitsState.locallyReferencedGenerations.get(
+                shardCommitsState.generationUploaded
+            );
+            if (termAndGeneration != null) {
+                compoundCommit = shardCommitsState.compoundCommitBlobs.get(termAndGeneration);
+            }
             // if the indexing shard is not finished initializing from the object store, we are not
             // able to register the commit for recovery. For now, fail the registration request.
             // TODO (ES-6698): we should be able to handle this case by either retrying the registration or keep the

@@ -418,7 +418,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm);
             testHarness.commitService.markRecoveredCommit(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             testHarness.commitService.onCommitCreation(commitRef);
@@ -446,9 +446,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -468,8 +468,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -502,9 +511,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .collect(Collectors.toSet());
@@ -513,9 +523,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testOldCommitsAreRetainedIfSearchNodesUseThem() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -535,8 +545,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -576,9 +595,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
@@ -588,8 +608,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testOldCommitsAreRetainedIfIndexShardUseThem() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -604,8 +624,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -639,9 +668,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
@@ -651,9 +681,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testRetainedCommitsAreReleasedAfterANodeIsUnassigned() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -673,8 +703,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -735,9 +774,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .collect(Collectors.toSet());
@@ -746,9 +786,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testOutOfOrderNewCommitNotifications() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -768,8 +808,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -818,8 +867,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitsAreReleasedImmediatelyAfterDeletionWhenThereAreZeroReplicas() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -849,8 +898,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected long getPrimaryTerm() {
+                return primaryTerm;
             }
         }) {
             var shardId = testHarness.shardId;
@@ -875,9 +933,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .collect(Collectors.toSet());
@@ -886,9 +945,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testCommitsAreSuccessfullyInitializedAfterRecovery() throws Exception {
-        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
-        var commitCleaner = new StatelessCommitCleaner(null) {
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
@@ -907,7 +966,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             @Override
-            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
                 return commitCleaner;
             }
         }) {
@@ -931,7 +994,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm);
             testHarness.commitService.markRecoveredCommit(testHarness.shardId, indexingShardState.v1(), indexingShardState.v2());
 
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
@@ -954,9 +1017,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
-                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                    commit -> new StaleCompoundCommit(
                         shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
+                        primaryTerm
                     )
                 )
                 .collect(Collectors.toSet());

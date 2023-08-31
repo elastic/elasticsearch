@@ -216,7 +216,7 @@ public class FakeStatelessNode implements Closeable {
             objectStoreService.start();
             electionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy);
-            commitCleaner = createCommitCleaner(consistencyService);
+            commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             commitService = new StatelessCommitService(
                 objectStoreService,
                 () -> clusterService.localNode().getEphemeralId(),
@@ -225,7 +225,7 @@ public class FakeStatelessNode implements Closeable {
                 client,
                 commitCleaner
             );
-            commitService.register(shardId);
+            commitService.register(shardId, getPrimaryTerm());
             indexingDirectory.getSearchDirectory()
                 .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
 
@@ -233,8 +233,12 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
-        return new StatelessCommitCleaner(consistencyService);
+    protected StatelessCommitCleaner createCommitCleaner(
+        StatelessClusterConsistencyService consistencyService,
+        ThreadPool threadPool,
+        ObjectStoreService objectStoreService
+    ) {
+        return new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
     }
 
     protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
@@ -245,6 +249,10 @@ public class FakeStatelessNode implements Closeable {
 
     protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
         return new NodeClient(nodeSettings, threadPool);
+    }
+
+    protected long getPrimaryTerm() {
+        return 1;
     }
 
     public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {

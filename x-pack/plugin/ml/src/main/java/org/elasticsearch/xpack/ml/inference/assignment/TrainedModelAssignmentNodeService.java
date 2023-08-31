@@ -365,7 +365,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
                 }
 
-                if (isAssignmentOnShuttingDownNode(routingInfo, trainedModelAssignment.getDeploymentId(), shuttingDownNodes, currentNode)) {
+                if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
@@ -432,15 +432,27 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private boolean isAssignmentOnShuttingDownNode(
-        RoutingInfo routingInfo,
-        String deploymentId,
+    private boolean shouldGracefullyShutdownDeployment(
+        TrainedModelAssignment trainedModelAssignment,
         Set<String> shuttingDownNodes,
         String currentNode
     ) {
-        return deploymentIdToTask.containsKey(deploymentId)
+        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+
+        if (routingInfo == null) {
+            return false;
+        }
+
+        // the current node is shutting down
+        return shuttingDownNodes.contains(currentNode)
+            // the route is marked as ready to shut down during a rebalance
             && routingInfo.getState() == RoutingState.STOPPING
-            && shuttingDownNodes.contains(currentNode);
+            // the deployment wasn't already being stopped by a stop deployment API call
+            && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId())
+            // the assignment has another allocation that can serve any additional requests or the shutting down node is the only node that
+            // serves this model (maybe the other available nodes are already full or no other ML nodes exist) in which case we can't wait
+            // for another node to become available so allow a graceful shutdown
+            && (trainedModelAssignment.hasStartedRoutes() || trainedModelAssignment.getNodeRoutingTable().size() <= 1);
     }
 
     private void gracefullyStopDeployment(String deploymentId, String currentNode) {

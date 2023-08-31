@@ -72,7 +72,7 @@ information, refer to https://www.elastic.co/subscriptions.
 example using <<remote-cluster-network-settings,`remote_cluster.host`>>.
 This defaults to the value of `transport.bind_host`, which in turn defaults to
 the value of `network.host`, which defaults to `_local_`. By default, for single
-node clusters, this means remote cluster traffic will be bound to the local 
+node clusters, this means remote cluster traffic is bound to the local 
 interface and remote clusters can't connect.
 .. Optionally, configure the remote server port using 
 <<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).

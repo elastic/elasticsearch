@@ -1264,8 +1264,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
-                // (AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses it's own progress listener
-                // which delegates to CCSSingleCoordinatorSearchProgressListener)
+                // (AsyncSearchTask will not return SearchProgressListener.NOOP, since it uses its own progress listener
+                // which delegates to CCSSingleCoordinatorSearchProgressListener when minimizing roundtrips)
                 if (clusters.isCcsMinimizeRoundtrips() == false
                     && clusters.hasRemoteClusters()
                     && task.getProgressListener() == SearchProgressListener.NOOP) {

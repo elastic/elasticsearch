@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -118,10 +117,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    // TODO[wrb]: change signature
-    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
+    @SuppressForbidden(reason = "maintaining ClusterState#versionsWrappers requires reading them")
+    private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
+        return clusterState.versionsWrappers();
     }
 
     @Override
@@ -136,9 +134,10 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             if (clusterState.getMinVersions().transportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
                 // find all the relevant nodes
-                Set<String> nodes = getTransportVersions(event.state()).entrySet()
+                ClusterState clusterState1 = event.state();
+                Set<String> nodes = getVersionsWrappers(clusterState1).entrySet()
                     .stream()
-                    .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
+                    .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
 

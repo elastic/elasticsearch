@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -19,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.VersionsWrapper;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
@@ -52,19 +50,16 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         this.allocationService = allocationService;
     }
 
-    // TODO[wrb]: change signature
-    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
+    @SuppressForbidden(reason = "maintaining ClusterState#versionsWrappers requires reading them")
+    private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
+        return clusterState.versionsWrappers();
     }
 
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(
-            Maps.transformValues(getTransportVersions(initialState), VersionsWrapper::new)
-        );
+        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(getVersionsWrappers(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();

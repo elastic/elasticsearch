@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -28,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -140,10 +138,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         }
     }
 
-    // TODO[wrb]: change signature
-    @SuppressForbidden(reason = "exposing ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return Maps.transformValues(clusterState.versionsWrappers(), VersionsWrapper::transportVersion);
+    @SuppressForbidden(reason = "exposing ClusterState#versionsWrappers requires reading them")
+    private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
+        return clusterState.versionsWrappers();
     }
 
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
@@ -154,7 +151,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
-            Map<String, VersionsWrapper> versions = Maps.transformValues(getTransportVersions(currentState), VersionsWrapper::new);
+            Map<String, VersionsWrapper> versions = getVersionsWrappers(currentState);
             builder.versionsWrappers(versions);
         }
         if (request.routingTable()) {

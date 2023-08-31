@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
@@ -159,21 +160,24 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
             .toList();
         TransportVersion min = Collections.min(versions);
+        List<VersionsWrapper> wrappers = versions.stream().map(VersionsWrapper::new).toList();
 
         // should not throw
         NodeJoinExecutor.ensureTransportVersionBarrier(
-            TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()),
-            versions
+            new VersionsWrapper(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
+            wrappers
         );
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureTransportVersionBarrier(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersionUtils.getFirstVersion(),
-                    TransportVersionUtils.getPreviousVersion(min)
+                new VersionsWrapper(
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        TransportVersionUtils.getFirstVersion(),
+                        TransportVersionUtils.getPreviousVersion(min)
+                    )
                 ),
-                versions
+                wrappers
             )
         );
     }

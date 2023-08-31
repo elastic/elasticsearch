@@ -41,7 +41,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -129,16 +128,16 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
-    private static final DiffableUtils.ValueSerializer<String, TransportVersion> TRANSPORT_VERSION_VALUE_SERIALIZER =
+    private static final DiffableUtils.ValueSerializer<String, VersionsWrapper> VERSIONS_WRAPPER_VALUE_SERIALIZER =
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
-            public void write(TransportVersion value, StreamOutput out) throws IOException {
-                TransportVersion.writeVersion(value, out);
+            public void write(VersionsWrapper value, StreamOutput out) throws IOException {
+                TransportVersion.writeVersion(value.transportVersion(), out);
             }
 
             @Override
-            public TransportVersion read(StreamInput in, String key) throws IOException {
-                return TransportVersion.readVersion(in);
+            public VersionsWrapper read(StreamInput in, String key) throws IOException {
+                return new VersionsWrapper(TransportVersion.readVersion(in));
             }
         };
 
@@ -993,7 +992,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private final Diff<DiscoveryNodes> nodes;
 
         @Nullable
-        private final Diff<Map<String, TransportVersion>> transportVersions;
+        private final Diff<Map<String, VersionsWrapper>> versions;
 
         private final Diff<Metadata> metadata;
 
@@ -1008,12 +1007,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
-            // TODO[wrb]: update diff logic
-            transportVersions = DiffableUtils.diff(
-                Maps.transformValues(before.versionsWrappers, VersionsWrapper::transportVersion),
-                Maps.transformValues(after.versionsWrappers, VersionsWrapper::transportVersion),
+            versions = DiffableUtils.diff(
+                before.versionsWrappers,
+                after.versionsWrappers,
                 DiffableUtils.getStringKeySerializer(),
-                TRANSPORT_VERSION_VALUE_SERIALIZER
+                VERSIONS_WRAPPER_VALUE_SERIALIZER
             );
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
@@ -1028,13 +1026,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.readBoolean()) {
-                transportVersions = DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    TRANSPORT_VERSION_VALUE_SERIALIZER
-                );
+                versions = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), VERSIONS_WRAPPER_VALUE_SERIALIZER);
             } else {
-                transportVersions = null;   // infer at application time
+                versions = null;   // infer at application time
             }
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
@@ -1053,7 +1047,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             routingTable.writeTo(out);
             nodes.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                out.writeOptionalWriteable(transportVersions);
+                out.writeOptionalWriteable(versions);
             }
             metadata.writeTo(out);
             blocks.writeTo(out);
@@ -1077,12 +1071,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
-            if (transportVersions != null) {
-                // TODO[wrb]: update diff logic
-                Map<String, TransportVersion> versions = transportVersions.apply(
-                    Maps.transformValues(state.versionsWrappers, VersionsWrapper::transportVersion)
-                );
-                builder.versionsWrappers(Maps.transformValues(versions, VersionsWrapper::new));
+            if (versions != null) {
+                Map<String, VersionsWrapper> versions = this.versions.apply(state.versionsWrappers);
+                builder.versionsWrappers(versions);
             } else {
                 // infer the versions from discoverynodes for now
                 builder.nodes().getNodes().values().forEach(n -> {

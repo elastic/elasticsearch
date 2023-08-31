@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,15 +33,23 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
     public void testReadBlock() {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             new AutoscalingLicenseChecker(() -> true)
@@ -64,10 +73,16 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
     }
 
     public void testNoReadBlock() {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             new AutoscalingLicenseChecker(() -> true)

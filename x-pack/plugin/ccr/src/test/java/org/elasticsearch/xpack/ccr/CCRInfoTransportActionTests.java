@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,8 +50,14 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -64,8 +72,14 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -73,13 +87,19 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+        featureSet = new CCRInfoTransportAction(transportService, mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -137,10 +157,16 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         var usageAction = new CCRUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,

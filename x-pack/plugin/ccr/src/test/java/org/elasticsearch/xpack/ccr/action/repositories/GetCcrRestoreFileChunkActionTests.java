@@ -16,9 +16,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -62,6 +64,11 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         final TransportService transportService = mock(TransportService.class);
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
+        // TODO: temporary, remove in #97879
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
             bigArrays,
             transportService,
@@ -83,6 +90,12 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
         final TransportService transportService = mock(TransportService.class);
+
+        // TODO: temporary, remove in #97879
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
         final String sessionUUID = UUIDs.randomBase64UUID();

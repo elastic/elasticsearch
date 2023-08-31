@@ -12,9 +12,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -57,6 +59,11 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
         final TransportService transportService = mock(TransportService.class);
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
+        // TODO: temporary, remove in #97879
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
         assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
 
@@ -72,6 +79,11 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final TransportService transportService = mock(TransportService.class);
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
+
+        // TODO: temporary, remove in #97879
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         final ShardId expectedShardId = mock(ShardId.class);
         final String indexName = randomAlphaOfLengthBetween(3, 8);

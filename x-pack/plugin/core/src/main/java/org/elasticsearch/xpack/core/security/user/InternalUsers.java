@@ -151,7 +151,9 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
-                        ".fleet-actions-results"
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
                     )
                     .privileges(
                         "delete_index",

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -157,6 +158,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(SimpleTestResponse response) {
                         try {
                             assertEquals("TS_C", response.targetNode);
@@ -201,6 +207,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     @Override
                     public SimpleTestResponse read(StreamInput in) throws IOException {
                         return new SimpleTestResponse(in);
+                    }
+
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
                     @Override
@@ -265,6 +276,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(SimpleTestResponse response) {
                     try {
                         assertEquals("TS_B", response.targetNode);
@@ -320,6 +336,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override

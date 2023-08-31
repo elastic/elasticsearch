@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -107,7 +108,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -178,7 +178,10 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -245,6 +248,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -458,6 +462,7 @@ public class Node implements Closeable {
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
+            SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
             client = new NodeClient(settings, threadPool);
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
@@ -518,6 +523,9 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
+
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -526,7 +534,8 @@ public class Node implements Closeable {
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client,
-                IngestService.createGrokThreadWatchdog(this.environment, threadPool)
+                IngestService.createGrokThreadWatchdog(this.environment, threadPool),
+                documentParsingObserverSupplier
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -685,7 +694,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
-                searchModule.getRequestCacheKeyDifferentiator()
+                searchModule.getRequestCacheKeyDifferentiator(),
+                documentParsingObserverSupplier
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -1081,6 +1091,7 @@ public class Node implements Closeable {
                 b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
+                b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
                 {
                     processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
@@ -1197,6 +1208,16 @@ public class Node implements Closeable {
         }
     }
 
+    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
+        List<DocumentParsingObserverPlugin> plugins = pluginsService.filterPlugins(DocumentParsingObserverPlugin.class);
+        if (plugins.size() == 1) {
+            return plugins.get(0).getDocumentParsingObserverSupplier();
+        } else if (plugins.size() == 0) {
+            return () -> DocumentParsingObserver.EMPTY_INSTANCE;
+        }
+        throw new IllegalStateException("too many DocumentParsingObserverPlugin instances");
+    }
+
     /**
      * If the JVM was started with the Elastic APM agent and a config file argument was specified, then
      * delete the config file. The agent only reads it once, when supplied in this fashion, and it
@@ -1267,26 +1288,18 @@ public class Node implements Closeable {
         ThreadPool threadPool,
         SystemIndices systemIndices
     ) {
-        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
+        var serverHealthIndicatorServices = List.of(
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
+            new DiskHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService)
         );
-        var serverHealthIndicatorServices = new ArrayList<>(
-            List.of(
-                new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
-            )
-        );
-        serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
-        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(
-            preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            threadPool
-        );
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
     }
 
     private HealthPeriodicLogger createHealthPeriodicLogger(

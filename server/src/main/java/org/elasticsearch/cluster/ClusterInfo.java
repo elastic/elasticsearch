@@ -140,7 +140,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(startObject("nodes"), leastAvailableSpaceUsage.entrySet().stream().<ToXContent>map(c -> (builder, p) -> {
+        return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
             builder.startObject(c.getKey());
             { // node
                 builder.field("node_name", c.getValue().getNodeName());
@@ -160,45 +160,38 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             }
             builder.endObject(); // end $nodename
             return builder;
-        }).iterator(),
+        }),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "nodes"
                 (builder, p) -> builder.startObject("shard_sizes")
             ),
 
-            shardSizes.entrySet()
-                .stream()
-                .<ToXContent>map(
-                    c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
-                )
-                .iterator(),
+            Iterators.map(
+                shardSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
+            ),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_sizes"
                 (builder, p) -> builder.startObject("shard_data_set_sizes")
             ),
-            shardDataSetSizes.entrySet()
-                .stream()
-                .<ToXContent>map(
-                    c -> (builder, p) -> builder.humanReadableField(
-                        c.getKey() + "_bytes",
-                        c.getKey().toString(),
-                        ByteSizeValue.ofBytes(c.getValue())
-                    )
+            Iterators.map(
+                shardDataSetSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(
+                    c.getKey() + "_bytes",
+                    c.getKey().toString(),
+                    ByteSizeValue.ofBytes(c.getValue())
                 )
-                .iterator(),
+            ),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_data_set_sizes"
                 (builder, p) -> builder.startObject("shard_paths")
             ),
-            dataPath.entrySet()
-                .stream()
-                .<ToXContent>map(c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue()))
-                .iterator(),
+            Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_paths"
                 (builder, p) -> builder.startArray("reserved_sizes")
             ),
-            reservedSpace.entrySet().stream().<ToXContent>map(c -> (builder, p) -> {
+            Iterators.map(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {
                     builder.field("node_id", c.getKey().nodeId);
@@ -206,7 +199,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     c.getValue().toXContent(builder, params);
                 }
                 return builder.endObject(); // NodeAndPath
-            }).iterator(),
+            }),
 
             endArray() // end "reserved_sizes"
 

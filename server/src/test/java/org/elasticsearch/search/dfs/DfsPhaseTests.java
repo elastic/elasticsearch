@@ -73,9 +73,10 @@ public class DfsPhaseTests extends ESTestCase {
                 IndexSearcher.getDefaultSimilarity(),
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
-                1,
                 randomBoolean(),
-                this.threadPoolExecutor
+                threadPoolExecutor,
+                threadPoolExecutor.getMaximumPoolSize(),
+                1
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);

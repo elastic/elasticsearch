@@ -114,6 +114,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MAX_SHINGLE_DIFF_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
@@ -181,8 +182,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     );
                 }
             }
-        }, Property.IndexScope), // this allows similarity settings to be passed
-        Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+        }, Property.IndexScope, Property.ServerlessPublic), // this allows similarity settings to be passed
+        Setting.groupSetting("index.analysis.", Property.IndexScope, Property.ServerlessPublic), // this allows analysis settings to be
+                                                                                                 // passed
 
         // TSDB index settings
         IndexSettings.MODE,

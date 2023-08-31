@@ -284,7 +284,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
                 missing = in.readBoolean();
             } else {
-                missing = false;
+                missing = index.isEmpty();
             }
         }
 
@@ -305,6 +305,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 }
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+                // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
+                // see https://github.com/elastic/elasticsearch/pull/98130
                 out.writeBoolean(missing);
             }
         }
@@ -447,7 +449,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeGenericValue(joinKeys);
-            out.writeList(events);
+            out.writeCollection(events);
         }
 
         @Override
@@ -532,13 +534,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             if (events != null) {
                 out.writeBoolean(true);
-                out.writeList(events);
+                out.writeCollection(events);
             } else {
                 out.writeBoolean(false);
             }
             if (sequences != null) {
                 out.writeBoolean(true);
-                out.writeList(sequences);
+                out.writeCollection(sequences);
             } else {
                 out.writeBoolean(false);
             }

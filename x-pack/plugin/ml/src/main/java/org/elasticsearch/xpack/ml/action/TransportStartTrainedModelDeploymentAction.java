@@ -73,6 +73,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -171,6 +172,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
+        AtomicLong perDeploymentMemoryBytes = new AtomicLong();
+        AtomicLong perAllocationMemoryBytes = new AtomicLong();
+
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
@@ -199,7 +203,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
-                request.getPriority()
+                request.getPriority(),
+                perDeploymentMemoryBytes.get(),
+                perAllocationMemoryBytes.get()
             );
             PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             memoryTracker.refresh(
@@ -234,6 +240,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 );
                 return;
             }
+
+            perDeploymentMemoryBytes.set(trainedModelConfig.getPerDeploymentMemoryBytes());
+            perAllocationMemoryBytes.set(trainedModelConfig.getPerAllocationMemoryBytes());
 
             if (trainedModelConfig.getLocation() == null) {
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));

@@ -90,7 +90,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.hasInfMaxScore;
+import static org.elasticsearch.search.query.QueryPhaseCollectorManager.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.either;
@@ -460,7 +460,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     /**
      * Test the terminate after functionality when hits are collected (size is greater than 0) and the
-     * total hit count is shortcut using {@link TopDocsCollectorManagerFactory#shortcutTotalHitCount(IndexReader, Query)}
+     * total hit count is shortcut using {@link QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)}
      * A match all query is used to leverage the hit count shortcut as it enables retrieving the count from the index statistics.
      * Note that track_total_hits is effectively ignored in this case, and the hit count threshold applied is instead <code>size</code>.
      */
@@ -530,7 +530,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     /**
      * Test the terminate after functionality when hits are collected (size is greater than 0) and the
-     * total hit count cannot be shortcut using {@link TopDocsCollectorManagerFactory#shortcutTotalHitCount(IndexReader, Query)}.
+     * total hit count cannot be shortcut using {@link QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)}.
      * We use a boolean query which the shortcutTotalHitCount does not shortcut the hit count for.
      */
     public void testTerminateAfterWithHitsNoHitCountShortcut() throws Exception {
@@ -755,8 +755,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
             TestSearchContext context = createContext(newContextSearcher(reader), q);
             context.setSize(3);
             context.trackTotalHitsUpTo(3);
-            TopDocsCollectorManagerFactory topDocsContext = TopDocsCollectorManagerFactory.createTopDocsCollectorFactory(context, false);
-            assertEquals(topDocsContext.collector().scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
+            CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
+                null,
+                null,
+                context,
+                false
+            );
+            assertEquals(collectorManager.newCollector().scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
             QueryPhase.executeQuery(context);
             assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
             assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
@@ -769,8 +774,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.sort(
                 new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW })
             );
-            TopDocsCollectorManagerFactory topDocsContext = TopDocsCollectorManagerFactory.createTopDocsCollectorFactory(context, false);
-            assertEquals(topDocsContext.collector().scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
+            CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
+                null,
+                null,
+                context,
+                false
+            );
+            assertEquals(collectorManager.newCollector().scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
             QueryPhase.executeQuery(context);
             assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));

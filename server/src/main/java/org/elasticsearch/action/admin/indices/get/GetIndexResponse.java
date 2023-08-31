@@ -173,7 +173,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(aliases, StreamOutput::writeString, (streamOutput, list) -> streamOutput.writeCollection(list));
         out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
@@ -183,7 +183,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject()),
-            Arrays.stream(indices).<ToXContent>map(index -> (builder, params) -> {
+            Iterators.map(Iterators.forArray(indices), index -> (builder, params) -> {
                 builder.startObject(index);
 
                 builder.startObject("aliases");
@@ -229,7 +229,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 }
 
                 return builder.endObject();
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endObject())
         );
     }

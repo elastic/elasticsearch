@@ -114,7 +114,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * Return the internal {@link TDigestState} sketch for this metric.
      */
     public TDigestState getState() {
-        return state;
+        return state == null ? EMPTY_HISTOGRAM : state;
     }
 
     /**
@@ -185,7 +185,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        TDigestState state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+        TDigestState state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

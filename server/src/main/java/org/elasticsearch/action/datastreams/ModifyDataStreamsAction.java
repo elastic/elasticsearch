@@ -66,7 +66,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(actions);
+            out.writeCollection(actions);
         }
 
         public Request(List<DataStreamAction> actions) {

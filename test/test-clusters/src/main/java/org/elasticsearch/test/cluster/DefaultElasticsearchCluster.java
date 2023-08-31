@@ -55,9 +55,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public void stopNode(int index) {
+    public void stopNode(int index, boolean forcibly) {
         checkHandle();
-        handle.stopNode(index);
+        handle.stopNode(index, forcibly);
     }
 
     @Override
@@ -115,9 +115,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public String getRemoteClusterServerEndpoint() {
+    public String getRemoteClusterServerEndpoints() {
         checkHandle();
-        return handle.getRemoteClusterServerEndpoint();
+        return handle.getRemoteClusterServerEndpoints();
     }
 
     @Override
@@ -144,7 +144,11 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
         return handle.getNodeLog(index, logType);
     }
 
-    private void checkHandle() {
+    protected H getHandle() {
+        return handle;
+    }
+
+    protected void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");
         }

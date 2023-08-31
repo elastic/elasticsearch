@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -193,6 +194,8 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     private final TimeValue coolDown;
 
+    private final Executor snapshotExecutor;
+
     /**
      * Constructs an s3 backed repository
      */
@@ -214,6 +217,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.service = service;
+        this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -331,7 +335,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
                         assert cancellable != null;
                         listener.onRepositoryDataWritten(repositoryData);
-                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    }, coolDown, snapshotExecutor));
                     assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
                 }
 
@@ -342,7 +346,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
                         assert cancellable != null;
                         listener.onFailure(e);
-                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    }, coolDown, snapshotExecutor));
                     assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
                 }
             };
@@ -364,11 +368,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onResponse(T response) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(
-                        ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)),
-                        coolDown,
-                        ThreadPool.Names.SNAPSHOT
-                    )
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onResponse(response)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -377,7 +377,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             public void onFailure(Exception e) {
                 logCooldownInfo();
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(
-                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, ThreadPool.Names.SNAPSHOT)
+                    threadPool.schedule(ActionRunnable.wrap(wrappedListener, l -> l.onFailure(e)), coolDown, snapshotExecutor)
                 );
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }

@@ -26,6 +26,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -93,7 +94,7 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
+    public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
         return null;
     }
 

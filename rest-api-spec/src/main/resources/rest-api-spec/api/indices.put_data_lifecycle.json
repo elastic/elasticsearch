@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-put-lifecycle.html",
       "description":"Updates the data stream lifecycle of the selected data streams."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
@@ -48,8 +48,7 @@
       }
     },
     "body":{
-      "description":"The data stream lifecycle configuration that consist of the data retention",
-      "required":false
+      "description":"The data stream lifecycle configuration that consist of the data retention"
     }
   }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -427,8 +428,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
+        final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
+        if (indexVersionCreated.onOrAfter(IndexVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -480,40 +481,31 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 indexName,
                 Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "24h")
                     .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
                     .build()
             );
+            ensureGreen(indexName);
             indexDocs(indexName, 0, randomInt(10));
-            // allocate replica to node-2
             updateIndexSettings(
                 indexName,
                 Settings.builder()
-                    .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .putNull("index.routing.allocation.include._name")
             );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
 
-        final Version indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
-            // index was created on a version that supports the replication of closed indices,
-            // so we expect the index to be closed and replicated
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersion.V_7_2_0)) {
+            // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
+            assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
-                switch (CLUSTER_TYPE) {
-                    case OLD:
-                        break;
-                    case MIXED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
-                        break;
-                    case UPGRADED:
-                        assertNoopRecoveries(indexName, s -> s.startsWith(CLUSTER_NAME));
-                        break;
-                }
+            if (CLUSTER_TYPE != ClusterType.OLD) {
+                assertNoopRecoveries(indexName, s -> CLUSTER_TYPE == ClusterType.UPGRADED || s.startsWith(CLUSTER_NAME + "-0"));
             }
         } else {
             assertClosedIndex(indexName, false);
@@ -524,13 +516,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
     /**
      * Returns the version in which the given index has been created
      */
-    private static Version indexVersionCreated(final String indexName) throws IOException {
+    private static IndexVersion indexVersionCreated(final String indexName) throws IOException {
         final Request request = new Request("GET", "/" + indexName + "/_settings");
         final String versionCreatedSetting = indexName + ".settings.index.version.created";
         request.addParameter("filter_path", versionCreatedSetting);
 
         final Response response = client().performRequest(request);
-        return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
+        return IndexVersion.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
     }
 
     /**

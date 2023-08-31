@@ -1,0 +1,19 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "metrics"
+        },
+        "query": {
+          "default_field": ["message"]
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default settings for the metrics index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

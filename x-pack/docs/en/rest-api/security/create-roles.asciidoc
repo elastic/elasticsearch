@@ -74,6 +74,26 @@ that begin with `_` are reserved for system usage.
 For more information, see
 <<run-as-privilege>>.
 
+`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
++
+--
+// TODO: fix the link to new page of API key based remote clusters
+NOTE: Remote indices are effective for remote clusters configured with the API key based model.
+They have no effect for remote clusters configured with the certificate based model.
+--
+`clusters` (required)::: (list) A list of cluster aliases to which the permissions
+in this entry apply.
+`field_security`::: (object) The document fields that the owners of the role have
+read access to. For more information, see
+<<field-and-document-access-control>>.
+`names` (required)::: (list) A list of indices (or index name patterns) on the remote clusters
+(specified with `clusters`) to which the permissions in this entry apply.
+`privileges`(required)::: (list) The index level privileges that the owners of the role
+have on the specified indices.
+`query`::: A search query that defines the documents the owners of the role have
+read access to. A document within the specified indices must match this query in
+order for it to be accessible by the owners of the role.
+
 For more information, see <<defining-roles>>.
 
 [[security-api-put-role-example]]
@@ -141,3 +161,22 @@ POST /_security/role/cli_or_drivers_minimal
 }
 --------------------------------------------------
 // end::sql-queries-permission[]
+
+The following example configures a role with remote indices privileges on a remote cluster:
+[source,console]
+--------------------------------------------------
+POST /_security/role/role_with_remote_indices
+{
+  "remote_indices": [
+    {
+      "clusters": [ "my_remote" ], <1>
+      "names": ["logs*"], <2>
+      "privileges": ["read", "read_cross_cluster", "view_index_metadata"] <3>
+    }
+  ]
+}
+--------------------------------------------------
+
+<1> The remote indices privileges apply to remote cluster with the alias `my_remote`.
+<2> Privileges are granted for indices matching pattern `logs*` on the remote cluster ( `my_remote`).
+<3> The actual <<privileges-list-indices,index privileges>> granted for `logs*` on `my_remote`.

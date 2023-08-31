@@ -62,7 +62,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 TermQuery query = new TermQuery(new Term("body", "c"));
                 Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
@@ -99,7 +99,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 PhraseQuery query = new PhraseQuery("body", "b", "c");
                 Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
@@ -136,6 +136,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98712")
     public void testMultiPhrase() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
 
@@ -152,7 +153,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MultiPhraseQuery query = new MultiPhraseQuery.Builder().add(new Term[] { new Term("body", "a"), new Term("body", "b") }, 0)
                     .add(new Term[] { new Term("body", "c") }, 1)
@@ -216,7 +217,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("body");
                 Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
@@ -292,7 +293,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             w.addDocument(doc);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
 
                 SpanNearQuery query = new SpanNearQuery(
                     new SpanQuery[] { new SpanTermQuery(new Term("body", "b")), new SpanTermQuery(new Term("body", "c")) },
@@ -420,7 +421,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
     public void testEmptyIndex() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
             try (IndexReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 PhraseQuery query = new PhraseQuery("body", "a", "b");
                 Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
                 assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));

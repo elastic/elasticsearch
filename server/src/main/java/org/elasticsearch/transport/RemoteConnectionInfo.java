@@ -21,8 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
-
 /**
  * This class encapsulates all remote cluster information to be rendered on
  * {@code _remote/info} requests.
@@ -56,7 +54,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
             initialConnectionTimeout = input.readTimeValue();
             clusterAlias = input.readString();
             skipUnavailable = input.readBoolean();
-            if (input.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
                 hasClusterCredentials = input.readBoolean();
             } else {
                 hasClusterCredentials = false;
@@ -85,14 +83,6 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return modeInfo;
     }
 
-    public TimeValue getInitialConnectionTimeout() {
-        return initialConnectionTimeout;
-    }
-
-    public boolean isSkipUnavailable() {
-        return skipUnavailable;
-    }
-
     public boolean hasClusterCredentials() {
         return hasClusterCredentials;
     }
@@ -119,7 +109,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         }
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeBoolean(hasClusterCredentials);
         }
     }

@@ -118,7 +118,12 @@ class MlMemoryAutoscalingDecider {
         }
     }
 
-    public MlMemoryAutoscalingCapacity scale(Settings configuration, AutoscalingDeciderContext context, MlAutoscalingContext mlContext) {
+    public MlMemoryAutoscalingCapacity scale(
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        MlAutoscalingContext mlContext,
+        int allocatedProcessorsScale
+    ) {
         final ClusterState clusterState = context.state();
 
         scaleTimer.lastScaleToScaleIntervalMillis()
@@ -258,7 +263,11 @@ class MlMemoryAutoscalingDecider {
                 }
                 // We should keep this check here as well as in the processor decider while cloud is not
                 // reacting to processor autoscaling.
-                if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
+                if (modelAssignmentsRequireMoreThanHalfCpu(
+                    mlContext.modelAssignments.values(),
+                    mlContext.mlNodes,
+                    allocatedProcessorsScale
+                )) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
                 }
@@ -815,11 +824,15 @@ class MlMemoryAutoscalingDecider {
         return newCapacity;
     }
 
-    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(
+        Collection<TrainedModelAssignment> assignments,
+        List<DiscoveryNode> mlNodes,
+        int allocatedProcessorsScale
+    ) {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
             .sum();
-        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node).roundUp()).sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node, allocatedProcessorsScale).roundUp()).sum();
         return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 

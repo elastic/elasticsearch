@@ -28,7 +28,6 @@ import java.util.Objects;
 public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;
-    private Version version;
     private String luceneVersion;
     private ClusterName clusterName;
     private String clusterUuid;
@@ -39,22 +38,21 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     MainResponse(StreamInput in) throws IOException {
         super(in);
         nodeName = in.readString();
-        version = Version.readVersion(in);
+        if (in.getTransportVersion().before(TransportVersion.V_8_500_041)) {
+            Version.readVersion(in);
+        }
 
         // Index version and transport version were briefly included in the main response, but
         // removed before the 8.9.0 release. Reading code remains here (throwing away the values)
         // for those versions until the new format has propagated through serverless. Additionally,
         // the lucene version was previously read by inferring from either Version or IndexVersion.
         // Now the lucene version is read explicitly.
+        String wireLuceneVersion = null;
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_037)) {
-            luceneVersion = in.readString();
+            wireLuceneVersion = in.readString();
         } else {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
-                luceneVersion = IndexVersion.readVersion(in).luceneVersion().toString();
-            } else if (version.before(Version.V_8_10_0)) {
-                luceneVersion = IndexVersion.fromId(version.id).luceneVersion().toString();
-            } else {
-                luceneVersion = "unknown";
+                wireLuceneVersion = IndexVersion.readVersion(in).luceneVersion().toString();
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
                 TransportVersion.readVersion(in);
@@ -63,11 +61,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
+
+        if (wireLuceneVersion == null) {
+            wireLuceneVersion = IndexVersion.fromId(Version.fromString(build.version()).id).luceneVersion().toString();
+        }
+        luceneVersion = wireLuceneVersion;
     }
 
-    public MainResponse(String nodeName, Version version, String luceneVersion, ClusterName clusterName, String clusterUuid, Build build) {
+    public MainResponse(String nodeName, String luceneVersion, ClusterName clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
-        this.version = version;
         this.luceneVersion = luceneVersion;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
@@ -76,10 +78,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     public String getNodeName() {
         return nodeName;
-    }
-
-    public Version getVersion() {
-        return version;
     }
 
     public String getLuceneVersion() {
@@ -101,7 +99,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        Version.writeVersion(version, out);
+        if (out.getTransportVersion().before(TransportVersion.V_8_500_041)) {
+            Version.writeVersion(Version.CURRENT, out);
+        }
 
         // Index version and transport version were briefly included in the main response, but
         // removed before the 8.9.0 release. Writing code remains here (writing the latest versions)
@@ -137,8 +137,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
             .field("lucene_version", luceneVersion)
-            .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
-            .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
+            .field("minimum_wire_compatibility_version", build.minWireCompatVersion())
+            .field("minimum_index_compatibility_version", build.minIndexCompatVersion())
             .endObject();
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
@@ -158,21 +158,27 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
             final String buildFlavor = (String) value.get("build_flavor");
-            final String buildType = (String) value.get("build_type");
+            final String buildTypeStr = (String) value.get("build_type");
+            // Be lenient when reading on the wire, the enumeration values from other versions might be different than what we know.
+            final Build.Type buildType = buildTypeStr == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildTypeStr, false);
+            final String buildHash = (String) value.get("build_hash");
+            final String buildDate = (String) value.get("build_date");
+            final boolean isSnapshot = (boolean) value.get("build_snapshot");
+            final String version = (String) value.get("number");
+            final String minWireCompatVersion = (String) value.get("minimum_wire_compatibility_version");
+            final String minIndexCompatVersion = (String) value.get("minimum_index_compatibility_version");
+            final String displayString = Build.defaultDisplayString(buildType, buildHash, buildDate, version);
+
             response.build = new Build(
                 buildFlavor,
-                /*
-                 * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
-                 * we know.
-                 */
-                buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
-                (String) value.get("build_hash"),
-                (String) value.get("build_date"),
-                (boolean) value.get("build_snapshot"),
-                (String) value.get("number")
-            );
-            response.version = Version.fromString(
-                ((String) value.get("number")).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+                buildType,
+                buildHash,
+                buildDate,
+                isSnapshot,
+                version,
+                minWireCompatVersion,
+                minIndexCompatVersion,
+                displayString
             );
             response.luceneVersion = ((String) value.get("lucene_version"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
@@ -192,7 +198,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         }
         MainResponse other = (MainResponse) o;
         return Objects.equals(nodeName, other.nodeName)
-            && Objects.equals(version, other.version)
             && Objects.equals(luceneVersion, other.luceneVersion)
             && Objects.equals(clusterUuid, other.clusterUuid)
             && Objects.equals(build, other.build)
@@ -201,7 +206,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, luceneVersion, clusterUuid, build, clusterName);
+        return Objects.hash(nodeName, luceneVersion, clusterUuid, build, clusterName);
     }
 
     @Override
@@ -210,8 +215,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             + "nodeName='"
             + nodeName
             + '\''
-            + ", version="
-            + version
             + ", luceneVersion="
             + luceneVersion
             + ", clusterName="

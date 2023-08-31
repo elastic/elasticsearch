@@ -70,20 +70,18 @@ public final class NestedUtils {
         String currentInputName = pathFunction.apply(currentInput);
         assert currentInputName.startsWith(scope);
 
-        // Find all the inputs that sort before the first child, and add them to the current scope entry
-        while (currentInputName.compareTo(currentChild) < 0) {
-            output.get(scope).add(currentInput);
-            if (inputIterator.hasNext() == false) {
-                return output;
-            }
-            currentInput = inputIterator.next();
-            currentInputName = pathFunction.apply(currentInput);
-            assert currentInputName.startsWith(scope);
-        }
-
         // Iterate through all the children
         while (currentChild != null) {
-            if (currentInputName.startsWith(currentChild + ".")) {
+            if (currentInputName.compareTo(currentChild) < 0) {
+                // If we sort before the current child, then we sit in the parent scope
+                output.get(scope).add(currentInput);
+                if (inputIterator.hasNext() == false) {
+                    return output;
+                }
+                currentInput = inputIterator.next();
+                currentInputName = pathFunction.apply(currentInput);
+                assert currentInputName.startsWith(scope);
+            } else if (currentInputName.startsWith(currentChild + ".")) {
                 // If this input sits under the current child, add it to that child scope
                 // and then get the next input
                 output.get(currentChild).add(currentInput);

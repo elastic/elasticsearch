@@ -61,6 +61,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // keyed by repository name
     private final Map<String, ByRepo> entries;
 
+    public static SnapshotsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     public SnapshotsInProgress(StreamInput in) throws IOException {
         this(collectByRepo(in));
     }
@@ -126,7 +130,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public Iterable<List<Entry>> entriesByRepo() {
-        return () -> entries.values().stream().map(byRepo -> byRepo.entries).iterator();
+        return () -> Iterators.map(entries.values().iterator(), byRepo -> byRepo.entries);
     }
 
     public Stream<Entry> asStream() {
@@ -1340,7 +1344,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 out.writeMap(shardStatusByRepoShardId);
             }
-            out.writeList(featureStates);
+            out.writeCollection(featureStates);
         }
 
         @Override
@@ -1657,7 +1661,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(entries);
+            out.writeCollection(entries);
         }
 
         @Override

@@ -233,7 +233,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
-        if (filters().size() == 0) {
+        if (QueryToFilterAdapter.MatchesNoDocs(filters())) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();

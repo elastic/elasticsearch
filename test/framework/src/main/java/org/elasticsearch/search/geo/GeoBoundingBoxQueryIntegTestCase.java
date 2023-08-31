@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -41,7 +41,7 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
     /**
      * Provides a supported version when the mapping was created.
      */
-    public abstract Version randomSupportedVersion() throws IOException;
+    public abstract IndexVersion randomSupportedVersion() throws IOException;
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

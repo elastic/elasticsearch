@@ -22,6 +22,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,7 +48,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         super(NAME, Response::readFromStreamInput);
     }
 
-    public static class Request extends ActionRequest implements AnalyticsEvent.Context {
+    public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 
@@ -199,7 +200,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
                 && debug == that.debug
                 && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
-                && Objects.equals(xContentType, that.xContentType)
+                && Objects.equals(xContentType.canonical(), that.xContentType.canonical())
                 && Objects.equals(payload, that.payload)
                 && Objects.equals(headers, that.headers)
                 && Objects.equals(clientAddress, that.clientAddress);
@@ -207,7 +208,36 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         @Override
         public int hashCode() {
-            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
+            return Objects.hash(
+                eventCollectionName,
+                eventType,
+                debug,
+                eventTime,
+                xContentType.canonical(),
+                payload,
+                headers,
+                clientAddress
+            );
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("event_collection_name", eventCollectionName);
+            builder.field("debug", debug);
+            builder.field("event_time", eventTime);
+            builder.field("event_type", eventType);
+            builder.field("x_content_type", xContentType);
+            builder.field("payload", payload);
+            builder.field("headers", headers);
+            builder.field("client_address", clientAddress);
+            builder.endObject();
+            return builder;
         }
     }
 

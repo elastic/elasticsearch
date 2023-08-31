@@ -169,7 +169,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        request.incRef();
+        new AsyncSingleAction(task, request, ActionListener.runBefore(listener, request::decRef)).doStart(state);
     }
 
     class AsyncSingleAction {

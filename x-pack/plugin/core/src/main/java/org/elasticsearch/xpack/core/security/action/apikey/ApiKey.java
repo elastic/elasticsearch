@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -247,9 +246,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("id", id).field("name", name);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            builder.field("type", type.value());
-        }
+        builder.field("type", type.value());
         builder.field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
@@ -369,8 +366,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return new ApiKey(
             (String) args[0],
             (String) args[1],
-            // TODO: remove null check once TcpTransport.isUntrustedRemoteClusterEnabled() is removed
-            args[2] == null ? Type.REST : (Type) args[2],
+            (Type) args[2],
             Instant.ofEpochMilli((Long) args[3]),
             (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
             (Boolean) args[5],
@@ -384,7 +380,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareField(optionalConstructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
         PARSER.declareLong(constructorArg(), new ParseField("creation"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));

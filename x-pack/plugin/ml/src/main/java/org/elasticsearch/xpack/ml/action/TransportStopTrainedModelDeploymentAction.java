@@ -31,6 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -187,7 +188,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 masterNode,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, StopTrainedModelDeploymentAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopTrainedModelDeploymentAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }

@@ -120,6 +120,6 @@ public class MonitoringBulkRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(docs);
+        out.writeCollection(docs);
     }
 }

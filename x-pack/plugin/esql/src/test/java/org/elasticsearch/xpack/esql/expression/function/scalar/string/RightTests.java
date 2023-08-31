@@ -76,7 +76,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
     public Matcher<Object> resultsMatcher(List<TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         int length = (Integer) typedData.get(1).data();
-        return equalTo(new BytesRef(str.substring(0, length)));
+        return equalTo(new BytesRef(str.substring(str.length() - length, length)));
     }
 
     public void testReasonableLength() {

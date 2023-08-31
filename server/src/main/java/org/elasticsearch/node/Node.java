@@ -1911,7 +1911,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new SearchService. This method can be overwritten by tests to inject mock implementations.
      */
     protected SearchService newSearchService(
         ClusterService clusterService,
@@ -1940,7 +1940,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
     protected ScriptService newScriptService(
         Settings settings,
@@ -1952,7 +1952,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the ReadinessService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new ReadinessService. This method can be overwritten by tests to inject mock implementations.
      */
     protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
         return new ReadinessService(clusterService, environment);

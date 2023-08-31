@@ -19,8 +19,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,8 +65,9 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     /*
      * NOTE: IntelliJ lies!
      * This map is used during class construction, referenced by the registerIndexVersion method.
-     * When all the transport version constants have been registered, the map is cleared & never touched again.
+     * When all the index version constants have been registered, the map is cleared & never touched again.
      */
+    @SuppressWarnings("UnusedAssignment")
     private static Map<String, Integer> IDS = new HashMap<>();
 
     private static IndexVersion registerIndexVersion(int id, Version luceneVersion, String uniqueId) {
@@ -117,12 +116,36 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
     public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_7_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
+
     /*
-     * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
+     * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
+    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
+
+    /*
+     * STOP! READ THIS FIRST! No, really,
+     *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
+     *       / ___|_   _/ _ \|  _ \| |      |  _ \| ____|  / \  |  _ \  |_   _| | | |_ _/ ___|  |  ___|_ _|  _ \/ ___|_   _| |
+     *       \___ \ | || | | | |_) | |      | |_) |  _|   / _ \ | | | |   | | | |_| || |\___ \  | |_   | || |_) \___ \ | | | |
+     *        ___) || || |_| |  __/|_|      |  _ <| |___ / ___ \| |_| |   | | |  _  || | ___) | |  _|  | ||  _ < ___) || | |_|
+     *       |____/ |_| \___/|_|   (_)      |_| \_\_____/_/   \_\____/    |_| |_| |_|___|____/  |_|   |___|_| \_\____/ |_| (_)
+     *
+     * A new index version should be added EVERY TIME a change is made to index metadata or data storage.
+     * Each index version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_11_0).
+     *
+     * To add a new index version, add a new constant at the bottom of the list, above this comment, which is one greater than the
+     * current highest version, ensure it has a fresh UUID, and update CurrentHolder#CURRENT to point to the new version. Don't add other
+     * lines, comments, etc.
+     *
+     * REVERTING AN INDEX VERSION
+     *
+     * If you revert a commit with an index version change, you MUST ensure there is a NEW index version representing the reverted
+     * change. DO NOT let the index version go backwards, it must ALWAYS be incremented.
+     */
+
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_11_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_500_000);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

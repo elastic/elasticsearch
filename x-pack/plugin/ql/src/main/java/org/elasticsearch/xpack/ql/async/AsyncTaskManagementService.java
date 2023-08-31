@@ -214,7 +214,7 @@ public class AsyncTaskManagementService<
             if (acquiredListener != null) {
                 acquiredListener.onResponse(operation.initialResponse(searchTask));
             }
-        }, waitForCompletionTimeout, ThreadPool.Names.SEARCH);
+        }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
         // This will be performed at the end of normal execution
         return ActionListener.wrap(response -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);

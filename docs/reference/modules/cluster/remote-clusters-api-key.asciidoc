@@ -63,13 +63,15 @@ information, refer to https://www.elastic.co/subscriptions.
 
 ===== On the remote cluster
 
+// tag::remote-cluster-steps[]
 . Enable the remote cluster server port on every node of the remote cluster by
 setting `remote_cluster_server.enabled` to `true` in `elasticsearch.yml`. The
 port number defaults to `9443` and can be configured with the
 `remote_cluster.port` setting. Refer to <<remote-cluster-network-settings>>.
 
-. Next, generate a CA and a server certificate/key pair. On one of the nodes
-of the remote cluster, from the directory where {es} has been installed:
+. Next, generate a certificate authority (CA) and a server certificate/key pair.
+On one of the nodes of the remote cluster, from the directory where {es} has
+been installed:
 
 .. Create a CA, if you don't have a CA already:
 +
@@ -137,16 +139,18 @@ When prompted, enter the `CERT_PASSWORD` from the earlier step.
 
 . Restart the remote cluster.
 
-. On the remote cluster, generate a cross-cluster API key using the
+. On the remote cluster, generate a cross-cluster API key that provides access
+to the indices you want to use for {ccs} or {ccr}. You can use the
 <<security-api-create-cross-cluster-api-key>> API or
-{kibana-ref}/api-keys.html[Kibana]. Grant the key the required access for {ccs}
-or {ccr}.
+{kibana-ref}/api-keys.html[Kibana].
 
 . Copy the encoded key (`encoded` in the response) to a safe location. You will
 need it to connect to the remote cluster later.
+// end::remote-cluster-steps[]
 
 ===== On the local cluster
 
+// tag::local-cluster-steps[]
 . On every node of the local cluster:
 
 .. Copy the `ca.crt` file generated on the remote cluster earlier into the
@@ -159,6 +163,7 @@ need it to connect to the remote cluster later.
 xpack.security.remote_cluster_client.ssl.enabled: true
 xpack.security.remote_cluster_client.ssl.certificate_authorities: [ "remote-cluster-ca.crt" ]
 ----
+// end::local-cluster-steps[]
 
 .. Add the cross-cluster API key, created on the remote cluster earlier, to the
 keystore:

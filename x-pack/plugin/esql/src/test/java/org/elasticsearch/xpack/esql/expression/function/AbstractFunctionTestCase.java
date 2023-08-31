@@ -857,6 +857,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
+    @AfterClass
+    public static void renderSignature() throws IOException {
+        if (System.getProperty("generateDocs") == null) {
+            return;
+        }
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
+            return;
+        }
+
+        String rendered = RailRoadDiagram.functionSignature(definition);
+        LogManager.getLogger(getTestClass()).info("Writing function signature");
+        writeToTempDir("signature", rendered, "svg");
+    }
+
     /**
      * Unique signatures encountered by this test.
      * <p>
@@ -892,6 +908,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderTypesTable() throws IOException {
+        if (System.getProperty("generateDocs") == null) {
+            return;
+        }
         FunctionDefinition definition = definition();
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function isn't registered");

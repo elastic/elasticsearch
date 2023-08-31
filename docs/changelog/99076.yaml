@@ -1,0 +1,5 @@
+pr: 99076
+summary: Add system index mappings versions to cluster state
+area: Infra/Core
+type: enhancement
+issues: []

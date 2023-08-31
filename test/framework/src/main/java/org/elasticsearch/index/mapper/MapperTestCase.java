@@ -506,7 +506,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             String[] warnings = Strings.concatStringArrays(
                 getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
-                new String[]{"Parameter [boost] on field [field] is deprecated and has no effect"}
+                new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
             );
             assertWarnings(warnings);
         } catch (MapperParsingException e) {

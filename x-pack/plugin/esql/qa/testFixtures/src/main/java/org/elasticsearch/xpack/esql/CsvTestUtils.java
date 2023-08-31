@@ -310,7 +310,13 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
-        IP(StringUtils::parseIP, BytesRef.class),
+        IP(
+            StringUtils::parseIP,
+            (l, r) -> l instanceof String l2
+                ? StringUtils.parseIP(l2).compareTo(StringUtils.parseIP((String) r))
+                : ((BytesRef) l).compareTo((BytesRef) r),
+            BytesRef.class
+        ),
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(

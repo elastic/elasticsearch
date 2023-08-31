@@ -129,7 +129,7 @@
       version: " - 7.99.99, 8.11.0 - "
       reason: "sparse_vector field type not supported in 8.x until 8.11.0"
   - do:
-      catch: /The \[sparse_vector\] field type is not supported from 8.0 to 8.10 versions./
+      catch: /The \[sparse_vector\] field type is no longer supported/
       indices.create:
         index: test
         body:

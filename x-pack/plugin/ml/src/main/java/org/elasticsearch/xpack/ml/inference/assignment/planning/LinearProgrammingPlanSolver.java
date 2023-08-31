@@ -163,9 +163,9 @@ class LinearProgrammingPlanSolver {
                     .sorted(Comparator.comparingDouble(n -> descendingSizeAnyFitsNodeOrder(n, m, assignmentPlan)))
                     .toList();
                 for (Node n : orderedNodes) {
-                    int allocations = Math.min(
-                        assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(),
-                        assignmentPlan.getRemainingAllocations(m)
+                    int allocations = m.findOptimalAllocations(
+                        Math.min(assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(), assignmentPlan.getRemainingAllocations(m)),
+                        assignmentPlan.getRemainingMemory(n)
                     );
                     if (allocations > 0 && assignmentPlan.canAssign(m, n, allocations)) {
                         assignmentPlan.assignModelToNode(m, n, allocations);

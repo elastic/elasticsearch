@@ -71,8 +71,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {
-    }
+    protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     @Override
     protected boolean supportsMeta() {

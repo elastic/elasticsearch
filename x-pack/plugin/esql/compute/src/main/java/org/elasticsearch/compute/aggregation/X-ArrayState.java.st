@@ -7,10 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 $if(long)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.$Type$Vector;
 $if(double)$
 import org.elasticsearch.compute.data.IntVector;
 $endif$
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -39,10 +39,13 @@ import org.elasticsearch.core.Releasables;
 final class $Type$ArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final $type$ init;
 
+    private final BlockFactory blockFactory;
+
     private $Type$Array values;
 
-    $Type$ArrayState(BigArrays bigArrays, $type$ init) {
-        super(bigArrays);
+    $Type$ArrayState(DriverContext driverContext, $type$ init) {
+        super(driverContext);
+        this.blockFactory = driverContext.blockFactory();
         this.values = bigArrays.new$Type$Array(1, false);
         this.values.set(0, init);
         this.init = init;
@@ -72,13 +75,13 @@ $endif$
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
         if (false == trackingGroupIds()) {
-            $Type$Vector.Builder builder = $Type$Vector.newVectorBuilder(selected.getPositionCount());
+            $Type$Vector.Builder builder = blockFactory.new$Type$VectorBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.append$Type$(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(selected.getPositionCount());
+        $Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (hasValue(group)) {
@@ -102,8 +105,8 @@ $endif$
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = $Type$Block.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount());
+        var hasValueBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < values.size()) {

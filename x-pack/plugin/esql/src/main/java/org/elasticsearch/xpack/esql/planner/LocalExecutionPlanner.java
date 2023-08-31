@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -663,6 +664,11 @@ public class LocalExecutionPlanner {
         int configuredPageSize,
         BigArrays bigArrays
     ) {
+        @Override
+        public BigArrays bigArrays() {
+            return bigArrays;
+        }
+
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
         }
@@ -688,12 +694,17 @@ public class LocalExecutionPlanner {
     record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Function<String, Driver>, Describable {
 
         @Override
+        public BigArrays bigArrays() {
+            return bigArrays;
+        }
+
+        @Override
         public Driver apply(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext();
+            var driverContext = new DriverContext(BlockFactory.getInstance(), bigArrays);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

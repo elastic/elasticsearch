@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -31,18 +31,18 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   public CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.GroupingState state, BigArrays bigArrays) {
+      DriverContext driverContext, CountDistinctBooleanAggregator.GroupingState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
-    this.bigArrays = bigArrays;
   }
 
   public static CountDistinctBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new CountDistinctBooleanGroupingAggregatorFunction(channels, CountDistinctBooleanAggregator.initGrouping(bigArrays), bigArrays);
+      DriverContext driverContext) {
+    return new CountDistinctBooleanGroupingAggregatorFunction(channels, driverContext, CountDistinctBooleanAggregator.initGrouping(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

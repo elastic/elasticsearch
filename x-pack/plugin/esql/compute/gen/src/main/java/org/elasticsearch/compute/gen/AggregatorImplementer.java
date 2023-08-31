@@ -21,6 +21,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -42,6 +43,7 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
@@ -75,6 +77,7 @@ public class AggregatorImplementer {
     private final TypeName stateType;
     private final boolean stateTypeHasSeen;
     private final boolean valuesIsBytesRef;
+    private final List<Parameter> createParameters;
     private final List<IntermediateStateDesc> intermediateState;
 
     public AggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
@@ -97,6 +100,11 @@ public class AggregatorImplementer {
         this.combineStates = findMethod(declarationType, "combineStates");
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
+        this.createParameters = init.getParameters().stream().map(Parameter::from).filter(p -> p.type().equals(DRIVER_CONTEXT) == false)
+            .toList();
+//        if (false == createParameters.stream().anyMatch(p -> p.type().equals(DRIVER_CONTEXT))) {
+//            createParameters.add(0, new Parameter(DRIVER_CONTEXT, "driverContext"));
+//        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -113,7 +121,7 @@ public class AggregatorImplementer {
     }
 
     List<Parameter> createParameters() {
-        return init.getParameters().stream().map(Parameter::from).toList();
+        return createParameters;
     }
 
     private TypeName choseStateType() {
@@ -195,10 +203,11 @@ public class AggregatorImplementer {
         );
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
-        }
+        init.getParameters().stream().filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false).forEach(p ->
+            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL)
+        );
 
         builder.addMethod(create());
         builder.addMethod(ctor());
@@ -219,15 +228,24 @@ public class AggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         builder.addParameter(LIST_INTEGER, "channels");
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        for (Parameter p : createParameters) {
+            builder.addParameter(p.type(), p.name());
         }
-        if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
+        if (init.getParameters().isEmpty() ||
+            (init.getParameters().size() == 1 && Parameter.from(init.getParameters().get(0)).type().equals(DRIVER_CONTEXT))) {
+            builder.addStatement("return new $T(channels, driverContext, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(channels, driverContext, $L, $L)", implementation, callInit(),
+                initParametersWithoutDriverContext());
         }
         return builder.build();
+    }
+
+    private String initParametersWithoutDriverContext() {
+        return init.getParameters().stream()
+            .filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false)
+            .map(p -> p.getSimpleName().toString()).collect(joining(", "));
     }
 
     private String initParameters() {
@@ -260,14 +278,22 @@ public class AggregatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(stateType, "state");
         builder.addStatement("this.channels = channels");
+        builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.state = state");
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
-            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
-        }
+        init.getParameters().stream().filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false).forEach(p -> {
+                builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+                builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+            }
+        );
+
+//        for (VariableElement p : init.getParameters()) {
+//            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+//            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+//        }
         return builder.build();
     }
 
@@ -497,13 +523,13 @@ public class AggregatorImplementer {
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1)", INT_BLOCK);
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstant$T(state.intValue(), 1).asBlock()", INT_VECTOR);
                 return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1)", LONG_BLOCK);
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstant$T(state.longValue(), 1).asBlock()", LONG_VECTOR);
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1)", DOUBLE_BLOCK);
+                builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstant$T(state.doubleValue(), 1).asBlock()", DOUBLE_VECTOR);
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);

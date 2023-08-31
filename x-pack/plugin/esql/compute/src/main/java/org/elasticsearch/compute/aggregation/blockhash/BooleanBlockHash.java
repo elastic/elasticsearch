@@ -10,12 +10,14 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
@@ -28,10 +30,12 @@ import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.TRUE_OR
  */
 final class BooleanBlockHash extends BlockHash {
     private final int channel;
+    private final BlockFactory blockFactory;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
-    BooleanBlockHash(int channel) {
+    BooleanBlockHash(int channel, DriverContext driverContext) {
         this.channel = channel;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -54,12 +58,12 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     private IntBlock add(BooleanBlock block) {
-        return new MultivalueDedupeBoolean(block).hash(everSeen);
+        return new MultivalueDedupeBoolean(block, blockFactory).hash(everSeen);
     }
 
     @Override
     public BooleanBlock[] getKeys() {
-        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(everSeen.length);
+        BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(everSeen.length);
         if (everSeen[NULL_ORD]) {
             builder.appendNull();
         }
@@ -74,7 +78,7 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        IntVector.Builder builder = IntVector.newVectorBuilder(everSeen.length);
+        IntVector.Builder builder = blockFactory.newIntVectorBuilder(everSeen.length);
         for (int i = 0; i < everSeen.length; i++) {
             if (everSeen[i]) {
                 builder.appendInt(i);

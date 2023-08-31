@@ -78,7 +78,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         if (constant && positions > 0) {
             return new ConstantIntVector(in.readInt(), positions);
         } else {
-            var builder = IntVector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().newIntVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(in.readInt());
             }
@@ -98,10 +98,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
                 out.writeInt(getInt(i));
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new IntVectorBuilder(estimatedSize);
     }
 
     /** Create a vector for a range of ints. */

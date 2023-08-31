@@ -8,31 +8,31 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(BigArrays bigArrays,
+  public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(DriverContext driverContext,
       List<Integer> channels) {
-    this.bigArrays = bigArrays;
+    this.driverContext = driverContext;
     this.channels = channels;
   }
 
   @Override
   public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(channels);
+    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, bigArrays);
+    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

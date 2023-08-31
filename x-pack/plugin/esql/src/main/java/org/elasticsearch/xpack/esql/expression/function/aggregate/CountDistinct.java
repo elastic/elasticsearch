@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -68,24 +68,24 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier(DriverContext driverContext, List<Integer> inputChannels) {
         DataType type = field().dataType();
         int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
         if (type == DataTypes.BOOLEAN) {
             // Booleans ignore the precision because there are only two possible values anyway
-            return new CountDistinctBooleanAggregatorFunctionSupplier(bigArrays, inputChannels);
+            return new CountDistinctBooleanAggregatorFunctionSupplier(driverContext, inputChannels);
         }
         if (type == DataTypes.DATETIME || type == DataTypes.LONG) {
-            return new CountDistinctLongAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
+            return new CountDistinctLongAggregatorFunctionSupplier(driverContext, inputChannels, precision);
         }
         if (type == DataTypes.INTEGER) {
-            return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
+            return new CountDistinctIntAggregatorFunctionSupplier(driverContext, inputChannels, precision);
         }
         if (type == DataTypes.DOUBLE) {
-            return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
+            return new CountDistinctDoubleAggregatorFunctionSupplier(driverContext, inputChannels, precision);
         }
         if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
-            return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
+            return new CountDistinctBytesRefAggregatorFunctionSupplier(driverContext, inputChannels, precision);
         }
         throw EsqlUnsupportedOperationException.unsupportedDataType(type);
     }

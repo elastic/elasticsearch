@@ -18,15 +18,18 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 $if(int)$
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 $else$
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -54,11 +57,13 @@ $elseif(long)$
 $endif$
 
     private final $Type$Block block;
+    private final BlockFactory blockFactory;
     private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
     private int w;
 
-    public MultivalueDedupe$Type$($Type$Block block) {
+    public MultivalueDedupe$Type$($Type$Block block, BlockFactory blockFactory) {
         this.block = block;
+        this.blockFactory = blockFactory;
 $if(BytesRef)$
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
@@ -73,7 +78,7 @@ $endif$
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+        $Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -125,7 +130,7 @@ $endif$
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+        $Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -157,7 +162,7 @@ $endif$
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+        $Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -186,7 +191,7 @@ $if(BytesRef)$
 $else$
     public MultivalueDedupe.HashResult hash(LongHash hash) {
 $endif$
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);

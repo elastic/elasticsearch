@@ -18,10 +18,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 
@@ -58,12 +60,14 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
+    private final BlockFactory blockFactory;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, DriverContext driverContext, int emitBatchSize) {
         this.groups = groups;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.bytesRefHash = new BytesRefHash(1, driverContext.bigArrays());
         this.nullTrackingBytes = groups.size() / 8 + 1;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -72,7 +76,7 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-        new AddWork(page, addInput, batchSize).add();
+        new AddWork(page, addInput, batchSize, blockFactory).add();
     }
 
     class AddWork extends LongLongBlockHash.AbstractAddBlock {
@@ -87,10 +91,10 @@ final class PackedValuesBlockHash extends BlockHash {
         int count;
         int bufferedGroup;
 
-        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-            super(emitBatchSize, addInput);
+        AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize, BlockFactory blockFactory) {
+            super(emitBatchSize, addInput, blockFactory);
             for (int g = 0; g < groups.size(); g++) {
-                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
+                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), blockFactory, batchSize);
                 scratches[g] = new BytesRef();
             }
             bytes.grow(nullTrackingBytes);

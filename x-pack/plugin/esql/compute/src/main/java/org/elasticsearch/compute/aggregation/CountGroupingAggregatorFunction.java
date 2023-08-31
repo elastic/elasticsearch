@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
@@ -30,18 +31,20 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     private final LongArrayState state;
     private final List<Integer> channels;
+    private final BlockFactory blockFactory;
 
-    public static CountGroupingAggregatorFunction create(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(bigArrays, 0));
+    public static CountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
+        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(driverContext, 0), driverContext);
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
+    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
         this.channels = channels;
         this.state = state;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -175,7 +178,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-        LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
+        LongVector.Builder builder = blockFactory.newLongVectorBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int si = selected.getInt(i);
             builder.appendLong(state.hasValue(si) ? state.get(si) : 0);

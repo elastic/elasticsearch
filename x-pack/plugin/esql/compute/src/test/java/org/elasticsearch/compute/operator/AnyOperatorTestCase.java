@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,7 +61,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
         Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new DriverContext(nonBreakingBlockFactory(), nonBreakingBigArrays());
         try (Operator op = factory.get(driverContext)) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
@@ -74,11 +75,18 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext())) {
+        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext(defaultBlockFactory(), nonBreakingBigArrays()))) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }
 
+    protected final DriverContext nonBreakingDriverContext() {
+        return new DriverContext(defaultBlockFactory(), nonBreakingBigArrays());
+    }
+
+    protected final BlockFactory defaultBlockFactory() {
+        return BlockFactory.getDefault();
+    }
     /**
      * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
      */

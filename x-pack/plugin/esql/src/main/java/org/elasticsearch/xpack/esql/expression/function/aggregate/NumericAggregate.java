@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -57,26 +58,26 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier(DriverContext driverContext, List<Integer> inputChannels) {
         DataType type = field().dataType();
         if (supportsDates() && type == DataTypes.DATETIME) {
-            return longSupplier(bigArrays, inputChannels);
+            return longSupplier(driverContext, inputChannels);
         }
         if (type == DataTypes.LONG) {
-            return longSupplier(bigArrays, inputChannels);
+            return longSupplier(driverContext, inputChannels);
         }
         if (type == DataTypes.INTEGER) {
-            return intSupplier(bigArrays, inputChannels);
+            return intSupplier(driverContext, inputChannels);
         }
         if (type == DataTypes.DOUBLE) {
-            return doubleSupplier(bigArrays, inputChannels);
+            return doubleSupplier(driverContext, inputChannels);
         }
         throw EsqlUnsupportedOperationException.unsupportedDataType(type);
     }
 
-    protected abstract AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier longSupplier(DriverContext driverContext, List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier intSupplier(DriverContext driverContext, List<Integer> inputChannels);
 
-    protected abstract AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier doubleSupplier(DriverContext driverContext, List<Integer> inputChannels);
 }

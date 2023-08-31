@@ -24,9 +24,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -65,8 +65,9 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
      */
     private int offset = 0;
 
-    public LuceneTopNSourceOperator(IndexReader reader, int shardId, Sort sort, Query query, int maxPageSize, int limit) {
-        super(reader, shardId, query, maxPageSize);
+    public LuceneTopNSourceOperator(IndexReader reader, int shardId, Sort sort, Query query, int maxPageSize, int limit,
+                                    DriverContext driverContext) {
+        super(reader, shardId, query, maxPageSize, driverContext);
         this.leafReaderContexts = reader.leaves();
         this.collectorManager = TopFieldCollector.createSharedManager(sort, limit, null, 0);
         try {
@@ -84,9 +85,10 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         List<LeafReaderContext> leafReaderContexts,
         CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager,
         Thread currentThread,
-        int maxPageSize
+        int maxPageSize,
+        DriverContext driverContext
     ) {
-        super(weight, shardId, leaves, maxPageSize);
+        super(weight, shardId, leaves, maxPageSize, driverContext);
         this.leafReaderContexts = leafReaderContexts;
         this.collectorManager = collectorManager;
         try {
@@ -116,7 +118,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         @Override
-        LuceneOperator luceneOperatorForShard(int shardIndex) {
+        LuceneOperator luceneOperatorForShard(int shardIndex, DriverContext driverContext) {
             final SearchContext ctx = searchContexts.get(shardIndex);
             final Query query = queryFunction.apply(ctx);
             Sort sort = null;
@@ -134,7 +136,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 sort,
                 query,
                 maxPageSize,
-                limit
+                limit,
+                driverContext
             );
         }
 
@@ -156,7 +159,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     @Override
     LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice) {
-        return new LuceneTopNSourceOperator(weight, shardId, slice, leafReaderContexts, collectorManager, currentThread, maxPageSize);
+        return new LuceneTopNSourceOperator(weight, shardId, slice, leafReaderContexts, collectorManager, currentThread, maxPageSize,
+            driverContext);
     }
 
     @Override
@@ -168,7 +172,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             leafReaderContexts,
             collectorManager,
             currentThread,
-            maxPageSize
+            maxPageSize,
+            driverContext
         );
     }
 
@@ -266,8 +271,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             return null;
         }
         int size = Math.min(maxPageSize, scoreDocs.length - offset);
-        IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(size);
-        IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(size);
+        IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorBuilder(size);
+        IntVector.Builder currentDocsBuilder = blockFactory.newIntVectorBuilder(size);
 
         int start = offset;
         offset += size;
@@ -282,7 +287,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         return new Page(
             size,
             new DocVector(
-                IntBlock.newConstantBlockWith(shardId, size).asVector(),
+                blockFactory.newConstantIntVector(shardId, size),
                 currentSegmentBuilder.build(),
                 currentDocsBuilder.build(),
                 null

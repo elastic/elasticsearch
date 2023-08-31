@@ -49,7 +49,7 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
             return IntVector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().newIntBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -155,14 +155,6 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize);
-    }
-
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return new ConstantIntVector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits IntBlockBuilder {

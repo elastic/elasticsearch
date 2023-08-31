@@ -51,7 +51,7 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
             return BytesRefVector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().newBytesRefBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -158,14 +158,6 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new BytesRefBlockBuilder(estimatedSize);
-    }
-
-    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions) {
-        return new ConstantBytesRefVector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {

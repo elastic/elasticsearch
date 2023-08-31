@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 
@@ -16,15 +17,17 @@ import java.io.IOException;
 public final class BlockOrdinalsReader {
     private final SortedSetDocValues sortedSetDocValues;
     private final Thread creationThread;
+    private final BlockFactory blockFactory;
 
-    public BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues) {
+    public BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues, BlockFactory blockFactory) {
         this.sortedSetDocValues = sortedSetDocValues;
         this.creationThread = Thread.currentThread();
+        this.blockFactory = blockFactory;
     }
 
     public IntBlock readOrdinals(IntVector docs) throws IOException {
         final int positionCount = docs.getPositionCount();
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount);
         for (int p = 0; p < positionCount; p++) {
             int doc = docs.getInt(p);
             if (false == sortedSetDocValues.advanceExact(doc)) {

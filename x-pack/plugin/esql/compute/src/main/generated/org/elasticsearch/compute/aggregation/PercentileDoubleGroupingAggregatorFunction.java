@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -20,6 +19,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -33,21 +33,21 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final double percentile;
 
   public PercentileDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+      DriverContext driverContext, QuantileStates.GroupingState state, double percentile) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
-    this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+      DriverContext driverContext, double percentile) {
+    return new PercentileDoubleGroupingAggregatorFunction(channels, driverContext, PercentileDoubleAggregator.initGrouping(driverContext, percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

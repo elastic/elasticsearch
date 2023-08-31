@@ -8,30 +8,30 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MaxLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MaxLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
-  public MaxLongAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public MaxLongAggregatorFunctionSupplier(DriverContext driverContext, List<Integer> channels) {
+    this.driverContext = driverContext;
     this.channels = channels;
   }
 
   @Override
   public MaxLongAggregatorFunction aggregator() {
-    return MaxLongAggregatorFunction.create(channels);
+    return MaxLongAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public MaxLongGroupingAggregatorFunction groupingAggregator() {
-    return MaxLongGroupingAggregatorFunction.create(channels, bigArrays);
+    return MaxLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

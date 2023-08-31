@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MaxDoubleAggregator}.
@@ -33,14 +33,18 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final List<Integer> channels;
 
-  public MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state) {
+  private final DriverContext driverContext;
+
+  public MaxDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      DoubleArrayState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
   public static MaxDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new MaxDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(bigArrays, MaxDoubleAggregator.init()));
+      DriverContext driverContext) {
+    return new MaxDoubleGroupingAggregatorFunction(channels, driverContext, new DoubleArrayState(driverContext, MaxDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

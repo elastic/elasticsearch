@@ -36,10 +36,10 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
@@ -92,10 +92,11 @@ public class GroupingAggregatorImplementer {
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
-        this.createParameters = init.getParameters().stream().map(Parameter::from).collect(Collectors.toList());
-        if (false == createParameters.stream().anyMatch(p -> p.type().equals(BIG_ARRAYS))) {
-            createParameters.add(0, new Parameter(BIG_ARRAYS, "bigArrays"));
-        }
+        this.createParameters = init.getParameters().stream().map(Parameter::from).filter(p -> p.type().equals(DRIVER_CONTEXT) == false)
+            .toList();
+//        if (false == createParameters.stream()(p -> p.type().equals(DRIVER_CONTEXT))) {
+//            createParameters.add(0, new Parameter(DRIVER_CONTEXT, "driverContext"));
+//        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -148,10 +149,14 @@ public class GroupingAggregatorImplementer {
         );
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
-        }
+        init.getParameters().stream().filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false).forEach(p ->
+            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL)
+        );
+//        for (VariableElement p : init.getParameters().stream().filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false)) {
+//            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+//        }
 
         builder.addMethod(create());
         builder.addMethod(ctor());
@@ -175,15 +180,23 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
-        if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
+        if (init.getParameters().isEmpty() ||
+            (init.getParameters().size() == 1 && Parameter.from(init.getParameters().get(0)).type().equals(DRIVER_CONTEXT))) {
+            builder.addStatement("return new $T(channels, driverContext, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(channels, driverContext, $L, $L)", implementation, callInit(), initParametersWithoutDriverContext());
         }
         return builder.build();
+    }
+
+    private String initParametersWithoutDriverContext() {
+        return init.getParameters().stream()
+            .filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false)
+            .map(p -> p.getSimpleName().toString()).collect(joining(", "));
     }
 
     private String initParameters() {
@@ -195,7 +208,7 @@ public class GroupingAggregatorImplementer {
         if (init.getReturnType().toString().equals(stateType.toString())) {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
         } else {
-            builder.add("new $T(bigArrays, $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add("new $T(driverContext, $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
         }
         return builder.build();
     }
@@ -216,14 +229,22 @@ public class GroupingAggregatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(stateType, "state");
         builder.addStatement("this.channels = channels");
+        builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.state = state");
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
-            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
-        }
+        init.getParameters().stream().filter(p -> Parameter.from(p).type().equals(DRIVER_CONTEXT) == false).forEach(p -> {
+                builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+                builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+            }
+        );
+
+//        for (VariableElement p : init.getParameters()) {
+//            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
+//            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+//        }
         return builder.build();
     }
 

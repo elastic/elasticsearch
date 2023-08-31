@@ -8,30 +8,30 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MinIntAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MinIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
-  public MinIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public MinIntAggregatorFunctionSupplier(DriverContext driverContext, List<Integer> channels) {
+    this.driverContext = driverContext;
     this.channels = channels;
   }
 
   @Override
   public MinIntAggregatorFunction aggregator() {
-    return MinIntAggregatorFunction.create(channels);
+    return MinIntAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public MinIntGroupingAggregatorFunction groupingAggregator() {
-    return MinIntGroupingAggregatorFunction.create(channels, bigArrays);
+    return MinIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

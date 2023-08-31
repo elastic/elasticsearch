@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -49,8 +49,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(bigArrays, inputChannels);
+    public AggregatorFunctionSupplier supplier(DriverContext driverContext, List<Integer> inputChannels) {
+        return CountAggregatorFunction.supplier(driverContext, inputChannels);
     }
 
     @Override

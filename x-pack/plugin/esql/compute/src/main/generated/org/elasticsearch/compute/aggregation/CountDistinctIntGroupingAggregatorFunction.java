@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctIntAggregator}.
@@ -31,21 +31,21 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final int precision;
 
   public CountDistinctIntGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, BigArrays bigArrays, int precision) {
+      DriverContext driverContext, HllStates.GroupingState state, int precision) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctIntGroupingAggregatorFunction(channels, CountDistinctIntAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
+      DriverContext driverContext, int precision) {
+    return new CountDistinctIntGroupingAggregatorFunction(channels, driverContext, CountDistinctIntAggregator.initGrouping(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

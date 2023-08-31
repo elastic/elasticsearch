@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -30,18 +31,21 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final double percentile;
 
-  public PercentileDoubleAggregatorFunction(List<Integer> channels,
+  public PercentileDoubleAggregatorFunction(List<Integer> channels, DriverContext driverContext,
       QuantileStates.SingleState state, double percentile) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
     this.percentile = percentile;
   }
 
   public static PercentileDoubleAggregatorFunction create(List<Integer> channels,
-      double percentile) {
-    return new PercentileDoubleAggregatorFunction(channels, PercentileDoubleAggregator.initSingle(percentile), percentile);
+      DriverContext driverContext, double percentile) {
+    return new PercentileDoubleAggregatorFunction(channels, driverContext, PercentileDoubleAggregator.initSingle(driverContext, percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

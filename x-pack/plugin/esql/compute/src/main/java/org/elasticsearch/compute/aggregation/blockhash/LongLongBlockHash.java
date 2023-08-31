@@ -14,12 +14,14 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -28,14 +30,16 @@ import org.elasticsearch.core.Releasables;
 final class LongLongBlockHash extends BlockHash {
     private final int channel1;
     private final int channel2;
+    private final BlockFactory blockFactory;
     private final int emitBatchSize;
     private final LongLongHash hash;
 
-    LongLongBlockHash(BigArrays bigArrays, int channel1, int channel2, int emitBatchSize) {
+    LongLongBlockHash(DriverContext driverContext, int channel1, int channel2, int emitBatchSize) {
         this.channel1 = channel1;
         this.channel2 = channel2;
+        this.blockFactory = driverContext.blockFactory();
         this.emitBatchSize = emitBatchSize;
-        this.hash = new LongLongHash(1, bigArrays);
+        this.hash = new LongLongHash(1, driverContext.bigArrays());
     }
 
     @Override
@@ -72,7 +76,7 @@ final class LongLongBlockHash extends BlockHash {
         private final LongBlock block2;
 
         AddBlock(LongBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
-            super(emitBatchSize, addInput);
+            super(emitBatchSize, addInput, blockFactory);
             this.block1 = block1;
             this.block2 = block2;
         }
@@ -138,12 +142,13 @@ final class LongLongBlockHash extends BlockHash {
         private int positionOffset = 0;
         private int added = 0;
         protected IntBlock.Builder ords;
+        private final BlockFactory blockFactory;
 
-        AbstractAddBlock(int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
+        AbstractAddBlock(int emitBatchSize, GroupingAggregatorFunction.AddInput addInput, BlockFactory blockFactory) {
             this.emitBatchSize = emitBatchSize;
             this.addInput = addInput;
-
-            this.ords = IntBlock.newBlockBuilder(emitBatchSize);
+            this.blockFactory = blockFactory;
+            this.ords = blockFactory.newIntBlockBuilder(emitBatchSize);
         }
 
         protected final void addedValue(int position) {
@@ -167,7 +172,7 @@ final class LongLongBlockHash extends BlockHash {
         private void rollover(int position) {
             emitOrds();
             positionOffset = position;
-            ords = IntBlock.newBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
+            ords = blockFactory.newIntBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
         }
     }
 
@@ -184,8 +189,8 @@ final class LongLongBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) hash.size();
-        LongVector.Builder keys1 = LongVector.newVectorBuilder(positions);
-        LongVector.Builder keys2 = LongVector.newVectorBuilder(positions);
+        LongVector.Builder keys1 = blockFactory.newLongVectorBuilder(positions);
+        LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions);
         for (long i = 0; i < positions; i++) {
             keys1.appendLong(hash.getKey1(i));
             keys2.appendLong(hash.getKey2(i));

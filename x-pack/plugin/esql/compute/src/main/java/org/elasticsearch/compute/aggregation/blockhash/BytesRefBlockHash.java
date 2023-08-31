@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -35,6 +37,7 @@ import java.io.IOException;
 final class BytesRefBlockHash extends BlockHash {
     private final BytesRef bytes = new BytesRef();
     private final int channel;
+    private final BlockFactory blockFactory;
     private final BytesRefHash bytesRefHash;
 
     /**
@@ -46,9 +49,10 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    BytesRefBlockHash(int channel, BigArrays bigArrays) {
+    BytesRefBlockHash(int channel, DriverContext driverContext) {
         this.channel = channel;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.blockFactory = driverContext.blockFactory();
+        this.bytesRefHash = new BytesRefHash(1, driverContext.bigArrays());
     }
 
     @Override
@@ -71,7 +75,7 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock add(BytesRefBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block, blockFactory).hash(bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
     }
@@ -85,7 +89,7 @@ final class BytesRefBlockHash extends BlockHash {
         // TODO replace with takeBytesRefsOwnership ?!
 
         if (seenNull) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(Math.toIntExact(bytesRefHash.size() + 1));
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(bytesRefHash.size() + 1));
             builder.appendNull();
             BytesRef spare = new BytesRef();
             for (long i = 0; i < bytesRefHash.size(); i++) {

@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumIntAggregator}.
@@ -33,14 +33,18 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final List<Integer> channels;
 
-  public SumIntGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
+  private final DriverContext driverContext;
+
+  public SumIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      LongArrayState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
   public static SumIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new SumIntGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, SumIntAggregator.init()));
+      DriverContext driverContext) {
+    return new SumIntGroupingAggregatorFunction(channels, driverContext, new LongArrayState(driverContext, SumIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

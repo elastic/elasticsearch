@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -29,11 +30,13 @@ public class MultivalueDedupeDouble {
      */
     private static final int ALWAYS_COPY_MISSING = 110;
     private final DoubleBlock block;
+    private final BlockFactory blockFactory;
     private double[] work = new double[ArrayUtil.oversize(2, Double.BYTES)];
     private int w;
 
-    public MultivalueDedupeDouble(DoubleBlock block) {
+    public MultivalueDedupeDouble(DoubleBlock block, BlockFactory blockFactory) {
         this.block = block;
+        this.blockFactory = blockFactory;
     }
 
     /**
@@ -44,7 +47,7 @@ public class MultivalueDedupeDouble {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount());
+        DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -92,7 +95,7 @@ public class MultivalueDedupeDouble {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount());
+        DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -120,7 +123,7 @@ public class MultivalueDedupeDouble {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount());
+        DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -141,7 +144,7 @@ public class MultivalueDedupeDouble {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(LongHash hash) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);

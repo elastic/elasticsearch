@@ -70,6 +70,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 sourceLayout,
                 context.bigArrays(),
                 false, // non-grouping
+                aggregatorFactories;
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
 
@@ -155,8 +156,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
-                    context.bigArrays()
+                    context.pageSize(aggregateExec.estimatedRowSize())
                 );
             }
         }
@@ -222,8 +222,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         List<? extends NamedExpression> aggregates,
         AggregateExec.Mode mode,
         Layout layout,
-        BigArrays bigArrays,
         boolean grouping,
+        List<Aggregator.Factory> aggregatorFactories,
         Consumer<AggFunctionSupplierContext> consumer
     ) {
         for (NamedExpression ne : aggregates) {
@@ -256,7 +256,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     List<Integer> inputChannels = sourceAttr.stream().map(NamedExpression::id).map(layout::getChannel).toList();
                     assert inputChannels != null && inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
+                        aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
+                        //consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
                     } else {
                         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
                     }

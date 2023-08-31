@@ -8,31 +8,31 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBooleanAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class CountDistinctBooleanAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunctionSupplier(BigArrays bigArrays,
+  public CountDistinctBooleanAggregatorFunctionSupplier(DriverContext driverContext,
       List<Integer> channels) {
-    this.bigArrays = bigArrays;
+    this.driverContext = driverContext;
     this.channels = channels;
   }
 
   @Override
   public CountDistinctBooleanAggregatorFunction aggregator() {
-    return CountDistinctBooleanAggregatorFunction.create(channels);
+    return CountDistinctBooleanAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public CountDistinctBooleanGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctBooleanGroupingAggregatorFunction.create(channels, bigArrays);
+    return CountDistinctBooleanGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

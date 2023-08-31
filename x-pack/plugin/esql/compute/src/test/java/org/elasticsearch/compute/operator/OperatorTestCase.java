@@ -126,9 +126,9 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         return result;
     }
 
-    private void assertSimple(BigArrays bigArrays, int size) {
+    private void assertSimple(DriverContext driverContext, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
-        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(new DriverContext()), input.iterator());
+        List<Page> results = drive(simple(driverContext.bigArrays.withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(input, results);
     }
 

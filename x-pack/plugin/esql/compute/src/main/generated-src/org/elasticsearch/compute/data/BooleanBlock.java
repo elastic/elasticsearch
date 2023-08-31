@@ -49,7 +49,7 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
             return BooleanVector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().newBooleanBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -155,14 +155,6 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new BooleanBlockBuilder(estimatedSize);
-    }
-
-    static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return new ConstantBooleanVector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {

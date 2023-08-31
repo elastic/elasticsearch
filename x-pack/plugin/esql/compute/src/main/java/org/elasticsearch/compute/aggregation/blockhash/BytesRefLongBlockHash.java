@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntArrayVector;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -31,14 +33,17 @@ import org.elasticsearch.core.Releasables;
 final class BytesRefLongBlockHash extends BlockHash {
     private final int channel1;
     private final int channel2;
+    private final BlockFactory blockFactory;
+
     private final boolean reverseOutput;
     private final int emitBatchSize;
     private final BytesRefHash bytesHash;
     private final LongLongHash finalHash;
 
-    BytesRefLongBlockHash(BigArrays bigArrays, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
+    BytesRefLongBlockHash(DriverContext driverContext, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
         this.channel1 = channel1;
         this.channel2 = channel2;
+        this.blockFactory = driverContext.blockFactory();
         this.reverseOutput = reverseOutput;
         this.emitBatchSize = emitBatchSize;
 
@@ -46,8 +51,8 @@ final class BytesRefLongBlockHash extends BlockHash {
         BytesRefHash bytesHash = null;
         LongLongHash longHash = null;
         try {
-            bytesHash = new BytesRefHash(1, bigArrays);
-            longHash = new LongLongHash(1, bigArrays);
+            bytesHash = new BytesRefHash(1, driverContext.bigArrays());
+            longHash = new LongLongHash(1, driverContext.bigArrays());
             this.bytesHash = bytesHash;
             this.finalHash = longHash;
             success = true;
@@ -72,7 +77,7 @@ final class BytesRefLongBlockHash extends BlockHash {
         if (vector1 != null && vector2 != null) {
             addInput.add(0, add(vector1, vector2));
         } else {
-            new AddBlock(block1, block2, addInput).add();
+            new AddBlock(block1, block2, addInput, blockFactory).add();
         }
     }
 
@@ -93,8 +98,8 @@ final class BytesRefLongBlockHash extends BlockHash {
         private final BytesRefBlock block1;
         private final LongBlock block2;
 
-        AddBlock(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
-            super(emitBatchSize, addInput);
+        AddBlock(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput, BlockFactory blockFactory) {
+            super(emitBatchSize, addInput, blockFactory);
             this.block1 = block1;
             this.block2 = block2;
         }
@@ -163,8 +168,8 @@ final class BytesRefLongBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) finalHash.size();
-        BytesRefVector.Builder keys1 = BytesRefVector.newVectorBuilder(positions);
-        LongVector.Builder keys2 = LongVector.newVectorBuilder(positions);
+        BytesRefVector.Builder keys1 = blockFactory.newBytesRefVectorBuilder(positions);
+        LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions);
         BytesRef scratch = new BytesRef();
         for (long i = 0; i < positions; i++) {
             keys2.appendLong(finalHash.getKey2(i));

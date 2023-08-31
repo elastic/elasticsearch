@@ -75,7 +75,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
             @Override
             protected Page createPage(int positionOffset, int length) {
-                LongVector.Builder builder = LongVector.newVectorBuilder(length);
+                LongVector.Builder builder = blockFactory.newLongVectorBuilder(length);
                 for (int i = 0; i < length; i++) {
                     builder.appendLong(ids.get(currentPosition++));
                 }

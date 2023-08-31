@@ -29,7 +29,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 
 /**
@@ -58,19 +58,19 @@ public class AggregatorFunctionSupplierImplementer {
         createParameters.addAll(groupingAggregatorImplementer.createParameters());
         List<Parameter> sortedParameters = new ArrayList<>(createParameters);
         for (Parameter p : sortedParameters) {
-            if (p.type().equals(BIG_ARRAYS) && false == p.name().equals("bigArrays")) {
-                throw new IllegalArgumentException("BigArrays should always be named bigArrays but was " + p);
+            if (p.type().equals(DRIVER_CONTEXT) && false == p.name().equals("driverContext")) {
+                throw new IllegalArgumentException("DriverContext should always be named driverContext but was " + p);
             }
         }
 
         /*
-         * We like putting BigArrays first and then channels second
+         * We like putting DriverContext first and then channels second
          * regardless of the order that the aggs actually want them.
          * Just a little bit of standardization here.
          */
-        Parameter bigArraysParam = new Parameter(BIG_ARRAYS, "bigArrays");
-        sortedParameters.remove(bigArraysParam);
-        sortedParameters.add(0, bigArraysParam);
+        Parameter driverContextParam = new Parameter(DRIVER_CONTEXT, "driverContext");
+        sortedParameters.remove(driverContextParam);
+        sortedParameters.add(0, driverContextParam);
         sortedParameters.add(1, new Parameter(LIST_INTEGER, "channels"));
 
         this.createParameters = sortedParameters;
@@ -118,7 +118,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("channels", "driverContext"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
 
@@ -131,7 +131,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("channels", "driverContext"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
         return builder.build();

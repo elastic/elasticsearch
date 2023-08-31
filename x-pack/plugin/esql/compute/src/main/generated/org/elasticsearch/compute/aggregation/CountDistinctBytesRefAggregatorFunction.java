@@ -10,12 +10,12 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBytesRefAggregator}.
@@ -29,21 +29,21 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final int precision;
 
   public CountDistinctBytesRefAggregatorFunction(List<Integer> channels,
-      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+      DriverContext driverContext, HllStates.SingleState state, int precision) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctBytesRefAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctBytesRefAggregatorFunction(channels, CountDistinctBytesRefAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+      DriverContext driverContext, int precision) {
+    return new CountDistinctBytesRefAggregatorFunction(channels, driverContext, CountDistinctBytesRefAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

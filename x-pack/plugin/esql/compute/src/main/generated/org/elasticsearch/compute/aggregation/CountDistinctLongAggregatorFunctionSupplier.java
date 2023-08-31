@@ -8,34 +8,34 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class CountDistinctLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
   private final int precision;
 
-  public CountDistinctLongAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
-      int precision) {
-    this.bigArrays = bigArrays;
+  public CountDistinctLongAggregatorFunctionSupplier(DriverContext driverContext,
+      List<Integer> channels, int precision) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.precision = precision;
   }
 
   @Override
   public CountDistinctLongAggregatorFunction aggregator() {
-    return CountDistinctLongAggregatorFunction.create(channels, bigArrays, precision);
+    return CountDistinctLongAggregatorFunction.create(channels, driverContext, precision);
   }
 
   @Override
   public CountDistinctLongGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctLongGroupingAggregatorFunction.create(channels, bigArrays, precision);
+    return CountDistinctLongGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 
   @Override

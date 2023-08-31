@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,13 +27,13 @@ public final class MultivalueDedupe {
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public static Block dedupeToBlockAdaptive(Block block) {
+    public static Block dedupeToBlockAdaptive(Block block, BlockFactory blockFactory) {
         return switch (block.elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock();
-            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockAdaptive();
-            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive();
-            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive();
-            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive();
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block, blockFactory).dedupeToBlock();
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block, blockFactory).dedupeToBlockAdaptive();
+            case INT -> new MultivalueDedupeInt((IntBlock) block, blockFactory).dedupeToBlockAdaptive();
+            case LONG -> new MultivalueDedupeLong((LongBlock) block, blockFactory).dedupeToBlockAdaptive();
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block, blockFactory).dedupeToBlockAdaptive();
             default -> throw new IllegalArgumentException();
         };
     }
@@ -43,13 +44,13 @@ public final class MultivalueDedupe {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public static Block dedupeToBlockUsingCopyMissing(Block block) {
+    public static Block dedupeToBlockUsingCopyMissing(Block block, BlockFactory blockFactory) {
         return switch (block.elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock();
-            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockUsingCopyMissing();
-            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyMissing();
-            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyMissing();
-            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyMissing();
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block, blockFactory).dedupeToBlock();
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block, blockFactory).dedupeToBlockUsingCopyMissing();
+            case INT -> new MultivalueDedupeInt((IntBlock) block, blockFactory).dedupeToBlockUsingCopyMissing();
+            case LONG -> new MultivalueDedupeLong((LongBlock) block, blockFactory).dedupeToBlockUsingCopyMissing();
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block, blockFactory).dedupeToBlockUsingCopyMissing();
             default -> throw new IllegalArgumentException();
         };
     }
@@ -62,13 +63,13 @@ public final class MultivalueDedupe {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public static Block dedupeToBlockUsingCopyAndSort(Block block) {
+    public static Block dedupeToBlockUsingCopyAndSort(Block block, BlockFactory blockFactory) {
         return switch (block.elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock();
-            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockUsingCopyAndSort();
-            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyAndSort();
-            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyAndSort();
-            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyAndSort();
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block, blockFactory).dedupeToBlock();
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block, blockFactory).dedupeToBlockUsingCopyAndSort();
+            case INT -> new MultivalueDedupeInt((IntBlock) block, blockFactory).dedupeToBlockUsingCopyAndSort();
+            case LONG -> new MultivalueDedupeLong((LongBlock) block, blockFactory).dedupeToBlockUsingCopyAndSort();
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block, blockFactory).dedupeToBlockUsingCopyAndSort();
             default -> throw new IllegalArgumentException();
         };
     }
@@ -84,38 +85,39 @@ public final class MultivalueDedupe {
         return switch (elementType) {
             case BOOLEAN -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return new MultivalueDedupeBoolean((BooleanBlock) field.eval(page)).dedupeToBlock();
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return new MultivalueDedupeBoolean((BooleanBlock) field.eval(page, blockFactory), blockFactory).dedupeToBlock();
                 }
             };
             case BYTES_REF -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return new MultivalueDedupeBytesRef((BytesRefBlock) field.eval(page)).dedupeToBlockAdaptive();
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return new MultivalueDedupeBytesRef((BytesRefBlock) field.eval(page, blockFactory), blockFactory)
+                        .dedupeToBlockAdaptive();
                 }
             };
             case INT -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return new MultivalueDedupeInt((IntBlock) field.eval(page)).dedupeToBlockAdaptive();
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return new MultivalueDedupeInt((IntBlock) field.eval(page, blockFactory), blockFactory).dedupeToBlockAdaptive();
                 }
             };
             case LONG -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return new MultivalueDedupeLong((LongBlock) field.eval(page)).dedupeToBlockAdaptive();
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return new MultivalueDedupeLong((LongBlock) field.eval(page, blockFactory), blockFactory).dedupeToBlockAdaptive();
                 }
             };
             case DOUBLE -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return new MultivalueDedupeDouble((DoubleBlock) field.eval(page)).dedupeToBlockAdaptive();
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return new MultivalueDedupeDouble((DoubleBlock) field.eval(page, blockFactory), blockFactory).dedupeToBlockAdaptive();
                 }
             };
             case NULL -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
                 @Override
-                public Block eval(Page page) {
-                    return field.eval(page); // The page is all nulls and when you dedupe that it's still all nulls
+                public Block eval(Page page, BlockFactory blockFactory) {
+                    return field.eval(page, blockFactory); // The page is all nulls and when you dedupe that it's still all nulls
                 }
             };
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
@@ -132,15 +134,15 @@ public final class MultivalueDedupe {
      * and then encodes the results into a {@link byte[]} which can be used for
      * things like hashing many fields together.
      */
-    public static BatchEncoder batchEncoder(Block block, int batchSize) {
+    public static BatchEncoder batchEncoder(Block block, BlockFactory blockFactory, int batchSize) {
         // TODO collect single-valued block handling here. And maybe vector. And maybe all null?
         // TODO check for for unique multivalued fields and for ascending multivalue fields.
         return switch (block.elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).batchEncoder(batchSize);
-            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).batchEncoder(batchSize);
-            case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
-            case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
-            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block, blockFactory).batchEncoder(batchSize);
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block, blockFactory).batchEncoder(batchSize);
+            case INT -> new MultivalueDedupeInt((IntBlock) block, blockFactory).batchEncoder(batchSize);
+            case LONG -> new MultivalueDedupeLong((LongBlock) block, blockFactory).batchEncoder(batchSize);
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block, blockFactory).batchEncoder(batchSize);
             default -> throw new IllegalArgumentException();
         };
     }

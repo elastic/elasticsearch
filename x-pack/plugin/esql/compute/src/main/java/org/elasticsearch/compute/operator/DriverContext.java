@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Collections;
@@ -40,6 +42,23 @@ public class DriverContext {
 
     /** A snapshot of the driver context. */
     public record Snapshot(Set<Releasable> releasables) {}
+
+    private final BlockFactory blockFactory;
+
+    private final BigArrays bigArrays;
+
+    public DriverContext(BlockFactory blockFactory, BigArrays bigArrays) {
+        this.blockFactory = blockFactory;
+        this.bigArrays = bigArrays;
+    }
+
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     /**
      * Adds a releasable to this context. Releasables are identified by Object identity.

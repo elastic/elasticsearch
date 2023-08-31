@@ -7,15 +7,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 @Aggregator({ @IntermediateState(name = "fbit", type = "BOOLEAN"), @IntermediateState(name = "tbit", type = "BOOLEAN") })
@@ -24,8 +24,8 @@ public class CountDistinctBooleanAggregator {
     private static final byte BIT_FALSE = 0b01;
     private static final byte BIT_TRUE = 0b10;
 
-    public static SingleState initSingle() {
-        return new SingleState();
+    public static SingleState initSingle(DriverContext driverContext) {
+        return new SingleState(driverContext);
     }
 
     public static void combine(SingleState current, boolean v) {
@@ -43,11 +43,11 @@ public class CountDistinctBooleanAggregator {
 
     public static Block evaluateFinal(SingleState state) {
         long result = ((state.bits & BIT_TRUE) >> 1) + (state.bits & BIT_FALSE);
-        return LongBlock.newConstantBlockWith(result, 1);
+        return state.blockFactory.newConstantLongVector(result, 1).asBlock();
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
     }
 
     public static void combine(GroupingState current, int groupId, boolean v) {
@@ -64,7 +64,7 @@ public class CountDistinctBooleanAggregator {
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
+        LongBlock.Builder builder = state.blockFactory.newLongBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             long count = (state.bits.get(2 * group) ? 1 : 0) + (state.bits.get(2 * group + 1) ? 1 : 0);
@@ -80,15 +80,19 @@ public class CountDistinctBooleanAggregator {
     static class SingleState implements AggregatorState {
 
         byte bits;
+        final BlockFactory blockFactory;
 
-        SingleState() {}
+
+        SingleState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
+        }
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
         public void toIntermediate(Block[] blocks, int offset) {
             assert blocks.length >= offset + 2;
-            blocks[offset + 0] = BooleanBlock.newConstantBlockWith((bits & BIT_FALSE) != 0, 1);
-            blocks[offset + 1] = BooleanBlock.newConstantBlockWith((bits & BIT_TRUE) != 0, 1);
+            blocks[offset + 0] = blockFactory.newConstantBooleanVector((bits & BIT_FALSE) != 0, 1).asBlock();
+            blocks[offset + 1] = blockFactory.newConstantBooleanVector((bits & BIT_TRUE) != 0, 1).asBlock();
         }
 
         @Override
@@ -106,8 +110,8 @@ public class CountDistinctBooleanAggregator {
 
         final BitArray bits;
 
-        GroupingState(BigArrays bigArrays) {
-            super(bigArrays);
+        GroupingState(DriverContext driverContext) {
+            super(driverContext);
             boolean success = false;
             try {
                 this.bits = new BitArray(2, bigArrays); // Start with two bits for a single groupId
@@ -133,8 +137,8 @@ public class CountDistinctBooleanAggregator {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
             assert blocks.length >= offset + 2;
-            var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
-            var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+            var fbitBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
+            var tbitBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 fbitBuilder.appendBoolean(bits.get(2 * group + 0));

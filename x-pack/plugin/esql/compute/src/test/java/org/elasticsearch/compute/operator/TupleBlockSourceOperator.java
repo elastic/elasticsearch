@@ -44,8 +44,8 @@ public class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        var blockBuilder1 = LongBlock.newBlockBuilder(length);
-        var blockBuilder2 = LongBlock.newBlockBuilder(length);
+        var blockBuilder1 = blockFactory.newLongBlockBuilder(length);
+        var blockBuilder2 = blockFactory.newLongBlockBuilder(length);
         for (int i = 0; i < length; i++) {
             Tuple<Long, Long> item = values.get(positionOffset + i);
             if (item.v1() == null) {

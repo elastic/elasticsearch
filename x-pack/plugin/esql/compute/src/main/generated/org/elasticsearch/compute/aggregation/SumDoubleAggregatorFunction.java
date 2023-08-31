@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumDoubleAggregator}.
@@ -31,13 +32,18 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public SumDoubleAggregatorFunction(List<Integer> channels, SumDoubleAggregator.SumState state) {
+  private final DriverContext driverContext;
+
+  public SumDoubleAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      SumDoubleAggregator.SumState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static SumDoubleAggregatorFunction create(List<Integer> channels) {
-    return new SumDoubleAggregatorFunction(channels, SumDoubleAggregator.initSingle());
+  public static SumDoubleAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new SumDoubleAggregatorFunction(channels, driverContext, SumDoubleAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

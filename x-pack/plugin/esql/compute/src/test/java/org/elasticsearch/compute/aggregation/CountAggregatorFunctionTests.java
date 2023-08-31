@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
@@ -26,8 +27,8 @@ public class CountAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(DriverContext driverContext, List<Integer> inputChannels) {
+        return CountAggregatorFunction.supplier(driverContext, inputChannels);
     }
 
     @Override

@@ -13,11 +13,13 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
 
@@ -28,6 +30,7 @@ import java.util.BitSet;
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;
+    private final BlockFactory blockFactory;
     private final LongHash longHash;
     /**
      * Have we seen any {@code null} values?
@@ -38,9 +41,10 @@ final class IntBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    IntBlockHash(int channel, BigArrays bigArrays) {
+    IntBlockHash(int channel, DriverContext driverContext) {
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        this.blockFactory = driverContext.blockFactory();
+        this.longHash = new LongHash(1, driverContext.bigArrays());
     }
 
     @Override
@@ -63,7 +67,7 @@ final class IntBlockHash extends BlockHash {
     }
 
     private IntBlock add(IntBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block, blockFactory).hash(longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

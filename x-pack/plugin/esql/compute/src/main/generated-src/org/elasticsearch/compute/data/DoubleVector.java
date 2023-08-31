@@ -79,7 +79,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         if (constant && positions > 0) {
             return new ConstantDoubleVector(in.readDouble(), positions);
         } else {
-            var builder = DoubleVector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().newDoubleVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendDouble(in.readDouble());
             }
@@ -99,10 +99,6 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
                 out.writeDouble(getDouble(i));
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -25,7 +26,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnExtractOperator(types, inputEvalSupplier.get(), evaluatorSupplier.get());
+            return new ColumnExtractOperator(types, inputEvalSupplier.get(), evaluatorSupplier.get(), driverContext);
         }
 
         @Override
@@ -37,15 +38,18 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     private final ElementType[] types;
     private final EvalOperator.ExpressionEvaluator inputEvaluator;
     private final ColumnExtractOperator.Evaluator evaluator;
+    private final BlockFactory blockFactory;
 
     public ColumnExtractOperator(
         ElementType[] types,
         EvalOperator.ExpressionEvaluator inputEvaluator,
-        ColumnExtractOperator.Evaluator evaluator
+        ColumnExtractOperator.Evaluator evaluator,
+        DriverContext driverContext
     ) {
         this.types = types;
         this.inputEvaluator = inputEvaluator;
         this.evaluator = evaluator;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -54,10 +58,10 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
         Block.Builder[] blockBuilders = new Block.Builder[types.length];
         for (int i = 0; i < types.length; i++) {
-            blockBuilders[i] = types[i].newBlockBuilder(rowsCount);
+            blockBuilders[i] = types[i].newBlockBuilder(rowsCount); // TODO: use factory here
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page, blockFactory);
         BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
             if (input.isNull(row)) {

@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumDoubleAggregator}.
@@ -34,18 +34,18 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
-  public SumDoubleGroupingAggregatorFunction(List<Integer> channels,
-      SumDoubleAggregator.GroupingSumState state, BigArrays bigArrays) {
+  public SumDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      SumDoubleAggregator.GroupingSumState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
-    this.bigArrays = bigArrays;
   }
 
   public static SumDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(bigArrays), bigArrays);
+      DriverContext driverContext) {
+    return new SumDoubleGroupingAggregatorFunction(channels, driverContext, SumDoubleAggregator.initGrouping(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

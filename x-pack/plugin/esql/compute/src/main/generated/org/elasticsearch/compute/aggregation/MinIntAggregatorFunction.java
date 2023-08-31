@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinIntAggregator}.
@@ -30,13 +31,18 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinIntAggregatorFunction(List<Integer> channels, IntState state) {
+  private final DriverContext driverContext;
+
+  public MinIntAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      IntState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static MinIntAggregatorFunction create(List<Integer> channels) {
-    return new MinIntAggregatorFunction(channels, new IntState(MinIntAggregator.init()));
+  public static MinIntAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MinIntAggregatorFunction(channels, driverContext, new IntState(MinIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -109,7 +115,7 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1);
       return;
     }
-    blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantIntVector(state.intValue(), 1).asBlock();
   }
 
   @Override

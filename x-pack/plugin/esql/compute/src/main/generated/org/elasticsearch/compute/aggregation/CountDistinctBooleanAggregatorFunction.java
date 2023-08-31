@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -28,14 +29,18 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunction(List<Integer> channels,
+  private final DriverContext driverContext;
+
+  public CountDistinctBooleanAggregatorFunction(List<Integer> channels, DriverContext driverContext,
       CountDistinctBooleanAggregator.SingleState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(channels, CountDistinctBooleanAggregator.initSingle());
+  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new CountDistinctBooleanAggregatorFunction(channels, driverContext, CountDistinctBooleanAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

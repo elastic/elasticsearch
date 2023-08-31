@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
@@ -47,7 +48,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(sources, docChannel, field);
+            return new ValuesSourceReaderOperator(sources, docChannel, field, driverContext.blockFactory());
         }
 
         @Override
@@ -66,16 +67,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
 
+    private final BlockFactory blockFactory;
+
     /**
      * Creates a new extractor
      * @param sources the value source, type and index readers to use for extraction
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel, String field) {
+    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel, String field, BlockFactory blockFactory) {
         this.sources = sources;
         this.docChannel = docChannel;
         this.field = field;
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -122,7 +126,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
         var info = sources.get(shard);
         LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
-        lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(), leafReaderContext);
+        lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(),
+            leafReaderContext, blockFactory);
         lastShard = shard;
         lastSegment = segment;
         readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);

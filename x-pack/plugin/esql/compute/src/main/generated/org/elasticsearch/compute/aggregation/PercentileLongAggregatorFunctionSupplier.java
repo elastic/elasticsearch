@@ -8,34 +8,34 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link PercentileLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class PercentileLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
   private final double percentile;
 
-  public PercentileLongAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
-      double percentile) {
-    this.bigArrays = bigArrays;
+  public PercentileLongAggregatorFunctionSupplier(DriverContext driverContext,
+      List<Integer> channels, double percentile) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.percentile = percentile;
   }
 
   @Override
   public PercentileLongAggregatorFunction aggregator() {
-    return PercentileLongAggregatorFunction.create(channels, percentile);
+    return PercentileLongAggregatorFunction.create(channels, driverContext, percentile);
   }
 
   @Override
   public PercentileLongGroupingAggregatorFunction groupingAggregator() {
-    return PercentileLongGroupingAggregatorFunction.create(channels, bigArrays, percentile);
+    return PercentileLongGroupingAggregatorFunction.create(channels, driverContext, percentile);
   }
 
   @Override

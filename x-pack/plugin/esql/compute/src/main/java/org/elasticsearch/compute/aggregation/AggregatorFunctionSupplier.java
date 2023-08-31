@@ -21,7 +21,7 @@ public interface AggregatorFunctionSupplier extends Describable {
     default Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
         return new Aggregator.Factory() {
             @Override
-            public Aggregator get() {
+            public Aggregator apply(DriverContext driverContext) {
                 return new Aggregator(aggregator(), mode);
             }
 
@@ -36,7 +36,7 @@ public interface AggregatorFunctionSupplier extends Describable {
         return new GroupingAggregator.Factory() {
             @Override
             public GroupingAggregator apply(DriverContext driverContext) {
-                return new GroupingAggregator(groupingAggregator(), mode);
+                return new GroupingAggregator(groupingAggregator(driverContext), mode);
             }
 
             @Override

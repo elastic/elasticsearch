@@ -47,22 +47,16 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return new DocBlock(asVector().filter(positions));
     }
 
-    /**
-     * A builder the for {@link DocBlock}.
-     */
-    public static Builder newBlockBuilder(int estimatedSize) {
-        return new Builder(estimatedSize);
-    }
 
     public static class Builder implements Block.Builder {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize) {
-            shards = IntVector.newVectorBuilder(estimatedSize);
-            segments = IntVector.newVectorBuilder(estimatedSize);
-            docs = IntVector.newVectorBuilder(estimatedSize);
+        Builder(int estimatedSize, BlockFactory blockFactory) {
+            shards = blockFactory.newIntVectorBuilder(estimatedSize);
+            segments = blockFactory.newIntVectorBuilder(estimatedSize);
+            docs = blockFactory.newIntVectorBuilder(estimatedSize);
         }
 
         public Builder appendShard(int shard) {

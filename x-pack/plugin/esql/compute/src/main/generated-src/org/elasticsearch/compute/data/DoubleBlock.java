@@ -49,7 +49,7 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
             return DoubleVector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().newDoubleBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -156,14 +156,6 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize);
-    }
-
-    static DoubleBlock newConstantBlockWith(double value, int positions) {
-        return new ConstantDoubleVector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {

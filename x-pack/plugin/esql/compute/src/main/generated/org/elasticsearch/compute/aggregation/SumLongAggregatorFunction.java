@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumLongAggregator}.
@@ -30,13 +31,18 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public SumLongAggregatorFunction(List<Integer> channels, LongState state) {
+  private final DriverContext driverContext;
+
+  public SumLongAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      LongState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static SumLongAggregatorFunction create(List<Integer> channels) {
-    return new SumLongAggregatorFunction(channels, new LongState(SumLongAggregator.init()));
+  public static SumLongAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new SumLongAggregatorFunction(channels, driverContext, new LongState(SumLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -109,7 +115,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1);
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantLongVector(state.longValue(), 1).asBlock();
   }
 
   @Override

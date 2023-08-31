@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Supplier;
@@ -22,7 +23,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(evaluator.get(), driverContext);
         }
 
         @Override
@@ -33,13 +34,16 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     private final ExpressionEvaluator evaluator;
 
-    public EvalOperator(ExpressionEvaluator evaluator) {
+    private final DriverContext driverContext;
+
+    public EvalOperator(ExpressionEvaluator evaluator, DriverContext driverContext) {
         this.evaluator = evaluator;
+        this.driverContext = driverContext;
     }
 
     @Override
     protected Page process(Page page) {
-        return page.appendBlock(evaluator.eval(page));
+        return page.appendBlock(evaluator.eval(page, driverContext.blockFactory()));
     }
 
     @Override
@@ -48,12 +52,12 @@ public class EvalOperator extends AbstractPageMappingOperator {
     }
 
     public interface ExpressionEvaluator {
-        Block eval(Page page);
+        Block eval(Page page, BlockFactory blockFactory);
     }
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override
-        public Block eval(Page page) {
+        public Block eval(Page page, BlockFactory blockFactory) {
             return Block.constantNullBlock(page.getPositionCount());
         }
 

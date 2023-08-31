@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -27,10 +28,10 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block eval(Page page, BlockFactory blockFactory) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            LongVector.Builder result = LongVector.newVectorBuilder(page.getPositionCount());
+            LongVector.Builder result = blockFactory.newLongVectorBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
             }

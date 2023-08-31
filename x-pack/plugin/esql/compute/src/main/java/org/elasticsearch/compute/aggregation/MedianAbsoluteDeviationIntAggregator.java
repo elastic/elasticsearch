@@ -8,19 +8,19 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
 class MedianAbsoluteDeviationIntAggregator {
 
-    public static QuantileStates.SingleState initSingle() {
-        return new QuantileStates.SingleState(QuantileStates.MEDIAN);
+    public static QuantileStates.SingleState initSingle(DriverContext driverContext) {
+        return new QuantileStates.SingleState(driverContext, QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.SingleState current, int v) {
@@ -39,8 +39,8 @@ class MedianAbsoluteDeviationIntAggregator {
         return state.evaluateMedianAbsoluteDeviation();
     }
 
-    public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays) {
-        return new QuantileStates.GroupingState(bigArrays, QuantileStates.MEDIAN);
+    public static QuantileStates.GroupingState initGrouping(DriverContext driverContext) {
+        return new QuantileStates.GroupingState(driverContext, QuantileStates.MEDIAN);
     }
 
     public static void combine(QuantileStates.GroupingState state, int groupId, int v) {

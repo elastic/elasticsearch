@@ -8,20 +8,20 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
 @GroupingAggregator
 public class CountDistinctDoubleAggregator {
 
-    public static HllStates.SingleState initSingle(BigArrays bigArrays, int precision) {
-        return new HllStates.SingleState(bigArrays, precision);
+    public static HllStates.SingleState initSingle(DriverContext driverContext, int precision) {
+        return new HllStates.SingleState(driverContext, precision);
     }
 
     public static void combine(HllStates.SingleState current, double v) {
@@ -38,11 +38,11 @@ public class CountDistinctDoubleAggregator {
 
     public static Block evaluateFinal(HllStates.SingleState state) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1);
+        return state.blockFactory().newConstantLongVector(result, 1).asBlock();
     }
 
-    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
-        return new HllStates.GroupingState(bigArrays, precision);
+    public static HllStates.GroupingState initGrouping(DriverContext driverContext, int precision) {
+        return new HllStates.GroupingState(driverContext, precision);
     }
 
     public static void combine(HllStates.GroupingState current, int groupId, double v) {
@@ -63,7 +63,7 @@ public class CountDistinctDoubleAggregator {
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
+        LongBlock.Builder builder = state.blockFactory().newLongBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             long count = state.cardinality(group);

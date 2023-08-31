@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -64,18 +65,18 @@ public class Percentile extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier(DriverContext driverContext, List<Integer> inputChannels) {
+        return new PercentileLongAggregatorFunctionSupplier(driverContext, inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier(DriverContext driverContext, List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(driverContext, inputChannels, percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier(DriverContext driverContext, List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(driverContext, inputChannels, percentileValue());
     }
 
     private int percentileValue() {

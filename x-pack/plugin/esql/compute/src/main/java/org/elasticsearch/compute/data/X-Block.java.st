@@ -61,7 +61,7 @@ $endif$
             return $Type$Vector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().new$Type$BlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -188,14 +188,6 @@ $endif$
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
-    }
-
-    static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {

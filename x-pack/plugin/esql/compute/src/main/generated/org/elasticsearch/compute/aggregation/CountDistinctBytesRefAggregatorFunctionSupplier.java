@@ -8,34 +8,34 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBytesRefAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class CountDistinctBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  private final DriverContext driverContext;
 
   private final List<Integer> channels;
 
   private final int precision;
 
-  public CountDistinctBytesRefAggregatorFunctionSupplier(BigArrays bigArrays,
+  public CountDistinctBytesRefAggregatorFunctionSupplier(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    this.bigArrays = bigArrays;
+    this.driverContext = driverContext;
     this.channels = channels;
     this.precision = precision;
   }
 
   @Override
   public CountDistinctBytesRefAggregatorFunction aggregator() {
-    return CountDistinctBytesRefAggregatorFunction.create(channels, bigArrays, precision);
+    return CountDistinctBytesRefAggregatorFunction.create(channels, driverContext, precision);
   }
 
   @Override
   public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, bigArrays, precision);
+    return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 
   @Override

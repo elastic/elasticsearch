@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinLongAggregator}.
@@ -30,13 +31,18 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinLongAggregatorFunction(List<Integer> channels, LongState state) {
+  private final DriverContext driverContext;
+
+  public MinLongAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      LongState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static MinLongAggregatorFunction create(List<Integer> channels) {
-    return new MinLongAggregatorFunction(channels, new LongState(MinLongAggregator.init()));
+  public static MinLongAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MinLongAggregatorFunction(channels, driverContext, new LongState(MinLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -109,7 +115,7 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1);
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantLongVector(state.longValue(), 1).asBlock();
   }
 
   @Override

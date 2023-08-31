@@ -14,9 +14,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,6 +37,8 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     private IntVector.Builder currentDocsBuilder;
 
+    private final DriverContext driverContext;
+
     public static class LuceneSourceOperatorFactory extends LuceneOperatorFactory {
 
         public LuceneSourceOperatorFactory(
@@ -51,10 +53,11 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         @Override
-        LuceneOperator luceneOperatorForShard(int shardIndex) {
+        LuceneOperator luceneOperatorForShard(int shardIndex, DriverContext driverContext) {
             final SearchContext ctx = searchContexts.get(shardIndex);
             final Query query = queryFunction.apply(ctx);
-            return new LuceneSourceOperator(ctx.getSearchExecutionContext().getIndexReader(), shardIndex, query, maxPageSize, limit);
+            return new LuceneSourceOperator(ctx.getSearchExecutionContext().getIndexReader(), shardIndex, query,
+                maxPageSize, limit, driverContext);
         }
 
         @Override
@@ -69,21 +72,24 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
-    public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {
-        super(reader, shardId, query, maxPageSize);
-        this.currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
+    public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit, DriverContext driverContext) {
+        super(reader, shardId, query, maxPageSize, driverContext);
+        this.currentDocsBuilder = blockFactory.newIntVectorBuilder(maxPageSize);
         this.maxCollectedDocs = limit;
+        this.driverContext = driverContext;
     }
 
-    LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize, int maxCollectedDocs) {
-        super(weight, shardId, leaves, maxPageSize);
-        this.currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
+    LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves,
+                         int maxPageSize, int maxCollectedDocs, DriverContext driverContext) {
+        super(weight, shardId, leaves, maxPageSize, driverContext);
+        this.currentDocsBuilder = blockFactory.newIntVectorBuilder(maxPageSize);
         this.maxCollectedDocs = maxCollectedDocs;
+        this.driverContext = driverContext;
     }
 
     @Override
     LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice) {
-        return new LuceneSourceOperator(weight, shardId, slice, maxPageSize, maxCollectedDocs);
+        return new LuceneSourceOperator(weight, shardId, slice, maxPageSize, maxCollectedDocs, driverContext);
     }
 
     @Override
@@ -93,7 +99,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             shardId,
             Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
             maxPageSize,
-            maxCollectedDocs
+            maxCollectedDocs,
+            driverContext
         );
     }
 
@@ -154,13 +161,13 @@ public class LuceneSourceOperator extends LuceneOperator {
                 page = new Page(
                     currentPagePos,
                     new DocVector(
-                        IntBlock.newConstantBlockWith(shardId, currentPagePos).asVector(),
-                        IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos).asVector(),
+                        blockFactory.newConstantIntVector(shardId, currentPagePos),
+                        blockFactory.newConstantIntVector(currentLeafReaderContext.leafReaderContext.ord, currentPagePos),
                         currentDocsBuilder.build(),
                         true
                     ).asBlock()
                 );
-                currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
+                currentDocsBuilder = blockFactory.newIntVectorBuilder(maxPageSize);
                 currentPagePos = 0;
             }
 

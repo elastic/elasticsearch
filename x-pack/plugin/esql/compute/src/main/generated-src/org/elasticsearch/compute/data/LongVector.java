@@ -79,7 +79,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
         if (constant && positions > 0) {
             return new ConstantLongVector(in.readLong(), positions);
         } else {
-            var builder = LongVector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().newLongVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendLong(in.readLong());
             }
@@ -99,10 +99,6 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
                 out.writeLong(getLong(i));
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new LongVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits LongVectorBuilder {

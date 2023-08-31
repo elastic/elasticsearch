@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MinIntAggregator}.
@@ -31,14 +31,18 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final List<Integer> channels;
 
-  public MinIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state) {
+  private final DriverContext driverContext;
+
+  public MinIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      IntArrayState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
   public static MinIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new MinIntGroupingAggregatorFunction(channels, new IntArrayState(bigArrays, MinIntAggregator.init()));
+      DriverContext driverContext) {
+    return new MinIntGroupingAggregatorFunction(channels, driverContext, new IntArrayState(driverContext, MinIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

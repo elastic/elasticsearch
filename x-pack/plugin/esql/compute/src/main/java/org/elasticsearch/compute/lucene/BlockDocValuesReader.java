@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -35,9 +36,11 @@ import java.io.IOException;
 public abstract class BlockDocValuesReader {
 
     protected final Thread creationThread;
+    protected final BlockFactory blockFactory;
 
-    public BlockDocValuesReader() {
+    public BlockDocValuesReader(BlockFactory blockFactory) {
         this.creationThread = Thread.currentThread();
+        this.blockFactory = blockFactory;
     }
 
     /**
@@ -71,12 +74,13 @@ public abstract class BlockDocValuesReader {
         ValuesSource valuesSource,
         ValuesSourceType valuesSourceType,
         ElementType elementType,
-        LeafReaderContext leafReaderContext
+        LeafReaderContext leafReaderContext,
+        BlockFactory blockFactory
     ) throws IOException {
         if (valuesSourceType instanceof UnsupportedValueSourceType) {
             final UnsupportedValueSource bytesVS = (UnsupportedValueSource) valuesSource;
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
-            return new BytesValuesReader(bytesValues);
+            return new BytesValuesReader(bytesValues, blockFactory);
         }
         if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
@@ -87,22 +91,22 @@ public abstract class BlockDocValuesReader {
                 final SortedNumericDoubleValues doubleValues = numericVS.doubleValues(leafReaderContext);
                 final NumericDoubleValues singleton = FieldData.unwrapSingleton(doubleValues);
                 if (singleton != null) {
-                    return new DoubleSingletonValuesReader(singleton);
+                    return new DoubleSingletonValuesReader(singleton, blockFactory);
                 }
-                return new DoubleValuesReader(doubleValues);
+                return new DoubleValuesReader(doubleValues, blockFactory);
             } else {
                 final SortedNumericDocValues longValues = numericVS.longValues(leafReaderContext);
                 final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
                 if (singleton != null) {
                     return switch (elementType) {
-                        case LONG -> new LongSingletonValuesReader(singleton);
-                        case INT -> new IntSingletonValuesReader(singleton);
+                        case LONG -> new LongSingletonValuesReader(singleton, blockFactory);
+                        case INT -> new IntSingletonValuesReader(singleton, blockFactory);
                         default -> throw new UnsupportedOperationException("can't extract [" + elementType + "] from integer fields");
                     };
                 }
                 return switch (elementType) {
-                    case LONG -> new LongValuesReader(longValues);
-                    case INT -> new IntValuesReader(longValues);
+                    case LONG -> new LongValuesReader(longValues, blockFactory);
+                    case INT -> new IntValuesReader(longValues, blockFactory);
                     default -> throw new UnsupportedOperationException("can't extract [" + elementType + "] from integer fields");
                 };
             }
@@ -113,7 +117,7 @@ public abstract class BlockDocValuesReader {
             }
             final ValuesSource.Bytes bytesVS = (ValuesSource.Bytes) valuesSource;
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
-            return new BytesValuesReader(bytesValues);
+            return new BytesValuesReader(bytesValues, blockFactory);
         }
         if (CoreValuesSourceType.BOOLEAN.equals(valuesSourceType)) {
             if (elementType != ElementType.BOOLEAN) {
@@ -123,9 +127,9 @@ public abstract class BlockDocValuesReader {
             final SortedNumericDocValues longValues = numericVS.longValues(leafReaderContext);
             final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
             if (singleton != null) {
-                return new BooleanSingletonValuesReader(singleton);
+                return new BooleanSingletonValuesReader(singleton, blockFactory);
             }
-            return new BooleanValuesReader(longValues);
+            return new BooleanValuesReader(longValues, blockFactory);
         }
         if (valuesSourceType instanceof NullValueSourceType) {
             return new NullValuesReader();
@@ -136,13 +140,14 @@ public abstract class BlockDocValuesReader {
     private static class LongSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
-        LongSingletonValuesReader(NumericDocValues numericDocValues) {
+        LongSingletonValuesReader(NumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newLongBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -191,13 +196,14 @@ public abstract class BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 
-        LongValuesReader(SortedNumericDocValues numericDocValues) {
+        LongValuesReader(SortedNumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newLongBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -253,13 +259,14 @@ public abstract class BlockDocValuesReader {
     private static class IntSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
-        IntSingletonValuesReader(NumericDocValues numericDocValues) {
+        IntSingletonValuesReader(NumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newIntBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -308,13 +315,14 @@ public abstract class BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 
-        IntValuesReader(SortedNumericDocValues numericDocValues) {
+        IntValuesReader(SortedNumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newIntBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -372,13 +380,14 @@ public abstract class BlockDocValuesReader {
         private final NumericDoubleValues numericDocValues;
         private int docID = -1;
 
-        DoubleSingletonValuesReader(NumericDoubleValues numericDocValues) {
+        DoubleSingletonValuesReader(NumericDoubleValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newDoubleBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -429,13 +438,14 @@ public abstract class BlockDocValuesReader {
         private final SortedNumericDoubleValues numericDocValues;
         private int docID = -1;
 
-        DoubleValuesReader(SortedNumericDoubleValues numericDocValues) {
+        DoubleValuesReader(SortedNumericDoubleValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newDoubleBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -491,13 +501,14 @@ public abstract class BlockDocValuesReader {
         private final SortedBinaryDocValues binaryDV;
         private int docID = -1;
 
-        BytesValuesReader(SortedBinaryDocValues binaryDV) {
+        BytesValuesReader(SortedBinaryDocValues binaryDV, BlockFactory blockFactory) {
+            super(blockFactory);
             this.binaryDV = binaryDV;
         }
 
         @Override
         public BytesRefBlock.Builder builder(int positionCount) {
-            return BytesRefBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newBytesRefBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -552,13 +563,14 @@ public abstract class BlockDocValuesReader {
     private static class BooleanSingletonValuesReader extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
-        BooleanSingletonValuesReader(NumericDocValues numericDocValues) {
+        BooleanSingletonValuesReader(NumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newBooleanBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -607,13 +619,14 @@ public abstract class BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
         private int docID = -1;
 
-        BooleanValuesReader(SortedNumericDocValues numericDocValues) {
+        BooleanValuesReader(SortedNumericDocValues numericDocValues, BlockFactory blockFactory) {
+            super(blockFactory);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return blockFactory.newBooleanBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
         }
 
         @Override
@@ -668,6 +681,10 @@ public abstract class BlockDocValuesReader {
 
     private static class NullValuesReader extends BlockDocValuesReader {
         private int docID = -1;
+
+        NullValuesReader() {
+            super(null); // TODO:
+        }
 
         @Override
         public Block.Builder builder(int positionCount) {

@@ -7,17 +7,17 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -30,8 +30,8 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 @GroupingAggregator
 class SumDoubleAggregator {
 
-    public static SumState initSingle() {
-        return new SumState();
+    public static SumState initSingle(DriverContext driverContext) {
+        return new SumState(driverContext);
     }
 
     public static void combine(SumState current, double v) {
@@ -62,11 +62,11 @@ class SumDoubleAggregator {
 
     public static Block evaluateFinal(SumState state) {
         double result = state.value();
-        return DoubleBlock.newConstantBlockWith(result, 1);
+        return state.blockFactory.newConstantDoubleVector(result, 1).asBlock();
     }
 
-    public static GroupingSumState initGrouping(BigArrays bigArrays) {
-        return new GroupingSumState(bigArrays);
+    public static GroupingSumState initGrouping(DriverContext driverContext) {
+        return new GroupingSumState(driverContext);
     }
 
     public static void combine(GroupingSumState current, int groupId, double v) {
@@ -87,9 +87,10 @@ class SumDoubleAggregator {
 
     public static void evaluateIntermediate(GroupingSumState state, Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 3;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        BlockFactory blockFactory = state.driverContext.blockFactory();
+        var valuesBuilder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
+        var deltaBuilder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
+        var seenBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < state.values.size()) {
@@ -107,7 +108,8 @@ class SumDoubleAggregator {
     }
 
     public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        BlockFactory blockFactory = state.driverContext.blockFactory();
+        DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int si = selected.getInt(i);
             if (state.hasValue(si) && si < state.values.size()) {
@@ -121,14 +123,16 @@ class SumDoubleAggregator {
 
     static class SumState extends CompensatedSum implements AggregatorState {
 
+        private final BlockFactory blockFactory;
         private boolean seen;
 
-        SumState() {
-            this(0, 0);
+        SumState(DriverContext driverContext) {
+            this(driverContext, 0, 0);
         }
 
-        SumState(double value, double delta) {
+        SumState(DriverContext driverContext, double value, double delta) {
             super(value, delta);
+            this.blockFactory = driverContext.blockFactory();
         }
 
         @Override
@@ -154,8 +158,8 @@ class SumDoubleAggregator {
         DoubleArray values;
         DoubleArray deltas;
 
-        GroupingSumState(BigArrays bigArrays) {
-            super(bigArrays);
+        GroupingSumState(DriverContext driverContext) {
+            super(driverContext);
             boolean success = false;
             try {
                 this.values = bigArrays.newDoubleArray(1);

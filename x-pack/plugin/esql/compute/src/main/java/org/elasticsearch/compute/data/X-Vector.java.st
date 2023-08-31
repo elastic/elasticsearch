@@ -112,7 +112,7 @@ $endif$
         if (constant && positions > 0) {
             return new Constant$Type$Vector(in.read$Type$(), positions);
         } else {
-            var builder = $Type$Vector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().new$Type$VectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.append$Type$(in.read$Type$());
             }
@@ -140,10 +140,6 @@ $else$
 $endif$
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new $Type$VectorBuilder(estimatedSize);
     }
 
 $if(int)$

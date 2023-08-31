@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -38,7 +39,7 @@ public class AggregationOperator implements Operator {
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(Factory::get).toList());
+            return new AggregationOperator(aggregators.stream().map(f -> f.apply(driverContext)).toList());
         }
 
         @Override

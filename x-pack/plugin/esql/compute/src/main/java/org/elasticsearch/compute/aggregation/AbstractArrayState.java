@@ -9,16 +9,20 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 public class AbstractArrayState implements Releasable {
     protected final BigArrays bigArrays;
+    protected final BlockFactory blockFactory;
 
     private BitArray seen;
 
-    public AbstractArrayState(BigArrays bigArrays) {
-        this.bigArrays = bigArrays;
+    public AbstractArrayState(DriverContext driverContext) {
+        this.blockFactory = driverContext.blockFactory();
+        this.bigArrays = driverContext.bigArrays();
     }
 
     final boolean hasValue(int groupId) {

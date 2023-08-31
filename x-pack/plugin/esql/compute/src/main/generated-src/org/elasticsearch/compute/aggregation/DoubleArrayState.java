@@ -7,13 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -34,10 +34,13 @@ import org.elasticsearch.core.Releasables;
 final class DoubleArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final double init;
 
+    private final BlockFactory blockFactory;
+
     private DoubleArray values;
 
-    DoubleArrayState(BigArrays bigArrays, double init) {
-        super(bigArrays);
+    DoubleArrayState(DriverContext driverContext, double init) {
+        super(driverContext);
+        this.blockFactory = driverContext.blockFactory();
         this.values = bigArrays.newDoubleArray(1, false);
         this.values.set(0, init);
         this.init = init;
@@ -59,13 +62,13 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
         if (false == trackingGroupIds()) {
-            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount());
+            DoubleVector.Builder builder = blockFactory.newDoubleVectorBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.appendDouble(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (hasValue(group)) {
@@ -89,8 +92,8 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
+        var hasValueBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < values.size()) {

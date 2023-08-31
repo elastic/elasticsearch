@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MaxLongAggregator}.
@@ -33,14 +33,18 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   private final List<Integer> channels;
 
-  public MaxLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
+  private final DriverContext driverContext;
+
+  public MaxLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      LongArrayState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
   public static MaxLongGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new MaxLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, MaxLongAggregator.init()));
+      DriverContext driverContext) {
+    return new MaxLongGroupingAggregatorFunction(channels, driverContext, new LongArrayState(driverContext, MaxLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

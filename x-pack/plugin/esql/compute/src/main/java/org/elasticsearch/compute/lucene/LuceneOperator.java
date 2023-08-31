@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -65,16 +66,21 @@ public abstract class LuceneOperator extends SourceOperator {
     int currentScorerPos;
     int pagesEmitted;
 
-    LuceneOperator(IndexReader reader, int shardId, Query query, int maxPageSize) {
+    protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+
+    LuceneOperator(IndexReader reader, int shardId, Query query, int maxPageSize, DriverContext driverContext) {
         this.indexReader = reader;
         this.shardId = shardId;
         this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = Math.max(1, maxPageSize / 2);
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
     }
 
-    LuceneOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
+    LuceneOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize, DriverContext driverContext) {
         this.indexReader = null;
         this.shardId = shardId;
         this.leaves = leaves;
@@ -82,6 +88,8 @@ public abstract class LuceneOperator extends SourceOperator {
         this.weight = weight;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     abstract LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice);
@@ -120,12 +128,12 @@ public abstract class LuceneOperator extends SourceOperator {
             this.limit = limit;
         }
 
-        abstract LuceneOperator luceneOperatorForShard(int shardIndex);
+        abstract LuceneOperator luceneOperatorForShard(int shardIndex, DriverContext driverContext);
 
-        Iterator<LuceneOperator> sourceOperatorIterator() {
+        Iterator<LuceneOperator> sourceOperatorIterator(DriverContext driverContext) {
             final List<LuceneOperator> luceneOperators = new ArrayList<>();
             for (int shardIndex = 0; shardIndex < searchContexts.size(); shardIndex++) {
-                LuceneOperator queryOperator = luceneOperatorForShard(shardIndex);
+                LuceneOperator queryOperator = luceneOperatorForShard(shardIndex, driverContext);
                 switch (dataPartitioning) {
                     case SHARD -> luceneOperators.add(queryOperator);
                     case SEGMENT -> luceneOperators.addAll(queryOperator.segmentSlice());
@@ -139,7 +147,7 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public final SourceOperator get(DriverContext driverContext) {
             if (iterator == null) {
-                iterator = sourceOperatorIterator();
+                iterator = sourceOperatorIterator(driverContext);
             }
             if (iterator.hasNext()) {
                 return iterator.next();
@@ -150,7 +158,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         public int size() {
             return Math.toIntExact(
-                StreamSupport.stream(Spliterators.spliteratorUnknownSize(sourceOperatorIterator(), Spliterator.ORDERED), false).count()
+                StreamSupport.stream(Spliterators.spliteratorUnknownSize(sourceOperatorIterator(null), Spliterator.ORDERED), false).count()
             );
         }
 

@@ -78,7 +78,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         if (constant && positions > 0) {
             return new ConstantBooleanVector(in.readBoolean(), positions);
         } else {
-            var builder = BooleanVector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().newBooleanVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendBoolean(in.readBoolean());
             }
@@ -98,10 +98,6 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
                 out.writeBoolean(getBoolean(i));
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new BooleanVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {

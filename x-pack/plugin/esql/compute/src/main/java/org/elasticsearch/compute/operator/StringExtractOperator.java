@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -30,7 +31,7 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new StringExtractOperator(fieldNames, expressionEvaluator.get(), parserSupplier.get());
+            return new StringExtractOperator(fieldNames, expressionEvaluator.get(), parserSupplier.get(), driverContext);
         }
 
         @Override
@@ -42,15 +43,18 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
     private final String[] fieldNames;
     private final EvalOperator.ExpressionEvaluator inputEvaluator;
     private final Function<String, Map<String, String>> parser;  // TODO parser should consume ByteRef instead of String
+    private final BlockFactory blockFactory;
 
     public StringExtractOperator(
         String[] fieldNames,
         EvalOperator.ExpressionEvaluator inputEvaluator,
-        Function<String, Map<String, String>> parser
+        Function<String, Map<String, String>> parser,
+        DriverContext driverContext
     ) {
         this.fieldNames = fieldNames;
         this.inputEvaluator = inputEvaluator;
         this.parser = parser;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -59,10 +63,10 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
 
         BytesRefBlock.Builder[] blockBuilders = new BytesRefBlock.Builder[fieldNames.length];
         for (int i = 0; i < fieldNames.length; i++) {
-            blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount);
+            blockBuilders[i] = blockFactory.newBytesRefBlockBuilder(rowsCount);
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page, blockFactory);
         BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
             if (input.isNull(row)) {

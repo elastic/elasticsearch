@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationLongAggregator}.
@@ -30,14 +31,18 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   public MedianAbsoluteDeviationLongAggregatorFunction(List<Integer> channels,
-      QuantileStates.SingleState state) {
+      DriverContext driverContext, QuantileStates.SingleState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static MedianAbsoluteDeviationLongAggregatorFunction create(List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongAggregatorFunction(channels, MedianAbsoluteDeviationLongAggregator.initSingle());
+  public static MedianAbsoluteDeviationLongAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MedianAbsoluteDeviationLongAggregatorFunction(channels, driverContext, MedianAbsoluteDeviationLongAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

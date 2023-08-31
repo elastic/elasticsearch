@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinDoubleAggregator}.
@@ -30,13 +31,18 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinDoubleAggregatorFunction(List<Integer> channels, DoubleState state) {
+  private final DriverContext driverContext;
+
+  public MinDoubleAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      DoubleState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static MinDoubleAggregatorFunction create(List<Integer> channels) {
-    return new MinDoubleAggregatorFunction(channels, new DoubleState(MinDoubleAggregator.init()));
+  public static MinDoubleAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MinDoubleAggregatorFunction(channels, driverContext, new DoubleState(MinDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -109,7 +115,7 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       blocks[offset] = Block.constantNullBlock(1);
       return;
     }
-    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantDoubleVector(state.doubleValue(), 1).asBlock();
   }
 
   @Override

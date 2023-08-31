@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
@@ -30,14 +31,18 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   public MedianAbsoluteDeviationIntAggregatorFunction(List<Integer> channels,
-      QuantileStates.SingleState state) {
+      DriverContext driverContext, QuantileStates.SingleState state) {
     this.channels = channels;
+    this.driverContext = driverContext;
     this.state = state;
   }
 
-  public static MedianAbsoluteDeviationIntAggregatorFunction create(List<Integer> channels) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initSingle());
+  public static MedianAbsoluteDeviationIntAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MedianAbsoluteDeviationIntAggregatorFunction(channels, driverContext, MedianAbsoluteDeviationIntAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

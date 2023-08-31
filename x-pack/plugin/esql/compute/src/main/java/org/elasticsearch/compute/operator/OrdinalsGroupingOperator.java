@@ -21,7 +21,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -142,7 +142,7 @@ public class OrdinalsGroupingOperator implements Operator {
                             groupingAggregators,
                             withOrdinals,
                             leafReaderContext,
-                            bigArrays
+                            driverContext
                         );
                         success = true;
                         return ordinalSegmentAggregator;
@@ -242,7 +242,7 @@ public class OrdinalsGroupingOperator implements Operator {
             }
             int position = -1;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
-            var blockBuilder = BytesRefBlock.newBlockBuilder(1);
+            var blockBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(1);
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
                 if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
@@ -305,21 +305,23 @@ public class OrdinalsGroupingOperator implements Operator {
         private final LeafReaderContext leafReaderContext;
         private final BitArray visitedOrds;
         private BlockOrdinalsReader currentReader;
+        private final BlockFactory blockFactory;
 
         OrdinalSegmentAggregator(
             List<GroupingAggregator> aggregators,
             ValuesSource.Bytes.WithOrdinals withOrdinals,
             LeafReaderContext leafReaderContext,
-            BigArrays bigArrays
+            DriverContext driverContext
         ) throws IOException {
             boolean success = false;
             try {
                 this.aggregators = aggregators;
                 this.withOrdinals = withOrdinals;
                 this.leafReaderContext = leafReaderContext;
+                this.blockFactory = driverContext.blockFactory();
                 final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues);
-                this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
+                this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), driverContext.bigArrays());
                 success = true;
             } finally {
                 if (success == false) {
@@ -336,7 +338,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
 
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
-                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
+                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext), blockFactory);
                 }
                 final IntBlock ordinals = currentReader.readOrdinals(docs);
                 for (int p = 0; p < ordinals.getPositionCount(); p++) {
@@ -419,10 +421,10 @@ public class OrdinalsGroupingOperator implements Operator {
             BigArrays bigArrays,
             DriverContext driverContext
         ) {
-            this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
+            this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField, driverContext.blockFactory());
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize),
+                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), driverContext, maxPageSize),
                 driverContext
             );
         }

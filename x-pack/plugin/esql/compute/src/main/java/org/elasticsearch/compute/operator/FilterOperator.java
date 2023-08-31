@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -17,12 +18,13 @@ import java.util.function.Supplier;
 public class FilterOperator extends AbstractPageMappingOperator {
 
     private final EvalOperator.ExpressionEvaluator evaluator;
+    private final BlockFactory blockFactory;
 
     public record FilterOperatorFactory(Supplier<EvalOperator.ExpressionEvaluator> evaluatorSupplier) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FilterOperator(evaluatorSupplier.get());
+            return new FilterOperator(evaluatorSupplier.get(), driverContext);
         }
 
         @Override
@@ -31,8 +33,9 @@ public class FilterOperator extends AbstractPageMappingOperator {
         }
     }
 
-    public FilterOperator(EvalOperator.ExpressionEvaluator evaluator) {
+    public FilterOperator(EvalOperator.ExpressionEvaluator evaluator, DriverContext driverContext) {
         this.evaluator = evaluator;
+        this.blockFactory = driverContext.blockFactory();
     }
 
     @Override
@@ -40,7 +43,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
 
-        Block uncastTest = evaluator.eval(page);
+        Block uncastTest = evaluator.eval(page, blockFactory);
         if (uncastTest.areAllValuesNull()) {
             // All results are null which is like false. No values selected.
             return null;

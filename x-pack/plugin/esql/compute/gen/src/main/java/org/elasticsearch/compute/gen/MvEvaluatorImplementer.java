@@ -193,7 +193,7 @@ public class MvEvaluatorImplementer {
         builder.addStatement("int positionCount = v.getPositionCount()");
         if (nullable) {
             TypeName resultBlockType = blockType(resultType);
-            builder.addStatement("$T.Builder builder = $T.newBlockBuilder(positionCount)", resultBlockType, resultBlockType);
+            builder.addStatement("$T.Builder builder = blockFactory.new$TBuilder(positionCount)", resultBlockType, resultBlockType);
         } else if (resultType.equals(BYTES_REF)) {
             builder.addStatement(
                 "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)",  // TODO blocks should use recycling array

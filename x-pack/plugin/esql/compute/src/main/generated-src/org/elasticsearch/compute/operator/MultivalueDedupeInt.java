@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 
 import java.util.Arrays;
@@ -28,11 +29,13 @@ public class MultivalueDedupeInt {
      */
     private static final int ALWAYS_COPY_MISSING = 300;
     private final IntBlock block;
+    private final BlockFactory blockFactory;
     private int[] work = new int[ArrayUtil.oversize(2, Integer.BYTES)];
     private int w;
 
-    public MultivalueDedupeInt(IntBlock block) {
+    public MultivalueDedupeInt(IntBlock block, BlockFactory blockFactory) {
         this.block = block;
+        this.blockFactory = blockFactory;
     }
 
     /**
@@ -43,7 +46,7 @@ public class MultivalueDedupeInt {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -91,7 +94,7 @@ public class MultivalueDedupeInt {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -119,7 +122,7 @@ public class MultivalueDedupeInt {
         if (false == block.mayHaveMultivaluedFields()) {
             return block;
         }
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);
             int first = block.getFirstValueIndex(p);
@@ -140,7 +143,7 @@ public class MultivalueDedupeInt {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(LongHash hash) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+        IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
             int count = block.getValueCount(p);

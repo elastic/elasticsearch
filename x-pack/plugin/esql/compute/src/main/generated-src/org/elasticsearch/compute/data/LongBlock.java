@@ -49,7 +49,7 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
             return LongVector.of(in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
+        var builder = BlockFactory.getDefault().newLongBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
             if (in.readBoolean()) {
                 builder.appendNull();
@@ -156,14 +156,6 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
             }
         }
         return result;
-    }
-
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize);
-    }
-
-    static LongBlock newConstantBlockWith(long value, int positions) {
-        return new ConstantLongVector(value, positions).asBlock();
     }
 
     sealed interface Builder extends Block.Builder permits LongBlockBuilder {

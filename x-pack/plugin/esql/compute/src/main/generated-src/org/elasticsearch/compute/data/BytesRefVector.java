@@ -78,7 +78,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         if (constant && positions > 0) {
             return new ConstantBytesRefVector(in.readBytesRef(), positions);
         } else {
-            var builder = BytesRefVector.newVectorBuilder(positions);
+            var builder = BlockFactory.getDefault().newBytesRefVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.appendBytesRef(in.readBytesRef());
             }
@@ -98,10 +98,6 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
                 out.writeBytesRef(getBytesRef(i, new BytesRef()));
             }
         }
-    }
-
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new BytesRefVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {

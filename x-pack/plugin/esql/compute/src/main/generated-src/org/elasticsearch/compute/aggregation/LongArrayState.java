@@ -7,13 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -34,10 +34,13 @@ import org.elasticsearch.core.Releasables;
 final class LongArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final long init;
 
+    private final BlockFactory blockFactory;
+
     private LongArray values;
 
-    LongArrayState(BigArrays bigArrays, long init) {
-        super(bigArrays);
+    LongArrayState(DriverContext driverContext, long init) {
+        super(driverContext);
+        this.blockFactory = driverContext.blockFactory();
         this.values = bigArrays.newLongArray(1, false);
         this.values.set(0, init);
         this.init = init;
@@ -65,13 +68,13 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
         if (false == trackingGroupIds()) {
-            LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
+            LongVector.Builder builder = blockFactory.newLongVectorBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.appendLong(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
+        LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (hasValue(group)) {
@@ -95,8 +98,8 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
+        var hasValueBuilder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < values.size()) {

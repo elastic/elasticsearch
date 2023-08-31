@@ -13,10 +13,11 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
@@ -59,8 +60,10 @@ public final class QuantileStates {
     static class SingleState implements AggregatorState {
         private TDigestState digest;
         private final Double percentile;
+        private final BlockFactory blockFactory;
 
-        SingleState(double percentile) {
+        SingleState(DriverContext driverContext, double percentile) {
+            this.blockFactory = driverContext.blockFactory();
             this.digest = TDigestState.create(DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
@@ -93,18 +96,18 @@ public final class QuantileStates {
                 return Block.constantNullBlock(1);
             }
             double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
-            return DoubleBlock.newConstantBlockWith(result, 1);
+            return blockFactory.newConstantDoubleVector(result, 1).asBlock();
         }
 
         Block evaluatePercentile() {
             if (percentile == null) {
-                return DoubleBlock.newBlockBuilder(1).appendNull().build();
+                return blockFactory.newDoubleBlockBuilder(1).appendNull().build();
             }
             if (digest.size() == 0) {
                 return Block.constantNullBlock(1);
             }
             double result = digest.quantile(percentile / 100);
-            return DoubleBlock.newConstantBlockWith(result, 1);
+            return blockFactory.newConstantDoubleVector(result, 1).asBlock();
         }
     }
 
@@ -112,10 +115,12 @@ public final class QuantileStates {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
+        private final BlockFactory blockFactory;
         private final Double percentile;
 
-        GroupingState(BigArrays bigArrays, double percentile) {
-            this.bigArrays = bigArrays;
+        GroupingState(DriverContext driverContext, double percentile) {
+            this.bigArrays = driverContext.bigArrays();
+            this.blockFactory = driverContext.blockFactory();
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
         }
@@ -156,7 +161,7 @@ public final class QuantileStates {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
             assert blocks.length >= offset + 1;
-            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
+            var builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 TDigestState state;
@@ -175,7 +180,7 @@ public final class QuantileStates {
 
         Block evaluateMedianAbsoluteDeviation(IntVector selected) {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            final DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= digests.size()) {
@@ -193,7 +198,7 @@ public final class QuantileStates {
         }
 
         Block evaluatePercentile(IntVector selected) {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            final DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= digests.size()) {

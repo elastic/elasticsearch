@@ -124,9 +124,10 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
 
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
-        tcpReadinessProbeTrue(dataNode);
-        tcpReadinessProbeTrue(masterNode);
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
+        final var currentMasterNode = internalCluster().getInstance(ReadinessService.class, masterNode);
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
 
         logger.info("--> stop master node");
@@ -134,7 +135,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         expectMasterNotFound();
 
-        tcpReadinessProbeFalse(masterNode);
+        tcpReadinessProbeFalse(currentMasterNode);
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(
@@ -143,7 +144,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         assertMasterNode(internalCluster().nonMasterClient(), nextMasterEligibleNodeName);
         assertMasterNode(internalCluster().masterClient(), nextMasterEligibleNodeName);
-        tcpReadinessProbeTrue(nextMasterEligibleNodeName);
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, nextMasterEligibleNodeName));
     }
 
     public void testReadinessDuringRestartsNormalOrder() throws Exception {
@@ -158,18 +159,18 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         internalCluster().validateClusterFormed();
 
-        tcpReadinessProbeTrue(masterNode);
+        tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
         for (String dataNode : dataNodes) {
-            tcpReadinessProbeTrue(dataNode);
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         }
 
         logger.info("--> restart data node 1");
         internalCluster().restartNode(dataNodes.get(0), new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                tcpReadinessProbeTrue(masterNode);
-                tcpReadinessProbeTrue(dataNodes.get(1));
+                tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
+                tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNodes.get(1)));
 
                 return super.onNodeStopped(nodeName);
             }
@@ -189,7 +190,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);
                     boolean awaitSuccessful = s.listenerThreadLatch.await(10, TimeUnit.SECONDS);
                     assertTrue(awaitSuccessful);
-                    tcpReadinessProbeFalse(dataNode);
+                    tcpReadinessProbeFalse(s);
                 }
 
                 return super.onNodeStopped(nodeName);
@@ -198,7 +199,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
         ensureGreen();
         for (String dataNode : dataNodes) {
-            tcpReadinessProbeTrue(dataNode);
+            tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         }
     }
 
@@ -328,8 +329,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
         readinessProbeListening.await(20, TimeUnit.SECONDS);
-        tcpReadinessProbeTrue(internalCluster().getMasterName());
+        tcpReadinessProbeTrue(s);
     }
 
     private void causeClusterStateUpdate() {

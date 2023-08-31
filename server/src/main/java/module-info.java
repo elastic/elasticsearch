@@ -297,7 +297,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security, org.elasticsearch.serverless.rest;
     exports org.elasticsearch.plugins.spi;
-    exports org.elasticsearch.readiness;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;

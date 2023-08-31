@@ -11,7 +11,6 @@ package org.elasticsearch.readiness;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 
 import java.net.InetAddress;
@@ -22,8 +21,6 @@ import java.net.SocketOption;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 public class MockReadinessService extends ReadinessService {
@@ -33,12 +30,9 @@ public class MockReadinessService extends ReadinessService {
     public static class TestPlugin extends Plugin {}
 
     private static class MockServerSocketChannel extends ServerSocketChannel {
-        private static final Map<String, MockServerSocketChannel> mockedSockets = new HashMap<>();
 
-        static ServerSocketChannel open(String nodeName) {
-            var mockSocket = new MockServerSocketChannel();
-            mockedSockets.put(nodeName, mockSocket);
-            return mockSocket;
+        static ServerSocketChannel openMock() {
+            return new MockServerSocketChannel();
         }
 
         private MockServerSocketChannel() {
@@ -91,11 +85,11 @@ public class MockReadinessService extends ReadinessService {
     }
 
     public MockReadinessService(ClusterService clusterService, Environment environment) {
-        super(clusterService, environment, () -> MockServerSocketChannel.open(Node.NODE_NAME_SETTING.get(environment.settings())));
+        super(clusterService, environment, MockServerSocketChannel::openMock);
     }
 
-    static void tcpReadinessProbeTrue(String nodeName) {
-        MockServerSocketChannel mockedSocket = MockServerSocketChannel.mockedSockets.get(nodeName);
+    static void tcpReadinessProbeTrue(ReadinessService readinessService) {
+        ServerSocketChannel mockedSocket = readinessService.serverChannel();
         if (mockedSocket == null) {
             throw new AssertionError("Mocked socket not created for this node");
         }
@@ -104,12 +98,9 @@ public class MockReadinessService extends ReadinessService {
         }
     }
 
-    static void tcpReadinessProbeFalse(String nodeName) {
-        MockServerSocketChannel mockedSocket = MockServerSocketChannel.mockedSockets.get(nodeName);
-        if (mockedSocket == null) {
-            throw new AssertionError("Mocked socket not created for this node");
-        }
-        if (mockedSocket.isOpen()) {
+    static void tcpReadinessProbeFalse(ReadinessService readinessService) {
+        ServerSocketChannel mockedSocket = readinessService.serverChannel();
+        if (mockedSocket != null && mockedSocket.isOpen()) {
             throw new AssertionError("Readiness socket should be closed");
         }
     }

@@ -137,6 +137,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return totalFrames;
     }
 
+    public double getSamplingRate() {
+        return samplingRate;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(

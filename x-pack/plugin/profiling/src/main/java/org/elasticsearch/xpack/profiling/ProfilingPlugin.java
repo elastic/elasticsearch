@@ -144,6 +144,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestGetStatusAction());
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
+            handlers.add(new RestGetFlamegraphAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -177,6 +178,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
+            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
         );
     }

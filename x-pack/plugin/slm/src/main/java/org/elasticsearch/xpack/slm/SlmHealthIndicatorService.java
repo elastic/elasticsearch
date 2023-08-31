@@ -134,7 +134,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 .values()
                 .stream()
                 .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
-                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getName))
+                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getId))
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -152,7 +152,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 String unhealthyPolicyCauses = unhealthyPolicies.stream()
                     .map(
                         policy -> "- ["
-                            + policy.getName()
+                            + policy.getId()
                             + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
                             + "] repeated failures without successful execution"
@@ -185,7 +185,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                                 new Diagnosis.Resource(
                                     Diagnosis.Resource.Type.SLM_POLICY,
                                     unhealthyPolicies.stream()
-                                        .map(SnapshotLifecyclePolicyMetadata::getName)
+                                        .map(SnapshotLifecyclePolicyMetadata::getId)
                                         .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
                                         .toList()
                                 )
@@ -242,7 +242,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                         unhealthyPolicies.stream()
                             .collect(
                                 Collectors.toMap(
-                                    SnapshotLifecyclePolicyMetadata::getName,
+                                    SnapshotLifecyclePolicyMetadata::getId,
                                     SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
                                 )
                             )

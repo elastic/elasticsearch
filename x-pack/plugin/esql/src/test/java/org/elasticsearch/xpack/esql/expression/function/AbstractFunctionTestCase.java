@@ -427,7 +427,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         /**
-         * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
+         * Generate positive test cases for a unary function operating on an {@link DataTypes#VERSION}.
          */
         public static void forUnaryVersion(
             List<TestCaseSupplier> suppliers,

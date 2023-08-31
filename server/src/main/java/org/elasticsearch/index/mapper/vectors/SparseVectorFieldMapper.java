@@ -42,7 +42,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
         + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
-    static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported for 8.0 to 8.10 versions.";
+    static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported from 8.0 to 8.10 versions.";
 
     private static SparseVectorFieldType ft(FieldMapper in) {
         return ((SparseVectorFieldMapper) in).fieldType();

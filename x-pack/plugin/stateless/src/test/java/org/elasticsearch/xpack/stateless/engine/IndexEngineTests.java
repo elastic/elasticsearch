@@ -17,7 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 
 import org.apache.lucene.index.NoMergePolicy;
@@ -30,6 +32,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.translog.Translog;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
@@ -164,6 +174,78 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                     maxUploadedFile + 1,
                     Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
                 );
+            }
+        }
+    }
+
+    /**
+     * Test that the engine calls the closed reader notification for every reader that it no longer uses.
+     */
+    public void testClosedReaders() throws IOException {
+        TranslogReplicator translogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService commitService = mockCommitService();
+        List<Long> closedReaderGenerations = new ArrayList<>();
+        when(commitService.closedLocalReadersForGeneration(any())).thenReturn(closedReaderGenerations::add);
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
+                        .build(),
+                    nodeSettings
+                ),
+                translogReplicator,
+                mock(ObjectStoreService.class),
+                commitService
+            )
+        ) {
+            engine.index(randomDoc(String.valueOf(0)));
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+            // todo: annoyingly we need 2 flush'es to get the first entry closed due to the order of commit, write and update of
+            // lastCommittedSegmentInfos.
+            engine.flush(true, true);
+            engine.flush(true, true);
+            assertThat(closedReaderGenerations, empty());
+            // external reader manager refresh.
+            engine.refresh("test");
+            List<Long> expectedClosed = new ArrayList<>();
+            expectedClosed.add(2L);
+            assertThat(closedReaderGenerations, equalTo(expectedClosed));
+
+            int commits = between(1, 10);
+            NavigableMap<Long, Engine.Searcher> searchers = new TreeMap<>();
+            for (int i = 0; i < commits; ++i) {
+                if (randomBoolean()) {
+                    // the generation lacks one behind due to the order of commit, refresh and lastCommittedSegmentInfos update.
+                    searchers.put(i + 3L, engine.acquireSearcher("test"));
+                }
+                engine.index(randomDoc(String.valueOf(i + 1)));
+                engine.flush(true, true);
+                engine.refresh("test");
+            }
+            // need a second flush for same reason as above.
+            engine.flush(true, true);
+            engine.refresh("test");
+
+            Runnable refreshExpectedClosed = () -> {
+                long releasedUntil = searchers.isEmpty() ? commits + 4L : searchers.firstKey();
+                for (long generation = expectedClosed.get(expectedClosed.size() - 1) + 1; generation < releasedUntil; ++generation) {
+                    expectedClosed.add(generation);
+                }
+            };
+            refreshExpectedClosed.run();
+            assertThat(closedReaderGenerations, equalTo(expectedClosed));
+
+            while (searchers.isEmpty() == false) {
+                long generation = randomFrom(searchers.keySet());
+                Engine.Searcher searcher = searchers.remove(generation);
+                searcher.close();
+                refreshExpectedClosed.run();
+                assertThat(closedReaderGenerations, equalTo(expectedClosed));
             }
         }
     }

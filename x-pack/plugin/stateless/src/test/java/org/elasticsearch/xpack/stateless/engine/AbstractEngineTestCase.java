@@ -146,13 +146,18 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
+        StatelessCommitService commitService = mockCommitService();
+        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
+    }
+
+    protected static StatelessCommitService mockCommitService() {
         StatelessCommitService commitService = mock(StatelessCommitService.class);
         doAnswer(invocation -> {
             ActionListener<Void> argument = invocation.getArgument(2);
             argument.onResponse(null);
             return null;
         }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
-        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
+        return commitService;
     }
 
     protected IndexEngine newIndexEngine(
@@ -166,7 +171,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             translogReplicator,
             objectStoreService::getTranslogBlobContainer,
             commitService,
-            RefreshThrottler.Noop::new
+            RefreshThrottler.Noop::new,
+            commitService.closedLocalReadersForGeneration(indexConfig.getShardId())
         ) {
 
             @Override

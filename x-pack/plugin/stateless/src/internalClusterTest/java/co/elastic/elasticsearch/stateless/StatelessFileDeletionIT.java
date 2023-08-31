@@ -45,8 +45,12 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
@@ -320,6 +324,92 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         SeqNoStats afterSeqNoStats = client(indexNodeB).admin().indices().prepareStats(indexName).get().getShards()[0].getSeqNoStats();
         assertEquals(beforeSeqNoStats.getMaxSeqNo(), afterSeqNoStats.getMaxSeqNo());
+    }
+
+    public void testCommitsAreRetainedUntilFastRefreshScrollCloses() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        var indexName = SYSTEM_INDEX_NAME;
+        createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        ensureGreen(indexName);
+
+        // awaits #793
+        // var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        // var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+
+        int totalIndexedDocs = 0;
+
+        var numDocsBeforeOpenScroll = indexDocsAndFlush(indexName);
+        totalIndexedDocs += numDocsBeforeOpenScroll;
+
+        // We need to disregard the first empty commit
+        // awaits #793
+        // var blobsUsedForScroll = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+
+        // must refresh since flush only advances internal searcher.
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+
+        var scrollSearchResponse = client().prepareSearch(indexName)
+            .setQuery(matchAllQuery())
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
+
+        var numberOfCommitsAfterOpeningScroll = randomIntBetween(3, 5);
+        for (int i = 0; i < numberOfCommitsAfterOpeningScroll; i++) {
+            totalIndexedDocs += indexDocsAndFlush(indexName);
+        }
+
+        // awaits #793
+        // var blobsBeforeForceMerge = listBlobsWithAbsolutePath(shardCommitsContainer);
+
+        forceMerge();
+
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+
+        // todo: randomly clear cache to go directly to blob store.
+
+        // We request 1 document per search request
+        int numberOfScrollRequests = numDocsBeforeOpenScroll - 1;
+        for (int i = 0; i < numberOfScrollRequests; i++) {
+            var searchResponse = client().prepareSearchScroll(scrollSearchResponse.getScrollId())
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .get();
+            var hit = searchResponse.getHits().getHits()[0];
+            assertThat(hit, is(notNullValue()));
+        }
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+
+        var indexNodeObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        // awaits #793
+        // assertBusy(
+        // () -> assertThat(
+        // indexNodeObjectStoreService.getCommitBlobsToDelete().stream().noneMatch(blobsUsedForScroll::contains),
+        // is(true)
+        // )
+        // );
+
+        client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+
+        // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
+        totalIndexedDocs += indexDocsAndFlush(indexName);
+
+        // awaits #793
+        // assertBusy(() -> assertThat(indexNodeObjectStoreService.getCommitBlobsToDelete().containsAll(blobsBeforeForceMerge), is(true)));
+
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
+
+        var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
+        assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+    }
+
+    // copied from #793
+    private int indexDocsAndFlush(String indexName) {
+        int numDocsBeforeOpenScroll = randomIntBetween(10, 20);
+        indexDocs(indexName, numDocsBeforeOpenScroll);
+        flush(indexName);
+        return numDocsBeforeOpenScroll;
     }
 
     private static void assertTranslogBlobsExist(

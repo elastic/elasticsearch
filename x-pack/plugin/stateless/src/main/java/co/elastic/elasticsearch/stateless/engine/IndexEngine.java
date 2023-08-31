@@ -28,6 +28,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -38,9 +40,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
@@ -59,12 +65,18 @@ public class IndexEngine extends InternalEngine {
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
+    // Map from generation to number of readers.
+    private final NavigableMap<Long, Long> openReadersPerGeneration = new ConcurrentSkipListMap<>();
+
+    private final LongConsumer closedReadersForGenerationConsumer;
+
     public IndexEngine(
         EngineConfig engineConfig,
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
-        RefreshThrottler.Factory refreshThrottlerFactory
+        RefreshThrottler.Factory refreshThrottlerFactory,
+        LongConsumer closedReadersForGenerationConsumer
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -73,6 +85,50 @@ public class IndexEngine extends InternalEngine {
         this.statelessCommitService = statelessCommitService;
         this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
+        this.closedReadersForGenerationConsumer = closedReadersForGenerationConsumer;
+        this.openReadersPerGeneration.put(getLastCommittedSegmentInfos().getGeneration(), 1L);
+    }
+
+    @Override
+    protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
+        long generation = getLastCommittedSegmentInfos().getGeneration();
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> closedReader(generation));
+
+        return new ElasticsearchReaderManager(directoryReader) {
+            @Override
+            protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
+                // get this first, ensuring that the refreshed reader is based on this or a newer generation.
+                // todo: we should be able to use a better generation sooner after the commit
+                long generation = getLastCommittedSegmentInfos().getGeneration();
+                ElasticsearchDirectoryReader next = super.refreshIfNeeded(referenceToRefresh);
+                if (next == null) {
+                    return null;
+                }
+                assert openReadersPerGeneration.isEmpty() || openReadersPerGeneration.firstKey() <= generation
+                    : "generation must be monotonically increasing " + openReadersPerGeneration.firstKey() + " > " + generation;
+                openReadersPerGeneration.compute(generation, (k, v) -> v == null ? 1 : v + 1);
+                ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> closedReader(generation));
+                return next;
+            }
+        };
+
+    }
+
+    private void closedReader(long generation) {
+        assert openReadersPerGeneration.containsKey(generation);
+        Long result = openReadersPerGeneration.compute(generation, (k, v) -> v > 1 ? v - 1 : null);
+        if (result == null) {
+            Map.Entry<Long, Long> firstEntry = openReadersPerGeneration.firstEntry();
+            if (firstEntry != null) {
+                long first = firstEntry.getKey();
+                while (first > generation) {
+                    closedReadersForGenerationConsumer.accept(generation);
+                    ++generation;
+                }
+            } else {
+                assert isClosed.get() : "no readers found when not closed";
+            }
+        }
     }
 
     @Override
@@ -299,4 +355,6 @@ public class IndexEngine extends InternalEngine {
     public StatelessCommitService getStatelessCommitService() {
         return statelessCommitService;
     }
+
+    private record OpenReaderInfo(Set<String> files) {};
 }

@@ -807,7 +807,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
-                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings)
+                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
+                    commitService.get().closedLocalReadersForGeneration(newConfig.getShardId())
                 );
             } else {
                 return new SearchEngine(config);

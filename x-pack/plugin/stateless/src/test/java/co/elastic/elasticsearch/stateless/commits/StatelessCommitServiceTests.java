@@ -96,6 +96,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
@@ -345,6 +346,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             testHarness.commitService.markCommitDeleted(testHarness.shardId, firstCommit.getGeneration());
+            testHarness.commitService.closedLocalReadersForGeneration(testHarness.shardId).accept(firstCommit.getGeneration());
 
             List<String> expectedDeletedFiles = firstCommit.getCommitFiles()
                 .stream()
@@ -488,9 +490,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
-            for (StatelessCommitRef indexCommit : initialCommits) {
-                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
-            }
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             // The search node is still using commit 9, that contains references to all previous commits;
             // therefore we should retain all commits.
@@ -562,9 +562,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
-            for (StatelessCommitRef indexCommit : initialCommits) {
-                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
-            }
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             // Commits 0-9 are reported to be used by the search node;
             // therefore we should retain them even if the indexing node has deleted them
@@ -575,6 +573,69 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(primaryTerm, firstCommit.getGeneration()),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
+
+            var expectedDeletedCommits = initialCommits.stream()
+                .map(
+                    commit -> new StatelessCommitCleaner.StaleCompoundCommit(
+                        shardId,
+                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration())
+                    )
+                )
+                .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
+                .collect(Collectors.toSet());
+            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+        }
+    }
+
+    public void testOldCommitsAreRetainedIfIndexShardUseThem() throws Exception {
+        Set<StatelessCommitCleaner.StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var commitCleaner = new StatelessCommitCleaner(null) {
+            @Override
+            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                deletedCommits.add(staleCompoundCommit);
+            }
+        };
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+                assert stateRef.get() != null;
+                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            }
+
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(StatelessClusterConsistencyService consistencyService) {
+                return commitCleaner;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var state = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            stateRef.set(state);
+
+            var initialCommits = generateIndexCommits(testHarness, 10);
+            var firstCommit = initialCommits.get(0);
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+
+            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            commitService.onCommitCreation(mergedCommit);
+
+            for (StatelessCommitRef indexCommit : initialCommits) {
+                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
+            }
+
+            // Commits 0-9 are still used by the indexing shard
+            // therefore we should retain them even if the indexing node/lucene has deleted them
+            assertThat(deletedCommits, empty());
+
+            // Now the index shard, report that it no longer uses commits [1;9] and they should be deleted
+            LongConsumer closedLocalReadersForGeneration = commitService.closedLocalReadersForGeneration(shardId);
+            initialCommits.stream()
+                .filter(c -> c.getGeneration() != firstCommit.getGeneration())
+                .forEach(c -> closedLocalReadersForGeneration.accept(c.getGeneration()));
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
@@ -634,9 +695,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
-            for (StatelessCommitRef indexCommit : initialCommits) {
-                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
-            }
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
@@ -732,9 +791,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
-            for (StatelessCommitRef indexCommit : initialCommits) {
-                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
-            }
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
@@ -814,9 +871,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.addListenerForUploadedGeneration(shardId, mergedCommit.getGeneration(), mergedCommitUploadedFuture);
             mergedCommitUploadedFuture.actionGet();
 
-            for (StatelessCommitRef indexCommit : initialCommits) {
-                commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
-            }
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             var expectedDeletedCommits = initialCommits.stream()
                 .map(
@@ -887,6 +942,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
             assert recoveryCommit.getGeneration() == indexingShardState.v1().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
+            commitService.closedLocalReadersForGeneration(shardId).accept(recoveryCommit.getGeneration());
 
             // The search node is still using commit 9, that contains references to all previous commits;
             // therefore we should retain all commits.
@@ -1133,5 +1189,19 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
 
         return commits;
+    }
+
+    private static void markDeletedAndLocalUnused(List<StatelessCommitRef> commits, StatelessCommitService commitService, ShardId shardId) {
+        LongConsumer closedLocalReadersForGeneration = commitService.closedLocalReadersForGeneration(shardId);
+        for (StatelessCommitRef indexCommit : commits) {
+            boolean deleteFirst = randomBoolean();
+            if (deleteFirst == false) {
+                closedLocalReadersForGeneration.accept(indexCommit.getGeneration());
+            }
+            commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
+            if (deleteFirst || randomBoolean()) {
+                closedLocalReadersForGeneration.accept(indexCommit.getGeneration());
+            }
+        }
     }
 }

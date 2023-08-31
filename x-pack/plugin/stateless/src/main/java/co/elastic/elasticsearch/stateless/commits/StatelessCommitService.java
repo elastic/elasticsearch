@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -66,10 +67,12 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -544,10 +547,11 @@ public class StatelessCommitService implements ClusterStateListener {
             // TODO: We should maybe make each commit blob reference the prior commit
             compoundCommitBlobs.forEach((generation, toReference) -> compoundCommitBlob.incRef(toReference));
 
-            // Decrement the references so that only the recovery commit retains this compound commit
+            // Deleted and unused locally such that only the recovery commit retains this compound commit
             compoundCommitBlobs.values().forEach(b -> {
-                b.decRef();
-                assert b.refCount() == 1;
+                b.deleted();
+                b.closedLocalReaders();
+                assert b.refCount() == 2 : "recovery commit is assumed locally used and not deleted " + b.refCount();
             });
 
             compoundCommitBlobs.put(recoveredCommit.generation(), compoundCommitBlob);
@@ -621,7 +625,7 @@ public class StatelessCommitService implements ClusterStateListener {
         public void markCommitDeleted(long generation) {
             final var compoundCommitBlob = compoundCommitBlobs.get(generation);
             assert compoundCommitBlob != null : generation;
-            compoundCommitBlob.close();
+            compoundCommitBlob.deleted();
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
@@ -796,19 +800,32 @@ public class StatelessCommitService implements ClusterStateListener {
             return Releasables.wrap(releasables);
         }
 
+        public LongConsumer closedLocalReadersForGeneration() {
+            return generation -> {
+                CompoundCommitBlob compoundCommitBlob = compoundCommitBlobs.get(generation);
+                if (compoundCommitBlob != null) {
+                    compoundCommitBlob.closedLocalReaders();
+                } // else assume an idempotent call when already deleted.
+            };
+        }
+
         /**
          * A ref counted instance representing a compound commit blob in the object store. It can reference some other previous compound
          * commit blob instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
          */
-        private class CompoundCommitBlob extends AbstractRefCounted implements Releasable {
+        private class CompoundCommitBlob extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<String> internalFiles;
             private final Set<CompoundCommitBlob> references;
+            private final AtomicBoolean deleted = Assertions.ENABLED ? new AtomicBoolean() : null;
+            private final AtomicBoolean readersClosed = new AtomicBoolean();
 
             CompoundCommitBlob(long primaryTerm, long generation, Set<String> internalFiles) {
                 this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
+                // we both decRef on delete and on noMoreIndexShardReaders, hence an extra incRef().
+                this.incRef();
             }
 
             public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
@@ -818,16 +835,27 @@ public class StatelessCommitService implements ClusterStateListener {
             public void incRef(CompoundCommitBlob other) {
                 assert hasReferences() : this;
                 assert other.hasReferences() : other;
+                // incRef twice since we expect all commits to be both deleted and locally unused.
+                other.incRef();
                 other.incRef();
                 if (references.add(other) == false) {
+                    other.decRef();
                     other.decRef();
                 }
             }
 
-            @Override
-            public void close() {
+            public void deleted() {
+                assert deleted.compareAndSet(false, true);
                 references.forEach(AbstractRefCounted::decRef);
                 decRef();
+            }
+
+            public void closedLocalReaders() {
+                // be idempotent.
+                if (readersClosed.compareAndSet(false, true)) {
+                    references.forEach(AbstractRefCounted::decRef);
+                    decRef();
+                }
             }
 
             @Override
@@ -867,6 +895,7 @@ public class StatelessCommitService implements ClusterStateListener {
             public String toString() {
                 return "Compound commit blob " + primaryTermAndGeneration;
             }
+
         }
 
         private static class UnpromotableShardCommitReferences implements Releasable {
@@ -994,5 +1023,15 @@ public class StatelessCommitService implements ClusterStateListener {
         public String toString() {
             return "CommitAndBlobLocation [compoundCommitBlob=" + compoundCommitBlob + ", blobLocation=" + blobLocation + ']';
         }
+    }
+
+    /**
+     * An idempotent consumer of generations that the index shard no longer need for readers
+     *
+     * @param shardId the shard to get consumer for
+     * @return consumer of generations
+     */
+    public LongConsumer closedLocalReadersForGeneration(ShardId shardId) {
+        return shardsCommitsStates.get(shardId).closedLocalReadersForGeneration();
     }
 }

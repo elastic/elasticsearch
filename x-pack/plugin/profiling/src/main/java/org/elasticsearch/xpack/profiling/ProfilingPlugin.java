@@ -59,7 +59,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     // *Internal* setting meant as an escape hatch if we need to skip the check for outdated indices for some reason.
     public static final Setting<Boolean> PROFILING_CHECK_OUTDATED_INDICES = Setting.boolSetting(
         "xpack.profiling.check_outdated_indices",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

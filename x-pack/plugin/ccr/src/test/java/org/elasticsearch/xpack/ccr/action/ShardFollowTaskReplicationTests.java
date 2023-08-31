@@ -581,7 +581,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         );
         final String recordedLeaderIndexHistoryUUID = leaderGroup.getPrimary().getHistoryUUID();
 
-        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+        BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, threadPool.generic());
         AtomicBoolean stopped = new AtomicBoolean(false);
         Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(

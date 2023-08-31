@@ -202,7 +202,7 @@ public class AsyncOperatorTests extends ESTestCase {
                 }
             };
             TimeValue delay = TimeValue.timeValueMillis(randomIntBetween(0, 50));
-            threadPool.schedule(command, delay, ESQL_TEST_EXECUTOR);
+            threadPool.schedule(command, delay, threadPool.executor(ESQL_TEST_EXECUTOR));
         }
     }
 }

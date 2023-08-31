@@ -159,7 +159,7 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC
+                threadPool.generic()
             );
             success = true;
         } catch (Exception e) {

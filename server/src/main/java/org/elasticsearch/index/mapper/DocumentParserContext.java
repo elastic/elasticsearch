@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -83,9 +84,9 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final Map<String, Mapper> dynamicMappers;
+    private final Map<String, List<Mapper>> dynamicMappers;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
-    private final Map<String, RuntimeField> dynamicRuntimeFields;
+    private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
@@ -98,9 +99,9 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
-        Map<String, Mapper> dynamicMappers,
+        Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
-        Map<String, RuntimeField> dynamicRuntimeFields,
+        Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
@@ -315,15 +316,27 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.put(mapper.name(), mapper);
+        dynamicMappers.computeIfAbsent(mapper.name(), k -> new ArrayList<>(1)).add(mapper);
         return true;
     }
 
+    /*
+     * Returns an approximation of the number of dynamically mapped fields that will be added to the mapping.
+     * This is to validate early and to fail fast during document parsing.
+     * There will be another authoritative (but more expensive) validation step when making the actual update mapping request.
+     * During the mapping update, the actual number fields is determined by counting the total number of fields of the merged mapping.
+     * Therefore, both over-counting and under-counting here is not critical.
+     * However, in order for users to get to the field limit, we should try to be as close as possible to the actual field count.
+     * If we under-count fields here (for example by not counting multi-fields),
+     * we may only know that we exceed the field limit during the mapping update.
+     * This leads to document rejection instead of ignoring fields above the limit if Dynamic.UNTIL_LIMIT is configured for the index.
+     * If we over-count the fields, we may reject fields earlier than necessary and before actually hitting the field limit.
+     * The current implementation optimizes to avoid under-counting but may over-count.
+     */
     private int getNewDynamicMappersSize() {
         return dynamicMappers.values()
             .stream()
-            .filter(m -> mappingLookup.getMapper(m.name()) == null)
-            .filter(m -> mappingLookup.objectMappers().get(m.name()) == null)
+            .flatMap(List::stream)
             .mapToInt(Mapper::mapperSize)
             .sum();
     }
@@ -335,7 +348,7 @@ public abstract class DocumentParserContext {
      * to become part of the resulting dynamic mapping update.
      */
     public final List<Mapper> getDynamicMappers() {
-        return dynamicMappers.values().stream().toList();
+        return dynamicMappers.values().stream().flatMap(List::stream).toList();
     }
 
     /**
@@ -359,7 +372,7 @@ public abstract class DocumentParserContext {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
             mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1);
         }
-        dynamicRuntimeFields.put(runtimeField.name(), runtimeField);
+        dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);
         return true;
     }
 
@@ -369,7 +382,7 @@ public abstract class DocumentParserContext {
      * or when dynamic templates specify a <code>runtime</code> section.
      */
     public final List<RuntimeField> getDynamicRuntimeFields() {
-        return dynamicRuntimeFields.values().stream().toList();
+        return dynamicRuntimeFields.values().stream().flatMap(List::stream).toList();
     }
 
     /**

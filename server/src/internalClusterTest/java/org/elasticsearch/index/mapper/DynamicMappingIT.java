@@ -94,6 +94,19 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertTrue(bulkResponse.hasFailures());
     }
 
+    public void testArrayWithDifferentTypes() {
+        createIndex("index");
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex("index").setId("1").setSource("foo", List.of(42, "bar")))
+            .get();
+
+        assertTrue(bulkResponse.hasFailures());
+        assertEquals(
+            bulkResponse.getItems()[0].getFailure().getCause().getMessage(),
+            "mapper [foo] cannot be changed from type [long] to [text]"
+        );
+    }
+
     public void testConcurrentDynamicUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
         Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder(), Map.of());

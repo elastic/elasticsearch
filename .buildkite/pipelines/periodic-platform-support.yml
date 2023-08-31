@@ -3,7 +3,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
-        timeout_in_minutes: 300
+        timeout_in_minutes: 420
         matrix:
           setup:
             image:
@@ -34,7 +34,7 @@ steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
         command: |
           .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
-        timeout_in_minutes: 360
+        timeout_in_minutes: 420
         matrix:
           setup:
             image:

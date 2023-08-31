@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
  */
 public final class ApiKey implements ToXContentObject, Writeable {
 
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersion.V_8_500_010;
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersion.V_8_500_020;
 
     public enum Type {
         /**

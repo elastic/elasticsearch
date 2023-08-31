@@ -51,7 +51,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("admin_user", "admin-password", ROOT_USER_ROLE, true)
         .user("security_test_user", "security-test-password", "security_test_role", false)
-        .user("x_pack_rest_user", "x-pack-test-password", ROOT_USER_ROLE, false)
+        .user("x_pack_rest_user", "x-pack-test-password", ROOT_USER_ROLE, true)
         .user("cat_test_user", "cat-test-password", "cat_test_role", false)
         .build();
 

@@ -62,14 +62,16 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
+        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(
+            Maps.transformValues(getTransportVersions(initialState), VersionsWrapper::new)
+        );
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
             final String reason;
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
-                transportVersions.remove(task.node().getId());
+                versionsWrappers.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -92,7 +94,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
-            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, transportVersions);
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, versionsWrappers);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
@@ -108,9 +110,10 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     protected ClusterState remainingNodesClusterState(
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
-        Map<String, TransportVersion> transportVersions
+        Map<String, VersionsWrapper> versionsWrappers
     ) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions).build();
+        ClusterState.Builder builder = ClusterState.builder(currentState).nodes(remainingNodesBuilder);
+        return builder.versionsWrappers(versionsWrappers).build();
     }
 
 }

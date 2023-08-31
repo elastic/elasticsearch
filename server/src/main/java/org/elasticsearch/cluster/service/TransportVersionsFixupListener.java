@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -101,11 +102,13 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    TransportVersion recordedTv = builder.transportVersions().get(e.getKey());
+                    TransportVersion recordedTv = Optional.ofNullable(builder.versionsWrappers().get(e.getKey()))
+                        .map(VersionsWrapper::transportVersion)
+                        .orElse(null);
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
                     if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
-                        builder.putTransportVersion(e.getKey(), e.getValue());
+                        builder.putVersionsWrapper(e.getKey(), new VersionsWrapper(e.getValue()));
                         modified = true;
                     }
                 }

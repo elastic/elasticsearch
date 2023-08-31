@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
@@ -92,27 +93,26 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver);
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(), Collections.singletonList(autoUpdater));
 
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        new DiscoveryNode(
+                            "node_name",
+                            "node_id",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                            Collections.emptyMap(),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                            VersionInformation.inferVersions(Version.V_8_0_0)
+                        )
+                    )
+                    .localNodeId("node_id")
+                    .masterNodeId("node_id")
+                    .build()
+            );
         ClusterChangedEvent event = new ClusterChangedEvent(
             "test",
-            ClusterState.builder(new ClusterName("test"))
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(
-                            new DiscoveryNode(
-                                "node_name",
-                                "node_id",
-                                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                                Collections.emptyMap(),
-                                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                                VersionInformation.inferVersions(Version.V_8_0_0)
-                            )
-                        )
-                        .localNodeId("node_id")
-                        .masterNodeId("node_id")
-                        .build()
-                )
-                .putTransportVersion("node_id", TransportVersion.current())
-                .build(),
+            builder.putVersionsWrapper("node_id", new VersionsWrapper(TransportVersion.current())).build(),
             ClusterState.builder(new ClusterName("test")).build()
         );
 

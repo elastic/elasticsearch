@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -140,18 +141,14 @@ public class AllocationBenchmark {
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
-        Map<String, TransportVersion> transportVersions = new HashMap<>();
+        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>();
         for (int i = 1; i <= numNodes; i++) {
             String id = "node" + i;
             nb.add(Allocators.newNode(id, Collections.singletonMap("tag", "tag_" + (i % numTags))));
-            transportVersions.put(id, TransportVersion.current());
+            versionsWrappers.put(id, new VersionsWrapper(TransportVersion.current()));
         }
-        initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(nb)
-            .transportVersions(transportVersions)
-            .build();
+        ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(nb);
+        initialClusterState = builder.versionsWrappers(versionsWrappers).build();
     }
 
     private int toInt(String v) {

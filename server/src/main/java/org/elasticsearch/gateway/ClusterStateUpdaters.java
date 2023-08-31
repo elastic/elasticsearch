@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
@@ -30,10 +31,10 @@ public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
     public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
-        return ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-            .putTransportVersion(localNode.getId(), transportVersion)
-            .build();
+        ClusterState.Builder builder = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build());
+        String nodeId = localNode.getId();
+        return builder.putVersionsWrapper(nodeId, new VersionsWrapper(transportVersion)).build();
     }
 
     public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(

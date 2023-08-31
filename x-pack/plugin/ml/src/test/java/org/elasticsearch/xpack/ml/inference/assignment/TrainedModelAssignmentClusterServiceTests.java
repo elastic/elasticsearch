@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -117,14 +118,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String modelId = "existing-model";
         String nodeId = "ml-node-with-room";
         String startedNode = "started-ml-node-with-room";
-        ClusterState currentState = ClusterState.builder(new ClusterName("testUpdateModelRoutingTable"))
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testUpdateModelRoutingTable"))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(buildNode(nodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .add(buildNode(startedNode, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .build()
-            )
-            .putTransportVersion(nodeId, TransportVersion.current())
+            );
+        ClusterState currentState = builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -236,9 +237,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             () -> TrainedModelAssignmentClusterService.removeAssignment(clusterStateWithoutAssignment, modelId)
         );
 
-        ClusterState clusterStateWithAssignment = ClusterState.builder(new ClusterName("testRemoveAssignment"))
-            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testRemoveAssignment"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build());
+        ClusterState clusterStateWithAssignment = builder.putVersionsWrapper("test-node", new VersionsWrapper(TransportVersion.current()))
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -268,9 +269,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             equalTo(clusterStateWithoutAssignment)
         );
 
-        ClusterState clusterStateWithAssignments = ClusterState.builder(new ClusterName("testRemoveAllAssignments"))
-            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testRemoveAllAssignments"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build());
+        ClusterState clusterStateWithAssignments = builder.putVersionsWrapper("test-node", new VersionsWrapper(TransportVersion.current()))
             .metadata(
                 Metadata.builder()
                     .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
@@ -365,9 +366,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .build();
         nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
 
-        ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
-            .nodes(discoveryNodes)
-            .putTransportVersion("ml-node-with-room", TransportVersion.current())
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testCreateAssignment")).nodes(discoveryNodes);
+        ClusterState currentState = builder.putVersionsWrapper("ml-node-with-room", new VersionsWrapper(TransportVersion.current()))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
@@ -1364,10 +1364,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .build();
         DiscoveryNode node1 = buildNode(nodeId1, true, ByteSizeValue.ofGb(4).getBytes(), 8);
         DiscoveryNode node3 = buildNode(nodeId3, true, ByteSizeValue.ofGb(4).getBytes(), 8);
-        ClusterState currentState = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
-            .nodes(DiscoveryNodes.builder().add(node1).add(node3).build())
-            .putTransportVersion(nodeId1, TransportVersion.current())
-            .putTransportVersion(nodeId3, TransportVersion.current())
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testAreAssignedNodesRemoved"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node3).build());
+        ClusterState.Builder builder1 = builder.putVersionsWrapper(nodeId1, new VersionsWrapper(TransportVersion.current()));
+        ClusterState currentState = builder1.putVersionsWrapper(nodeId3, new VersionsWrapper(TransportVersion.current()))
             .metadata(metadata)
             .build();
 
@@ -1418,9 +1418,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             () -> TrainedModelAssignmentClusterService.setToStopping(clusterStateWithoutAllocation, modelId, "test")
         );
 
-        ClusterState clusterStateWithAllocation = ClusterState.builder(new ClusterName("testSetAllocationToStopping"))
-            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testSetAllocationToStopping"))
+            .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build());
+        ClusterState clusterStateWithAllocation = builder.putVersionsWrapper("test-node", new VersionsWrapper(TransportVersion.current()))
             .metadata(
                 Metadata.builder()
                     .putCustom(

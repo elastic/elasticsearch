@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -124,9 +125,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         }
         testIndices = testIndicesList.toArray(new String[0]);
 
-        clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putTransportVersion("node01", TransportVersion.V_8_5_0)
-            .build();
+        ClusterState.Builder builder = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards));
+        clusterStateWithIndex = builder.putVersionsWrapper("node01", new VersionsWrapper(TransportVersion.V_8_5_0)).build();
 
         transformTask = new Task(
             1L,

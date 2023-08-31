@@ -154,7 +154,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
-            builder.transportVersions(getTransportVersions(currentState));
+            Map<String, VersionsWrapper> versions = Maps.transformValues(getTransportVersions(currentState), VersionsWrapper::new);
+            builder.versionsWrappers(versions);
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

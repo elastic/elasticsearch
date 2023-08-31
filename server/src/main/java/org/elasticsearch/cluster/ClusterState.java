@@ -775,24 +775,21 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        // TODO[wrb]: change signature
-        public Builder putTransportVersion(String nodeId, TransportVersion version) {
-            versionsWrappers.put(nodeId, new VersionsWrapper(Objects.requireNonNull(version, nodeId)));
+        public Builder putVersionsWrapper(String nodeId, VersionsWrapper versionsWrapper) {
+            versionsWrappers.put(nodeId, Objects.requireNonNull(versionsWrapper, nodeId));
             return this;
         }
 
-        // TODO[wrb]: change signature
-        public Builder transportVersions(Map<String, TransportVersion> versions) {
+        public Builder versionsWrappers(Map<String, VersionsWrapper> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in the new map
             this.versionsWrappers.keySet().retainAll(versions.keySet());
-            this.versionsWrappers.putAll(Maps.transformValues(versions, VersionsWrapper::new));
+            this.versionsWrappers.putAll(versions);
             return this;
         }
 
-        // TODO[wrb]: change signature
-        public Map<String, TransportVersion> transportVersions() {
-            return Collections.unmodifiableMap(Maps.transformValues(this.versionsWrappers, VersionsWrapper::transportVersion));
+        public Map<String, VersionsWrapper> versionsWrappers() {
+            return Collections.unmodifiableMap(this.versionsWrappers);
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -923,11 +920,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            builder.transportVersions(in.readMap(TransportVersion::readVersion));
+            Map<String, VersionsWrapper> versions = in.readMap(in1 -> new VersionsWrapper(TransportVersion.readVersion(in1)));
+            builder.versionsWrappers(versions);
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now
-            builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+            builder.nodes().getNodes().values().forEach(n -> {
+                String nodeId = n.getId();
+                builder.putVersionsWrapper(nodeId, new VersionsWrapper(inferTransportVersion(n)));
+            });
         }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
@@ -1077,13 +1078,17 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
             if (transportVersions != null) {
-                builder.transportVersions(
-                    // TODO[wrb]: update diff logic
-                    transportVersions.apply(Maps.transformValues(state.versionsWrappers, VersionsWrapper::transportVersion))
+                // TODO[wrb]: update diff logic
+                Map<String, TransportVersion> versions = transportVersions.apply(
+                    Maps.transformValues(state.versionsWrappers, VersionsWrapper::transportVersion)
                 );
+                builder.versionsWrappers(Maps.transformValues(versions, VersionsWrapper::new));
             } else {
                 // infer the versions from discoverynodes for now
-                builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+                builder.nodes().getNodes().values().forEach(n -> {
+                    String nodeId = n.getId();
+                    builder.putVersionsWrapper(nodeId, new VersionsWrapper(inferTransportVersion(n)));
+                });
             }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));

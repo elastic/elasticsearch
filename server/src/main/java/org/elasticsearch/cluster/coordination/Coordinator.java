@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -1059,14 +1060,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
                 metadata.clusterUUID(lastAcceptedState.metadata().clusterUUID()).clusterUUIDCommitted(true);
             }
-            ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(
                     ClusterBlocks.builder()
                         .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
-                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
-                .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
+                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()));
+            String nodeId = getLocalNode().getId();
+            ClusterState initialState = builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
                 .metadata(metadata)
                 .build();
             applierState = initialState;

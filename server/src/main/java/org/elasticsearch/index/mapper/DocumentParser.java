@@ -594,18 +594,20 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
-        postProcessDynamicArrayMapping(context, arrayFieldName, lastFieldName);
+        postProcessDynamicArrayMapping(context, lastFieldName);
     }
 
     /**
      * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
      */
-    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, String simpleName) {
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
-            final List<Mapper> mappers = context.getDynamicMappers().get(fieldName);
+            final String fullFieldName =
+                context.parent().fullPath().equals("_doc") ? fieldName : context.parent().fullPath() + "." + fieldName;
+            final List<Mapper> mappers = context.getDynamicMappers().get(fullFieldName);
             if (mappers == null
-                || context.isFieldAppliedFromTemplate(fieldName)
-                || context.isCopyToField(fieldName)
+                || context.isFieldAppliedFromTemplate(fullFieldName)
+                || context.isCopyToField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
                 || mappers.stream().allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())) == false) {
@@ -613,11 +615,11 @@ public final class DocumentParser {
             }
 
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                simpleName,
+                fieldName,
                 context.indexSettings().getIndexVersionCreated()
             );
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(context.createDynamicMapperBuilderContext());
-            context.updateDynamicMappers(fieldName, List.of(denseVectorFieldMapper));
+            context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
         }
     }
 

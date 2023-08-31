@@ -308,7 +308,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     private static List<Map.Entry<String, Supplier<Object>>> longCases(long min, long max) {
         List<Map.Entry<String, Supplier<Object>>> cases = new ArrayList<>();
         if (0L <= max && 0L >= min) {
-            cases.add(Map.entry("<0 int>", () -> 0));
+            cases.add(Map.entry("<0 long>", () -> 0L));
         }
 
         long lower = Math.max(min, 1);

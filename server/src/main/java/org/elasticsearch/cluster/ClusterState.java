@@ -704,11 +704,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 (builder, params) -> builder.startArray("system_index_mappings_versions"),
                 versionsWrappers.entrySet().iterator(),
                 e -> Iterators.single(
-                    (builder, params) -> builder.startObject()
-                        .field("node_id", e.getKey())
-                        .field("versions")
-                        .map(e.getValue().systemIndexMappingsVersions())
-                        .endObject()
+                    (builder, params) -> {
+                        return builder.startObject()
+                            .field("node_id", e.getKey())
+                            .field("versions")
+                            .map(e.getValue().systemIndexMappingsVersions())
+                            .endObject();
+                    }
                 ),
                 (builder, params) -> builder.endArray()
             ),

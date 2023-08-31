@@ -668,6 +668,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             builder.startObject();
             builder.field("version", version());
             builder.field("hash", hash());
+            builder.endObject();
             return builder;
         }
     };

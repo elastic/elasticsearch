@@ -102,8 +102,13 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
-        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+    public void stop(String reason, boolean finishPendingWork, ActionListener<AcknowledgedResponse> listener) {
+
+        if (finishPendingWork) {
+            trainedModelAssignmentNodeService.gracefullyStopDeploymentAndNotify(this, reason, listener);
+        } else {
+            trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+        }
     }
 
     public void markAsStopped(String reason) {
@@ -128,6 +133,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
+            true,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
                 e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)

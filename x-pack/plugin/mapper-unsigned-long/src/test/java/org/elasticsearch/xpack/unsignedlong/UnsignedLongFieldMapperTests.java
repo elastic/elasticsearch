@@ -381,7 +381,6 @@ public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
         return null;
     }
 
-    git commit -m "Copy NumberFieldMapperTests to test framework and use it in UnsignedLongFieldMapperTests"
     final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
 

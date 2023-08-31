@@ -313,7 +313,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected final Object generateRandomInputValue(MappedFieldType ft) {
+    protected Object generateRandomInputValue(MappedFieldType ft) {
         Number n = randomNumber();
         return randomBoolean() ? n : n.toString();
     }

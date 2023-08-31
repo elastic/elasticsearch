@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -94,8 +94,11 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
           }) */, new TestCaseSupplier("Datetime - Period", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
@@ -103,12 +106,16 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
         }), new TestCaseSupplier("Datetime - Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")),
+            TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
+            return testCase;
         })));
     }
 

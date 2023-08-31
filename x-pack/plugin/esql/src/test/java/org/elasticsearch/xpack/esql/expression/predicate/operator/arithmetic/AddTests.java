@@ -94,8 +94,11 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
           }) */, new TestCaseSupplier("Datetime + Period", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
                 "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
@@ -103,8 +106,11 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         }), new TestCaseSupplier("Period + Datetime", () -> {
             Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             long rhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"), new TypedData(rhs, DataTypes.DATETIME, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.DATETIME, "rhs")
+                ),
                 "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(rhs).plus(lhs)))
@@ -112,8 +118,11 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         }), new TestCaseSupplier("Datetime + Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
                 "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
@@ -121,8 +130,11 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
         }), new TestCaseSupplier("Duration + Datetime", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DATETIME, "lhs"), new TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
                 "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))

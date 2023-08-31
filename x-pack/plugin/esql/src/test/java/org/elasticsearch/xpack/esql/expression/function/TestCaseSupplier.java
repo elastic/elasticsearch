@@ -483,7 +483,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private List<TypedData> data;
 
         /**
-         * The expected toString output for the evaluator this fuction invocation should generate
+         * The expected toString output for the evaluator this function invocation should generate
          */
         String evaluatorToString;
         /**
@@ -501,6 +501,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private String[] expectedWarnings;
 
         private final String expectedTypeError;
+        private final boolean allTypesAreRepresentable;
 
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
             this(data, evaluatorToString, expectedType, matcher, null, null);
@@ -525,6 +526,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = matcher;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
+            this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
         }
 
         public Source getSource() {
@@ -545,6 +547,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public List<Object> getDataValues() {
             return data.stream().map(t -> t.data()).collect(Collectors.toList());
+        }
+
+        public boolean allTypesAreRepresentable() {
+            return allTypesAreRepresentable;
         }
 
         public Matcher<Object> getMatcher() {

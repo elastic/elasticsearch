@@ -163,7 +163,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
@@ -183,7 +183,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -210,7 +210,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         int count = 10_000;
         int threads = 5;
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -238,7 +238,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var supplier = evaluator(buildFieldExpression(testCase));
         var ev = supplier.get();
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
@@ -262,7 +262,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
     }
 

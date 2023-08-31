@@ -65,16 +65,16 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             );
         }), new TestCaseSupplier("Duration", () -> {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCase(
-                List.of(new TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
                 "NegDurationEvaluator[v=Attribute[channel=0]]",
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
         }), new TestCaseSupplier("Period", () -> {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCase(
-                List.of(new TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
                 "NegPeriodEvaluator[v=Attribute[channel=0]]",
                 EsqlDataTypes.DATE_PERIOD,
                 equalTo(arg.negated())

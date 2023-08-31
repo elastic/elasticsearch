@@ -3,14 +3,16 @@
 set -euo pipefail
 
 WORKFLOW="${DRA_WORKFLOW:-snapshot}"
+BRANCH="${BUILDKITE_BRANCH:-}"
+BRANCH=main # TODO remove
 
 # Don't publish main branch to staging
-if [[ "$BUILDKITE_BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
+if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 
-RM_BRANCH="$BUILDKITE_BRANCH"
-if [[ "$BUILDKITE_BRANCH" == "main" ]]; then
+RM_BRANCH="$BRANCH"
+if [[ "$BRANCH" == "main" ]]; then
   RM_BRANCH=master
 fi
 

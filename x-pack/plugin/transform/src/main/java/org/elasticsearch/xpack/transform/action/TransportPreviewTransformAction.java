@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -78,6 +79,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -88,7 +90,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         Settings settings,
-        IngestService ingestService
+        IngestService ingestService,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -111,6 +114,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
         );
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -236,6 +240,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 HeaderWarning.addWarning("Pipeline returned " + errors.size() + " errors, first error: " + errors.get(0));
             }
             TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                destIndexSettings,
                 mappings.get(),
                 transformId,
                 Clock.systemUTC()
@@ -249,6 +254,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<List<Map<String, Object>>> previewListener = ActionListener.wrap(docs -> {
             if (pipeline == null) {
                 TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                    destIndexSettings,
                     mappings.get(),
                     transformId,
                     Clock.systemUTC()

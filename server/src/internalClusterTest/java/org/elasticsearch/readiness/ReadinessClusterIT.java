@@ -127,7 +127,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, dataNode));
         tcpReadinessProbeTrue(internalCluster().getInstance(ReadinessService.class, masterNode));
 
-        final var currentMasterNode = internalCluster().getInstance(ReadinessService.class, masterNode);
+        final var masterReadinessService = internalCluster().getInstance(ReadinessService.class, masterNode);
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
 
         logger.info("--> stop master node");
@@ -135,7 +135,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         expectMasterNotFound();
 
-        tcpReadinessProbeFalse(currentMasterNode);
+        tcpReadinessProbeFalse(masterReadinessService);
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster().startNode(

@@ -29,6 +29,8 @@ public class MockReadinessService extends ReadinessService {
      */
     public static class TestPlugin extends Plugin {}
 
+    private static final String METHOD_NOT_MOCKED = "This method has not been mocked";
+
     private static class MockServerSocketChannel extends ServerSocketChannel {
 
         static ServerSocketChannel openMock() {
@@ -47,22 +49,22 @@ public class MockReadinessService extends ReadinessService {
 
         @Override
         public <T> ServerSocketChannel setOption(SocketOption<T> name, T value) {
-            throw new UnsupportedOperationException("Calling not mocked method");
+            throw new UnsupportedOperationException(METHOD_NOT_MOCKED);
         }
 
         @Override
         public <T> T getOption(SocketOption<T> name) {
-            throw new UnsupportedOperationException("Calling not mocked method");
+            throw new UnsupportedOperationException(METHOD_NOT_MOCKED);
         }
 
         @Override
         public Set<SocketOption<?>> supportedOptions() {
-            throw new UnsupportedOperationException("Calling not mocked method");
+            throw new UnsupportedOperationException(METHOD_NOT_MOCKED);
         }
 
         @Override
         public ServerSocket socket() {
-            throw new UnsupportedOperationException("Calling not mocked method");
+            throw new UnsupportedOperationException(METHOD_NOT_MOCKED);
         }
 
         @Override
@@ -80,7 +82,7 @@ public class MockReadinessService extends ReadinessService {
 
         @Override
         protected void implConfigureBlocking(boolean block) {
-            throw new UnsupportedOperationException("Calling not mocked method");
+            throw new UnsupportedOperationException(METHOD_NOT_MOCKED);
         }
     }
 

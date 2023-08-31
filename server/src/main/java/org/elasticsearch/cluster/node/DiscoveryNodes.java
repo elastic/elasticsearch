@@ -893,6 +893,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             assert this.nodeLeftGeneration == null : nodeLeftGeneration + " vs " + this.nodeLeftGeneration;
             this.nodeLeftGeneration = nodeLeftGeneration;
         }
+
+        public void resetNodeLeftGeneration() {
+            nodeLeftGeneration(0L);
+        }
     }
 
     private static Map<String, DiscoveryNode> filteredNodes(Map<String, DiscoveryNode> nodes, Predicate<DiscoveryNode> predicate) {

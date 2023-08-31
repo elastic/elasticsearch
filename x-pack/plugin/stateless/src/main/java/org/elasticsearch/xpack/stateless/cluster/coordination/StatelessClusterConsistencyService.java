@@ -61,7 +61,16 @@ public class StatelessClusterConsistencyService {
             }
 
             StatelessElectionStrategy.Lease lease = optionalLease.get();
-            if (lease.compareTo(startingStateLease) <= 0) {
+            // TODO: This is most likely due to a bug and it shouldn't happen;
+            // https://github.com/elastic/elasticsearch-serverless/issues/828
+            if (lease.compareTo(startingStateLease) < 0) {
+                listener.onFailure(
+                    new IllegalStateException("Blob store lease [" + lease + "] is behind the local lease [" + startingStateLease + "]")
+                );
+                return;
+            }
+
+            if (lease.compareTo(startingStateLease) == 0) {
                 assert lease.compareTo(startingStateLease) == 0 : lease + " vs " + startingStateLease;
                 listener.onResponse(null);
             } else {

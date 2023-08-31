@@ -385,8 +385,8 @@ public class StatelessCommitService implements ClusterStateListener {
         }
     }
 
-    public void register(ShardId shardId) {
-        ShardCommitState existing = shardsCommitsStates.put(shardId, new ShardCommitState(shardId));
+    public void register(ShardId shardId, long primaryTerm) {
+        ShardCommitState existing = shardsCommitsStates.put(shardId, new ShardCommitState(shardId, primaryTerm));
         assert existing == null : shardId + " already registered";
     }
 
@@ -425,6 +425,7 @@ public class StatelessCommitService implements ClusterStateListener {
     private class ShardCommitState {
 
         private final ShardId shardId;
+        private final long allocationPrimaryTerm;
         private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<StatelessCompoundCommit>> uploadedCommitConsumers = null;
@@ -439,8 +440,9 @@ public class StatelessCommitService implements ClusterStateListener {
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
 
-        private ShardCommitState(ShardId shardId) {
+        private ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
+            this.allocationPrimaryTerm = allocationPrimaryTerm;
         }
 
         public void markFileUploaded(String fileName, BlobLocation blobLocation) {
@@ -800,6 +802,17 @@ public class StatelessCommitService implements ClusterStateListener {
             return Releasables.wrap(releasables);
         }
 
+        void registerCommitForUnpromotableRecovery(String nodeId, CompoundCommitBlob compoundCommit) {
+            var unpromotableShardCommitRefs = unpromotableShardCommitReferencesByNode.computeIfAbsent(
+                nodeId,
+                UnpromotableShardCommitReferences::new
+            );
+            Set<CompoundCommitBlob> currentlyReferencedCommits = new HashSet<>();
+            currentlyReferencedCommits.add(compoundCommit);
+            currentlyReferencedCommits.addAll(compoundCommit.references);
+            unpromotableShardCommitRefs.registerCommitForUnpromotableRecovery(currentlyReferencedCommits);
+        }
+
         public LongConsumer closedLocalReadersForGeneration() {
             return generation -> {
                 CompoundCommitBlob compoundCommitBlob = compoundCommitBlobs.get(generation);
@@ -873,7 +886,7 @@ public class StatelessCommitService implements ClusterStateListener {
                         return null;
                     });
                 });
-                commitCleaner.deleteCommit(new StatelessCommitCleaner.StaleCompoundCommit(shardId, primaryTermAndGeneration));
+                commitCleaner.deleteCommit(new StaleCompoundCommit(shardId, primaryTermAndGeneration, allocationPrimaryTerm));
                 var removed = compoundCommitBlobs.remove(primaryTermAndGeneration.generation());
                 assert removed == this;
             }
@@ -919,6 +932,18 @@ public class StatelessCommitService implements ClusterStateListener {
                 }
 
                 oldReferencedCommits.forEach(AbstractRefCounted::decRef);
+            }
+
+            void registerCommitForUnpromotableRecovery(Set<CompoundCommitBlob> commitsUsedForRecovery) {
+                synchronized (this) {
+                    if (closed) {
+                        return;
+                    }
+                    Set<CompoundCommitBlob> allReferencedCommits = new HashSet<>(referencedCommits);
+                    allReferencedCommits.addAll(commitsUsedForRecovery);
+                    commitsUsedForRecovery.forEach(AbstractRefCounted::incRef);
+                    referencedCommits = Collections.unmodifiableSet(allReferencedCommits);
+                }
             }
 
             @Override
@@ -1008,7 +1033,7 @@ public class StatelessCommitService implements ClusterStateListener {
             compoundCommit.incRef();
         }
         try {
-            shardCommitsState.trackOutstandingUnpromotableShardCommitRef(nodeId, compoundCommit);
+            shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, compoundCommit);
         } finally {
             compoundCommit.decRef();
         }

@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
@@ -185,7 +186,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
     private final PrioritizedThrottledTaskRunner<ObjectStoreTask> uploadTaskRunner;
     private final ConcurrentLinkedQueue<String> translogBlobsToDelete = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<StaleCompoundCommit> commitBlobsToDelete = new ConcurrentLinkedQueue<>();
     private final Semaphore translogDeleteSchedulePermit = new Semaphore(1);
+    private final Semaphore shardFileDeleteSchedulePermit = new Semaphore(1);
     private final Semaphore permits;
 
     private BlobStoreRepository objectStore;
@@ -363,6 +366,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         translogBlobsToDelete.add(fileToDelete);
         if (translogDeleteSchedulePermit.tryAcquire()) {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+        }
+    }
+
+    public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
+        logger.debug(
+            "scheduling shard [{}] blob file for async delete [{}][{}]",
+            staleCompoundCommit.shardId(),
+            staleCompoundCommit.primaryTerm(),
+            staleCompoundCommit.fileName()
+        );
+        commitBlobsToDelete.add(staleCompoundCommit);
+
+        if (shardFileDeleteSchedulePermit.tryAcquire()) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
         }
     }
 
@@ -739,6 +756,58 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             } finally {
                 if (success == false) {
                     translogBlobsToDelete.addAll(toDeleteInThisTask);
+                }
+            }
+        }
+    }
+
+    private class ShardFilesDeleteTask extends AbstractRunnable {
+        private final List<StaleCompoundCommit> toDeleteInThisTask;
+
+        private ShardFilesDeleteTask() {
+            this.toDeleteInThisTask = new ArrayList<>();
+            for (int i = 0; i < DELETE_BATCH_SIZE; ++i) {
+                StaleCompoundCommit polled = commitBlobsToDelete.poll();
+                if (polled != null) {
+                    toDeleteInThisTask.add(polled);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // Might be 100 files only log when debug enabled
+            if (logger.isDebugEnabled()) {
+                logger.warn(() -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
+            } else {
+                logger.warn("exception while attempting to delete blob files", e);
+            }
+        }
+
+        @Override
+        public void onAfter() {
+            shardFileDeleteSchedulePermit.release();
+            if (commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
+            }
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            boolean success = false;
+            try {
+                getObjectStore().blobStore()
+                    .deleteBlobsIgnoringIfNotExists(
+                        toDeleteInThisTask.stream()
+                            .map(commit -> commit.absoluteBlobPath(getBlobContainer(commit.shardId(), commit.primaryTerm()).path()))
+                            .iterator()
+                    );
+                success = true;
+            } finally {
+                if (success == false) {
+                    commitBlobsToDelete.addAll(toDeleteInThisTask);
                 }
             }
         }

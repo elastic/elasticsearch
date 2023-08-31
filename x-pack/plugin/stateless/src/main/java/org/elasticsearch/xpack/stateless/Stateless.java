@@ -354,7 +354,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         );
         var consistencyService = new StatelessClusterConsistencyService(clusterService, statelessElectionStrategy);
         components.add(consistencyService);
-        var commitCleaner = new StatelessCommitCleaner(consistencyService);
+        var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
+        components.add(commitCleaner);
         var commitService = createStatelessCommitService(objectStoreService, clusterService, client, commitCleaner);
         setAndGet(this.commitService, commitService);
         var translogReplicator = setAndGet(
@@ -531,7 +532,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
                 @Override
                 public void afterIndexShardCreated(IndexShard indexShard) {
-                    statelessCommitService.register(indexShard.shardId());
+                    statelessCommitService.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
                     localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
                     // We are pruning the archive for a given generation, only once we know all search shards are
                     // aware of that generation.

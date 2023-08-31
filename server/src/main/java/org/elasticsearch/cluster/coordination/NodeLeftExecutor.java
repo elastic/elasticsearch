@@ -57,7 +57,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     }
 
     @SuppressForbidden(reason = "maintaining ClusterState#systemIndexMappingsVersions requires reading them")
-    private static Map<String, VersionsWrapper> getSystemIndexMappingsVersions(ClusterState clusterState) {
+    private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
         return clusterState.versionsWrappers();
     }
 
@@ -65,9 +65,8 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        // TODO[wrb]: system index version
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
-        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(getSystemIndexMappingsVersions(initialState));
+        Map<String, VersionsWrapper> versionsWrappers = new HashMap<>(getVersionsWrappers(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();

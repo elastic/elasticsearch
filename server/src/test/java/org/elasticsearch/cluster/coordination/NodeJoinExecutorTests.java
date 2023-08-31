@@ -192,7 +192,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
 
         NodeJoinExecutor.ensureSystemIndicesMappingsVersionsBarrier(
-            new VersionsWrapper(Map.of(".system-index", getVersion.apply(randomIntBetween(minimumMappingsVersion, 100)))),
+            new VersionsWrapper(
+                Map.of(
+                    ".system-index",
+                    getVersion.apply(randomIntBetween(minimumMappingsVersion, 100)),
+                    ".newly-introduced-system-index",
+                    getVersion.apply(1)
+                )
+            ),
             List.of(
                 new VersionsWrapper(Map.of(".system-index", getVersion.apply(minimumMappingsVersion))),
                 new VersionsWrapper(Map.of(".system-index", getVersion.apply(randomIntBetween(minimumMappingsVersion, 100))))

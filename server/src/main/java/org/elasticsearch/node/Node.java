@@ -926,7 +926,6 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            // TODO[wrb]: version wrapper instead of system indices
             VersionsWrapper versionsWrapper = new VersionsWrapper(systemIndices.getMappingsVersions());
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,

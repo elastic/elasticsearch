@@ -147,8 +147,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(VersionsWrapper value, StreamOutput out) throws IOException {
-                // Currently this only handles system index mappings versions
-                // TODO[wrb]: put in a key for system indices so we can have other kinds of versions
                 out.writeMap(value.systemIndexMappingsVersions(), StreamOutput::writeString, (o, v) -> {
                     out.writeInt(v.version());
                     out.writeInt(v.hash());
@@ -710,7 +708,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                         .field("node_id", e.getKey())
                         .field("versions")
                         .map(e.getValue().systemIndexMappingsVersions())
-                        .endObject()
                         .endObject()
                 ),
                 (builder, params) -> builder.endArray()

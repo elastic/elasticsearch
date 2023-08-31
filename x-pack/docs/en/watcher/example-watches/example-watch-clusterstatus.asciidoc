@@ -39,7 +39,7 @@ PUT _watcher/watch/cluster_health_watch
     when you're done experimenting.
 
 To get the status of your cluster, you can call the Elasticsearch
-{ref}//cluster-health.html[cluster health] API:
+{ref}/cluster-health.html[cluster health] API:
 
 [source,console]
 --------------------------------------------------

@@ -720,6 +720,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         private final long oldNodeLeftGeneration;
         @Nullable // if not specified
         private Long nodeLeftGeneration;
+        private boolean resetNodeLeftGeneration;
 
         public Builder() {
             nodes = new HashMap<>();
@@ -855,7 +856,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             } else if (this.nodeLeftGeneration != null) {
                 // only happens during deserialization
                 assert removedNode == false;
+                assert resetNodeLeftGeneration == false;
                 newNodeLeftGeneration = nodeLeftGeneration;
+            } else if (resetNodeLeftGeneration) {
+                newNodeLeftGeneration = 0L;
             } else if (removedNode) {
                 newNodeLeftGeneration = oldNodeLeftGeneration + 1L;
             } else {
@@ -895,7 +899,8 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         }
 
         public void resetNodeLeftGeneration() {
-            nodeLeftGeneration(0L);
+            assert this.resetNodeLeftGeneration == false;
+            this.resetNodeLeftGeneration = true;
         }
     }
 

@@ -50,7 +50,6 @@ import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -223,17 +222,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
 
-        // TODO[wrb]: move logic for collecting minima to VersionsWrapper
-        this.minVersions = new VersionsWrapper(
-            blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                ? TransportVersion.MINIMUM_COMPATIBLE
-                : versionsWrappers.values()
-                    .stream()
-                    .map(VersionsWrapper::transportVersion)
-                    .min(Comparator.naturalOrder())
-                    // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
-                    .orElse(TransportVersion.MINIMUM_COMPATIBLE)
-        );
+        this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            ? new VersionsWrapper(TransportVersion.MINIMUM_COMPATIBLE)
+            : VersionsWrapper.minimumVersions(versionsWrappers);
     }
 
     private static boolean assertConsistentRoutingNodes(

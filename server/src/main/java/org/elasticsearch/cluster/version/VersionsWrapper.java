@@ -10,6 +10,9 @@ package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
 
+import java.util.Comparator;
+import java.util.Map;
+
 /**
  * Wraps component version numbers for cluster state
  *
@@ -20,4 +23,22 @@ import org.elasticsearch.TransportVersion;
  *
  * @param transportVersion
  */
-public record VersionsWrapper(TransportVersion transportVersion) {}
+public record VersionsWrapper(TransportVersion transportVersion) {
+
+    /**
+     * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
+     *
+     * @param versionsWrappers A map of strings (typically node identifiers) and versions wrappers
+     * @return Minimum versions for the cluster
+     */
+    public static VersionsWrapper minimumVersions(Map<String, VersionsWrapper> versionsWrappers) {
+        return new VersionsWrapper(
+            versionsWrappers.values()
+                .stream()
+                .map(VersionsWrapper::transportVersion)
+                .min(Comparator.naturalOrder())
+                // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
+                .orElse(TransportVersion.MINIMUM_COMPATIBLE)
+        );
+    }
+}

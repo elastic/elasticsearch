@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,24 +80,28 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            settings
-        );
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), settings);
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class),
-            settings
-        );
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), settings);
         assertThat(featureSet.enabled(), is(true));
 
         Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        featureSet = new SecurityInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), disabled);
+        featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -371,10 +377,16 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         return new SecurityUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             null,
             settings,

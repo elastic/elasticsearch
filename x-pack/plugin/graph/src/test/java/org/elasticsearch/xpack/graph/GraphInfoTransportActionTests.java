@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,8 +35,14 @@ public class GraphInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -44,7 +52,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
@@ -73,8 +81,15 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         } else {
             settings.put("xpack.graph.enabled", enabled);
         }
+
+        // TODO: temporary, remove in #97879
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -82,7 +97,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(enabled));
 
         GraphUsageTransportAction usageAction = new GraphUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),

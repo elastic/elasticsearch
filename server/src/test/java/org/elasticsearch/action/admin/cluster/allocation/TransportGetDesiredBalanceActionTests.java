@@ -69,26 +69,24 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     private static DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private static ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private static TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
+    private static TransportService transportService = mock(TransportService.class);
+    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+        transportService,
+        mock(ClusterService.class),
+        mock(ThreadPool.class),
+        mock(ActionFilters.class),
+        mock(IndexNameExpressionResolver.class),
+        desiredBalanceShardsAllocator,
+        clusterInfoService,
+        TEST_WRITE_LOAD_FORECASTER
+    );
 
     @BeforeClass
     public static void beforeClass() {
         // TODO: temporary, remove in #97879
-        final TransportService transportService = mock(TransportService.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
-        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-            transportService,
-            mock(ClusterService.class),
-            threadPool,
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            desiredBalanceShardsAllocator,
-            clusterInfoService,
-            TEST_WRITE_LOAD_FORECASTER
-        );
     }
 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {

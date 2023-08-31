@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -23,20 +22,19 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.*;
+
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -459,4 +457,31 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             );
         }
     }
+
+    // copied from NumberFieldTypeTests, better to take the original class out of NumberFieldTypeTests instead?
+    public static class OutOfRangeSpec {
+
+        final NumberFieldMapper.NumberType type;
+        final Object value;
+        final String message;
+
+        static OutOfRangeSpec of(NumberFieldMapper.NumberType t, Object v, String m) {
+            return new OutOfRangeSpec(t, v, m);
+        }
+
+        OutOfRangeSpec(NumberFieldMapper.NumberType t, Object v, String m) {
+            type = t;
+            value = v;
+            message = m;
+        }
+
+        public void write(XContentBuilder b) throws IOException {
+            if (value instanceof BigInteger) {
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+            } else {
+                b.field("field", value);
+            }
+        }
+    }
+
 }

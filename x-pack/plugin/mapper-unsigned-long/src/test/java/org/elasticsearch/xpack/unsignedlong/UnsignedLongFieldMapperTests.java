@@ -16,10 +16,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IngestScriptSupport;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
-public class UnsignedLongFieldMapperTests extends MapperTestCase {
+public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -365,6 +366,22 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    @Override
+    protected List<NumberFieldMapperTests.OutOfRangeSpec> outOfRangeSpecs() {
+        return null;
+    }
+
+    @Override
+    protected Number missingValue() {
+        return null;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        return null;
+    }
+
+    git commit -m "Copy NumberFieldMapperTests to test framework and use it in UnsignedLongFieldMapperTests"
     final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
 

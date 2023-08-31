@@ -14,10 +14,10 @@ import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Optional;
 
-// Extracted from MapperTestCase, was marked as a protected class there.
-// Will changing the access level cause any issues?
+// Extracted from MapperTestCase, was marked as a protected class there (and emptyFieldScript/nonEmptyFieldScript were package-private).
+// Will changing the access levels cause any issues?
 // Is it fine to keep this class in the index package, or should it be moved somewhere else?
-protected abstract class IngestScriptSupport {
+public abstract class IngestScriptSupport {
     // previously a private method
     <T> T compileScript(Script script, ScriptContext<T> context) {
         switch (script.getIdOrCode()) {
@@ -39,12 +39,12 @@ protected abstract class IngestScriptSupport {
      * field or return {@link Optional#empty()} to signal that this
      * field doesn't support fields scripts.
      */
-    abstract ScriptFactory emptyFieldScript();
+    protected abstract ScriptFactory emptyFieldScript();
 
     /**
      * Create a script that can be run to produce some value value for this
      * field or return {@link Optional#empty()} to signal that this
      * field doesn't support fields scripts.
      */
-    abstract ScriptFactory nonEmptyFieldScript();
+    protected abstract ScriptFactory nonEmptyFieldScript();
 }

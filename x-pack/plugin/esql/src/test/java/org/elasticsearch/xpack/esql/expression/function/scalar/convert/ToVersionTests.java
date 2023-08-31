@@ -39,15 +39,15 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         // Converting and IP to an IP doesn't change anything. Everything should succeed.
         TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, v -> v.toBytesRef());
-        // None of the random strings ever look like versions
-        // TODO even though they aren't valid versions, all strings get encoded into something. Is that what we really want?
+        // None of the random strings ever look like versions so they should all become "invalid" versions
+        // TODO should this return null with warnings? they aren't version shaped at all.
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             stringEvaluator,
             DataTypes.VERSION,
             bytesRef -> new Version(bytesRef.utf8ToString()).toBytesRef()
         );
-        // But strings that are shaped like versions do parse
+        // But strings that are shaped like versions do parse to valid versions
         for (DataType inputType : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
             for (Map.Entry<String, Supplier<Object>> versionGen : TestCaseSupplier.versionRandomValues(inputType.typeName() + " ")) {
                 suppliers.add(new TestCaseSupplier(versionGen.getKey(), List.of(inputType), () -> {

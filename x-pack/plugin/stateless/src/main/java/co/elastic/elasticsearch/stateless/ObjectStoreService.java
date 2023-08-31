@@ -409,15 +409,25 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    public static StatelessCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
-        StatelessCompoundCommit latestCommit = null;
-        List<Tuple<Long, BlobContainer>> containersToSearch = shardContainer.children()
-            .entrySet()
-            .stream()
+    private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)
+        throws IOException {
+        return shardContainer.children().entrySet().stream().filter(e -> {
+            try {
+                Long.parseLong(e.getKey());
+                return true;
+            } catch (NumberFormatException ex) {
+                return false;
+            }
+        })
             .map(e -> new Tuple<>(Long.valueOf(e.getKey()), e.getValue()))
             .filter(t -> t.v1() <= primaryTerm)
             .sorted(Comparator.comparingLong((Tuple<Long, BlobContainer> o) -> o.v1()).reversed())
             .toList();
+    }
+
+    public static StatelessCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
+        StatelessCompoundCommit latestCommit = null;
+        List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             latestCommit = ObjectStoreService.readNewestCommit(container.v2(), container.v2().listBlobs());
             if (latestCommit != null) {
@@ -431,18 +441,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         throws IOException {
         HashMap<String, BlobFile> unreferencedBlobs = new HashMap<>();
         StatelessCompoundCommit latestCommit = null;
-        List<Tuple<Long, BlobContainer>> containersToSearch = shardContainer.children().entrySet().stream().filter(e -> {
-            try {
-                Long.parseLong(e.getKey());
-                return true;
-            } catch (NumberFormatException ex) {
-                return false;
-            }
-        })
-            .map(e -> new Tuple<>(Long.parseLong(e.getKey()), e.getValue()))
-            .filter(t -> t.v1() <= primaryTerm)
-            .sorted(Comparator.comparingLong((Tuple<Long, BlobContainer> o) -> o.v1()).reversed())
-            .toList();
+        List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             Map<String, BlobMetadata> allBlobs = container.v2().listBlobs();
             if (latestCommit == null) {

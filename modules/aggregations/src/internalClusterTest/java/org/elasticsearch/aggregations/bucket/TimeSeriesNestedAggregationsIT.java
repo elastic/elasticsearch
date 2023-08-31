@@ -36,6 +36,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -148,8 +149,8 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         return builder;
     }
 
-    private static String formatDim(int i) {
-        return String.format("dim_%06d", i);
+    private static String formatDim(int dimId) {
+        return String.format(Locale.ROOT, "dim_%06d", dimId);
     }
 
     public void testTimeSeriesAggregation() {

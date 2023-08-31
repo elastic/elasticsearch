@@ -1,8 +1,8 @@
 [[esql-right]]
 === `RIGHT`
 
-Return the substring that extract 'length' chars
-from string starting from right end.
+Return the substring that extracts 'length' chars
+from the string starting from its right end.
 
 [source.merge.styled,esql]
 ----

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
- * right(foo, len) is a alias that substring(foo, foo.length-len, len)
+ * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
 public class Right extends ScalarFunction implements EvaluatorMapper {
 

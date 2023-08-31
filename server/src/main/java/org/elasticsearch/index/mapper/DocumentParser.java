@@ -614,22 +614,12 @@ public final class DocumentParser {
                 return;
             }
 
-            if (context.parent().subobjects()) {
-                MapperBuilderContext childContext = context.parent().createChildContext(builderContext, fieldName);
-                DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                    fieldName,
-                    context.indexSettings().getIndexVersionCreated()
-                );
-                DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
-                context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
-            } else {
-                DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                    fieldName,
-                    context.indexSettings().getIndexVersionCreated()
-                );
-                DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
-                context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
-            }
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                fieldName,
+                context.indexSettings().getIndexVersionCreated()
+            );
+            DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
+            context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
         }
     }
 

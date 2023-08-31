@@ -310,7 +310,7 @@ public class ThreadPoolTests extends ESTestCase {
                     return "slow-test-task";
                 }
             };
-            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), ThreadPool.Names.SAME);
+            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, appender);

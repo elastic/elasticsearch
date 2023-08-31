@@ -209,7 +209,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeBoolean(docValueFields != null);
         if (docValueFields != null) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
@@ -232,7 +232,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
         }
     }

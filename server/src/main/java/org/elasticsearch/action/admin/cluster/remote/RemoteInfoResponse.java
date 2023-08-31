@@ -38,7 +38,7 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(infos);
+        out.writeCollection(infos);
     }
 
     @Override

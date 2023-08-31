@@ -201,11 +201,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(clusterSettingsIssues);
-            out.writeList(nodeSettingsIssues);
+            out.writeCollection(clusterSettingsIssues);
+            out.writeCollection(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             if (out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
-                out.writeList(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
+                out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
             } else {
                 out.writeMapOfLists(pluginSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             }

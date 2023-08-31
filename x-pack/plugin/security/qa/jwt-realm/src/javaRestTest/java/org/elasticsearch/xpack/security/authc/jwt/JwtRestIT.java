@@ -22,6 +22,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -34,6 +35,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpec;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -68,9 +74,110 @@ import static org.hamcrest.Matchers.is;
 
 public class JwtRestIT extends ESRestTestCase {
 
-    private static final Optional<String> VALID_SHARED_SECRET = Optional.of("test-secret");
+    private static final String HMAC_JWKSET = """
+        {"keys":[
+            {"kty":"oct","kid":"test-hmac-384","k":"W3mR8v_MP0_YdDo1OB0uwOgPX6-7PzkICVxMDVCZlPGw3vyPr8SRb5akrRSNU-zV"},
+            {"kty":"oct","kid":"test-hmac-512","k":"U4kMAa7tBwKOD4ggab4ZRGeHlFTILgNbescS1b5nambKJPmrB7QjeTryvfrE8zjYSvLxW2-tzFJUpk38a6FjPA"}
+        ]}""".replaceAll("\\s", "");
+    public static final String HMAC_PASSPHRASE = "test-HMAC/secret passphrase-value";
+    private static final String VALID_SHARED_SECRET = "test-secret";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .distribution(DistributionType.DEFAULT)
+        .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
+        .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http.crt")
+        .setting("xpack.security.http.ssl.key", "http.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.http.ssl.client_authentication", "optional")
+        .settings(JwtRestIT::realmSettings)
+        .keystore("xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret", VALID_SHARED_SECRET)
+        .keystore("xpack.security.authc.realms.jwt.jwt2.hmac_key", HMAC_PASSPHRASE)
+        .keystore("xpack.security.authc.realms.jwt.jwt3.hmac_jwkset", HMAC_JWKSET)
+        .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
+        .user("admin_user", "admin-password")
+        .user("test_file_user", "test-password", "viewer", false)
+        .build();
+
+    private static final SetOnce<String> SERVICE_SUBJECT = new SetOnce<>();
     private static Path httpCertificateAuthority;
     private TestSecurityClient adminSecurityClient;
+
+    private static Map<String, String> realmSettings(LocalClusterSpec.LocalNodeSpec localNodeSpec) {
+        final boolean explicitIdTokenType = randomBoolean();
+        SERVICE_SUBJECT.trySet("service_" + randomIntBetween(1, 9) + "@app" + randomIntBetween(1, 9) + ".example.com");
+
+        final Map<String, String> settings = new HashMap<>();
+        settings.put("xpack.security.authc.realms.file.admin_file.order", "0");
+
+        settings.put("xpack.security.authc.realms.jwt.jwt1.order", "1");
+        if (explicitIdTokenType) {
+            settings.put("xpack.security.authc.realms.jwt.jwt1.token_type", "id_token");
+        }
+        settings.put("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.claims.groups", "roles");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.claims.name", "name");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.claims.mail", "mail");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE");
+        // Use default value (RS256) for signature algorithm
+        settings.put("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset");
+
+        // Place native realm after JWT realm to verify realm chain fall-through
+        settings.put("xpack.security.authc.realms.native.lookup_native.order", "2");
+
+        settings.put("xpack.security.authc.realms.jwt.jwt2.order", "3");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.token_type", "access_token");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.sub", "email");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.fallback_claims.aud", "scope");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_issuer", "my-issuer");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_subjects", SERVICE_SUBJECT.get());
+        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_audiences", "es01,es02,es03");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.allowed_signature_algorithms", "HS256,HS384");
+        // Both email or sub works because of fallback
+        if (randomBoolean()) {
+            settings.put("xpack.security.authc.realms.jwt.jwt2.claims.principal", "email");
+        } else {
+            settings.put("xpack.security.authc.realms.jwt.jwt2.claims.principal", "sub");
+        }
+        settings.put("xpack.security.authc.realms.jwt.jwt2.claim_patterns.principal", "^(.*)@[^.]*[.]example[.]com$");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.required_claims.token_use", "access");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.authorization_realms", "lookup_native");
+        settings.put("xpack.security.authc.realms.jwt.jwt2.client_authentication.type", "shared_secret");
+
+        // Place PKI realm after JWT realm to verify realm chain fall-through
+        settings.put("xpack.security.authc.realms.pki.pki_realm.order", "4");
+
+        settings.put("xpack.security.authc.realms.jwt.jwt3.order", "5");
+        if (explicitIdTokenType) {
+            settings.put("xpack.security.authc.realms.jwt.jwt3.token_type", "id_token");
+        }
+        settings.put("xpack.security.authc.realms.jwt.jwt3.allowed_issuer", "jwt3-issuer");
+        settings.put("xpack.security.authc.realms.jwt.jwt3.allowed_audiences", "[jwt3-audience]");
+        settings.put("xpack.security.authc.realms.jwt.jwt3.allowed_signature_algorithms", "[HS384, HS512]");
+        settings.put("xpack.security.authc.realms.jwt.jwt3.claims.principal", "sub");
+        settings.put("xpack.security.authc.realms.jwt.jwt3.client_authentication.type", "Shared_Secret");
+
+        return settings;
+    }
 
     @BeforeClass
     public static void findTrustStore() throws Exception {
@@ -87,8 +194,12 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
     protected String getProtocol() {
-        // Because this QA project uses https
         return "https";
     }
 
@@ -282,7 +393,7 @@ public class JwtRestIT extends ESRestTestCase {
      * - uses a shared-secret for client authentication
      */
     public void testAuthenticateWithHmacSignedJWTAndDelegatedAuthorization() throws Exception {
-        final String principal = System.getProperty("jwt2.service_subject");
+        final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
         final String randomMetadata = randomAlphaOfLengthBetween(6, 18);
@@ -290,7 +401,7 @@ public class JwtRestIT extends ESRestTestCase {
 
         try {
             final SignedJWT jwt = buildAndSignJwtForRealm2(principal);
-            final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+            final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
 
             final Map<String, Object> response = client.authenticate();
 
@@ -311,7 +422,7 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     public void testFailureOnInvalidHMACSignature() throws Exception {
-        final String principal = System.getProperty("jwt2.service_subject");
+        final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
         createUser(username, roles, Map.of());
@@ -321,14 +432,14 @@ public class JwtRestIT extends ESRestTestCase {
 
             {
                 // This is the correct HMAC passphrase (from build.gradle)
-                final SignedJWT jwt = signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
-                final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+                final SignedJWT jwt = signHmacJwt(claimsSet, HMAC_PASSPHRASE);
+                final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
                 assertThat(client.authenticate(), hasEntry(User.Fields.USERNAME.getPreferredName(), username));
             }
             {
                 // This is not the correct HMAC passphrase
                 final SignedJWT invalidJwt = signHmacJwt(claimsSet, "invalid-HMAC-passphrase-" + randomAlphaOfLength(12));
-                final TestSecurityClient client = getSecurityClient(invalidJwt, VALID_SHARED_SECRET);
+                final TestSecurityClient client = getSecurityClient(invalidJwt, Optional.of(VALID_SHARED_SECRET));
                 // This fails because the HMAC is wrong
                 final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
                 assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
@@ -340,7 +451,7 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     public void testFailureOnRequiredClaims() throws JOSEException, IOException {
-        final String principal = System.getProperty("jwt2.service_subject");
+        final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
         createUser(username, roles, Map.of());
@@ -353,7 +464,7 @@ public class JwtRestIT extends ESRestTestCase {
             }
             final JWTClaimsSet claimsSet = buildJwt(data, Instant.now(), false, false);
             final SignedJWT jwt = signHmacJwt(claimsSet, "test-HMAC/secret passphrase-value");
-            final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+            final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
             final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
             assertThat(exception.getResponse(), hasStatusCode(RestStatus.UNAUTHORIZED));
         } finally {
@@ -362,10 +473,10 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     public void testAuthenticationFailureIfDelegatedAuthorizationFails() throws Exception {
-        final String principal = System.getProperty("jwt2.service_subject");
+        final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final SignedJWT jwt = buildAndSignJwtForRealm2(principal);
-        final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+        final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
 
         // This fails because we didn't create a native user
         final ResponseException exception = expectThrows(ResponseException.class, client::authenticate);
@@ -381,7 +492,7 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     public void testFailureOnInvalidClientAuthentication() throws Exception {
-        final String principal = System.getProperty("jwt2.service_subject");
+        final String principal = SERVICE_SUBJECT.get();
         final String username = getUsernameFromPrincipal(principal);
         final List<String> roles = randomRoles();
         createUser(username, roles, Map.of());
@@ -410,7 +521,7 @@ public class JwtRestIT extends ESRestTestCase {
     public void testAuthenticateWithHmacSignedJWTAndMissingRoleMapping() throws Exception {
         final String principal = randomPrincipal();
         final SignedJWT jwt = buildAndSignJwtForRealm3(principal);
-        final TestSecurityClient client = getSecurityClient(jwt, VALID_SHARED_SECRET);
+        final TestSecurityClient client = getSecurityClient(jwt, Optional.of(VALID_SHARED_SECRET));
 
         final Map<String, Object> response = client.authenticate();
 

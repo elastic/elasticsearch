@@ -112,7 +112,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public EnumCounters<Item> getStats() {

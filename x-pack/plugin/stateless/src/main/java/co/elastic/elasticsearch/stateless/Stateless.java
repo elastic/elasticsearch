@@ -51,6 +51,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -62,6 +63,9 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.upgrade.StatelessUpgrader;
 import co.elastic.elasticsearch.stateless.xpack.DummyESQLInfoTransportAction;
@@ -200,6 +204,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
     private final SetOnce<ShardSizesCollector> shardSizesCollector = new SetOnce<>();
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
+    private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
 
@@ -250,7 +255,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(PublishShardSizesAction.INSTANCE, TransportPublishShardSizes.class),
             new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(GetBlobStoreStatsAction.INSTANCE, TransportGetBlobStoreStatsAction.class),
-            new ActionHandler<>(PublishHeapMemoryMetricsAction.INSTANCE, TransportPublishHeapMemoryMetrics.class)
+            new ActionHandler<>(PublishHeapMemoryMetricsAction.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+            new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
+            new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class)
         );
     }
 
@@ -425,6 +432,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         StatelessUpgrader statelessUpgrader = new StatelessUpgrader(client, clusterService);
         clusterService.addListener(statelessUpgrader);
 
+        recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
+
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
         }
@@ -579,65 +588,106 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             });
         }
         indexModule.addIndexEventListener(new IndexEventListener() {
+
+            // TODO: this could use some refactoring/cleaning up.
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-                ActionListener.completeWith(listener, () -> {
-                    final Store store = indexShard.store();
+                final Store store = indexShard.store();
+                try {
                     store.incRef();
-                    try {
-                        final var blobStore = objectStoreService.get().getObjectStore();
-                        final var objectStore = blobStore.blobStore();
-                        var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
-                        final ShardId shardId = indexShard.shardId();
-                        final var basePath = blobStore.basePath()
-                            .add("indices")
-                            .add(shardId.getIndex().getUUID())
-                            .add(String.valueOf(shardId.id()));
-                        final LongFunction<BlobContainer> containerSupplier = primaryTerm -> objectStore.blobContainer(
-                            basePath.add(String.valueOf(primaryTerm))
-                        );
-                        searchDirectory.setBlobContainer(containerSupplier);
-                        boolean indexingShard = indexShard.routingEntry().isPromotableToPrimary();
-
-                        Set<BlobFile> unreferencedFiles = null;
-                        StatelessCompoundCommit latestCommit = null;
-                        final long primaryTerm = indexShard.getOperationPrimaryTerm();
-                        if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
-                            logger.debug("Skipping checking for existing commit for empty store recovery of [{}]", shardId);
+                    final var blobStore = objectStoreService.get().getObjectStore();
+                    final var objectStore = blobStore.blobStore();
+                    var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                    final ShardId shardId = indexShard.shardId();
+                    final var basePath = blobStore.basePath()
+                        .add("indices")
+                        .add(shardId.getIndex().getUUID())
+                        .add(String.valueOf(shardId.id()));
+                    final LongFunction<BlobContainer> containerSupplier = primaryTerm -> objectStore.blobContainer(
+                        basePath.add(String.valueOf(primaryTerm))
+                    );
+                    searchDirectory.setBlobContainer(containerSupplier);
+                    boolean indexingShard = indexShard.routingEntry().isPromotableToPrimary();
+                    Set<BlobFile> unreferencedFiles = null;
+                    StatelessCompoundCommit latestCommit = null;
+                    final long primaryTerm = indexShard.getOperationPrimaryTerm();
+                    if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+                        logger.debug("Skipping checking for existing commit for empty store recovery of [{}]", shardId);
+                    } else {
+                        logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
+                        if (indexingShard) {
+                            Tuple<StatelessCompoundCommit, Set<BlobFile>> state = ObjectStoreService.readIndexingShardState(
+                                objectStore.blobContainer(basePath),
+                                primaryTerm
+                            );
+                            latestCommit = state.v1();
+                            unreferencedFiles = state.v2();
                         } else {
-                            logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
-                            if (indexingShard) {
-                                Tuple<StatelessCompoundCommit, Set<BlobFile>> state = ObjectStoreService.readIndexingShardState(
-                                    objectStore.blobContainer(basePath),
-                                    primaryTerm
-                                );
-                                latestCommit = state.v1();
-                                unreferencedFiles = state.v2();
-                            } else {
-                                latestCommit = ObjectStoreService.readSearchShardState(objectStore.blobContainer(basePath), primaryTerm);
+                            latestCommit = ObjectStoreService.readSearchShardState(objectStore.blobContainer(basePath), primaryTerm);
+                        }
+
+                        if (latestCommit != null) {
+                            logger.debug("Found usable commit [{}] at term [{}]", latestCommit, primaryTerm);
+                        }
+                    }
+                    final StatelessCompoundCommit commit = latestCommit;
+                    logger.debug(() -> {
+                        var segments = commit == null
+                            ? Optional.empty()
+                            : commit.commitFiles().keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
+                        if (segments.isPresent()) {
+                            return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
+                        } else {
+                            return format("[%s] bootstrapping shard from object store using empty commit", shardId);
+                        }
+                    });
+                    if (indexShard.routingEntry().isSearchable()) {
+                        if (commit == null) {
+                            // TODO: can this happen? Do we need this?
+                            listener.onResponse(null);
+                            return;
+                        }
+                        // On a search shard. First register, then read the new or confirmed commit.
+                        store.incRef();
+                        var commitToRegister = new PrimaryTermAndGeneration(latestCommit.primaryTerm(), latestCommit.generation());
+                        StatelessCompoundCommit finalLatestCommit = latestCommit;
+                        recoveryCommitRegistrationHandler.get().register(commitToRegister, shardId, new ActionListener<>() {
+                            @Override
+                            public void onResponse(PrimaryTermAndGeneration commitToUse) {
+                                ActionListener.completeWith(listener, () -> {
+                                    try {
+                                        logger.debug(
+                                            "indexing shard's response to registering commit {} for recovery is {}",
+                                            commitToRegister,
+                                            commitToUse
+                                        );
+                                        var compoundCommit = finalLatestCommit;
+                                        if (commitToRegister.equals(commitToUse) == false) {
+                                            compoundCommit = ObjectStoreService.readStatelessCompoundCommit(
+                                                containerSupplier.apply(commitToUse.primaryTerm()),
+                                                commitToUse.generation()
+                                            );
+                                        }
+                                        assert compoundCommit != null;
+                                        searchDirectory.updateCommit(compoundCommit);
+                                        return null;
+                                    } finally {
+                                        store.decRef();
+                                    }
+                                });
                             }
 
-                            if (latestCommit != null) {
-                                logger.debug("Found usable commit [{}] at term [{}]", latestCommit, primaryTerm);
-                            }
-                        }
-                        final StatelessCompoundCommit commit = latestCommit;
-                        logger.debug(() -> {
-                            var segments = commit == null
-                                ? Optional.empty()
-                                : commit.commitFiles().keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
-                            if (segments.isPresent()) {
-                                return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
-                            } else {
-                                return format("[%s] bootstrapping shard from object store using empty commit", shardId);
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug("error while registering commit " + commitToRegister + " for recovery", e);
+                                store.decRef();
+                                listener.onFailure(e);
                             }
                         });
-
-                        if (indexShard.routingEntry().isSearchable() && commit != null) {
-                            searchDirectory.updateCommit(commit);
-                        }
-
-                        if (indexingShard) {
+                    } else {
+                        assert indexShard.routingEntry().isPromotableToPrimary();
+                        Set<BlobFile> finalUnreferencedFiles = unreferencedFiles;
+                        ActionListener.completeWith(listener, () -> {
                             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                             if (commit != null) {
                                 indexDirectory.updateCommit(commit);
@@ -659,7 +709,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             }
 
                             if (commit != null) {
-                                statelessCommitService.markRecoveredCommit(shardId, commit, unreferencedFiles);
+                                statelessCommitService.markRecoveredCommit(shardId, commit, finalUnreferencedFiles);
                             }
                             statelessCommitService.addConsumerForNewUploadedCommit(shardId, indexDirectory::updateCommit);
 
@@ -671,12 +721,14 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                                     statelessCompoundCommit.translogRecoveryStartFile()
                                 )
                             );
-                        }
-                    } finally {
-                        store.decRef();
+                            return null;
+                        });
                     }
-                    return null;
-                });
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                } finally {
+                    store.decRef();
+                }
             }
 
             @Override

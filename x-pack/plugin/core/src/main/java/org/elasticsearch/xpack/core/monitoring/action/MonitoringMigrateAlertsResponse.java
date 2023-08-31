@@ -36,7 +36,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(exporters);
+        out.writeCollection(exporters);
     }
 
     @Override

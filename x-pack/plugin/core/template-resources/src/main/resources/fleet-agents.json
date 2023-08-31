@@ -59,15 +59,8 @@
           }
         },
         "components": {
-          "type": "nested",
-          "properties": {
-            "id": {
-              "type": "keyword"
-            },
-            "status": {
-              "type": "keyword"
-            }
-          }
+          "type": "object",
+          "enabled": false
         },
         "last_updated": {
           "type": "date"

@@ -64,7 +64,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     @Override

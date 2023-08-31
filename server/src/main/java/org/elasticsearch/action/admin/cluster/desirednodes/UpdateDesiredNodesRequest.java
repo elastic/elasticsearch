@@ -71,7 +71,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super.writeTo(out);
         out.writeString(historyID);
         out.writeLong(version);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
         if (out.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             out.writeBoolean(dryRun);
         }

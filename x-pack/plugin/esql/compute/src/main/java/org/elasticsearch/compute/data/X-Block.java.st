@@ -56,6 +56,10 @@ $endif$
     }
 
     static $Type$Block of(StreamInput in) throws IOException {
+        final boolean isVector = in.readBoolean();
+        if (isVector) {
+            return $Type$Vector.of(in).asBlock();
+        }
         final int positions = in.readVInt();
         var builder = newBlockBuilder(positions);
         for (int i = 0; i < positions; i++) {
@@ -75,21 +79,27 @@ $endif$
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        final int positions = getPositionCount();
-        out.writeVInt(positions);
-        for (int pos = 0; pos < positions; pos++) {
-            if (isNull(pos)) {
-                out.writeBoolean(true);
-            } else {
-                out.writeBoolean(false);
-                final int valueCount = getValueCount(pos);
-                out.writeVInt(valueCount);
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-$if(BytesRef)$
-                    out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-$else$
-                    out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-$endif$
+        $Type$Vector vector = asVector();
+        out.writeBoolean(vector != null);
+        if (vector != null) {
+            vector.writeTo(out);
+        } else {
+            final int positions = getPositionCount();
+            out.writeVInt(positions);
+            for (int pos = 0; pos < positions; pos++) {
+                if (isNull(pos)) {
+                    out.writeBoolean(true);
+                } else {
+                    out.writeBoolean(false);
+                    final int valueCount = getValueCount(pos);
+                    out.writeVInt(valueCount);
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+    $if(BytesRef)$
+                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+    $else$
+                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
+    $endif$
+                    }
                 }
             }
         }

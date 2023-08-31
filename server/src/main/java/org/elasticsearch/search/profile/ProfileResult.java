@@ -92,7 +92,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
             out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
         }
-        out.writeList(children);
+        out.writeCollection(children);
     }
 
     /**

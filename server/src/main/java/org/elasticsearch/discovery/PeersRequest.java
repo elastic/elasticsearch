@@ -37,7 +37,7 @@ public class PeersRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        out.writeList(knownPeers);
+        out.writeCollection(knownPeers);
     }
 
     public List<DiscoveryNode> getKnownPeers() {

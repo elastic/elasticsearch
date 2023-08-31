@@ -464,6 +464,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return new Tuple<>(latestCommit, new HashSet<>(unreferencedBlobs.values()));
     }
 
+    public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
+        String commitFileName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(commitFileName))) {
+            long fileLength = blobContainer.listBlobs().get(commitFileName).length();
+            return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
+        }
+    }
+
     /**
      * Abstract class for commit and files upload tasks.
      *

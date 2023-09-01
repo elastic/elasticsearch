@@ -56,7 +56,7 @@ sourceSets.main.java {
 }
 
 tasks.getByName('test') {
-  if (BuildParams.isCi() == false && filter.includePatterns.isEmpty() && filter.excludePatterns.isEmpty()) {
+  if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     doFirst {
       project.delete(

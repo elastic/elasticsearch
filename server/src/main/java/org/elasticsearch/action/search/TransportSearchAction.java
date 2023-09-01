@@ -1478,23 +1478,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipUnavailable);
-            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
             if (skipUnavailable) {
-                if (cluster != null) {   /// MP TODO: can we remove this check and replace with an assert?
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
-                }
                 maybeFinish(false);
 
             } else {
-                if (cluster != null) {  /// MP TODO: can we remove this check and replace with an assert?
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
-                }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, true, e);
                 }
                 // TODO support minimize_roundtrips=false
-                boolean failImmediately = (skipUnavailable == false && clusters.isCcsMinimizeRoundtrips());
+                boolean failImmediately = (skipUnavailable == false
+                    && clusters.isCcsMinimizeRoundtrips()
+                    && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
                 if (failImmediately) {
                     Throwable cancellationException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
                     if (cancellationException != null) {
@@ -1535,7 +1531,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     originalListener.onResponse(response);
                 } else {
                     Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
-                    logger.warn("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
+                    logger.warn(
+                        "JJJ maybeFinish onFailure->FatalCCSException for cluster '{}'; TaskCancelledException?: {}",
+                        clusterAlias,
+                        (unwrap != null)
+                    );
                     originalListener.onFailure(exceptions.get());
                 }
             }

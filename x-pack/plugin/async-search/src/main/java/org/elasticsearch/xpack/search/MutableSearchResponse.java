@@ -164,21 +164,21 @@ class MutableSearchResponse {
             logger.warn(" .>> !!! cancelledException in MSR.updateWithFailure: " + cancelledExc.getMessage());
             this.frozen = State.FROZEN_RETURN_EARLY;
             logger.warn("JJJ MSR.updateWithFailure/then: f->FROZEN_RETURN_EARLY");
-            try {
-                throw new RuntimeException("JJJ");
-            } catch (RuntimeException e) {
-                logger.warn(e.getMessage() + " stack trace ", e);
-            }
+            // try {
+            // throw new RuntimeException("JJJ");
+            // } catch (RuntimeException e) {
+            // logger.warn(e.getMessage() + " stack trace ", e);
+            // }
 
         } else {
             failIfFrozen();
             this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
             logger.warn("JJJ MSR.updateWithFailure/else: f->" + frozen);
-            try {
-                throw new RuntimeException("JJJ");
-            } catch (RuntimeException e) {
-                logger.warn(e.getMessage() + " stack trace ", e);
-            }
+            // try {
+            // throw new RuntimeException("JJJ");
+            // } catch (RuntimeException e) {
+            // logger.warn(e.getMessage() + " stack trace ", e);
+            // }
         }
         /// MP TODO --- end
 

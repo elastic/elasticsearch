@@ -694,37 +694,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public void notifySearchCancelled() {
             assert clusterInfo != null : "ClusterInfo map should never be null";
             for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
-                boolean retry;
-                do {
-                    retry = false;
-                    Cluster curr = clusterRef.get();
-                    logger.warn(
-                        "Clusters.notifySearchCancelled: cluster '" + curr.getClusterAlias() + "' status BEFORE: " + curr.getStatus()
-                    );
+                clusterRef.updateAndGet(curr -> {
                     if (curr.getStatus() == Cluster.Status.RUNNING) {
-                        Cluster cancelledCluster = new Cluster(
-                            curr.getClusterAlias(),
-                            curr.getIndexExpression(),
-                            curr.isSkipUnavailable(),
-                            Cluster.Status.CANCELLED,
-                            curr.getTotalShards(),
-                            curr.getSuccessfulShards(),
-                            curr.getSkippedShards(),
-                            curr.getFailedShards(),
-                            curr.getFailures(),
-                            curr.getTook(),
-                            curr.isTimedOut()
-                        );
-                        retry = clusterRef.compareAndSet(curr, cancelledCluster) == false;
-                        logger.warn(
-                            "JJJ Clusters.notifySearchCancelled = swap on {} : retry: {} ; new status: {}",
-                            curr.getClusterAlias(),
-                            retry,
-                            clusterRef.get().getStatus()
-                        );
+                        return new Cluster.Builder(curr).setStatus(Cluster.Status.CANCELLED).build();
                     }
-                } while (retry);
-                logger.warn("Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
+                    return curr;
+                });
+                logger.warn("JJJ Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
             }
         }
 

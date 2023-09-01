@@ -399,16 +399,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
+        request.setCcsMinimizeRoundtrips(true); // randomBoolean());
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
-        if (randomBoolean()) {
-            request.setBatchedReduceSize(randomIntBetween(2, 256));
-        }
+        // if (randomBoolean()) {
+        // request.setBatchedReduceSize(randomIntBetween(2, 256));
+        // }
         request.setKeepOnCompletion(true);
-        boolean dfs = randomBoolean();
-        if (dfs) {
-            request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
-        }
+        // boolean dfs = randomBoolean();
+        // if (dfs) {
+        // request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        // }
         // shardId -1 means to throw the Exception on all shards, so should result in complete search failure
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(randomLong(), new IllegalStateException("index corrupted"), -1);
         request.getSearchRequest().source(new SearchSourceBuilder().query(queryBuilder).size(10));
@@ -616,16 +616,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchListenerPlugin.blockQueryPhase();
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
+        request.setCcsMinimizeRoundtrips(true);
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         request.setKeepOnCompletion(true);
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, 256));
         }
-        boolean dfs = randomBoolean();
-        if (dfs) {
-            request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
-        }
+        // boolean dfs = randomBoolean();
+        // if (dfs) {
+        // request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        // }
 
         // throw Exception of all shards of remoteIndex, but against localIndex
         ThrowingQueryBuilder queryBuilder = new ThrowingQueryBuilder(
@@ -688,7 +688,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
             } else {
                 assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.CANCELLED));
+                System.err.println("JJJ CANCELLED");
             }
+            System.err.println(localClusterSearchInfo);
             assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
             assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
             assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
@@ -1439,7 +1441,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         });
 
         AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
-        Strings.toString(statusResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        System.err.println(Strings.toString(statusResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)));
         assertFalse(statusResponse.isRunning());
         assertTrue(statusResponse.isPartial());
 

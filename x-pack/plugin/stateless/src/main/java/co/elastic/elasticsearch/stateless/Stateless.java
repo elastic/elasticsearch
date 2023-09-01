@@ -497,6 +497,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
             ObjectStoreService.BASE_PATH_SETTING,
+            ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,

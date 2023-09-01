@@ -171,6 +171,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> OBJECT_STORE_FILE_DELETION_DELAY = Setting.timeSetting(
+        "stateless.object_store.file_deletion_delay",
+        TimeValue.ZERO,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> OBJECT_STORE_SHUTDOWN_TIMEOUT = Setting.timeSetting(
         "stateless.object_store.shutdown_timeout",
         TimeValue.timeValueSeconds(10L),
@@ -362,24 +369,36 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     public void asyncDeleteTranslogFile(String fileToDelete) {
-        logger.debug("scheduling translog blob file for async delete [{}]", fileToDelete);
-        translogBlobsToDelete.add(fileToDelete);
-        if (translogDeleteSchedulePermit.tryAcquire()) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(this::getTranslogBlobContainer));
-        }
+        asyncDeleteFile(() -> {
+            logger.debug("scheduling translog blob file for async delete [{}]", fileToDelete);
+            translogBlobsToDelete.add(fileToDelete);
+            if (translogDeleteSchedulePermit.tryAcquire()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+            }
+        });
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
-        logger.debug(
-            "scheduling shard [{}] blob file for async delete [{}][{}]",
-            staleCompoundCommit.shardId(),
-            staleCompoundCommit.primaryTerm(),
-            staleCompoundCommit.fileName()
-        );
-        commitBlobsToDelete.add(staleCompoundCommit);
+        asyncDeleteFile(() -> {
+            logger.debug(
+                "scheduling shard [{}] blob file for async delete [{}][{}]",
+                staleCompoundCommit.shardId(),
+                staleCompoundCommit.primaryTerm(),
+                staleCompoundCommit.fileName()
+            );
+            commitBlobsToDelete.add(staleCompoundCommit);
+            if (shardFileDeleteSchedulePermit.tryAcquire()) {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
+            }
+        });
+    }
 
-        if (shardFileDeleteSchedulePermit.tryAcquire()) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
+    private void asyncDeleteFile(Runnable deleteFileRunnable) {
+        TimeValue delay = OBJECT_STORE_FILE_DELETION_DELAY.get(settings);
+        if (delay.compareTo(TimeValue.ZERO) == 0) {
+            deleteFileRunnable.run();
+        } else {
+            threadPool.schedule(deleteFileRunnable, delay, threadPool.executor(ThreadPool.Names.SNAPSHOT));
         }
     }
 

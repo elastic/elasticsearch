@@ -44,7 +44,7 @@ In the case the threadpool appears on the yaml file, Elasticsearch will not star
 [[breaking_810_java_api_changes]]
 ==== Java API changes
 
-[[change_pre_configured_cached_analyzer_components_to_use_indexversion_instead_of_version]]
+[[change_pre_configured_cached_analyzer_components_to_use_indexversion_instead_of_version-highlight]]
 .Change pre-configured and cached analyzer components to use IndexVersion instead of Version
 [%collapsible]
 ====

@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -114,11 +113,12 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> imple
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        List<QueryBuilder> rewritten = new ArrayList<>();
+        throw new IllegalArgumentException("[" + getName() + "] query cannot be used in the current context");
+        /*List<QueryBuilder> rewritten = new ArrayList<>();
         for (QueryBuilder queryBuilder : queryBuilders) {
             rewritten.add(queryBuilder.rewrite(queryRewriteContext));
         }
-        return rewritten.equals(queryBuilders) ? this : new RRFQueryBuilder(windowSize, rankConstant, rewritten);
+        return rewritten.equals(queryBuilders) ? this : new RRFQueryBuilder(windowSize, rankConstant, rewritten);*/
     }
 
     @Override

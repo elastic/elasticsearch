@@ -1347,11 +1347,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     if (queryBuilder instanceof RankQueryBuilder rankQueryBuilder) {
                         if (rankBuilder != null) {
                             throw new IllegalArgumentException(
-                                "cannot specify field ["
-                                    + currentFieldName
-                                    + "] and query ["
-                                    + rankBuilder.getWriteableName()
-                                    + "]"
+                                "cannot specify field [" + currentFieldName + "] and query [" + rankBuilder.getWriteableName() + "]"
                             );
                         }
                         rankBuilder = rankQueryBuilder.getRankBuilder();
@@ -1371,11 +1367,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (rankBuilder != null) {
                         throw new IllegalArgumentException(
-                            "cannot specify field ["
-                                + currentFieldName
-                                + "] and query ["
-                                + rankBuilder.getWriteableName()
-                                + "]"
+                            "cannot specify field [" + currentFieldName + "] and query [" + rankBuilder.getWriteableName() + "]"
                         );
                     }
                     if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {

@@ -208,11 +208,7 @@ public class SingleValueQuery extends Query {
 
         @Override
         public List<QueryBuilder> getChildren() {
-            visitor.enter(this);
-            if (next != null) {
-                next.getChildren();
-            }
-            visitor.exit(this);
+            return List.of(next);
         }
     }
 

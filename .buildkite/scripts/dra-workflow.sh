@@ -85,7 +85,7 @@ echo docker run --rm \
   cli collect \
   --project elasticsearch \
   --branch "$RM_BRANCH" \
-  --commit "$GIT_COMMIT" \
+  --commit "$BUILDKITE_COMMIT" \
   --workflow "$WORKFLOW" \
   --version "$ES_VERSION" \
   --artifact-set main \

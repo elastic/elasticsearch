@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +32,7 @@ import java.util.TreeMap;
 
 public class TransportGetFlamegraphAction extends HandledTransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
-    private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
+    private static final StackFrame EMPTY_STACKFRAME = new StackFrame(null, null, null, null);
 
     private final NodeClient nodeClient;
     private final TransportService transportService;
@@ -74,23 +75,23 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     }
 
     private GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
-        // TODO: Mind that the Kibana implementation calls "decodeStackTraceResponse" immediately to flatten inline stackframes!
-        // TODO: The number of total frames does *not* include inlined frames!
-        // TODO: Determine total seconds!!!
-        FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), 0.0d);
+        // TODO: Are full seconds good enough? (they probably are)
+        long totalSeconds = Duration.between(response.getStartTime(), response.getEndTime()).getSeconds();
+        FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), totalSeconds);
         if (response.getTotalFrames() == 0) {
             return builder.build();
         }
 
         SortedMap<String, StackTrace> sortedStacktraces = new TreeMap<>(response.getStackTraces());
+        // TODO: This has been moved to Resampler. Check that it is working as intended
         // The inverse of the sampling rate is the number with which to multiply the number of
         // samples to get an estimate of the actual number of samples the backend received.
-        double scalingFactor = 1.0d / response.getSamplingRate();
+        // double scalingFactor = 1.0d / response.getSamplingRate();
 
         for (Map.Entry<String, StackTrace> st : sortedStacktraces.entrySet()) {
             String stackTraceId = st.getKey();
             StackTrace stackTrace = st.getValue();
-            int samples = (int) Math.floor(response.getStackTraceEvents().getOrDefault(stackTraceId, 0) * scalingFactor);
+            int samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0);
 
             int frameCount = stackTrace.frameIds.size();
             for (int i = 0; i < frameCount; i++) {
@@ -101,54 +102,43 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
 
-                String frameGroupId = createFrameGroupID(
-                    fileId,
-                    addressOrLine,
-                    executable,
-                    // TODO: Iterate over (inlined) frames
-                    stackFrame.fileName.isEmpty() ? "" : stackFrame.fileName.get(0),
-                    stackFrame.functionName.isEmpty() ? "" : stackFrame.functionName.get(0)
-                );
+                for (Frame frame : stackFrame.frames()) {
+                    String frameGroupId = createFrameGroupID(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
-                int nodeId;
-                if (builder.isExists(frameGroupId)) {
-                    nodeId = builder.getNodeId(frameGroupId);
-                    builder.addSamplesInclusive(nodeId, samples);
-                } else {
-                    // TODO: stackFrame.fileName needs to be only the file name (without the path) -> check whether this is really
-                    // true
-                    nodeId = builder.addNode(
-                        fileId,
-                        frameType,
-                        // TODO: Determine inline flag properly
-                        // inline,
-                        false,
-                        executable,
-                        addressOrLine,
-                        // TODO: Consider all frames, not only the first one!!!
-                        stackFrame.functionName.isEmpty() ? "" : stackFrame.functionName.get(0),
-                        stackFrame.functionOffset.isEmpty() ? 0 : stackFrame.functionOffset.get(0),
-                        stackFrame.fileName.isEmpty() ? "" : stackFrame.fileName.get(0),
-                        stackFrame.lineNumber.isEmpty() ? 0 : stackFrame.lineNumber.get(0),
-                        samples,
-                        frameGroupId
-                    );
+                    int nodeId;
+                    if (builder.isExists(frameGroupId)) {
+                        nodeId = builder.getNodeId(frameGroupId);
+                        builder.addSamplesInclusive(nodeId, samples);
+                    } else {
+                        nodeId = builder.addNode(
+                            fileId,
+                            frameType,
+                            frame.inline(),
+                            executable,
+                            addressOrLine,
+                            frame.functionName(),
+                            frame.functionOffset(),
+                            frame.fileName(),
+                            frame.lineNumber(),
+                            samples,
+                            frameGroupId
+                        );
+                    }
+                    if (i == frameCount - 1) {
+                        // Leaf frame: sum up counts for exclusive CPU.
+                        builder.addSamplesExclusive(nodeId, samples);
+                    }
+                    builder.setCurrentNode(nodeId);
                 }
-                if (i == frameCount - 1) {
-                    // Leaf frame: sum up counts for exclusive CPU.
-                    builder.addSamplesExclusive(nodeId, samples);
-                }
-                builder.setCurrentNode(nodeId);
             }
         }
-        // TODO: Also consider createBaseFlameGraph() - this should be our final data structure
         return builder.build();
     }
 
     @SuppressForbidden(reason = "Using pathSeparator constant to extract the filename with low overhead")
     private static String getFilename(String fullPath) {
-        if (fullPath == null) {
-            return null;
+        if (fullPath == null || fullPath.isEmpty()) {
+            return fullPath;
         }
         int lastSeparatorIdx = fullPath.lastIndexOf(File.pathSeparator);
         return lastSeparatorIdx == -1 ? fullPath : fullPath.substring(lastSeparatorIdx + 1);
@@ -168,7 +158,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         if (sourceFilename.isEmpty()) {
             return String.format(Locale.ROOT, "elf;%s;%s", exeFilename, functionName);
         }
-        // TODO: This should actually be stripLeadingSubdirs(sourceFilename || "")
         return String.format(Locale.ROOT, "full;%s;%s;%s", exeFilename, functionName, getFilename(sourceFilename));
     }
 
@@ -192,18 +181,20 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         private final double totalSeconds;
 
         FlamegraphBuilder(int frames, double samplingRate, double totalSeconds) {
-            this.edges = new ArrayList<>(frames);
-            this.fileIds = new ArrayList<>(frames);
-            this.frameTypes = new ArrayList<>(frames);
-            this.inlineFrames = new ArrayList<>(frames);
-            this.fileNames = new ArrayList<>(frames);
-            this.addressOrLines = new ArrayList<>(frames);
-            this.functionNames = new ArrayList<>(frames);
-            this.functionOffsets = new ArrayList<>(frames);
-            this.sourceFileNames = new ArrayList<>(frames);
-            this.sourceLines = new ArrayList<>(frames);
-            this.countInclusive = new ArrayList<>(frames);
-            this.countExclusive = new ArrayList<>(frames);
+            // as the number of frames does not account for inline frames we slightly overprovision.
+            int capacity = (int) (frames * 1.1d);
+            this.edges = new ArrayList<>(capacity);
+            this.fileIds = new ArrayList<>(capacity);
+            this.frameTypes = new ArrayList<>(capacity);
+            this.inlineFrames = new ArrayList<>(capacity);
+            this.fileNames = new ArrayList<>(capacity);
+            this.addressOrLines = new ArrayList<>(capacity);
+            this.functionNames = new ArrayList<>(capacity);
+            this.functionOffsets = new ArrayList<>(capacity);
+            this.sourceFileNames = new ArrayList<>(capacity);
+            this.sourceLines = new ArrayList<>(capacity);
+            this.countInclusive = new ArrayList<>(capacity);
+            this.countExclusive = new ArrayList<>(capacity);
             if (frames > 0) {
                 // root node
                 int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, null);

@@ -28,6 +28,8 @@ public class RestGetFlamegraphAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         GetStackTracesRequest getStackTracesRequest = new GetStackTracesRequest();
         request.applyContentParser(getStackTracesRequest::parseXContent);
+        // enforce server-side adjustment of sample counts for flamegraphs
+        getStackTracesRequest.setAdjustSampleCount(true);
 
         return channel -> {
             RestActionListener<GetFlamegraphResponse> listener = new RestChunkedToXContentListener<>(channel);

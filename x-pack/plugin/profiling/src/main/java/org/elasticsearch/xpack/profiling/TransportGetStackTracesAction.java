@@ -381,6 +381,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
         private final double p;
 
+        private final boolean adjustSampleCount;
+
         Resampler(GetStackTracesRequest request, double sampleRate, long totalCount) {
             // Manually reduce sample count if totalCount exceeds sampleSize by 10%.
             if (totalCount > request.getSampleSize() * 1.1) {
@@ -395,9 +397,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 this.sampleRate = sampleRate;
                 this.p = 1.0d;
             }
+            this.adjustSampleCount = request.isAdjustSampleCount();
         }
 
         public int adjustSampleCount(int originalCount) {
+            int rawCount;
             if (requiresResampling) {
                 int newCount = 0;
                 for (int i = 0; i < originalCount; i++) {
@@ -411,12 +415,17 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     // the sum of the upscaled count values is less that totalCount.
                     // This code needs to be refactored to move all scaling into the server
                     // side, not just the resampling-scaling.
-                    return (int) Math.floor(newCount / (p));
+                    rawCount = (int) Math.floor(newCount / (p));
                 } else {
-                    return 0;
+                    rawCount = 0;
                 }
             } else {
-                return originalCount;
+                rawCount = originalCount;
+            }
+            if (adjustSampleCount) {
+                return (int) Math.floor(rawCount / sampleRate);
+            } else {
+                return rawCount;
             }
         }
     }
@@ -458,7 +467,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
-                        stackFrames.putIfAbsent(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
+                        StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
+                        if (stackFrame.isEmpty() == false) {
+                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                        } else {
+                            log.trace("Stack frame with id [{}] has no properties.", frame.getId());
+                        }
                     }
                 }
             }
@@ -564,7 +578,16 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         }
 
         public GetStackTracesResponse build() {
-            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+            return new GetStackTracesResponse(
+                stackTraces,
+                stackFrames,
+                executables,
+                stackTraceEvents,
+                totalFrames,
+                samplingRate,
+                start,
+                end
+            );
         }
     }
 }

@@ -91,7 +91,21 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        out.writeInt(this.size);
+        out.writeDouble(this.samplingRate);
+        out.writeDouble(this.totalSeconds);
+        out.writeCollection(this.edges, (o, v) -> o.writeMap(v, StreamOutput::writeString, StreamOutput::writeInt));
+        out.writeCollection(this.fileIds, StreamOutput::writeString);
+        out.writeCollection(this.frameTypes, StreamOutput::writeInt);
+        out.writeCollection(this.inlineFrames, StreamOutput::writeBoolean);
+        out.writeCollection(this.fileNames, StreamOutput::writeString);
+        out.writeCollection(this.addressOrLines, StreamOutput::writeInt);
+        out.writeCollection(this.functionNames, StreamOutput::writeString);
+        out.writeCollection(this.functionOffsets, StreamOutput::writeInt);
+        out.writeCollection(this.sourceFileNames, StreamOutput::writeString);
+        out.writeCollection(this.sourceLines, StreamOutput::writeInt);
+        out.writeCollection(this.countInclusive, StreamOutput::writeInt);
+        out.writeCollection(this.countExclusive, StreamOutput::writeInt);
     }
 
     @Override

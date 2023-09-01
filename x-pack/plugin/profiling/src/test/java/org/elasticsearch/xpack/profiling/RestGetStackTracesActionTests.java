@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Collections;
 
 import static java.util.Collections.emptyList;
@@ -48,7 +49,9 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                1.0
+                1.0,
+                Instant.ofEpochMilli(0L),
+                Instant.ofEpochMilli(0L)
             );
         });
         RestRequest profilingRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
@@ -73,7 +76,9 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                0.0
+                0.0,
+                Instant.ofEpochMilli(0L),
+                Instant.ofEpochMilli(0L)
             );
         });
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

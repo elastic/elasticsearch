@@ -98,7 +98,11 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     public SearchApplication(StreamInput in, String[] indices) throws IOException {
         this.name = in.readString();
-        this.indices = indices;
+if (in.getTransportVersion().onOrAfter(INDICES_REMOVED_TRANSPORT_VERSION) {
+        this.indices = indices; // Uses the provided indices, as they are no longer serialized
+} else {
+        this.indices = in.readStringArray(); // old behaviour, read it from input as it was serialized
+}
         this.analyticsCollectionName = in.readOptionalString();
         this.updatedAtMillis = in.readLong();
         this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);

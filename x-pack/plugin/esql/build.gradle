@@ -56,7 +56,7 @@ sourceSets.main.java {
 }
 
 tasks.getByName('test') {
-  if (BuildParams.isCi() == false) {
+  if (BuildParams.isCi() == false && filter.includePatterns.isEmpty() && filter.excludePatterns.isEmpty()) {
     systemProperty 'generateDocs', true
     doFirst {
       project.delete(
@@ -64,12 +64,29 @@ tasks.getByName('test') {
       )
     }
     doLast {
-      project.sync {
-        from "${projectDir}/build/testrun/test/temp/esql/functions"
-        into "${rootDir}/docs/reference/esql/functions"
-        include '**/*.asciidoc', '**/*.svg'
-        preserve {
-          include '/*.asciidoc'
+      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list()
+      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list()
+      int count = signatures == null ? 0 : signatures.size()
+      if (count == 0) {
+        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
+      } else if (count == 1) {
+        logger.quiet("ESQL Docs: Only updated $signatures and $types, patching them into place")
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg'
+          }
+        }
+      } else {
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc'
+          }
         }
       }
     }

@@ -93,10 +93,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
     public SearchApplication(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.indices = null;
-        this.analyticsCollectionName = in.readOptionalString();
-        this.updatedAtMillis = in.readLong();
-        this.searchApplicationTemplate = in.readOptionalWriteable(SearchApplicationTemplate::new);
+        this(in, null);
     }
 
     public SearchApplication(StreamInput in, String[] indices) throws IOException {

@@ -235,6 +235,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
             return this;
         }
 
+        /**
+         * Adds the assignment regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {
+            deploymentRoutingEntries.put(deploymentId, assignment);
+            return this;
+        }
+
         public TrainedModelAssignment.Builder getAssignment(String deploymentId) {
             return deploymentRoutingEntries.get(deploymentId);
         }

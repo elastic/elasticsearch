@@ -33,21 +33,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,12 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.DoubleBinaryOperator;
-import java.util.function.DoubleFunction;
-import java.util.function.DoubleUnaryOperator;
-import java.util.function.Function;
-import java.util.function.IntFunction;
-import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -80,371 +70,6 @@ import static org.hamcrest.Matchers.nullValue;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
-
-    /**
-     * Holds a data value and the intended parse type of that value
-     * @param data - value to test against
-     * @param type - type of the value, for building expressions
-     */
-    public record TypedData(Object data, DataType type, String name) {
-        public TypedData(Object data, String name) {
-            this(data, EsqlDataTypes.fromJava(data), name);
-        }
-    }
-
-    public static class TestCase {
-        /**
-         * The {@link Source} this test case should be run with
-         */
-        private Source source;
-        /**
-         * The parameter values and types to pass into the function for this test run
-         */
-        private List<TypedData> data;
-
-        /**
-         * The expected toString output for the evaluator this function invocation should generate
-         */
-        String evaluatorToString;
-        /**
-         * The expected output type for the case being tested
-         */
-        DataType expectedType;
-        /**
-         * A matcher to validate the output of the function run on the given input data
-         */
-        private Matcher<Object> matcher;
-
-        /**
-         * Warnings this test is expected to produce
-         */
-        private String[] expectedWarnings;
-
-        private final String expectedTypeError;
-
-        private final boolean allTypesAreRepresentable;
-
-        public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null);
-        }
-
-        public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError);
-        }
-
-        private TestCase(
-            List<TypedData> data,
-            String evaluatorToString,
-            DataType expectedType,
-            Matcher<Object> matcher,
-            String[] expectedWarnings,
-            String expectedTypeError
-        ) {
-            this.source = Source.EMPTY;
-            this.data = data;
-            this.evaluatorToString = evaluatorToString;
-            this.expectedType = expectedType;
-            this.matcher = matcher;
-            this.expectedWarnings = expectedWarnings;
-            this.expectedTypeError = expectedTypeError;
-            this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
-        }
-
-        public Source getSource() {
-            return source;
-        }
-
-        public List<TypedData> getData() {
-            return data;
-        }
-
-        public List<Expression> getDataAsFields() {
-            return data.stream().map(t -> field(t.name(), t.type())).collect(Collectors.toList());
-        }
-
-        public List<Expression> getDataAsLiterals() {
-            return data.stream().map(t -> new Literal(Source.synthetic(t.name()), t.data(), t.type())).collect(Collectors.toList());
-        }
-
-        public List<Object> getDataValues() {
-            return data.stream().map(t -> t.data()).collect(Collectors.toList());
-        }
-
-        public boolean allTypesAreRepresentable() {
-            return allTypesAreRepresentable;
-        }
-
-        public Matcher<Object> getMatcher() {
-            return matcher;
-        }
-
-        public TestCase withWarning(String warning) {
-            String[] newWarnings;
-            if (expectedWarnings != null) {
-                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + 1);
-                newWarnings[expectedWarnings.length] = warning;
-            } else {
-                newWarnings = new String[] { warning };
-            }
-            return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
-        }
-    }
-
-    /**
-     * This class exists to give a human-readable string representation of the test case.
-     */
-    public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier) implements Supplier<TestCase> {
-        /**
-         * Build a test case without types.
-         * @deprecated Supply types
-         */
-        @Deprecated
-        public TestCaseSupplier(String name, Supplier<TestCase> supplier) {
-            this(name, null, supplier);
-        }
-
-        /**
-         * Build a test case named after the types it takes.
-         */
-        public TestCaseSupplier(List<DataType> types, Supplier<TestCase> supplier) {
-            this(nameFromTypes(types), types, supplier);
-        }
-
-        static String nameFromTypes(List<DataType> types) {
-            return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
-        }
-
-        @Override
-        public TestCase get() {
-            TestCase supplied = supplier.get();
-            if (types != null) {
-                for (int i = 0; i < types.size(); i++) {
-                    if (supplied.data.get(i).type != types.get(i)) {
-                        throw new IllegalStateException("supplier/data type mismatch " + supplied.data.get(i).type + "/" + types.get(i));
-                    }
-                }
-            }
-            return supplied;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-
-        /**
-         * Generate positive test cases for unary functions that operate on an {@code numeric}
-         * fields by casting them to {@link DataTypes#DOUBLE}s.
-         */
-        public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
-            String read = "Attribute[channel=0]";
-            String eval = name + "[" + argName + "=";
-            List<TestCaseSupplier> suppliers = new ArrayList<>();
-            forUnaryInt(
-                suppliers,
-                eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
-                DataTypes.DOUBLE,
-                i -> expected.applyAsDouble(i)
-            );
-            forUnaryLong(
-                suppliers,
-                eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
-                DataTypes.DOUBLE,
-                l -> expected.applyAsDouble(l)
-            );
-            forUnaryUnsignedLong(
-                suppliers,
-                eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
-                DataTypes.DOUBLE,
-                ul -> expected.applyAsDouble(ul.doubleValue())
-            );
-            forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i));
-            return suppliers;
-        }
-
-        /**
-         * Generate positive test cases for binary functions that operate on an {@code numeric}
-         * fields by casting them to {@link DataTypes#DOUBLE}s.
-         */
-        public static List<TestCaseSupplier> forBinaryCastingToDouble(
-            String name,
-            String lhsName,
-            String rhsName,
-            DoubleBinaryOperator expected
-        ) {
-            List<TestCaseSupplier> suppliers = new ArrayList<>();
-            for (DataType lhsType : EsqlDataTypes.types()) {
-                if (lhsType.isNumeric() == false || EsqlDataTypes.isRepresentable(lhsType) == false) {
-                    continue;
-                }
-                for (Map.Entry<String, Supplier<Object>> lhsSupplier : RANDOM_VALUE_SUPPLIERS.get(lhsType)) {
-                    for (DataType rhsType : EsqlDataTypes.types()) {
-                        if (rhsType.isNumeric() == false || EsqlDataTypes.isRepresentable(rhsType) == false) {
-                            continue;
-                        }
-                        for (Map.Entry<String, Supplier<Object>> rhsSupplier : RANDOM_VALUE_SUPPLIERS.get(rhsType)) {
-                            String caseName = lhsSupplier.getKey() + ", " + rhsSupplier.getKey();
-                            suppliers.add(new TestCaseSupplier(caseName, List.of(lhsType, rhsType), () -> {
-                                Number lhs = (Number) lhsSupplier.getValue().get();
-                                Number rhs = (Number) rhsSupplier.getValue().get();
-                                TypedData lhsTyped = new TypedData(
-                                    // TODO there has to be a better way to handle unsigned long
-                                    lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                                    lhsType,
-                                    "lhs"
-                                );
-                                TypedData rhsTyped = new TypedData(
-                                    rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                                    rhsType,
-                                    "rhs"
-                                );
-                                String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsType);
-                                String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsType);
-                                return new TestCase(
-                                    List.of(lhsTyped, rhsTyped),
-                                    name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
-                                    DataTypes.DOUBLE,
-                                    equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
-                                );
-                            }));
-                        }
-                    }
-                }
-            }
-            return suppliers;
-        }
-
-        /**
-         * Generate positive test cases for a unary function operating on an {@link DataTypes#INTEGER}.
-         */
-        public static void forUnaryInt(
-            List<TestCaseSupplier> suppliers,
-            String expectedEvaluatorToString,
-            DataType expectedType,
-            IntFunction<Object> expectedValue
-        ) {
-            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.INTEGER, expectedType, n -> expectedValue.apply(n.intValue()));
-        }
-
-        /**
-         * Generate positive test cases for a unary function operating on an {@link DataTypes#LONG}.
-         */
-        public static void forUnaryLong(
-            List<TestCaseSupplier> suppliers,
-            String expectedEvaluatorToString,
-            DataType expectedType,
-            LongFunction<Object> expectedValue
-        ) {
-            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.LONG, expectedType, n -> expectedValue.apply(n.longValue()));
-        }
-
-        /**
-         * Generate positive test cases for a unary function operating on an {@link DataTypes#UNSIGNED_LONG}.
-         */
-        public static void forUnaryUnsignedLong(
-            List<TestCaseSupplier> suppliers,
-            String expectedEvaluatorToString,
-            DataType expectedType,
-            Function<BigInteger, Object> expectedValue
-        ) {
-            unaryNumeric(
-                suppliers,
-                expectedEvaluatorToString,
-                DataTypes.UNSIGNED_LONG,
-                expectedType,
-                n -> expectedValue.apply((BigInteger) n)
-            );
-        }
-
-        /**
-         * Generate positive test cases for a unary function operating on an {@link DataTypes#DOUBLE}.
-         */
-        public static void forUnaryDouble(
-            List<TestCaseSupplier> suppliers,
-            String expectedEvaluatorToString,
-            DataType expectedType,
-            DoubleFunction<Object> expectedValue
-        ) {
-            unaryNumeric(suppliers, expectedEvaluatorToString, DataTypes.DOUBLE, expectedType, n -> expectedValue.apply(n.doubleValue()));
-        }
-
-        private static void unaryNumeric(
-            List<TestCaseSupplier> suppliers,
-            String expectedEvaluatorToString,
-            DataType inputType,
-            DataType expectedOutputType,
-            Function<Number, Object> expected
-        ) {
-            for (Map.Entry<String, Supplier<Object>> supplier : RANDOM_VALUE_SUPPLIERS.get(inputType)) {
-                suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
-                    Number value = (Number) supplier.getValue().get();
-                    TypedData typed = new TypedData(
-                        // TODO there has to be a better way to handle unsigned long
-                        value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
-                        inputType,
-                        "value"
-                    );
-                    return new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
-                }));
-            }
-        }
-
-        private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(
-            Map.entry(
-                DataTypes.DOUBLE,
-                List.of(
-                    Map.entry("<0 double>", () -> 0.0d),
-                    Map.entry("<small positive double>", () -> randomDouble()),
-                    Map.entry("<small negative double>", () -> -randomDouble()),
-                    Map.entry("<big positive double>", () -> randomDoubleBetween(0, Double.MAX_VALUE, false)),
-                    Map.entry("<negative positive double>", () -> randomDoubleBetween(Double.MIN_VALUE, 0 - Double.MIN_NORMAL, true))
-                )
-            ),
-            Map.entry(
-                DataTypes.LONG,
-                List.of(
-                    Map.entry("<0 long>", () -> 0L),
-                    Map.entry("<positive long>", () -> randomLongBetween(1, Long.MAX_VALUE)),
-                    Map.entry("<negative long>", () -> randomLongBetween(Long.MIN_VALUE, -1))
-                )
-            ),
-            Map.entry(
-                DataTypes.INTEGER,
-                List.of(
-                    Map.entry("<0 int>", () -> 0),
-                    Map.entry("<positive long>", () -> between(1, Integer.MAX_VALUE)),
-                    Map.entry("<negative long>", () -> between(Integer.MIN_VALUE, -1))
-                )
-            ),
-            Map.entry(
-                DataTypes.UNSIGNED_LONG,
-                List.of(
-                    Map.entry("<0 unsigned long>", () -> BigInteger.ZERO),
-                    Map.entry("<small unsigned long>", () -> BigInteger.valueOf(randomLongBetween(1, Integer.MAX_VALUE))),
-                    Map.entry(
-                        "<big unsigned long>",
-                        () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomLongBetween(1, Integer.MAX_VALUE)))
-                    )
-                )
-            )
-        );
-
-        private static String castToDoubleEvaluator(String original, DataType current) {
-            if (current == DataTypes.DOUBLE) {
-                return original;
-            }
-            if (current == DataTypes.INTEGER) {
-                return "CastIntToDoubleEvaluator[v=" + original + "]";
-            }
-            if (current == DataTypes.LONG) {
-                return "CastLongToDoubleEvaluator[v=" + original + "]";
-            }
-            if (current == DataTypes.UNSIGNED_LONG) {
-                return "CastUnsignedLongToDoubleEvaluator[v=" + original + "]";
-            }
-            throw new UnsupportedOperationException();
-        }
-    }
 
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
@@ -471,7 +96,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }, type);
     }
 
-    protected TestCase testCase;
+    protected TestCaseSupplier.TestCase testCase;
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> cases) {
         // TODO rename this method to something more descriptive. Javadoc. And make sure all parameters are "representable" types.
@@ -495,11 +120,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
-    protected final Expression buildFieldExpression(TestCase testCase) {
+    protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
     }
 
-    protected final Expression buildLiteralExpression(TestCase testCase) {
+    protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
@@ -538,11 +163,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         Expression expression = buildFieldExpression(testCase);
-        if (testCase.expectedTypeError != null) {
+        if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.expectedTypeError));
+            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
@@ -551,14 +176,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
         assertThat(result, testCase.getMatcher());
-        if (testCase.expectedWarnings != null) {
-            assertWarnings(testCase.expectedWarnings);
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
         }
     }
 
     public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
         Block[] orig = BlockUtils.fromListRow(simpleData);
@@ -584,8 +209,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         int count = 10_000;
         int threads = 5;
         Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -612,8 +237,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorToString() {
-        assumeTrue("nothing to do if a type error", testCase.expectedTypeError == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var supplier = evaluator(buildFieldExpression(testCase));
         var ev = supplier.get();
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
@@ -621,9 +246,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.expectedTypeError != null) {
+        if (testCase.getExpectedTypeError() != null) {
             assertTrue(expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.expectedTypeError));
+            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
@@ -631,13 +256,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         assertTrue(expression.foldable());
         assertThat(expression.fold(), testCase.getMatcher());
-        if (testCase.expectedWarnings != null) {
-            assertWarnings(testCase.expectedWarnings);
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
         }
     }
 
     public void testSerializationOfSimple() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
     }
 
@@ -655,7 +280,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
         for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types == null) {
+            if (s.types() == null) {
                 throw new IllegalArgumentException("types required");
             }
         }
@@ -673,50 +298,50 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          */
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier original : testCaseSuppliers) {
-            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types);
-            for (int nullPosition = 0; nullPosition < original.types.size(); nullPosition++) {
+            boolean firstTimeSeenSignature = uniqueSignatures.add(original.types());
+            for (int nullPosition = 0; nullPosition < original.types().size(); nullPosition++) {
                 int finalNullPosition = nullPosition;
-                suppliers.add(new TestCaseSupplier(original.name + " null in " + nullPosition, original.types, () -> {
-                    TestCase oc = original.get();
-                    List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
-                        TypedData od = oc.data.get(i);
+                suppliers.add(new TestCaseSupplier(original.name() + " null in " + nullPosition, original.types(), () -> {
+                    TestCaseSupplier.TestCase oc = original.get();
+                    List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
+                        TestCaseSupplier.TypedData od = oc.getData().get(i);
                         if (i == finalNullPosition) {
-                            return new TypedData(null, od.type, od.name);
+                            return new TestCaseSupplier.TypedData(null, od.type(), od.name());
                         }
                         return od;
                     }).toList();
-                    return new TestCase(
+                    return new TestCaseSupplier.TestCase(
                         data,
                         oc.evaluatorToString,
                         oc.expectedType,
                         nullValue(),
-                        oc.expectedWarnings,
-                        oc.expectedTypeError
+                        oc.getExpectedWarnings(),
+                        oc.getExpectedTypeError()
                     );
                 }));
 
                 if (firstTimeSeenSignature) {
-                    List<DataType> typesWithNull = IntStream.range(0, original.types.size())
-                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types.get(i))
+                    List<DataType> typesWithNull = IntStream.range(0, original.types().size())
+                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types().get(i))
                         .toList();
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
                         suppliers.add(new TestCaseSupplier(typesWithNull, () -> {
-                            TestCase oc = original.get();
-                            List<TypedData> data = IntStream.range(0, oc.data.size()).mapToObj(i -> {
-                                TypedData od = oc.data.get(i);
+                            TestCaseSupplier.TestCase oc = original.get();
+                            List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
+                                TestCaseSupplier.TypedData od = oc.getData().get(i);
                                 if (i == finalNullPosition) {
-                                    return new TypedData(null, DataTypes.NULL, od.name);
+                                    return new TestCaseSupplier.TypedData(null, DataTypes.NULL, od.name());
                                 }
                                 return od;
                             }).toList();
-                            return new TestCase(
+                            return new TestCaseSupplier.TestCase(
                                 data,
                                 "LiteralsEvaluator[block=null]",
-                                entirelyNullPreservesType == false && oc.data.size() == 1 ? DataTypes.NULL : oc.expectedType,
+                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
                                 nullValue(),
-                                oc.expectedWarnings,
-                                oc.expectedTypeError
+                                oc.getExpectedWarnings(),
+                                oc.getExpectedTypeError()
                             );
                         }));
                     }
@@ -734,7 +359,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
         for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types == null) {
+            if (s.types() == null) {
                 throw new IllegalArgumentException("types required");
             }
         }
@@ -805,8 +430,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new TestCaseSupplier(
             "type error for " + TestCaseSupplier.nameFromTypes(types),
             types,
-            () -> TestCase.typeError(
-                types.stream().map(type -> new TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
+            () -> TestCaseSupplier.TestCase.typeError(
+                types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
                 typeErrorMessage(validPerPosition, types)
             )
         );
@@ -897,13 +522,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @After
     public void trackSignature() {
-        if (testCase.expectedTypeError != null) {
+        if (testCase.getExpectedTypeError() != null) {
             return;
         }
-        if (testCase.getData().stream().anyMatch(t -> t.type == DataTypes.NULL)) {
+        if (testCase.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
             return;
         }
-        signatures.putIfAbsent(testCase.getData().stream().map(TypedData::type).toList(), testCase.expectedType);
+        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType);
     }
 
     @AfterClass

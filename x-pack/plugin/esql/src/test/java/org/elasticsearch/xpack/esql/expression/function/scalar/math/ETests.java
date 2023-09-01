@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,15 +25,15 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ETests extends AbstractScalarFunctionTestCase {
-    public ETests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public ETests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
-            return new TestCase(
-                List.of(new TypedData(1, DataTypes.INTEGER, "foo")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
                 "LiteralsEvaluator[block=2.718281828459045]",
                 DataTypes.DOUBLE,
                 equalTo(Math.E)

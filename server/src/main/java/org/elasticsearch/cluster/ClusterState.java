@@ -774,8 +774,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        public Builder putVersionsWrapper(String nodeId, VersionsWrapper versionsWrapper) {
-            versionsWrappers.put(nodeId, Objects.requireNonNull(versionsWrapper, nodeId));
+        public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
+            versionsWrappers.put(nodeId, new VersionsWrapper(Objects.requireNonNull(transportVersion, nodeId)));
             return this;
         }
 
@@ -923,10 +923,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now
-            builder.nodes()
-                .getNodes()
-                .values()
-                .forEach(n -> builder.putVersionsWrapper(n.getId(), new VersionsWrapper(inferTransportVersion(n))));
+            builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
         }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
@@ -1074,10 +1071,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 builder.versionsWrappers(this.versions.apply(state.versionsWrappers));
             } else {
                 // infer the versions from discoverynodes for now
-                builder.nodes()
-                    .getNodes()
-                    .values()
-                    .forEach(n -> builder.putVersionsWrapper(n.getId(), new VersionsWrapper(inferTransportVersion(n))));
+                builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
             }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));

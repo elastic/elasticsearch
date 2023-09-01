@@ -79,8 +79,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
-            .putVersionsWrapper("master", new VersionsWrapper(TransportVersionUtils.randomVersion(random())))
-            .putVersionsWrapper("other", new VersionsWrapper(TransportVersionUtils.randomVersion(random())))
+            .putTransportVersion("master", TransportVersionUtils.randomVersion(random()))
+            .putTransportVersion("other", TransportVersionUtils.randomVersion(random()))
             .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),

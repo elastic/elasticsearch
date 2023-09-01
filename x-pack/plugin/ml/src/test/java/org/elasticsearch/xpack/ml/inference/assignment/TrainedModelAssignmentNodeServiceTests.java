@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -570,7 +569,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+                .putTransportVersion(NODE_ID, TransportVersion.current())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -628,7 +627,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+                .putTransportVersion(NODE_ID, TransportVersion.current())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -681,7 +680,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+                .putTransportVersion(NODE_ID, TransportVersion.current())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -722,7 +721,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "shouldUpdateAllocations",
             ClusterState.builder(new ClusterName("shouldUpdateAllocations"))
                 .nodes(nodes)
-                .putVersionsWrapper(NODE_ID, new VersionsWrapper(TransportVersion.current()))
+                .putTransportVersion(NODE_ID, TransportVersion.current())
                 .metadata(
                     Metadata.builder()
                         .putCustom(

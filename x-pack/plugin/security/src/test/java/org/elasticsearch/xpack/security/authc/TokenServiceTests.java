@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1271,7 +1270,7 @@ public class TokenServiceTests extends ESTestCase {
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
-        newStateBuilder.putVersionsWrapper(anotherDataNode.getId(), new VersionsWrapper(transportVersion));
+        newStateBuilder.putTransportVersion(anotherDataNode.getId(), transportVersion);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }

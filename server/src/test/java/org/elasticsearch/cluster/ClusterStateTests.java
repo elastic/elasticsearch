@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -1028,7 +1027,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putVersionsWrapper("nodeId1", new VersionsWrapper(TransportVersion.current()))
+            .putTransportVersion("nodeId1", TransportVersion.current())
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1134,7 +1133,7 @@ public class ClusterStateTests extends ESTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();
-            builder.putVersionsWrapper("nodeTv" + i, new VersionsWrapper(tv));
+            builder.putTransportVersion("nodeTv" + i, tv);
             minVersion = Collections.min(List.of(minVersion, tv));
         }
 

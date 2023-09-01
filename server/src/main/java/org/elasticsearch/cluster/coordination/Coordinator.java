@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -1067,7 +1066,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
-                .putVersionsWrapper(getLocalNode().getId(), new VersionsWrapper(TransportVersion.current()))
+                .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
                 .metadata(metadata)
                 .build();
             applierState = initialState;

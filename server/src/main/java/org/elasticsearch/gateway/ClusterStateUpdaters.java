@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
@@ -33,7 +32,7 @@ public class ClusterStateUpdaters {
     public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-            .putVersionsWrapper(localNode.getId(), new VersionsWrapper(transportVersion))
+            .putTransportVersion(localNode.getId(), transportVersion)
             .build();
     }
 

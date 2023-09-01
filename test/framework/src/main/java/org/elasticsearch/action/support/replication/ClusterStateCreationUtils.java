@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
@@ -536,7 +535,7 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         for (DiscoveryNode node : allNodes) {
-            state.putVersionsWrapper(node.getId(), new VersionsWrapper(transportVersion));
+            state.putTransportVersion(node.getId(), transportVersion);
         }
 
         Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();

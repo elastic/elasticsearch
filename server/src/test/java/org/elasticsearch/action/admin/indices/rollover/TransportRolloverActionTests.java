@@ -308,11 +308,6 @@ public class TransportRolloverActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(mockClusterService.localNode()).thenReturn(mockNode);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
-
-        // TODO: temporary, remove in #97879
-        when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
-        when(mockThreadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
         final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         final ActionFilters mockActionFilters = mock(ActionFilters.class);
@@ -361,6 +356,10 @@ public class TransportRolloverActionTests extends ESTestCase {
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT
         );
+
+        // TODO: temporary, remove in #97879
+        when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
+        when(mockThreadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mockTransportService,
             mockClusterService,

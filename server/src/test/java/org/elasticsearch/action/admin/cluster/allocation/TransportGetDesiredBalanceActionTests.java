@@ -67,26 +67,28 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase {
 
-    private static DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
-    private static ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private static TransportService transportService = mock(TransportService.class);
-    private static ThreadPool threadPool = mock(ThreadPool.class);
-    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-        transportService,
-        mock(ClusterService.class),
-        threadPool,
-        mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
-        desiredBalanceShardsAllocator,
-        clusterInfoService,
-        TEST_WRITE_LOAD_FORECASTER
-    );
+    private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
+    private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
+    private TransportService transportService = mock(TransportService.class);
+    private ThreadPool threadPool = mock(ThreadPool.class);
+    private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
 
     @Before
-    public static void setup() {
+    public void initialize() {
         // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+            transportService,
+            mock(ClusterService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            desiredBalanceShardsAllocator,
+            clusterInfoService,
+            TEST_WRITE_LOAD_FORECASTER
+        );
     }
 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {

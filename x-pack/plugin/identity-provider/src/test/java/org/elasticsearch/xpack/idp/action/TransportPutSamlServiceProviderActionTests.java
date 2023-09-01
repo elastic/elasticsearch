@@ -58,9 +58,9 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
         index = mock(SamlServiceProviderIndex.class);
         idp = mock(SamlIdentityProvider.class);
         when(idp.getAllowedNameIdFormats()).thenReturn(Set.of(TRANSIENT));
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         action = new TransportPutSamlServiceProviderAction(transportService, mock(ActionFilters.class), index, idp, clock);
     }
 

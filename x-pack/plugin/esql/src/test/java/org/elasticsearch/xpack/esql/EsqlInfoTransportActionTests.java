@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,11 +43,17 @@ import static org.mockito.Mockito.when;
 public class EsqlInfoTransportActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool(getTestName());
+
+        // TODO: temporary, remove in #97879
+        transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
     }
@@ -59,13 +64,11 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
@@ -100,8 +103,6 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new EsqlUsageTransportAction(
             transportService,
             clusterService,

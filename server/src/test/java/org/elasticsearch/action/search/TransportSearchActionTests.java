@@ -654,8 +654,10 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
-                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                // FatalCCSException is present because the remote cluster is skip_unavailable=false
+                assertThat(failure.get(), instanceOf(FatalCCSException.class));
+                assertThat(failure.get().getCause(), instanceOf(RemoteTransportException.class));
+                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get().getCause();
                 assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
             }
 
@@ -714,9 +716,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
-                assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
-                assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
+                // FatalCCSException is present because the remote cluster is skip_unavailable=false
+                assertThat(failure.get(), instanceOf(FatalCCSException.class));
+                assertThat(failure.get().getCause(), instanceOf(RemoteTransportException.class));
+                RemoteTransportException rte = (RemoteTransportException) failure.get().getCause();
+                assertThat(rte.getMessage(), containsString("error while communicating with remote cluster ["));
+                assertThat(rte.getCause(), instanceOf(NodeDisconnectedException.class));
             }
 
             // setting skip_unavailable to true for all the disconnected clusters will make the request succeed again
@@ -910,9 +915,11 @@ public class TransportSearchActionTests extends ESTestCase {
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                System.err.println(clusters);
+                System.err.println(clusters.toExtendedString());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
+                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get().getCause();
                 assertEquals(RestStatus.NOT_FOUND, remoteTransportException.status());
             }
 
@@ -958,6 +965,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                System.err.println(clusters.toString());
+                System.err.println(clusters.toExtendedString());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));

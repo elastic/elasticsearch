@@ -1491,9 +1491,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, true, e);
+                    exception = wrapRemoteClusterFailure(clusterAlias, true, e);  /// MP TODO: remove the fatal flag from
                 }
-                boolean failImmediately = (skipUnavailable == false);
+                // TODO support minimize_roundtrips=false
+                boolean failImmediately = (skipUnavailable == false && clusters.isCcsMinimizeRoundtrips());
                 if (failImmediately) {
                     Throwable cancellationException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
                     if (cancellationException != null) {
@@ -1523,7 +1524,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         private void maybeFinish(boolean failImmediately) {
-            if (countDown.countDown()) {
+            if (countDown.countDown() || failImmediately) {
                 Exception exception = exceptions.get();
                 if (exception == null) {
                     FinalResponse response;
@@ -1535,7 +1536,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     originalListener.onResponse(response);
                 } else {
-                    originalListener.onFailure(exceptions.get());
+                    if (failImmediately) {
+                        originalListener.onFailure(new FatalCCSException(clusterAlias, exceptions.get()));
+                    } else {
+                        originalListener.onFailure(exceptions.get());
+                    }
                 }
             }
         }

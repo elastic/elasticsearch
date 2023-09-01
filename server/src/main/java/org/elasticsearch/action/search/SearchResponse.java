@@ -846,6 +846,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + '}';
         }
 
+        public String toExtendedString() {
+            return "Clusters{total="
+                + total
+                + ", successful="
+                + getClusterStateCount(Cluster.Status.SUCCESSFUL)
+                + ", skipped="
+                + getClusterStateCount(Cluster.Status.SKIPPED)
+                + "; clusterInfo: ["
+                + clusterInfo.toString()
+                + "]}";
+        }
+
         /**
          * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
          *              or any Cluster is marked as timedOut.

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.FatalCCSException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -31,7 +32,6 @@ import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -278,6 +278,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+        System.err.println("skipUnavailable: " + skipUnavailable);
 
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
@@ -309,7 +310,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (skipUnavailable == false && minimizeRoundtrips) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
-            assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
+            assertThat(ee.getCause(), instanceOf(FatalCCSException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
             assertThat(rootCause.getMessage(), containsString("index corrupted"));
         } else {

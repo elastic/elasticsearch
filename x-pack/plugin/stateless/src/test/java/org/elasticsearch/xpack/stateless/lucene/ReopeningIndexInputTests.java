@@ -170,7 +170,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                             1L,
                             "_na_",
                             Map.of(fileName, new BlobLocation(1L, blobName, length, 0L, length))
-                        )
+                        ),
+                        null
                     );
                 } catch (IOException e) {
                     throw new AssertionError(e);

@@ -408,6 +408,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         throw new AssertionError("Cannot finding indexing node for: " + shardId);
     }
 
+    protected static IndexShard findIndexShard(String indexName) {
+        final Map<Index, Integer> indices = resolveIndices();
+        Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        IndexShard indexShard = findIndexShard(index, 0);
+        return indexShard;
+    }
+
     protected static IndexShard findIndexShard(Index index, int shardId) {
         return findShard(index, shardId, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
     }

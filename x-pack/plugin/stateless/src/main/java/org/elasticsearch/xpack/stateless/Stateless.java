@@ -692,7 +692,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                         ActionListener.completeWith(listener, () -> {
                             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                             if (commit != null) {
-                                indexDirectory.updateCommit(commit);
+                                indexDirectory.updateCommit(commit, null);
                             }
                             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
                             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -713,14 +713,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             if (commit != null) {
                                 statelessCommitService.markRecoveredCommit(shardId, commit, finalUnreferencedFiles);
                             }
-                            statelessCommitService.addConsumerForNewUploadedCommit(shardId, indexDirectory::updateCommit);
+                            statelessCommitService.addConsumerForNewUploadedCommit(
+                                shardId,
+                                info -> indexDirectory.updateCommit(info.commit(), info.filesToRetain())
+                            );
 
                             final TranslogReplicator localTranslogReplicator = translogReplicator.get();
                             statelessCommitService.addConsumerForNewUploadedCommit(
                                 indexShard.shardId(),
-                                statelessCompoundCommit -> localTranslogReplicator.markShardCommitUploaded(
+                                info -> localTranslogReplicator.markShardCommitUploaded(
                                     indexShard.shardId(),
-                                    statelessCompoundCommit.translogRecoveryStartFile()
+                                    info.commit().translogRecoveryStartFile()
                                 )
                             );
                             return null;

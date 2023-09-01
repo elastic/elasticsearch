@@ -23,10 +23,13 @@ Aggregations::
 * Skip segment for `MatchNoDocsQuery` filters {es-pull}98295[#98295] (issue: {es-issue}94637[#94637])
 
 Allocation::
+* Do not assign ignored shards {es-pull}98265[#98265]
 * Remove exception wrapping in `BatchedRerouteService` {es-pull}97224[#97224]
 
 Application::
+* [Profiling] Abort index creation on outdated index {es-pull}98864[#98864]
 * [Profiling] Consider static settings in status {es-pull}97890[#97890]
+* [Profiling] Mark executables without a name {es-pull}98884[#98884]
 
 CRUD::
 * Add missing sync on `indicesThatCannotBeCreated` {es-pull}97869[#97869]
@@ -53,11 +56,18 @@ Downsampling::
 EQL::
 * Fix async missing events {es-pull}97718[#97718] (issue: {es-issue}97644[#97644])
 
+Geo::
+* Fix how Maps#flatten handle map values inside a list {es-pull}98828[#98828]
+* Fix mvt error when returning partial results {es-pull}98765[#98765] (issue: {es-issue}98730[#98730])
+
 Indices APIs::
 * Ensure frozen indices have correct tier preference {es-pull}97967[#97967]
 
 Infra/REST API::
 * Fix possible NPE when transportversion is null in `MainResponse` {es-pull}97203[#97203]
+
+Ingest Node::
+* Revert "Add mappings for enrich fields" {es-pull}98683[#98683]
 
 Machine Learning::
 * Avoid risk of OOM in datafeeds when memory is constrained {es-pull}98324[#98324] (issue: {es-issue}89769[#89769])
@@ -78,6 +88,12 @@ Search::
 * Improve test coverage for CCS search cancellation and fix response bugs {es-pull}97029[#97029]
 * Make `terminate_after` early termination friendly {es-pull}97540[#97540] (issue: {es-issue}97269[#97269])
 * Track `max_score` in collapse when requested {es-pull}97703[#97703] (issue: {es-issue}97653[#97653])
+
+Security::
+* Fix NPE when `GetUser` with profile uid before profile index exists {es-pull}98961[#98961]
+
+Snapshot/Restore::
+* Fix `BlobCacheBufferedIndexInput` large read after clone {es-pull}98970[#98970]
 
 TSDB::
 * Mapped field types searchable with doc values {es-pull}97724[#97724]
@@ -101,6 +117,7 @@ Authorization::
 
 Aggregations::
 * Improve error message when aggregation doesn't support counter field {es-pull}93545[#93545]
+* Set default index mode for `TimeSeries` to `null` {es-pull}98808[#98808] (issue: {es-issue}97429[#97429])
 
 Allocation::
 * Add `node.roles` to cat allocation API {es-pull}96994[#96994]
@@ -126,6 +143,9 @@ Downsampling::
 * Change `MetricFieldProducer#metrics` field type from list to array {es-pull}97344[#97344]
 * Improve iterating over many field producers during downsample operation {es-pull}97281[#97281]
 * Run downsampling using persistent tasks {es-pull}97557[#97557] (issue: {es-issue}93582[#93582])
+
+EQL::
+* EQL to use only the necessary fields in the internal `field_caps` calls {es-pull}98987[#98987]
 
 Engine::
 * Fix edge case for active flag for flush on idle {es-pull}97332[#97332] (issue: {es-issue}97154[#97154])
@@ -156,6 +176,9 @@ Infra/Settings::
 Ingest Node::
 * Allow custom geo ip database files to be downloaded {es-pull}97850[#97850]
 
+Network::
+* Add request header size limit for RCS transport connections {es-pull}98692[#98692]
+
 Search::
 * Add `completion_time` time field to `async_search` get and status response {es-pull}97700[#97700] (issue: {es-issue}88640[#88640])
 * Add setting for search parallelism {es-pull}98455[#98455]
@@ -171,7 +194,6 @@ Search::
 * Introduce Synonyms Management API used for synonym and synonym_graph filters {es-pull}97962[#97962] (issue: {es-issue}38523[#38523])
 * Introduce a collector manager for `PartialHitCountCollector` {es-pull}97550[#97550]
 * Introduce a collector manager for `QueryPhaseCollector` {es-pull}97410[#97410]
-* Introduce executor for concurrent search {es-pull}98204[#98204]
 * Limit `_terms_enum` prefix size {es-pull}97488[#97488] (issue: {es-issue}96572[#96572])
 * Support minimum_should_match field for terms_set query {es-pull}96082[#96082]
 * Support type for simple query string {es-pull}96717[#96717]
@@ -214,6 +236,9 @@ Application::
 
 Data streams::
 * Introduce downsampling configuration for data stream lifecycle {es-pull}97041[#97041]
+
+Search::
+* Introduce executor for concurrent search {es-pull}98204[#98204]
 
 Security::
 * Beta release for API key based cross-cluster access {es-pull}98307[#98307]

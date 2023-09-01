@@ -61,11 +61,21 @@ For this feature, you must use `*` in the index position or an error will be ret
 
 {es-pull}97865[#97865]
 
+[discrete]
+[[enable_parallel_knn_search_across_segments]]
+=== Enable parallel knn search across segments
+Elasticsearch has, until now, performed search sequentially across the
+segments within each shard. This change makes knn queries faster on shards
+that are made of more than one segment by rewriting and collecting each
+segment in parallel.
+
+{es-pull}98204[#98204]
+
 // end::notable-highlights[]
 
 
 [discrete]
-[[change_pre_configured_cached_analyzer_components_to_use_indexversion_instead_of_version-highlight]]
+[[change_pre_configured_cached_analyzer_components_to_use_indexversion_instead_of_version]]
 === Change pre-configured and cached analyzer components to use IndexVersion instead of Version
 As part of ongoing refactoring work, we are separating out various component versions into their own types.
 For this, we have introduced a new `IndexVersion` type to represent the version of index data and metadata.

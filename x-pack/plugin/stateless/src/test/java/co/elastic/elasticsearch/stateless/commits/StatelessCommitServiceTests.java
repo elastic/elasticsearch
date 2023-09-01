@@ -455,7 +455,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -532,7 +532,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -616,7 +616,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -690,7 +690,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -795,7 +795,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -875,7 +875,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
@@ -954,7 +954,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 return stateRef.get().routingTable().shardRoutingTable(shardId);
@@ -1038,7 +1038,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
                 return stateRef.get().routingTable().shardRoutingTable(shardId);
@@ -1259,7 +1259,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> commitFileConsumer,
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileConsumer
     ) throws IOException {
-        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
 

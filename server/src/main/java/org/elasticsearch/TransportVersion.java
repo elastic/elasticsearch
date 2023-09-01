@@ -207,11 +207,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      */
 
     private static class CurrentHolder {
-<<<<<<< HEAD
         private static final TransportVersion CURRENT = findCurrent(V_RRF_QUERY);
-=======
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_068);
->>>>>>> main
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

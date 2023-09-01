@@ -69,11 +69,9 @@ information, refer to https://www.elastic.co/subscriptions.
 .. Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to 
 `true`.
 .. Configure the bind and publish address for remote cluster server traffic, for
-example using <<remote-cluster-network-settings,`remote_cluster.host`>>.
-This defaults to the value of `transport.bind_host`, which in turn defaults to
-the value of `network.host`, which defaults to `_local_`. By default, for single
-node clusters, this means remote cluster traffic is bound to the local 
-interface and remote clusters can't connect.
+example using <<remote-cluster-network-settings,`remote_cluster.host`>>. Without
+configuring the address, remote cluster traffic may be bound to the local
+interface, and as a result remote clusters can't connect.
 .. Optionally, configure the remote server port using 
 <<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).
 . Next, generate a certificate authority (CA) and a server certificate/key pair.

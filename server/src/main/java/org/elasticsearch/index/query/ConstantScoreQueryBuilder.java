@@ -163,4 +163,13 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (filterBuilder != null) {
+            filterBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

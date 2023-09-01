@@ -168,4 +168,13 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        for (QueryBuilder queryBuilder : clauses) {
+            queryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

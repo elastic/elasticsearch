@@ -179,4 +179,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (queryBuilder != null) {
+            queryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

@@ -409,4 +409,22 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        for (QueryBuilder queryBuilder : mustClauses) {
+            queryBuilder.visit(visitor);
+        }
+        for (QueryBuilder queryBuilder : mustNotClauses) {
+            queryBuilder.visit(visitor);
+        }
+        for (QueryBuilder queryBuilder : filterClauses) {
+            queryBuilder.visit(visitor);
+        }
+        for (QueryBuilder queryBuilder : shouldClauses) {
+            queryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

@@ -226,4 +226,13 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        for (QueryBuilder queryBuilder : queries) {
+            queryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

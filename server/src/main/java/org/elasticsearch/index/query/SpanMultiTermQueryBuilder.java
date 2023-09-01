@@ -190,4 +190,13 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (multiTermQueryBuilder != null) {
+            multiTermQueryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

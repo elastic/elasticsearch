@@ -265,4 +265,16 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (include != null) {
+            include.visit(visitor);
+        }
+        if (exclude != null) {
+            exclude.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
@@ -1341,7 +1342,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
                         );
                     }
-                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
+                    QueryBuilder queryBuilder = parseTopLevelQuery(
+                        parser,
+                        searchUsage::trackQueryUsage,
+                        Set.of(SearchOnlyQueryBuilder.class)
+                    );
                     subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
                     searchUsage.trackSectionUsage(QUERY_FIELD.getPreferredName());
                 } else if (POST_FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

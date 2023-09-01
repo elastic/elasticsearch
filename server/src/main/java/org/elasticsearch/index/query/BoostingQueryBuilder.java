@@ -232,4 +232,16 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (positiveQuery != null) {
+            positiveQuery.visit(visitor);
+        }
+        if (negativeQuery != null) {
+            negativeQuery.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

@@ -201,7 +201,6 @@ public interface XContentParser extends Closeable {
      */
     XContentLocation getTokenLocation();
 
-    // TODO remove context entirely when it isn't needed
     /**
      * Parse an object by name.
      */

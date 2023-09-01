@@ -163,4 +163,13 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (matchBuilder != null) {
+            matchBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

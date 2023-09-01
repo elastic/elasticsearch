@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchOnlyQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> {
+public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> implements SearchOnlyQueryBuilder {
 
     public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
     public static final int DEFAULT_RANK_CONSTANT = 60;
@@ -44,16 +45,19 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> {
     private final int rankConstant;
     private final List<QueryBuilder> queryBuilders;
 
-    static final ConstructingObjectParser<RRFQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
-        int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
-        int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
-        if (rankConstant < 1) {
-            throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
+    static final ConstructingObjectParser<RRFQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        RRFRankPlugin.NAME,
+        args -> {
+            int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
+            int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
+            if (rankConstant < 1) {
+                throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
+            }
+            @SuppressWarnings("unchecked")
+            List<QueryBuilder> queryBuilders = (List<QueryBuilder>) args[2];
+            return new RRFQueryBuilder(windowSize, rankConstant, queryBuilders);
         }
-        @SuppressWarnings("unchecked")
-        List<QueryBuilder> queryBuilders = (List<QueryBuilder>) args[2];
-        return new RRFQueryBuilder(windowSize, rankConstant, queryBuilders);
-    });
+    );
 
     static {
         PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
@@ -111,12 +115,12 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> {
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("invalid use of [rrf] query");
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("invalid use of [rrf] query");
     }
 
     public int getWindowSize() {
@@ -135,5 +139,14 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> {
     @Override
     protected int doHashCode() {
         return Objects.hash(windowSize, rankConstant);
+    }
+
+    @Override
+    public void visit(Visitor visitor) {
+        enter(visitor);
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            queryBuilder.visit(visitor);
+        }
+        exit(visitor);
     }
 }

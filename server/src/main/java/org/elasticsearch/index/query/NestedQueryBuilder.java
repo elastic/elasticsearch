@@ -441,4 +441,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (query != null) {
+            query.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

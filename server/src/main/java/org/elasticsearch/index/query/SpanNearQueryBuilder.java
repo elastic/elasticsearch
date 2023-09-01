@@ -278,6 +278,15 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return TransportVersion.ZERO;
     }
 
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        for (QueryBuilder queryBuilder : clauses) {
+            queryBuilder.visit(visitor);
+        }
+        visitor.exit(this);
+    }
+
     /**
      * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
      * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot

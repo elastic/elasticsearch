@@ -177,4 +177,16 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (big != null) {
+            big.visit(visitor);
+        }
+        if (little != null) {
+            little.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

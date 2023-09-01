@@ -111,6 +111,9 @@ if (in.getTransportVersion().onOrAfter(INDICES_REMOVED_TRANSPORT_VERSION) {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+if (out.getTransportVersion().before(INDICES_REMOVED_TRANSPORT_VERSION) {
+        out.writeStringArray(indices); // old behaviour. New behaviour does not serialize indices, so no need to do anything else
+}
         out.writeOptionalString(analyticsCollectionName);
         out.writeLong(updatedAtMillis);
         out.writeOptionalWriteable(searchApplicationTemplate);

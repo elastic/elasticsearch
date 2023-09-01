@@ -243,7 +243,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeList(rules);
+        out.writeCollection(rules);
         out.writeInt(detectorIndex);
     }
 

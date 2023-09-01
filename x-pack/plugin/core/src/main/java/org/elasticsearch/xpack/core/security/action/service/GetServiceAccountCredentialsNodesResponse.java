@@ -50,7 +50,7 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<GetServiceAccountCredentialsNodesResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<TokenInfo> getFileTokenInfos() {

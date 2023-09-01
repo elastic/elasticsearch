@@ -49,7 +49,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeShardsAcknowledged(out);
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override

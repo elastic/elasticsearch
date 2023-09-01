@@ -95,7 +95,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -26,18 +24,6 @@ dependencies {
 restResources {
   restApi {
     include '*'
-  }
-}
-
-// TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
-//  which require snapshot builds:
-// * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
-// We disable these tests for snapshot builds to maintain release build coverage.
-tasks.named("yamlRestTest").configure {
-  if (BuildParams.isSnapshotBuild()) {
-    systemProperty 'tests.rest.blacklist', '*/get-builtin-privileges/*'
-  } else {
-    systemProperty 'tests.rest.blacklist', ['*/create-cross-cluster-api-key/*', '*/update-cross-cluster-api-key/*'].join(',')
   }
 }
 
@@ -724,6 +710,14 @@ tasks.named("buildRestTests").configure { buildRestTests ->
             "full_name" : "Jack Nicholson",
             "email" : "jacknich@example.com",
             "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
           }
 '''
   setups['app0102_privileges'] = '''

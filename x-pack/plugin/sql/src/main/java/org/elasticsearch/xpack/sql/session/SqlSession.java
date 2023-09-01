@@ -164,6 +164,7 @@ public class SqlSession implements Session {
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
             indexResolver.resolveAsMergedMapping(
                 indexPattern,
+                IndexResolver.ALL_FIELDS,
                 includeFrozen,
                 configuration.runtimeMappings(),
                 listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult)))

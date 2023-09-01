@@ -40,7 +40,7 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRolesCacheResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

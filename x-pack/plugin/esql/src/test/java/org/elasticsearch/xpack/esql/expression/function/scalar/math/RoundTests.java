@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
@@ -24,7 +25,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoundTests extends AbstractScalarFunctionTestCase {
-    public RoundTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public RoundTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -33,8 +34,11 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("round(<double>, <int>)", () -> {
             double number = 1 / randomDouble();
             int precision = between(-30, 30);
-            return new TestCase(
-                List.of(new TypedData(number, DataTypes.DOUBLE, "number"), new TypedData(precision, DataTypes.INTEGER, "precision")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(number, DataTypes.DOUBLE, "number"),
+                    new TestCaseSupplier.TypedData(precision, DataTypes.INTEGER, "precision")
+                ),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
                 DataTypes.DOUBLE,
                 equalTo(Maths.round(number, precision))

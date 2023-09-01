@@ -223,7 +223,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

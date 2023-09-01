@@ -133,7 +133,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeList(fieldSortBuilders);
+            out.writeCollection(fieldSortBuilders);
         }
         out.writeOptionalWriteable(searchAfterBuilder);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {

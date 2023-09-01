@@ -56,7 +56,7 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
-        out.writeList(indexTokenInfos);
+        out.writeCollection(indexTokenInfos);
         nodesResponse.writeTo(out);
     }
 

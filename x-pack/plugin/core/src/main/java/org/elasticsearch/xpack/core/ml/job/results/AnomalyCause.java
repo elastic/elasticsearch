@@ -157,7 +157,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         boolean hasInfluencers = influencers != null;
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
-            out.writeList(influencers);
+            out.writeCollection(influencers);
         }
         out.writeOptionalWriteable(geoResults);
     }

@@ -877,7 +877,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        CheckedBiConsumer<IndexSearcher, Aggregator, IOException> verify,
+        CheckedBiConsumer<IndexReader, Aggregator, IOException> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
         try (Directory directory = newDirectory()) {
@@ -889,9 +889,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader unwrapped = DirectoryReader.open(directory);
                 DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
             ) {
-                IndexSearcher searcher = newIndexSearcher(indexReader);
-                try (AggregationContext context = createAggregationContext(searcher, query, fieldTypes)) {
-                    verify.accept(searcher, createAggregator(aggregationBuilder, context));
+                try (AggregationContext context = createAggregationContext(indexReader, query, fieldTypes)) {
+                    verify.accept(indexReader, createAggregator(aggregationBuilder, context));
                 }
             }
         }

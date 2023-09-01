@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -27,8 +28,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
-    public Sqrt(Source source, Expression field) {
-        super(source, field);
+    public Sqrt(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
@@ -52,7 +53,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return () -> new SqrtUnsignedLongEvaluator(eval);
         }
 
-        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
+        throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
     @Evaluator(extraName = "Double")

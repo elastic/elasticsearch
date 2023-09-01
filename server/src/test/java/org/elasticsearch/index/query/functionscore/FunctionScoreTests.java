@@ -697,7 +697,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
             Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
-            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
     }

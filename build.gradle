@@ -72,9 +72,23 @@ tasks.register("updateCIBwcVersions") {
       file << "  - \"$it\"\n"
     }
   }
+
+  def writeBuildkiteList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
+    def outputFile = file(outputFilePath)
+    def pipelineTemplate = file(pipelineTemplatePath)
+
+    def listString = "[" + versions.collect { "\"${it}\"" }.join(", ") + "]"
+    outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipelineTemplate.text.replaceAll('\\$BWC_LIST', listString)
+  }
+
   doLast {
     writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
+    writeBuildkiteList(
+      ".buildkite/pipelines/intake.yml",
+      ".buildkite/pipelines/intake.template.yml",
+      BuildParams.bwcVersions.unreleasedIndexCompatible
+    )
   }
 }
 

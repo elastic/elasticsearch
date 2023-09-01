@@ -71,7 +71,7 @@ information, refer to https://www.elastic.co/subscriptions.
 .. Configure the bind and publish address for remote cluster server traffic, for
 example using <<remote-cluster-network-settings,`remote_cluster.host`>>. Without
 configuring the address, remote cluster traffic may be bound to the local
-interface, and as a result remote clusters can't connect.
+interface, and remote clusters running on other machines can't connect.
 .. Optionally, configure the remote server port using 
 <<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).
 . Next, generate a certificate authority (CA) and a server certificate/key pair.

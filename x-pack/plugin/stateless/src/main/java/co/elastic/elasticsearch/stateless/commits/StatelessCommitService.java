@@ -404,7 +404,15 @@ public class StatelessCommitService implements ClusterStateListener {
         commitState.addListenerForUploadedGeneration(generation, listener);
     }
 
-    public void addConsumerForNewUploadedCommit(ShardId shardId, Consumer<StatelessCompoundCommit> listener) {
+    /**
+     * @param commit the commit that was uploaded
+     * @param filesToRetain the individual files (not blobs) that are still necessary to be able to access, including
+     *                      being held by open readers or being part of a commit that is not yet deleted by lucene.
+     *                      Always includes all files from the new commit.
+     */
+    public record UploadedCommitInfo(StatelessCompoundCommit commit, Set<String> filesToRetain) {}
+
+    public void addConsumerForNewUploadedCommit(ShardId shardId, Consumer<UploadedCommitInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.addConsumerForNewUploadedCommit(listener);
@@ -430,7 +438,7 @@ public class StatelessCommitService implements ClusterStateListener {
         private final long allocationPrimaryTerm;
         private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
-        private List<Consumer<StatelessCompoundCommit>> uploadedCommitConsumers = null;
+        private List<Consumer<UploadedCommitInfo>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long generationUploaded = -1;
         private volatile boolean isClosed;
@@ -678,7 +686,7 @@ public class StatelessCommitService implements ClusterStateListener {
 
         private void handleUploadedCommit(StatelessCompoundCommit commit) {
             final long newGeneration = commit.generation();
-            List<ActionListener<StatelessCompoundCommit>> listenersToFire = null;
+            List<ActionListener<UploadedCommitInfo>> listenersToFire = null;
             List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
             synchronized (this) {
                 generationUploaded = Math.max(generationUploaded, newGeneration);
@@ -716,7 +724,7 @@ public class StatelessCommitService implements ClusterStateListener {
             }
 
             if (listenersToFire != null) {
-                ActionListener.onResponse(listenersToFire, commit);
+                ActionListener.onResponse(listenersToFire, new UploadedCommitInfo(commit, Set.copyOf(blobLocations.keySet())));
             }
         }
 
@@ -761,7 +769,7 @@ public class StatelessCommitService implements ClusterStateListener {
          * Register a consumer that is invoked everytime a new commit has been uploaded to the object store
          * @param consumer the consumer
          */
-        public void addConsumerForNewUploadedCommit(Consumer<StatelessCompoundCommit> consumer) {
+        public void addConsumerForNewUploadedCommit(Consumer<UploadedCommitInfo> consumer) {
             synchronized (this) {
                 if (isClosed == false) {
                     if (uploadedCommitConsumers == null) {

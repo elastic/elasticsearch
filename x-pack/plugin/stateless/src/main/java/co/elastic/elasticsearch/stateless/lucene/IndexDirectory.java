@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntConsumer;
@@ -85,6 +86,8 @@ public class IndexDirectory extends ByteSizeDirectory {
      * An estimation of local non-uploaded files on disk. It does not include deleted files.
      */
     private final AtomicLong estimatedSize = new AtomicLong();
+
+    private long lastGeneration = -1;
 
     public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(in);
@@ -253,10 +256,18 @@ public class IndexDirectory extends ByteSizeDirectory {
         return cacheDirectory;
     }
 
-    public void updateCommit(StatelessCompoundCommit commit) {
+    public void updateCommit(StatelessCompoundCommit commit, Set<String> filesToRetain) {
         synchronized (this) {
+            // retaining files will not work if we receive files out of order.
+            // StatelessCommitService however promises to only call this in commit generation order.
+            assert commit.generation() >= lastGeneration : "out of order generation " + commit.generation() + " < " + lastGeneration;
+            lastGeneration = commit.generation();
+            assert filesToRetain == null || filesToRetain.containsAll(commit.commitFiles().keySet());
+
             cacheDirectory.updateCommit(commit);
-            // TODO: we need to also clean the map in SearchDirectory for indexing shards.
+            if (filesToRetain != null) { // during close we do not know the files to retain
+                cacheDirectory.retainFilesIndexing(filesToRetain);
+            }
             if (localFiles.isEmpty()) {
                 // create references for first commit files if they are not known
                 commit.commitFiles().keySet().forEach(file -> localFiles.putIfAbsent(file, new LocalFileRef(file) {

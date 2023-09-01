@@ -34,6 +34,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
@@ -55,6 +56,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -152,7 +154,8 @@ public class IndexDirectoryTests extends ESTestCase {
                                 1L,
                                 "_na_",
                                 Map.of(fileName, new BlobLocation(1L, "_blob", length, 0L, length))
-                            )
+                            ),
+                            null
                         );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
@@ -196,7 +199,8 @@ public class IndexDirectoryTests extends ESTestCase {
                                             o -> new BlobLocation(1L, "blob_" + o.getKey(), o.getValue(), 0L, o.getValue())
                                         )
                                     )
-                            )
+                            ),
+                            null
                         );
                         files.forEach(file -> filesSizes.remove(file.getKey()));
                         assertThat(directory.estimateSizeInBytes(), equalTo(sizeBeforeUpload - totalSize));
@@ -208,5 +212,71 @@ public class IndexDirectoryTests extends ESTestCase {
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testPruneSearchDirectoryMetadata() throws IOException {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = new TestThreadPool("testEstimateSizeInBytes");
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = PathUtils.get(createTempDir().toString());
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC
+            );
+            FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
+            IndexDirectory directory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+        ) {
+            final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
+            directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
+
+            Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(10));
+
+            StatelessCompoundCommit commit = createCommit(directory, files, 2L);
+
+            directory.updateCommit(commit, null);
+            assertEquals(files, Set.of(directory.getSearchDirectory().listAll()));
+            Set<String> newFiles = randomSet(1, 10, () -> randomAlphaOfLength(10));
+            newFiles.removeAll(files);
+
+            StatelessCompoundCommit newCommit = createCommit(directory, newFiles, 3L);
+            directory.updateCommit(newCommit, Sets.union(files, newFiles));
+
+            assertEquals(Sets.union(files, newFiles), Set.of(directory.getSearchDirectory().listAll()));
+
+            directory.updateCommit(newCommit, Sets.union(newFiles, files));
+
+            assertEquals(Sets.union(files, newFiles), Set.of(directory.getSearchDirectory().listAll()));
+
+            directory.updateCommit(newCommit, newFiles);
+
+            assertEquals(newFiles, Set.of(directory.getSearchDirectory().listAll()));
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
+        StatelessCompoundCommit commit = new StatelessCompoundCommit(
+            directory.getSearchDirectory().getShardId(),
+            generation,
+            1L,
+            "_na_",
+            files.stream()
+                .collect(
+                    Collectors.toMap(Function.identity(), o -> new BlobLocation(1L, "blob_" + o, between(100, 200), 0L, between(1, 100)))
+                )
+        );
+        return commit;
     }
 }

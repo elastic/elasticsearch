@@ -283,6 +283,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return this.versionsWrappers;
     }
 
+    public TransportVersion getMinTransportVersion() {
+        return this.minVersions.transportVersion();
+    }
+
     public VersionsWrapper getMinVersions() {
         return this.minVersions;
     }

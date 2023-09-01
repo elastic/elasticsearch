@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -390,7 +389,7 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(TransportVersion.MINIMUM_COMPATIBLE));
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.MINIMUM_COMPATIBLE);
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
@@ -420,7 +419,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(TransportVersion.current()));
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
         final Map<String, String> headers1;
         if (randomBoolean()) {
             headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
@@ -449,7 +448,7 @@ public class ClientHelperTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion()
         );
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(previousVersion));
+        when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {
             headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);

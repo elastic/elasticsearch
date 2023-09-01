@@ -38,7 +38,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -2435,7 +2434,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(minTransportVersion));
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -2570,7 +2569,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION)
         );
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(minTransportVersion));
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -2635,7 +2634,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             WORKFLOWS_RESTRICTION_VERSION,
             TransportVersion.current()
         );
-        when(clusterState.getMinVersions()).thenReturn(new VersionsWrapper(minTransportVersion));
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
             clock,

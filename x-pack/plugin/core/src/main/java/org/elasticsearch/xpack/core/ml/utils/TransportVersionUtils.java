@@ -14,7 +14,7 @@ public class TransportVersionUtils {
     private TransportVersionUtils() {}
 
     public static TransportVersion getMinTransportVersion(ClusterState state) {
-        return state.getMinVersions().transportVersion();
+        return state.getMinTransportVersion();
     }
 
     public static TransportVersion getCurrentTransportVersion() {

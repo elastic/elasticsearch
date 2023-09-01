@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -269,7 +268,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
     private static ClusterService mockClusterServiceWithMinTransportVersion(final TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterService.state().getMinVersions()).thenReturn(new VersionsWrapper(transportVersion));
+        when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         return clusterService;
     }
 }

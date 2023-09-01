@@ -54,7 +54,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
             return;
         }
 
-        TransportVersion minTransportVersion = event.state().getMinVersions().transportVersion();
+        TransportVersion minTransportVersion = event.state().getMinTransportVersion();
         final List<UpdateAction> toRun = updateActions.stream()
             .filter(action -> action.isMinTransportVersionSupported(minTransportVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)

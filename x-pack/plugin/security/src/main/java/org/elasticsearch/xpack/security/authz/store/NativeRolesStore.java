@@ -253,7 +253,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().getMinVersions().transportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 listener.onFailure(
                     new IllegalStateException(
                         "all nodes must have transport version ["

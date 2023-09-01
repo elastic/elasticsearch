@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.VersionsWrapper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -464,7 +463,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterService.state().getMinVersions()).thenReturn(new VersionsWrapper(transportVersion));
+        when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return clusterService;
     }

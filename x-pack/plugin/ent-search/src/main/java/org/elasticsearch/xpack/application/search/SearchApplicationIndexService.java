@@ -284,7 +284,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(), os -> {
                         ClusterState clusterState = clusterService.state();
-                        writeSearchApplicationBinaryWithVersion(app, os, clusterState.getMinVersions().transportVersion());
+                        writeSearchApplicationBinaryWithVersion(app, os, clusterState.getMinTransportVersion());
                     })
                     .endObject();
             }

@@ -341,8 +341,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
         final String currentNode = event.state().nodes().getLocalNodeId();
         final boolean isNewAllocationSupported = event.state()
-            .getMinVersions()
-            .transportVersion()
+            .getMinTransportVersion()
             .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
         final Set<String> shuttingDownNodes = Collections.unmodifiableSet(event.state().metadata().nodeShutdowns().getAllNodeIds());
 

@@ -56,7 +56,7 @@ import java.util.TreeMap;
  * totally trivial, and may change in future. Any other places that might make decisions based on this version effectively have to reproduce
  * this negotiation logic, which would be fragile. If you need to make decisions based on the version of a single node, do so using a
  * different version value. If you need to know whether the cluster as a whole speaks a new enough {@link TransportVersion} to understand a
- * newly-added feature, use {@link ClusterState#getMinVersions()}.
+ * newly-added feature, use {@link ClusterState#getMinTransportVersion()}.
  */
 public record TransportVersion(int id) implements VersionId<TransportVersion> {
 

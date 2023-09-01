@@ -130,7 +130,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
         if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
-            && event.state().getMinVersions().transportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
+            && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
             Set<String> nodes = getVersionsWrappers(event.state()).entrySet()

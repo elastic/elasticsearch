@@ -1501,16 +1501,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // don't use the force fail path if the search task is being cancelled - let it cancel naturally
                         failImmediately = false;
                     } else {
-                        /// MP TODO: is this going to mess up MRT=false if we aren't support fail-fast cancellation there yet?
-                        if (cluster != null) {  /// MP TODO: can we remove this check and replace with an assert?
-                            remoteClusterService.getRemoteConnectionInfos().forEach(connInfo -> {
-                                boolean canSkip = remoteClusterService.isSkipUnavailable(connInfo.getClusterAlias());
-                                boolean connected = connInfo.getModeInfo().isConnected();
-                                if (connected == false && canSkip == false) {
-                                    markCCSClusterSearchAsFailed(clusters.getCluster(connInfo.getClusterAlias()));
-                                }
-                            });
-                        }
+                        remoteClusterService.getRemoteConnectionInfos().forEach(connInfo -> {
+                            boolean canSkip = remoteClusterService.isSkipUnavailable(connInfo.getClusterAlias());
+                            boolean connected = connInfo.getModeInfo().isConnected();
+                            if (connected == false && canSkip == false) {
+                                markCCSClusterSearchAsFailed(clusters.getCluster(connInfo.getClusterAlias()));
+                            }
+                        });
                     }
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
@@ -1537,8 +1534,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     originalListener.onResponse(response);
                 } else {
                     if (failImmediately) {
+                        Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
+                        System.err.println("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
                         originalListener.onFailure(new FatalCCSException(clusterAlias, exceptions.get()));
                     } else {
+                        System.err.println("JJJ maybeFinish onFailure -> regular");
                         originalListener.onFailure(exceptions.get());
                     }
                 }

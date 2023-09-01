@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.search.CCSSingleCoordinatorSearchProgressListener;
+import org.elasticsearch.action.search.FatalCCSException;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -495,7 +496,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
 
-            boolean failImmediately = false;
+            boolean failImmediately = exc instanceof FatalCCSException;
 
             searchResponse.get()
                 .updateWithFailure(

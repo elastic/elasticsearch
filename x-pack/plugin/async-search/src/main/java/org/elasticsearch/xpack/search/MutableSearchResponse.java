@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -19,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
+    private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -134,6 +138,12 @@ class MutableSearchResponse {
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = State.FROZEN_NORMAL;
+        System.err.println("JJJ MSR.updateFinalResponse: f->FROZEN_NORMAL");
+        try {
+            throw new RuntimeException("JJJ");
+        } catch (RuntimeException e) {
+            logger.warn(e.getMessage() + " stack trace ", e);
+        }
     }
 
     private boolean isPartialResponse(SearchResponse response) {
@@ -148,14 +158,36 @@ class MutableSearchResponse {
      * received from previous updates
      */
     synchronized void updateWithFailure(ElasticsearchException exc, boolean failImmediately) {
-        failIfFrozen();
+        /// MP TODO --- start
+        Throwable cancelledExc = ExceptionsHelper.unwrap(exc, TaskCancelledException.class);
+        if (cancelledExc != null) {  /// MP TODO: not really sure I need this check
+            System.err.println(" .>> !!! cancelledException in MSR.updateWithFailure: " + cancelledExc.getMessage());
+            this.frozen = State.FROZEN_RETURN_EARLY;
+            System.err.println("JJJ MSR.updateWithFailure/then: f->FROZEN_RETURN_EARLY");
+            try {
+                throw new RuntimeException("JJJ");
+            } catch (RuntimeException e) {
+                logger.warn(e.getMessage() + " stack trace ", e);
+            }
+
+        } else {
+            failIfFrozen();
+            this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
+            System.err.println("JJJ MSR.updateWithFailure/else: f->" + frozen);
+            try {
+                throw new RuntimeException("JJJ");
+            } catch (RuntimeException e) {
+                logger.warn(e.getMessage() + " stack trace ", e);
+            }
+        }
+        /// MP TODO --- end
+
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         // note that when search fails, we may have gotten partial results before the failure. In that case async
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = exc;
-        this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
         if (failImmediately && clusters != null) {
             System.err.println("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
             clusters.notifySearchCancelled();

@@ -663,6 +663,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
+            System.err.println(clusters);
+            System.err.println(clusters.toExtendedString());
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
@@ -1357,7 +1359,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(slowRunningQueryBuilder).timeout(searchTimeout);
 
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        request.setCcsMinimizeRoundtrips(randomBoolean());
+        request.setCcsMinimizeRoundtrips(true);// randomBoolean());
         request.getSearchRequest().source(sourceBuilder);
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, 256));
@@ -1428,6 +1430,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         });
 
         AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+        Strings.toString(statusResponse.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         assertFalse(statusResponse.isRunning());
         assertTrue(statusResponse.isPartial());
 

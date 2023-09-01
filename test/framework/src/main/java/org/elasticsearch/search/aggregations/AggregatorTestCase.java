@@ -291,19 +291,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
             DEFAULT_MAX_BUCKETS,
             false,
-            fieldTypes
-        );
-    }
-
-    private AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
-        throws IOException {
-        return createAggregationContext(
-            indexSearcher,
-            createIndexSettings(),
-            query,
-            new NoneCircuitBreakerService(),
-            AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
-            DEFAULT_MAX_BUCKETS,
             false,
             fieldTypes
         );
@@ -326,10 +313,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         long bytesToPreallocate,
         int maxBucket,
         boolean isInSortOrderExecutionRequired,
+        boolean supportsParallelCollection,
         MappedFieldType... fieldTypes
     ) throws IOException {
         return createAggregationContext(
-            newIndexSearcher(indexReader),
+            newIndexSearcher(indexReader, supportsParallelCollection),
             indexSettings,
             query,
             breakerService,
@@ -507,7 +495,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig)
         throws IOException {
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggTestConfig.builder.supportsParallelCollection());
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -638,14 +626,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         internalAggs::add,
                         reduceContextSupplier
                     );
-
-                    if (aggTestConfig.builder().supportsParallelCollection()) {
-                        searcher.search(rewritten, aggregatorCollectorManager);
-                    } else {
-                        AggregatorCollector collector = aggregatorCollectorManager.newCollector();
-                        searcher.search(rewritten, collector);
-                        aggregatorCollectorManager.reduce(List.of(collector));
-                    }
+                    searcher.search(rewritten, aggregatorCollectorManager);
                 }
             } finally {
                 Releasables.close(context);
@@ -818,7 +799,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggregationBuilder.supportsParallelCollection());
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -966,7 +947,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread.
      */
-    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException {
+    private IndexSearcher newIndexSearcher(IndexReader indexReader, boolean supportsParallelCollection) throws IOException {
         return new ContextIndexSearcher(
             indexReader,
             IndexSearcher.getDefaultSimilarity(),
@@ -975,7 +956,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexReader instanceof DirectoryReader ? randomBoolean() : false, // we can only wrap DirectoryReader instances
             this.threadPoolExecutor,
             this.threadPoolExecutor.getMaximumPoolSize(),
-            1 // forces multiple slices
+            supportsParallelCollection ? 1 /* forces multiple slices */ : Integer.MAX_VALUE // one slice
         );
     }
 

@@ -13,6 +13,10 @@ fi
 
 echo --- Preparing
 
+# TODO move this to image
+sudo apt-get update -y
+sudo apt-get install -y libxml2-utils
+
 RM_BRANCH="$BRANCH"
 if [[ "$BRANCH" == "main" ]]; then
   RM_BRANCH=master

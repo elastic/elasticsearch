@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
@@ -150,7 +151,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     public void testActiveTranslogFilesArePrunedAfterRelocation() throws Exception {
         startMasterOnlyNode();
 
-        String indexNodeA = startIndexNode();
+        int deleteDelayMillis = rarely() ? randomIntBetween(500, 1000) : 0;
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(OBJECT_STORE_FILE_DELETION_DELAY.getKey(), TimeValue.timeValueMillis(deleteDelayMillis)).build()
+        );
+
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -176,6 +181,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
         assertTranslogBlobsExist(activeTranslogFiles, indexObjectStoreService);
 
+        long millisBeforeDeletions = System.currentTimeMillis();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeB), indexName);
 
         ensureGreen(indexName);
@@ -186,6 +192,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
             assertTranslogBlobsDoNotExist(activeTranslogFiles, indexObjectStoreService);
         });
+        long millisForDeletions = System.currentTimeMillis() - millisBeforeDeletions;
+        assertThat("delete delay should have taken effect", millisForDeletions, greaterThan((long) deleteDelayMillis));
     }
 
     public void testActiveTranslogFilesArePrunedCaseWithMultipleShards() throws Exception {
@@ -412,7 +420,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStaleCommitsArePrunedAfterBeingReleased() throws Exception {
-        var indexNode = startMasterAndIndexNode();
+        startMasterOnlyNode();
+        int deleteDelayMillis = rarely() ? randomIntBetween(500, 1000) : 0;
+        var indexNode = startIndexNode(
+            Settings.builder().put(OBJECT_STORE_FILE_DELETION_DELAY.getKey(), TimeValue.timeValueMillis(deleteDelayMillis)).build()
+        );
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -428,6 +440,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         var blobsBeforeMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
 
+        long millisBeforeDeletions = System.currentTimeMillis();
         forceMerge();
         // We need to refresh so the local index reader releases the reference from the previous commit
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
@@ -436,6 +449,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             var blobsAfterMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsBeforeMerging, blobsAfterMerging), empty());
         });
+        long millisForDeletions = System.currentTimeMillis() - millisBeforeDeletions;
+        assertThat("delete delay should have taken effect", millisForDeletions, greaterThan((long) deleteDelayMillis));
 
         var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));

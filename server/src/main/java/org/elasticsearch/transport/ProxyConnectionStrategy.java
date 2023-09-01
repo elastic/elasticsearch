@@ -317,7 +317,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
-                assert false : "should not happen since onFailure should catch it and report with underlying cause";
                 finished.onFailure(getNoSeedNodeLeftException(Set.of()));
             } else {
                 logger.debug(

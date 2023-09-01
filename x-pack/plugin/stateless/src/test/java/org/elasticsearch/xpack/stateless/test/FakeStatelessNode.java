@@ -108,12 +108,23 @@ public class FakeStatelessNode implements Closeable {
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
+    private final long primaryTerm;
 
     public FakeStatelessNode(
         Function<Settings, Environment> environmentSupplier,
         CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
+        this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, 1);
+    }
+
+    public FakeStatelessNode(
+        Function<Settings, Environment> environmentSupplier,
+        CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
+        NamedXContentRegistry xContentRegistry,
+        long primaryTerm
+    ) throws IOException {
+        this.primaryTerm = primaryTerm;
         node = DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         repoPath = LuceneTestCase.createTempDir();
         nodeSettings = Settings.builder().put(PATH_REPO_SETTING.getKey(), repoPath).put(BUCKET_SETTING.getKey(), repoPath).build();
@@ -226,8 +237,7 @@ public class FakeStatelessNode implements Closeable {
                 commitCleaner
             );
             commitService.register(shardId, getPrimaryTerm());
-            indexingDirectory.getSearchDirectory()
-                .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
+            indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
 
             closeables = localCloseables.transfer();
         }
@@ -252,7 +262,7 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected long getPrimaryTerm() {
-        return 1;
+        return primaryTerm;
     }
 
     public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {

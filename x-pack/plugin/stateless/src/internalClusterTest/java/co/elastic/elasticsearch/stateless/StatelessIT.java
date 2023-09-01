@@ -22,7 +22,9 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -55,6 +58,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Locale;
@@ -70,10 +74,13 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 // Disabling WindowsFS because it prevents file deletions and ExtrasFS because it adds unnecessary files in Lucene index and tests in this
@@ -202,9 +209,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, randomIntBetween(1, 5));
 
-        final Map<Index, Integer> indices = resolveIndices();
-        Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
-        IndexShard indexShard = findIndexShard(index, 0);
+        IndexShard indexShard = findIndexShard(indexName);
         long genBefore = indexShard.commitStats().getGeneration();
 
         assertBusy(
@@ -528,6 +533,58 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testIndexSearchDirectoryPruned() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
+        );
+        ensureGreen(indexName);
+        IndexShard shard = findIndexShard(indexName);
+        Directory directory = shard.store().directory();
+        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(directory);
+        // nothing deleted yet so we expect same contents.
+        String[] originalFiles = searchDirectory.listAll();
+        assertThat(originalFiles, equalTo(directory.listAll()));
+        if (randomBoolean()) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+            flush(indexName);
+        }
+        assertObjectStoreConsistentWithIndexShards();
+
+        Set<String> secondFileSet = Sets.union(toSet(directory.listAll()), toSet(originalFiles));
+        assertBusy(() -> assertThat(toSet(searchDirectory.listAll()), equalTo(secondFileSet)));
+        indexDocs(indexName, randomIntBetween(1, 100));
+        flush(indexName);
+
+        // retained by external reader manager.
+        assertThat(toSet(searchDirectory.listAll()), hasItems(secondFileSet.toArray(String[]::new)));
+
+        refresh(indexName);
+
+        // only updated on commit so provoke one.
+        indexDocs(indexName, randomIntBetween(1, 100));
+        flush(indexName);
+
+        // expect at least one deleted file, the segments_N file.
+        assertBusy(() -> assertThat(toSet(searchDirectory.listAll()), not(hasItems(secondFileSet.toArray(String[]::new)))));
+
+        forceMerge();
+        refresh(indexName);
+        indexDocs(indexName, randomIntBetween(1, 100));
+        flush(indexName);
+
+        // all from secondFileSet are gone.
+        assertBusy(() -> assertThat(Sets.intersection(toSet(searchDirectory.listAll()), secondFileSet), empty()));
+
+    }
+
+    private static Set<String> toSet(String[] strings) throws IOException {
+        return Set.of(strings);
+    }
+
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {
         var request = new GetSettingsRequest();
         request = request.indices(index).includeDefaults(includeDefaults);
@@ -589,7 +646,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final Set<String> uploadedFiles = ConcurrentCollections.newConcurrentSet();
         statelessCommitService.addConsumerForNewUploadedCommit(
             shard.shardId(),
-            commit -> uploadedFiles.addAll(commit.commitFiles().keySet())
+            info -> uploadedFiles.addAll(info.commit().commitFiles().keySet())
         );
 
         var numDocs = 100;

@@ -152,6 +152,24 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     /**
+     * On indexing shards we cannot accurately calculate the files to retain such that it does not contain files not
+     * in the directory. Hence we omit the assertion for indexing.
+     * @param filesToRetain the files to retain
+     */
+    public void retainFilesIndexing(Set<String> filesToRetain) {
+        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+            assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+            try {
+                final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+                updated.keySet().retainAll(filesToRetain);
+                currentMetadata = Map.copyOf(updated);
+            } finally {
+                assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+            }
+        }
+    }
+
+    /**
      * For test usage only.
      */
     void setMetadata(Map<String, BlobLocation> blobLocations) {

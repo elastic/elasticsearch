@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -167,7 +168,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                     threadPool.schedule(
                         () -> doBeforeCommit(term, version, retryCount + 1, delegate),
                         READ_CURRENT_LEASE_TERM_RETRY_DELAY,
-                        ThreadPool.Names.SAME
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
                     );
                 } else {
                     delegate.onFailure(new IllegalStateException(Strings.format("""

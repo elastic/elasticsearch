@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -104,6 +105,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ToLongFunction<ShardId> currentPrimaryTerm;
     private final Supplier<Lifecycle.State> indicesServiceState;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final NodeSyncState nodeState = new NodeSyncState();
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
@@ -149,6 +151,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final Supplier<Lifecycle.State> indicesServiceState
     ) {
         this.threadPool = threadPool;
+        this.executor = threadPool.generic();
         this.objectStoreService = objectStoreService;
         this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
@@ -211,7 +214,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             public void onFailure(Exception e) {
                 logger.error("Unexpected exception when running translog replication task", e);
             }
-        }, FLUSH_CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+        }, FLUSH_CHECK_INTERVAL, executor);
     }
 
     @Override

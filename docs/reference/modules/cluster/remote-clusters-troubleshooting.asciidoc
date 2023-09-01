@@ -347,14 +347,14 @@ the local user's `remote_indices` privileges.
 
 Request failures due to insufficient privileges result in API responses like:
 
-[source,console-result,subs=+quotes]
+[source,js,subs=+quotes]
 ----
 {
     "type": "security_exception",
     "reason": "action [indices:data/read/search] towards remote cluster is *unauthorized for user* [foo] with assigned roles [foo-role] authenticated by API key id [agZXJocBmA2beJfq2yKu] of user [elastic-admin] on indices [cd], this action is granted by the index privileges [read,all]"
 }
 ----
-// TEST[skip:illustrative-only]
+// NOTCONSOLE
 
 This does not show up in any logs.
 
@@ -379,14 +379,14 @@ can detect that and issue a more explicit error response.
 
 This results in API responses like:
 
-[source,console-result,subs=+quotes]
+[source,js,subs=+quotes]
 ----
 {
     "type": "security_exception",
     "reason": "action [indices:data/read/search] towards remote cluster [my] is unauthorized for user [foo] with effective roles [] (assigned roles [foo-role] were not found) because *no remote indices privileges apply for the target cluster*"
 }
 ----
-// TEST[skip:illustrative-only]
+// NOTCONSOLE
 
 ====== Resolution
 

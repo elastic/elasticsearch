@@ -2646,6 +2646,6 @@ beta:[] List of IP addresses to allow just for the
 `xpack.security.remote_cluster.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
 beta:[] List of IP addresses to deny just for the remote cluster server configured with
-the <remote-clusters-api-key,API key based model>>.
+the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

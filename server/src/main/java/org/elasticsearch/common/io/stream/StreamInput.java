@@ -1077,7 +1077,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
      * @return the list of objects
@@ -1088,7 +1088,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
      * The returned list is immutable.
      *
      * @return the list of objects

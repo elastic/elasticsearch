@@ -31,7 +31,7 @@ public class ThreadPoolInfo implements ReportingService.Info, Iterable<ThreadPoo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(infos);
+        out.writeCollection(infos);
     }
 
     @Override

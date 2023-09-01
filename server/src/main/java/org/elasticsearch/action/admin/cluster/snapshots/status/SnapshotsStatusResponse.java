@@ -52,7 +52,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshots);
+        out.writeCollection(snapshots);
     }
 
     private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(

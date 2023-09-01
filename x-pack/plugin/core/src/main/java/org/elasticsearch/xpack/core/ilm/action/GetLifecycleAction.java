@@ -58,7 +58,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override

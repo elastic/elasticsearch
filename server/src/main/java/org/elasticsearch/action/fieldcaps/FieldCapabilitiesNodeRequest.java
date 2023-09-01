@@ -122,7 +122,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(shardIds);
+        out.writeCollection(shardIds);
         out.writeStringArray(fields);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringArray(filters);

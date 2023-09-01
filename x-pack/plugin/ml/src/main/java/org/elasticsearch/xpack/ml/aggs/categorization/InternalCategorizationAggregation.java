@@ -266,7 +266,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             );
         }
         out.writeVInt(similarityThreshold);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
     }

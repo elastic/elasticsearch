@@ -62,7 +62,7 @@ public class NerResults extends NlpInferenceResults {
 
     @Override
     void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(entityGroups);
+        out.writeCollection(entityGroups);
         out.writeString(resultsField);
         out.writeString(annotatedResult);
     }

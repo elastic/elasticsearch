@@ -454,6 +454,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     /**
+     * @deprecated Use {@link #schedule(Runnable, TimeValue, Executor)} instead.
+     */
+    @Override
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true)
+    public final ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+        return schedule(command, delay, executor(executor));
+    }
+
+    /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
      * @param command the command to run
@@ -467,11 +477,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
         final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
         final Runnable toSchedule;
-        if (Names.SAME.equals(executor) == false) {
-            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor(executor));
+        if (executor != EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor);
         } else if (slowSchedulerWarnThresholdNanos > 0) {
             toSchedule = new Runnable() {
                 @Override
@@ -503,7 +513,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
+    /**
+     * @deprecated Use {@link #scheduleUnlessShuttingDown(TimeValue, Executor, Runnable)} instead.
+     */
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true)
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+        scheduleUnlessShuttingDown(delay, executor(executor), command);
+    }
+
+    public void scheduleUnlessShuttingDown(TimeValue delay, Executor executor, Runnable command) {
         try {
             schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
@@ -523,8 +542,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
+    /**
+     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
+     */
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true)
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
+        return scheduleWithFixedDelay(command, interval, executor(executor));
+    }
+
+    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
         var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);

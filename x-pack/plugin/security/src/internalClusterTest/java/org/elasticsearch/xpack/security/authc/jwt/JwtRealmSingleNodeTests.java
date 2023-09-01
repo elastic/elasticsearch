@@ -227,14 +227,14 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
         assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret)));
         assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret + update1suffix)));
-        assertTrue("possible timing issue with test", Instant.now().isBefore(realm1.getClientAuthenticationSharedSecret().getSecrets().validTill()));
+        assertTrue("possible timing issue with test", Instant.now().isBefore(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill()));
         assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret))); //TODO: safegaurd this against slow executions assert above this
         assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret + update1suffix)));
         assertFalse(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //disabled old
         assertTrue(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret + update1suffix)));
 
         Thread.sleep(1000);
-        assertTrue("possible timing issue with test", Instant.now().isAfter(realm1.getClientAuthenticationSharedSecret().getSecrets().validTill()));
+        assertTrue("possible timing issue with test", Instant.now().isAfter(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill()));
         assertFalse(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //old expired
 
 

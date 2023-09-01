@@ -735,7 +735,7 @@ FROM employees
 last_name:keyword | right:keyword
 Awdeh             |deh
 Azuma             |uma
-Ba                |Ba
+Baek              |aek
 Bamford           |ord
 Bernatsky         |sky
 // end::right-result[]

@@ -40,7 +40,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             String text = randomAlphaOfLength(10);
             return new TestCase(
                 List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
-                "LeftEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(0, length)))
             );
@@ -50,7 +50,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             String text = randomAlphaOfLength(1);
             return new TestCase(
                 List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
-                "LeftEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text))
             );

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
- * left(foo, len) is a alias that substring(foo, 0, len)
+ * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
  */
 public class Left extends ScalarFunction implements EvaluatorMapper {
 
@@ -49,13 +49,17 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         this.length = length;
     }
 
-    @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(@Fixed BytesRef out, BytesRef str, int length) {
+    @Evaluator
+    static BytesRef process(
+        @Fixed(includeInToString = false) BytesRef out,
+        @Fixed(includeInToString = false) UnicodeUtil.UTF8CodePoint cp,
+        BytesRef str,
+        int length
+    ) {
         out.bytes = str.bytes;
         out.offset = str.offset;
         out.length = str.length;
         int curLenStart = 0;
-        UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
         for (int i = 0; i < length && curLenStart < out.length; i++, curLenStart += cp.numBytes) {
             UnicodeUtil.codePointAt(out.bytes, out.offset + curLenStart, cp);
         }
@@ -72,7 +76,8 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
         return () -> {
             BytesRef out = new BytesRef();
-            return new LeftEvaluator(source, out, strSupplier.get(), lengthSupplier.get());
+            UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
+            return new LeftEvaluator(out, cp, strSupplier.get(), lengthSupplier.get());
         };
     }
 

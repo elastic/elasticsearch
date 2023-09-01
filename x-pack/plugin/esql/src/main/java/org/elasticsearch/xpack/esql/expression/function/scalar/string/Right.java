@@ -50,7 +50,12 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator
-    static BytesRef process(@Fixed BytesRef out, BytesRef str, int length) {
+    static BytesRef process(
+        @Fixed(includeInToString = false) BytesRef out,
+        @Fixed(includeInToString = false) UnicodeUtil.UTF8CodePoint cp,
+        BytesRef str,
+        int length
+    ) {
         out.bytes = str.bytes;
         out.offset = str.offset;
         out.length = str.length;
@@ -58,7 +63,6 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
         // skip the first skipLen codePoint
         int skipLen = Math.max(codeLen - length, 0);
         int endOffset = str.offset + str.length;
-        UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
         for (int i = 0; i < skipLen && out.offset < endOffset; i++) {
             UnicodeUtil.codePointAt(out.bytes, out.offset, cp);
             out.offset += cp.numBytes;
@@ -76,7 +80,8 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
         Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
         return () -> {
             BytesRef out = new BytesRef();
-            return new RightEvaluator(out, strSupplier.get(), lengthSupplier.get());
+            UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
+            return new RightEvaluator(out, cp, strSupplier.get(), lengthSupplier.get());
         };
     }
 

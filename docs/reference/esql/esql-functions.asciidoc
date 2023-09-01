@@ -35,6 +35,7 @@ these functions:
 * <<esql-length>>
 * <<esql-log10>>
 * <<esql-ltrim>>
+* <<esql-left>>
 * <<esql-rtrim>>
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
@@ -48,13 +49,12 @@ these functions:
 * <<esql-pi>>
 * <<esql-pow>>
 * <<esql-round>>
+* <<esql-right>>
 * <<esql-sin>>
 * <<esql-sinh>>
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
-* <<esql-left>>
-* <<esql-right>>
 * <<esql-tan>>
 * <<esql-tanh>>
 * <<esql-tau>>
@@ -98,6 +98,7 @@ include::functions/least.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
 include::functions/ltrim.asciidoc[]
+include::functions/left.asciidoc[]
 include::functions/rtrim.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_concat.asciidoc[]
@@ -111,14 +112,13 @@ include::functions/now.asciidoc[]
 include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
 include::functions/round.asciidoc[]
+include::functions/right.asciidoc[]
 include::functions/sin.asciidoc[]
 include::functions/sinh.asciidoc[]
 include::functions/split.asciidoc[]
 include::functions/sqrt.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
-include::functions/left.asciidoc[]
-include::functions/right.asciidoc[]
 include::functions/tan.asciidoc[]
 include::functions/tanh.asciidoc[]
 include::functions/tau.asciidoc[]

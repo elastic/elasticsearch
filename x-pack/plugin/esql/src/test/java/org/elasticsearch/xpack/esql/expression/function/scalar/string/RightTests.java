@@ -40,7 +40,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             String text = randomAlphaOfLength(10);
             return new TestCase(
                 List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
-                "RightEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
+                "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(text.length() - length)))
             );
@@ -50,7 +50,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             String text = randomAlphaOfLength(1);
             return new TestCase(
                 List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"), new TypedData(length, DataTypes.INTEGER, "length")),
-                "RightEvaluator[out=[], str=Attribute[channel=0], length=Attribute[channel=1]]",
+                "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text))
             );

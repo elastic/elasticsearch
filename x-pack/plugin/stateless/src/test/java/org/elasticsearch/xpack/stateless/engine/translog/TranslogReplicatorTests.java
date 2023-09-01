@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,6 +57,7 @@ import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.gene
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -810,7 +812,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, operationsBytes[0], 0, location));
     }
 
-    @SuppressWarnings("unchecked")
     public void testSchedulesFlushCheck() {
         long primaryTerm = randomLongBetween(0, 10);
 
@@ -826,7 +827,11 @@ public class TranslogReplicatorTests extends ESTestCase {
             )
         ) {
             translogReplicator.doStart();
-            verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueMillis(50)), eq(ThreadPool.Names.GENERIC));
+            verify(threadPool).scheduleWithFixedDelay(
+                any(Runnable.class),
+                eq(TimeValue.timeValueMillis(50)),
+                argThat((Executor e) -> true)
+            );
         }
     }
 

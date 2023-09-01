@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -76,6 +77,7 @@ public class ShardSizesCollector implements ClusterStateListener {
     private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_027;
 
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final ShardSizeStatsReader shardSizeStatsReader;
     private final ShardSizesPublisher shardSizesPublisher;
     private final boolean isSearchNode;
@@ -152,6 +154,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         boolean isSearchNode
     ) {
         this.threadPool = threadPool;
+        this.executor = threadPool.generic();
         this.shardSizeStatsReader = shardSizeStatsReader;
         this.shardSizesPublisher = shardSizesPublisher;
         this.isSearchNode = isSearchNode;
@@ -312,7 +315,7 @@ public class ShardSizesCollector implements ClusterStateListener {
         }
 
         private void scheduleNext() {
-            threadPool.scheduleUnlessShuttingDown(publishInterval, ThreadPool.Names.GENERIC, PublishTask.this);
+            threadPool.scheduleUnlessShuttingDown(publishInterval, executor, PublishTask.this);
         }
     }
 

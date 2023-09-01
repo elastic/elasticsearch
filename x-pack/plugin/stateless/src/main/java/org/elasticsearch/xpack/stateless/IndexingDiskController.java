@@ -162,7 +162,7 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         assert Thread.holdsLock(lifecycle);
-        scheduledMonitorFuture = threadPool.scheduleWithFixedDelay(monitor, interval, ThreadPool.Names.GENERIC);
+        scheduledMonitorFuture = threadPool.scheduleWithFixedDelay(monitor, interval, threadPool.generic());
     }
 
     @Override

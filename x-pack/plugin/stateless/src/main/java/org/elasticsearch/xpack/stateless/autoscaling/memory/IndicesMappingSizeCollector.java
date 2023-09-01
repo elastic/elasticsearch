@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
@@ -60,6 +61,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private final IndicesService indicesService;
     private final IndicesMappingSizePublisher publisher;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final TimeValue publicationFrequency;
     private final Map<Index, IndexMappingSize> indexToMappingSizeMetrics = new ConcurrentHashMap<>();
     private final AtomicLong seqNo = new AtomicLong();
@@ -86,6 +88,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         this.indicesService = indicesService;
         this.publisher = publisher;
         this.threadPool = threadPool;
+        this.executor = threadPool.generic();
         this.publicationFrequency = publicationFrequency;
     }
 
@@ -259,7 +262,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         }
 
         private void scheduleNext() {
-            threadPool.scheduleUnlessShuttingDown(publicationFrequency, ThreadPool.Names.GENERIC, PublishTask.this);
+            threadPool.scheduleUnlessShuttingDown(publicationFrequency, executor, PublishTask.this);
         }
     }
 }

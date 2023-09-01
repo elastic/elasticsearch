@@ -18,9 +18,11 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +43,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
@@ -612,6 +615,62 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         var blobsAfterNodeIsStale = listBlobsWithAbsolutePath(shardCommitsContainer);
         assertThat(blobsAfterNodeIsStale.containsAll(blobsBeforeTriggeringForceMerge), is(true));
+    }
+
+    // Since the commit deletion relies on a NewCommitNotification being process on all unpromotables, while an unpromtable is
+    // recovering (and cannot process a NewCommitNotification), commits should not be deleted.
+    public void testCommitsNotDeletedWhileAnUnpromotableIsRecovering() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS)).build()
+        );
+        ensureGreen(indexName);
+        var searchNode2 = startSearchNode();
+        ensureStableCluster(3);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+        // Create some commits
+        int commits = randomIntBetween(2, 5);
+        for (int i = 0; i < commits; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+            refresh(indexName);
+        }
+        CountDownLatch commitRegistrationStarted = new CountDownLatch(1);
+        CountDownLatch newCommitCreated = new CountDownLatch(1);
+        var searchNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode2);
+        searchNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
+                commitRegistrationStarted.countDown();
+                safeAwait(newCommitCreated);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        // Start the second search shard
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
+        safeAwait(commitRegistrationStarted);
+        // While search shard is recovering, create new commits by merge/refresh which should normally delete older commits
+        var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        forceMerge();
+        client().admin().indices().prepareRefresh(indexName).execute().get();
+        var blobsAfterMergeAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
+        // No deletion should happen since there is a RECOVERING unpromotable
+        assertThat(
+            "blobs before merge = " + blobsBeforeMerge + ", blobs after merge and refresh=" + blobsAfterMergeAndRefresh,
+            blobsAfterMergeAndRefresh.containsAll(blobsBeforeMerge),
+            is(true)
+        );
+        // Allow recovery to finish and verify that the commits are deleted.
+        newCommitCreated.countDown();
+        ensureGreen(indexName);
+        // We need a new commit to trigger file deletion
+        indexDocsAndFlush(indexName);
+        assertBusy(() -> {
+            var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));
+        });
     }
 
     private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {

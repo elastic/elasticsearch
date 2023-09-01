@@ -923,7 +923,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            builder.versionsWrappers(in.readMap(streamInput -> new VersionsWrapper(TransportVersion.readVersion(streamInput))));
+            builder.versionsWrappers(in.readMap(VersionsWrapper::readVersion));
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now
@@ -968,7 +968,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeMap(versionsWrappers, StreamOutput::writeString, (o, v) -> TransportVersion.writeVersion(v.transportVersion(), o));
+            out.writeMap(versionsWrappers, StreamOutput::writeString, (streamOutput, versions) -> versions.writeTo(streamOutput));
         }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);

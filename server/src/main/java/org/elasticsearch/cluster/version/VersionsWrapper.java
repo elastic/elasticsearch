@@ -9,7 +9,11 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
 
@@ -23,7 +27,7 @@ import java.util.Map;
  *
  * @param transportVersion
  */
-public record VersionsWrapper(TransportVersion transportVersion) {
+public record VersionsWrapper(TransportVersion transportVersion) implements Writeable {
 
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
@@ -40,5 +44,14 @@ public record VersionsWrapper(TransportVersion transportVersion) {
                 // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
                 .orElse(TransportVersion.MINIMUM_COMPATIBLE)
         );
+    }
+
+    public static VersionsWrapper readVersion(StreamInput in) throws IOException {
+        return new VersionsWrapper(TransportVersion.readVersion(in));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportVersion.writeVersion(this.transportVersion(), out);
     }
 }

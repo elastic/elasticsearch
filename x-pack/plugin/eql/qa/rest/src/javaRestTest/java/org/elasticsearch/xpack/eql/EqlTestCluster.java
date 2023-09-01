@@ -19,7 +19,6 @@ public class EqlTestCluster {
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.monitoring.collection.enabled", "true")
             .setting("xpack.security.enabled", "false")
-            .user("admin", "admin-password")
             .build();
     }
 

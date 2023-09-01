@@ -18,11 +18,11 @@ import java.util.concurrent.locks.StampedLock;
 /**
  * Helper class to provide a secret that can be rotated. Once rotated the prior secret is available for a configured amount of time before
  * it is invalidated. This allows for secrete rotation without temporary failures or the need to tightly orchestrate multiple parties.
- * This class is threadsafe, however it is also assumes that matching secrets are frequent and rotation is a rare.
+ * This class is threadsafe, however it is also assumes that matching secrets are frequent but rotation is a rare.
  */
 public class RotatableSecret {
     private Secrets secrets;
-    private final StampedLock stampedLock = new StampedLock(); //read/write lock that allow upgrading from read to write
+    private final StampedLock stampedLock = new StampedLock();
 
     /**
      * @param secret The secret to rotate. {@code null} if the secret is not configured.
@@ -80,20 +80,31 @@ public class RotatableSecret {
     }
 
     private void checkExpired() {
-        long stamp = stampedLock.readLock();
+        boolean needToUnlock = false;
+        long stamp = stampedLock.tryOptimisticRead();
+        boolean expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // optimistic read
+        if (stampedLock.validate(stamp) == false) {
+            // optimism failed...potentially block to obtain the read lock and try the read again
+            stamp = stampedLock.readLock();
+            needToUnlock = true;
+            expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // locked read
+        }
         try {
-            if (secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now())) {
-                stamp = stampedLock.tryConvertToWriteLock(stamp);
+            if (expired) {
+                stamp = stampedLock.tryConvertToWriteLock(stamp);// upgrade the read lock
                 if (stamp == 0) {
                     // block until we can acquire the write lock
                     stamp = stampedLock.writeLock();
                 }
+                needToUnlock = true;
                 SecureString prior = secrets.prior;
                 secrets = new Secrets(secrets.current, null, Instant.EPOCH);
-                prior.close(); //zero out the memory
+                prior.close(); // zero out the memory
             }
         } finally {
-            stampedLock.unlock(stamp);
+            if (needToUnlock) { // only unlock if we acquired a read or write lock
+                stampedLock.unlock(stamp);
+            }
         }
     }
 

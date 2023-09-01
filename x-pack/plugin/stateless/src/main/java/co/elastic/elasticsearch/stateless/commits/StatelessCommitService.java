@@ -46,6 +46,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -1065,7 +1066,6 @@ public class StatelessCommitService implements ClusterStateListener {
             // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
             // In that case, try the latest commit.
             // TODO: add an accessor for the latest commit (should it also incRef?)
-
             PrimaryTermAndGeneration termAndGeneration = shardCommitsState.locallyReferencedGenerations.get(
                 shardCommitsState.generationUploaded
             );
@@ -1079,6 +1079,9 @@ public class StatelessCommitService implements ClusterStateListener {
             if (compoundCommit == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
             }
+            // TODO: If the search shard has seen a newer commit (w/ newer term) that wants to register and recover from, the stale
+            // indexing shard could reply with a commit from the last term. If this is possible, we should explicitly check against
+            // this and fail the registration request.
             compoundCommit.incRef();
         }
         try {
@@ -1086,10 +1089,11 @@ public class StatelessCommitService implements ClusterStateListener {
         } finally {
             compoundCommit.decRef();
         }
-        assert compoundCommit.primaryTermAndGeneration.primaryTerm() >= commit.primaryTerm()
-            && (compoundCommit.primaryTermAndGeneration.primaryTerm() > commit.primaryTerm()
-                || compoundCommit.primaryTermAndGeneration.generation() >= commit.generation());
-        return compoundCommit.primaryTermAndGeneration;
+        var proposed = compoundCommit.primaryTermAndGeneration;
+        assert proposed.primaryTerm() >= commit.primaryTerm()
+            && (proposed.primaryTerm() > commit.primaryTerm() || proposed.generation() >= commit.generation())
+            : Strings.format("Proposed commit ({}) for unpromotable recovery must be newer that the requested one ({})", proposed, commit);
+        return proposed;
     }
 
     private record CommitAndBlobLocation(ShardCommitState.CompoundCommitBlob compoundCommitBlob, @Nullable BlobLocation blobLocation) {

@@ -53,7 +53,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), equalTo(true));
     }

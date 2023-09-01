@@ -36,7 +36,8 @@ public class MockUtils {
     }
 
     /**
-     * Sets up a mock TransportService that can answer calls to TransportService.getThreadPool().executor(String), using the given threadPool in TransportService.
+     * Sets up a mock TransportService that can answer calls to TransportService.getThreadPool().executor(String), using the given
+     * threadPool in TransportService.
      *
      * @param threadPool A mock ThreadPool
      * @return A mocked TransportService instance

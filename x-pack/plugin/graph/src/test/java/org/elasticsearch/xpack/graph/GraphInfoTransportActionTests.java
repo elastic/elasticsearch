@@ -34,7 +34,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
             transportService,
             mock(ActionFilters.class),
@@ -76,7 +76,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.graph.enabled", enabled);
         }
 
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
             transportService,
             mock(ActionFilters.class),

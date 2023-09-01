@@ -75,7 +75,7 @@ public class TransportRankEvalActionTests extends ESTestCase {
             }
         };
 
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportRankEvalAction action = new TransportRankEvalAction(
             mock(ActionFilters.class),
             client,

@@ -19,9 +19,9 @@ import java.io.IOException;
 
 public class ConcurrentSearchSingleNodeTests extends ESSingleNodeTestCase {
 
-    private final boolean eagerConcurrentSearch = randomBoolean();
+    private final boolean concurrentSearch = randomBoolean();
 
-    public void testEagerConcurrentSearch() throws IOException {
+    public void testConcurrentSearch() throws IOException {
         client().admin().indices().prepareCreate("index").get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.iterator().next();
@@ -30,7 +30,7 @@ public class ConcurrentSearchSingleNodeTests extends ESSingleNodeTestCase {
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shard.shardId(), 0L, AliasFilter.EMPTY);
         try (SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, TimeValue.MINUS_ONE)) {
             ContextIndexSearcher searcher = searchContext.searcher();
-            if (eagerConcurrentSearch) {
+            if (concurrentSearch) {
                 assertEquals(1, searcher.getMinimumDocsPerSlice());
             } else {
                 assertEquals(50_000, searcher.getMinimumDocsPerSlice());
@@ -39,7 +39,7 @@ public class ConcurrentSearchSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected boolean eagerConcurrentSearch() {
-        return eagerConcurrentSearch;
+    protected boolean enableConcurrentSearch() {
+        return concurrentSearch;
     }
 }

@@ -77,9 +77,8 @@ For more information, see
 `remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
 +
 --
-// TODO: fix the link to new page of API key based remote clusters
-NOTE: Remote indices are effective for remote clusters configured with the API key based model.
-They have no effect for remote clusters configured with the certificate based model.
+NOTE: Remote indices are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+They have no effect for remote clusters configured with the <<remote-clusters-cert,certificate based model>>.
 --
 `clusters` (required)::: (list) A list of cluster aliases to which the permissions
 in this entry apply.

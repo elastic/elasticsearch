@@ -10,20 +10,31 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SubTests extends AbstractArithmeticTestCase {
-    public SubTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class SubTests extends AbstractDateTimeArithmeticTestCase {
+    public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -33,8 +44,11 @@ public class SubTests extends AbstractArithmeticTestCase {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
             int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.INTEGER, "lhs"), new TypedData(rhs, DataTypes.INTEGER, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                ),
                 "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.INTEGER,
                 equalTo(lhs - rhs)
@@ -43,8 +57,11 @@ public class SubTests extends AbstractArithmeticTestCase {
             // Ensure we don't have an overflow
             long rhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
             long lhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.LONG, "lhs"), new TypedData(rhs, DataTypes.LONG, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.LONG, "rhs")
+                ),
                 "SubLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.LONG,
                 equalTo(lhs - rhs)
@@ -52,8 +69,11 @@ public class SubTests extends AbstractArithmeticTestCase {
         }), new TestCaseSupplier("Double - Double", () -> {
             double rhs = randomDouble();
             double lhs = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
+                ),
                 "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DOUBLE,
                 equalTo(lhs - rhs)
@@ -71,9 +91,39 @@ public class SubTests extends AbstractArithmeticTestCase {
                 "SubUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 equalTo(asLongUnsigned(lhsBI.subtract(rhsBI).longValue()))
             );
-          })
-          */
-        ));
+          }) */, new TestCaseSupplier("Datetime - Period", () -> {
+            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
+                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+            );
+        }), new TestCaseSupplier("Datetime - Duration", () -> {
+            long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
+                "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.DATETIME,
+                equalTo(asMillis(asDateTime(lhs).minus(rhs)))
+            );
+            return testCase;
+        })));
+    }
+
+    @Override
+    protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
+        return isDateTimeOrTemporal(lhsType) || isDateTimeOrTemporal(rhsType)
+            ? isDateTime(lhsType) && isTemporalAmount(rhsType)
+            : super.supportsTypes(lhsType, rhsType);
     }
 
     @Override
@@ -101,5 +151,10 @@ public class SubTests extends AbstractArithmeticTestCase {
         BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
         BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
         return asLongUnsigned(lhsBI.subtract(rhsBI).longValue());
+    }
+
+    @Override
+    protected long expectedValue(long datetime, TemporalAmount temporalAmount) {
+        return asMillis(asDateTime(datetime).minus(temporalAmount));
     }
 }

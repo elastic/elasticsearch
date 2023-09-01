@@ -56,7 +56,11 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
     @Override
     public final void init() {
         if (this.timeoutHandler == null) {
-            this.timeoutHandler = threadPool.schedule(this::onTimeout, timeout, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            this.timeoutHandler = threadPool.schedule(
+                this::onTimeout,
+                timeout,
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            );
         }
     }
 

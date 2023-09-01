@@ -501,4 +501,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
         return new ScriptSortBuilder(this).setNestedSort(rewrite);
     }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
 }

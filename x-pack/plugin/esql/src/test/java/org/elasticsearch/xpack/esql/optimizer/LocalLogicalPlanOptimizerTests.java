@@ -246,7 +246,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var local = as(localPlan, LocalRelation.class);
         assertThat(
             Expressions.names(local.output()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary", "x")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary", "x")
         );
     }
 

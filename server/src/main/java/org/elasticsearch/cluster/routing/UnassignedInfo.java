@@ -38,6 +38,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
+
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
@@ -52,9 +54,12 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting(
         "index.unassigned.node_left.delayed_timeout",
-        TimeValue.timeValueMinutes(1),
+        settings -> EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless")
+            ? TimeValue.timeValueSeconds(10)
+            : TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMillis(0),
         Property.Dynamic,
         Property.IndexScope
     );

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,17 +27,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvConcatTests extends AbstractScalarFunctionTestCase {
-    public MvConcatTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public MvConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_concat basic test", () -> {
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TypedData(List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")), DataTypes.KEYWORD, "field"),
-                    new TypedData(new BytesRef(", "), DataTypes.KEYWORD, "delim")
+                    new TestCaseSupplier.TypedData(
+                        List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")),
+                        DataTypes.KEYWORD,
+                        "field"
+                    ),
+                    new TestCaseSupplier.TypedData(new BytesRef(", "), DataTypes.KEYWORD, "delim")
                 ),
                 "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
                 DataTypes.KEYWORD,

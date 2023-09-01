@@ -22,4 +22,6 @@ public interface MachineLearningExtension {
     boolean isDataFrameAnalyticsEnabled();
 
     boolean isNlpEnabled();
+
+    String[] getAnalyticsDestIndexAllowedSettings();
 }

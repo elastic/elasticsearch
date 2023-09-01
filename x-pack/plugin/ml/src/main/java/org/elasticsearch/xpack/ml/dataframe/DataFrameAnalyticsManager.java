@@ -68,6 +68,7 @@ public class DataFrameAnalyticsManager {
     private final IndexNameExpressionResolver expressionResolver;
     private final ResultsPersisterService resultsPersisterService;
     private final ModelLoadingService modelLoadingService;
+    private final String[] destIndexAllowedSettings;
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
@@ -81,7 +82,8 @@ public class DataFrameAnalyticsManager {
         DataFrameAnalyticsAuditor auditor,
         IndexNameExpressionResolver expressionResolver,
         ResultsPersisterService resultsPersisterService,
-        ModelLoadingService modelLoadingService
+        ModelLoadingService modelLoadingService,
+        String[] destIndexAllowedSettings
     ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
@@ -93,6 +95,7 @@ public class DataFrameAnalyticsManager {
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
+        this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
     }
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {
@@ -185,7 +188,11 @@ public class DataFrameAnalyticsManager {
 
         LOGGER.debug(() -> format("[%s] Starting job from state [%s]", config.getId(), startingState));
         switch (startingState) {
-            case FIRST_TIME -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
+            case FIRST_TIME -> executeStep(
+                task,
+                config,
+                new ReindexingStep(clusterService, client, task, auditor, config, destIndexAllowedSettings)
+            );
             case RESUMING_REINDEXING -> executeJobInMiddleOfReindexing(task, config);
             case RESUMING_ANALYZING -> executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
             case RESUMING_INFERENCE -> buildInferenceStep(
@@ -236,14 +243,21 @@ public class DataFrameAnalyticsManager {
             ML_ORIGIN,
             DeleteIndexAction.INSTANCE,
             new DeleteIndexRequest(config.getDest().getIndex()),
-            ActionListener.wrap(r -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config)), e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof IndexNotFoundException) {
-                    executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
-                } else {
-                    task.setFailed(e);
+            ActionListener.wrap(
+                r -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config, destIndexAllowedSettings)),
+                e -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof IndexNotFoundException) {
+                        executeStep(
+                            task,
+                            config,
+                            new ReindexingStep(clusterService, client, task, auditor, config, destIndexAllowedSettings)
+                        );
+                    } else {
+                        task.setFailed(e);
+                    }
                 }
-            })
+            )
         );
     }
 

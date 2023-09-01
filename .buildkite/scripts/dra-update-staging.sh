@@ -43,7 +43,7 @@ steps:
     label: Trigger DRA staging workflow for $BRANCH
     async: true
     build:
-      branch: $BRANCH
+      branch: "$BRANCH"
       env:
         DRA_WORKFLOW: staging
 EOF

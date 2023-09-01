@@ -12,7 +12,7 @@ for BRANCH in "${BRANCHES[@]}"; do
     label: Trigger DRA snapshot workflow for $BRANCH
     async: true
     build:
-      branch: $BRANCH
+      branch: "$BRANCH"
       env:
         DRA_WORKFLOW: snapshot
 EOF
@@ -24,7 +24,7 @@ EOF
     label: Trigger DRA staging workflow for $BRANCH
     async: true
     build:
-      branch: $BRANCH
+      branch: "$BRANCH"
       env:
         DRA_WORKFLOW: staging
 EOF

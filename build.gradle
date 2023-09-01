@@ -73,7 +73,7 @@ tasks.register("updateCIBwcVersions") {
     }
   }
 
-  def wirteBuildkiteSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
+  def writeBuildkiteSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
     def outputFile = file(outputFilePath)
     def pipelineTemplate = file(pipelineTemplatePath)
     def stepTemplate = file(stepTemplatePath)
@@ -89,13 +89,13 @@ tasks.register("updateCIBwcVersions") {
   doLast {
     writeVersions(file(".ci/bwcVersions"), BuildParams.bwcVersions.allIndexCompatible)
     writeVersions(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
-    wirteBuildkiteSteps(
+    writeBuildkiteSteps(
       ".buildkite/pipelines/periodic.yml",
       ".buildkite/pipelines/periodic.template.yml",
       ".buildkite/pipelines/periodic.bwc.template.yml",
       BuildParams.bwcVersions.allIndexCompatible
     )
-    wirteBuildkiteSteps(
+    writeBuildkiteSteps(
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",

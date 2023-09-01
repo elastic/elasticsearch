@@ -1101,7 +1101,10 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a list of {@link NamedWriteable} objects.
      */
     public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeCollection(list, StreamOutput::writeNamedWriteable);
+        writeVInt(list.size());
+        for (NamedWriteable obj : list) {
+            writeNamedWriteable(obj);
+        }
     }
 
     /**

@@ -6,18 +6,19 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -25,7 +26,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
@@ -35,8 +35,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.packageloader.action.OpenAIChatAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
@@ -63,6 +63,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
 
     TransportInternalInferModelAction(
         String actionName,
@@ -106,31 +107,37 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
+            ack -> listener.onResponse(Response.builder().build()),
+            listener::onFailure
+        );
 
-        Response.Builder responseBuilder = Response.builder();
-        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        executeAsyncWithOrigin(client, ML_ORIGIN, OpenAIChatAction.INSTANCE, new OpenAIChatAction.Request(request.getId()), finalListener);
 
-        if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
-            responseBuilder.setLicensed(true);
-            doInfer(task, request, responseBuilder, parentTaskId, listener);
-        } else {
-            trainedModelProvider.getTrainedModel(
-                request.getId(),
-                GetTrainedModelsAction.Includes.empty(),
-                parentTaskId,
-                ActionListener.wrap(trainedModelConfig -> {
-                    // Since we just checked MachineLearningField.ML_API_FEATURE.check(licenseState) and that check failed
-                    // That means we don't have a plat+ license. The only licenses for trained models are basic (free) and plat.
-                    boolean allowed = trainedModelConfig.getLicenseLevel() == License.OperationMode.BASIC;
-                    responseBuilder.setLicensed(allowed);
-                    if (allowed || request.isPreviouslyLicensed()) {
-                        doInfer(task, request, responseBuilder, parentTaskId, listener);
-                    } else {
-                        listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-                    }
-                }, listener::onFailure)
-            );
-        }
+        // Response.Builder responseBuilder = Response.builder();
+        // TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        //
+        // if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
+        // responseBuilder.setLicensed(true);
+        // doInfer(task, request, responseBuilder, parentTaskId, listener);
+        // } else {
+        // trainedModelProvider.getTrainedModel(
+        // request.getId(),
+        // GetTrainedModelsAction.Includes.empty(),
+        // parentTaskId,
+        // ActionListener.wrap(trainedModelConfig -> {
+        // // Since we just checked MachineLearningField.ML_API_FEATURE.check(licenseState) and that check failed
+        // // That means we don't have a plat+ license. The only licenses for trained models are basic (free) and plat.
+        // boolean allowed = trainedModelConfig.getLicenseLevel() == License.OperationMode.BASIC;
+        // responseBuilder.setLicensed(allowed);
+        // if (allowed || request.isPreviouslyLicensed()) {
+        // doInfer(task, request, responseBuilder, parentTaskId, listener);
+        // } else {
+        // listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+        // }
+        // }, listener::onFailure)
+        // );
+        // }
     }
 
     private void doInfer(

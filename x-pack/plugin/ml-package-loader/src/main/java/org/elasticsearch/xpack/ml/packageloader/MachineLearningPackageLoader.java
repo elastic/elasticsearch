@@ -17,6 +17,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
+import org.elasticsearch.xpack.core.ml.packageloader.action.OpenAIChatAction;
+import org.elasticsearch.xpack.ml.packageloader.action.OpenAI;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportGetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportLoadTrainedModelPackage;
 
@@ -61,7 +63,8 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         // all internal, no rest endpoint
         return Arrays.asList(
             new ActionHandler<>(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
-            new ActionHandler<>(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
+            new ActionHandler<>(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class),
+            new ActionHandler<>(OpenAIChatAction.INSTANCE, OpenAI.class)
         );
     }
 

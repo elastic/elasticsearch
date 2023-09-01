@@ -284,6 +284,7 @@ public class Constants {
         "cluster:internal/xpack/ml/trained_models/deployments/stats/get",
         "cluster:internal/xpack/ml/trained_models/package_loader/get_config",
         "cluster:internal/xpack/ml/trained_models/package_loader/load",
+        "cluster:internal/xpack/ml/trained_models/package_loader/chat",
         "cluster:internal/xpack/transform/reset_mode",
         "cluster:monitor/allocation/explain",
         "cluster:monitor/async_search/status",

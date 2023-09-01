@@ -587,7 +587,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                         subSearcher.search(weight, a.asCollector());
                     }
-                    a.postCollection();
                     assertEquals(shouldBeCached, context.isCacheable());
                     internalAggs.add(a.buildTopLevel());
                 } finally {
@@ -612,7 +611,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     root.preCollection();
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
-                    root.postCollection();
                 } else {
                     CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
                         @Override

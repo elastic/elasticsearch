@@ -416,7 +416,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, threadPool.generic());
     }
 
     @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -569,7 +570,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
                     );
                 }
-            }, timeout, Names.SAME);
+            }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
             // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
             // to 30s
@@ -588,7 +589,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
                         public Executor executor() {
-                            return threadPool.executor(Names.SAME);
+                            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
                         }
 
                         @Override

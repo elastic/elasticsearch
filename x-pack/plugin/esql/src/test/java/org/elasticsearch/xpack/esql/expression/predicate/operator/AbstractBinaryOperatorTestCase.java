@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -24,14 +25,16 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTestCase {
 
-    protected abstract Matcher<Object> resultsMatcher(List<TypedData> typedData);
+    protected abstract Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData);
 
     /**
      * Return a {@link Matcher} to validate the results of evaluating the function
@@ -52,37 +55,48 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
 
     protected abstract BinaryOperator<?, ?, ?, ?> build(Source source, Expression lhs, Expression rhs);
 
+    /**
+     * What type is acceptable for any of the function parameters.
+     * @param type The type to probe.
+     * @return True if the type is supported by the respective function.
+     */
     protected abstract boolean supportsType(DataType type);
+
+    /**
+     * What combination of parameter types are acceptable by the function.
+     * @param lhsType Left argument type.
+     * @param rhsType Right argument type.
+     * @return True if the type combination is supported by the respective function.
+     */
+    protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
+        if (isNull(lhsType) || isNull(rhsType)) {
+            return false;
+        }
+        if ((lhsType == DataTypes.UNSIGNED_LONG || rhsType == DataTypes.UNSIGNED_LONG) && lhsType != rhsType) {
+            // UL can only be operated on together with another UL, so skip non-UL&UL combinations
+            return false;
+        }
+        return supportsType(lhsType) && supportsType(rhsType);
+    }
 
     public final void testApplyToAllTypes() {
         for (DataType lhsType : EsqlDataTypes.types()) {
-            if (EsqlDataTypes.isRepresentable(lhsType) == false || lhsType == DataTypes.NULL) {
-                continue;
-            }
-            if (supportsType(lhsType) == false) {
-                continue;
-            }
-            Literal lhs = randomLiteral(lhsType);
             for (DataType rhsType : EsqlDataTypes.types()) {
-                if (EsqlDataTypes.isRepresentable(rhsType) == false || rhsType == DataTypes.NULL) {
+                if (supportsTypes(lhsType, rhsType) == false) {
                     continue;
                 }
-                if (supportsType(rhsType) == false) {
-                    continue;
-                }
-                if (false == (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric())) {
-                    continue;
-                }
-                if (lhsType != rhsType && (lhsType == DataTypes.UNSIGNED_LONG || rhsType == DataTypes.UNSIGNED_LONG)) {
-                    continue;
-                }
+                Literal lhs = randomLiteral(lhsType);
                 Literal rhs = randomValueOtherThanMany(l -> rhsOk(l.value()) == false, () -> randomLiteral(rhsType));
-                BinaryOperator<?, ?, ?, ?> op = build(
-                    new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName()),
-                    field("lhs", lhsType),
-                    field("rhs", rhsType)
-                );
-                Object result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
+                Object result;
+                BinaryOperator<?, ?, ?, ?> op;
+                Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
+                if (isRepresentable(lhsType) && isRepresentable(rhsType)) {
+                    op = build(src, field("lhs", lhsType), field("rhs", rhsType));
+                    result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
+                } else {
+                    op = build(src, lhs, rhs);
+                    result = op.fold();
+                }
                 if (result == null) {
                     assertCriticalWarnings(
                         "Line -1:-1: evaluation of [" + op + "] failed, treating result as null. Only first 20 failures recorded.",
@@ -100,12 +114,12 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
 
     public final void testResolveType() {
         for (DataType lhsType : EsqlDataTypes.types()) {
-            if (EsqlDataTypes.isRepresentable(lhsType) == false) {
+            if (isRepresentable(lhsType) == false) {
                 continue;
             }
             Literal lhs = randomLiteral(lhsType);
             for (DataType rhsType : EsqlDataTypes.types()) {
-                if (EsqlDataTypes.isRepresentable(rhsType) == false) {
+                if (isRepresentable(rhsType) == false) {
                     continue;
                 }
                 Literal rhs = randomLiteral(rhsType);

@@ -52,7 +52,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -177,7 +176,7 @@ public class EnrichLookupService {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
                     yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
                 }
-                default -> throw new EsqlUnsupportedOperationException("unsupported match type " + matchType);
+                default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];

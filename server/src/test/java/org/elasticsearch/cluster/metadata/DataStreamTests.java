@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
@@ -770,7 +769,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                             Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                                 .build()
                         )
                         .build()
@@ -789,7 +788,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                                 Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
                                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())

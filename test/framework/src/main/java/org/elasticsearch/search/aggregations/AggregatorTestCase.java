@@ -543,8 +543,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     } else {
                         Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                         subSearcher.search(weight, a.asCollector());
+                        a.postCollection();
                     }
-                    a.postCollection();
                     assertEquals(shouldBeCached, context.isCacheable());
                     internalAggs.add(a.buildTopLevel());
                 } finally {

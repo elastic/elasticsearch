@@ -214,9 +214,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
         boolean changed = false;
-        if (ctx instanceof SearchExecutionContext searchExecutionContext && searchExecutionContext.getAliasFilter() != null) {
-            filterQueries.add(searchExecutionContext.getAliasFilter());
-        }
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : filterQueries) {
             QueryBuilder rewrittenQuery = query.rewrite(ctx);
@@ -252,6 +249,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryBuilder query : this.filterQueries) {
             builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
+        }
+        if (context.getAliasFilter() != null) {
+            builder.add(context.getAliasFilter().toQuery(context), BooleanClause.Occur.FILTER);
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;

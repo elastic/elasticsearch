@@ -654,11 +654,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    public void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        if (query != null) {
-            query.visit(visitor);
-        }
-        visitor.exit(this);
+    public List<QueryBuilder> getChildren() {
+        return List.of(query);
     }
 }

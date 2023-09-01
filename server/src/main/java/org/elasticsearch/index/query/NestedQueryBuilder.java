@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -443,11 +444,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     @Override
-    public void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        if (query != null) {
-            query.visit(visitor);
-        }
-        visitor.exit(this);
+    public List<QueryBuilder> getChildren() {
+        return List.of(query);
     }
 }

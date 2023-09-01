@@ -279,12 +279,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        for (QueryBuilder queryBuilder : clauses) {
-            queryBuilder.visit(visitor);
-        }
-        visitor.exit(this);
+    public List<QueryBuilder> getChildren() {
+        return Collections.unmodifiableList(clauses);
     }
 
     /**

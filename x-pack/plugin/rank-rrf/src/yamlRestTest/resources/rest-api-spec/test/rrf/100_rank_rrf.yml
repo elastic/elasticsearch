@@ -89,6 +89,45 @@ setup:
   - match: { hits.hits.2.fields.text.0: "other" }
 
 ---
+"Simple rank using rrf query with bm25 search and kNN search":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          knn:
+            field: vector
+            query_vector: [0.0]
+            k: 3
+            num_candidates: 3
+          query:
+            rrf:
+              queries: [
+                {
+                  term: {
+                    text: term
+                  }
+                }
+              ]
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term term" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.2.fields.text.0: "other" }
+
+---
 "Simple rank with multiple bm25 sub searches":
 
   - do:
@@ -115,6 +154,43 @@ setup:
           ]
           rank:
             rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value : 2 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+
+---
+"Simple rank using rrf query with multiple bm25 queries":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          query:
+            rrf:
+              queries: [
+                {
+                  "term": {
+                    "text": "term"
+                  }
+                },
+                {
+                  "match": {
+                    "keyword": "keyword"
+                  }
+                }
+              ]
               window_size: 100
               rank_constant: 1
           size: 10
@@ -161,6 +237,52 @@ setup:
           ]
           rank:
             rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value : 3 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._rank: 1 }
+  - match: { hits.hits.0.fields.text.0: "term" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1._rank: 2 }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2._rank: 3 }
+  - match: { hits.hits.2.fields.text.0: "other" }
+
+---
+"Simple rank using rrf query with multiple bm25 queries and a knn search":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          query:
+            rrf:
+              queries: [
+                {
+                  "term": {
+                    "text": "term"
+                  }
+                },
+                {
+                  "match": {
+                    "keyword": "keyword"
+                  }
+                }
+              ]
               window_size: 100
               rank_constant: 1
           size: 10

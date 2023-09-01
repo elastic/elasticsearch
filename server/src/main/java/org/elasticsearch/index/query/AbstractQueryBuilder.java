@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.search.builder.SearchOnlyQueryBuilder;
+import org.elasticsearch.search.rank.RankQueryBuilder;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -398,10 +398,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
                 if (categoryClass.equals(QueryBuilder.class)) {
-                    if (namedObject instanceof SearchOnlyQueryBuilder && allowed.contains(SearchOnlyQueryBuilder.class) == false) {
-                        throw new IllegalArgumentException(
-                            "[" + ((QueryBuilder) namedObject).getName() + "] query is only available as part of a search query"
-                        );
+                    if (namedObject instanceof RankQueryBuilder) {
+                        if (allowed.contains(RankQueryBuilder.class) == false) {
+                            throw new IllegalArgumentException(
+                                "[" + ((QueryBuilder) namedObject).getName() + "] query is only available as part of a search query"
+                            );
+                        } else if (nestedDepth > 1) {
+                            throw new IllegalArgumentException(
+                                "[" + ((QueryBuilder) namedObject).getName() + "] query is not allowed as child query"
+                            );
+                        }
                     }
 
                     queryNameConsumer.accept(name);
@@ -417,10 +423,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses an inner query. To be called by query implementations that support inner queries.
      */
     protected static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return parseInnerQueryBuilder(parser, null);
-    }
-
-    protected static QueryBuilder parseInnerQueryBuilder(XContentParser parser, Object context) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");

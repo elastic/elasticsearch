@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -411,20 +412,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        for (QueryBuilder queryBuilder : mustClauses) {
-            queryBuilder.visit(visitor);
-        }
-        for (QueryBuilder queryBuilder : mustNotClauses) {
-            queryBuilder.visit(visitor);
-        }
-        for (QueryBuilder queryBuilder : filterClauses) {
-            queryBuilder.visit(visitor);
-        }
-        for (QueryBuilder queryBuilder : shouldClauses) {
-            queryBuilder.visit(visitor);
-        }
-        visitor.exit(this);
+    public List<QueryBuilder> getChildren() {
+        List<QueryBuilder> queries = new ArrayList<>();
+        queries.addAll(mustClauses);
+        queries.addAll(mustNotClauses);
+        queries.addAll(filterClauses);
+        queries.addAll(shouldClauses);
+        return Collections.unmodifiableList(queries);
     }
 }

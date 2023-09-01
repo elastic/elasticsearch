@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -192,11 +193,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    public void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        if (multiTermQueryBuilder != null) {
-            multiTermQueryBuilder.visit(visitor);
-        }
-        visitor.exit(this);
+    public List<QueryBuilder> getChildren() {
+        return List.of(multiTermQueryBuilder);
     }
 }

@@ -13,8 +13,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.List;
 
 public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
@@ -70,51 +69,9 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     }
 
     /**
-     * Walks the query tree calling the consumer once per node.
-     * Defaults to calling the query builder as a leaf in the tree.
-     * Override to correctly walk the children of non-leaves.
+     * Returns a list of child query builders or an empty list if there aren't any.
      */
-    default void visit(Visitor<?> visitor) {
-        visitor.enter(this);
-        visitor.exit(this);
-    }
-
-    /**
-     * Callback mechanism for visiting each query builder in a query builder tree.
-     */
-    class Visitor<V extends Visitor<V>> {
-
-        private final Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> enterConsumers;
-        private final Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> exitConsumers;
-
-        public Visitor(
-            Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> enterConsumers,
-            Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> exitConsumers
-        ) {
-            this.enterConsumers = enterConsumers;
-            this.exitConsumers = exitConsumers;
-        }
-
-        /**
-         * Visits an individual query builder from top-down.
-         */
-        @SuppressWarnings("unchecked")
-        public void enter(QueryBuilder queryBuilder) {
-            BiConsumer<QueryBuilder, V> callback = enterConsumers.get(queryBuilder.getClass());
-            if (callback != null) {
-                callback.accept(queryBuilder, (V) this);
-            }
-        }
-
-        /**
-         * Visits an individual query builder bottom-up.
-         */
-        @SuppressWarnings("unchecked")
-        public void exit(QueryBuilder queryBuilder) {
-            BiConsumer<QueryBuilder, V> callback = exitConsumers.get(queryBuilder.getClass());
-            if (callback != null) {
-                callback.accept(queryBuilder, (V) this);
-            }
-        }
+    default List<QueryBuilder> getChildren() {
+        return List.of();
     }
 }

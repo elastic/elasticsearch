@@ -17,7 +17,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.builder.SearchOnlyQueryBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -32,7 +34,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> implements SearchOnlyQueryBuilder {
+public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> implements RankQueryBuilder {
 
     public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
     public static final int DEFAULT_RANK_CONSTANT = 60;
@@ -112,12 +114,22 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> imple
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        throw new UnsupportedOperationException("invalid use of [rrf] query");
+        List<QueryBuilder> rewritten = new ArrayList<>();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            rewritten.add(queryBuilder.rewrite(queryRewriteContext));
+        }
+        return rewritten.equals(queryBuilders) ? this : new RRFQueryBuilder(windowSize, rankConstant, rewritten);
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        throw new UnsupportedOperationException("invalid use of [rrf] query");
+        throw new IllegalArgumentException("[" + getName() + "] query cannot be used in the current context");
+        /*BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+        for (QueryBuilder queryBuilder : queryBuilders) {
+            Query query = queryBuilder.toQuery(context);
+            booleanQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
+        }
+        return booleanQueryBuilder.build();*/
     }
 
     public int getWindowSize() {
@@ -139,11 +151,12 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> imple
     }
 
     @Override
-    public void visit(Visitor visitor) {
-        enter(visitor);
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            queryBuilder.visit(visitor);
-        }
-        exit(visitor);
+    public List<QueryBuilder> getChildren() {
+        return Collections.unmodifiableList(queryBuilders);
+    }
+
+    @Override
+    public RankBuilder getRankBuilder() {
+        return new RRFRankBuilder(windowSize, rankConstant);
     }
 }

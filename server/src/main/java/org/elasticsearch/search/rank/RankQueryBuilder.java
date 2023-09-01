@@ -6,12 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.builder;
+package org.elasticsearch.search.rank;
 
-/**
- * Marker interface used to determine if a query
- * is only allowed as a search query.
- */
-public interface SearchOnlyQueryBuilder {
+public interface RankQueryBuilder {
 
+    RankBuilder getRankBuilder();
 }

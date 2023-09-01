@@ -39,7 +39,7 @@ public final class RepositoriesMeteringResponse extends BaseNodesResponse<Reposi
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<RepositoriesNodeMeteringResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -19,6 +19,7 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRDiagramToSVG;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
@@ -40,9 +41,9 @@ public class RailRoadDiagram {
      * on whatever fonts you have installed. And, since the world can't agree
      * on fonts, that'd be chaos. So, instead, we load Roboto Mono.
      */
-    private static final Font FONT = loadFont().deriveFont(20.0F);
+    private static final LazyInitializable<Font, IOException> FONT = new LazyInitializable<>(() -> loadFont().deriveFont(20.0F));
 
-    static String functionSignature(FunctionDefinition definition) {
+    static String functionSignature(FunctionDefinition definition) throws IOException {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
@@ -68,12 +69,12 @@ public class RailRoadDiagram {
 
         RRDiagramToSVG toSvg = new RRDiagramToSVG();
         toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
-        toSvg.setSpecialSequenceFont(FONT);
+        toSvg.setSpecialSequenceFont(FONT.getOrCompute());
 
         toSvg.setLiteralFillColor(toSvg.getSpecialSequenceFillColor());
-        toSvg.setLiteralFont(FONT);
+        toSvg.setLiteralFont(FONT.getOrCompute());
 
-        toSvg.setRuleFont(FONT);
+        toSvg.setRuleFont(FONT.getOrCompute());
         /*
          * "Tighten" the styles in the SVG so they beat the styles sitting in the
          * main page. We need this because we're embedding the SVG into the page.
@@ -143,7 +144,7 @@ public class RailRoadDiagram {
         }
     }
 
-    private static Font loadFont() {
+    private static Font loadFont() throws IOException {
         try {
             InputStream woff = RailRoadDiagram.class.getClassLoader()
                 .getResourceAsStream("META-INF/resources/webjars/fontsource__roboto-mono/4.5.7/files/roboto-mono-latin-400-normal.woff");
@@ -152,9 +153,7 @@ public class RailRoadDiagram {
             }
             return Font.createFont(Font.TRUETYPE_FONT, new WoffConverter().convertToTTFOutputStream(woff));
         } catch (FontFormatException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new IOException(e);
         }
     }
 }

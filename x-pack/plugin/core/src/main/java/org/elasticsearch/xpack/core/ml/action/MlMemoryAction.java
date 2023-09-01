@@ -323,7 +323,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<MlMemoryStats> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

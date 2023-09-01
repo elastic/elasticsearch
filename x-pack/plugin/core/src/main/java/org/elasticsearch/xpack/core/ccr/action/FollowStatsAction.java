@@ -70,7 +70,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(statsResponse);
+            out.writeCollection(statsResponse);
         }
 
         @Override

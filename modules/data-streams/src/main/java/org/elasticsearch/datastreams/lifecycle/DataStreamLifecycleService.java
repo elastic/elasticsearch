@@ -509,7 +509,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, downsampleIndexName, null, round.config());
         transportActionsDeduplicator.executeOnce(
             request,
-            new ErrorRecordingActionListener(sourceIndex, errorStore),
+            new ErrorRecordingActionListener(
+                sourceIndex,
+                errorStore,
+                Strings.format(
+                    "Data stream lifecycle encountered an error trying to downsample index [%s]. Data stream lifecycle will "
+                        + "attempt to downsample the index on its next run.",
+                    sourceIndex
+                )
+            ),
             (req, reqListener) -> downsampleIndex(request, reqListener)
         );
     }
@@ -594,7 +602,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
             new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, null),
-            new ErrorRecordingActionListener(backingIndexName, errorStore),
+            new ErrorRecordingActionListener(
+                backingIndexName,
+                errorStore,
+                Strings.format(
+                    "Data stream lifecycle encountered an error trying to replace index [%s] with index [%s] in data stream [%s]",
+                    backingIndexName,
+                    downsampleIndexName,
+                    dataStream
+                )
+            ),
             (req, reqListener) -> {
                 logger.trace(
                     "Data stream lifecycle issues request to replace index [{}] with index [{}] in data stream [{}]",
@@ -618,7 +635,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
             deleteIndexRequest,
-            new ErrorRecordingActionListener(indexName, errorStore),
+            new ErrorRecordingActionListener(
+                indexName,
+                errorStore,
+                Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName)
+            ),
             (req, reqListener) -> deleteIndex(deleteIndexRequest, reason, reqListener)
         );
     }
@@ -630,7 +651,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
-            new ErrorRecordingActionListener(indexName, errorStore),
+            new ErrorRecordingActionListener(
+                indexName,
+                errorStore,
+                Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName)
+            ),
             (req, reqListener) -> addIndexBlock(addIndexBlockRequest, reqListener)
         );
     }
@@ -678,7 +703,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
-                new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
+                new ErrorRecordingActionListener(
+                    writeIndex.getName(),
+                    errorStore,
+                    Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", dataStream.getName())
+                ),
                 (req, reqListener) -> rolloverDataStream(writeIndex.getName(), rolloverRequest, reqListener)
             );
         }
@@ -746,7 +775,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 affectedIndices.add(index);
                 transportActionsDeduplicator.executeOnce(
                     updateMergePolicySettingsRequest,
-                    new ErrorRecordingActionListener(indexName, errorStore),
+                    new ErrorRecordingActionListener(
+                        indexName,
+                        errorStore,
+                        Strings.format(
+                            "Data stream lifecycle encountered an error trying to to update settings [%s] for index [%s]",
+                            updateMergePolicySettingsRequest.settings().keySet(),
+                            indexName
+                        )
+                    ),
                     (req, reqListener) -> updateIndexSetting(updateMergePolicySettingsRequest, reqListener)
                 );
             } else {
@@ -755,7 +792,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // time to force merge the index
                 transportActionsDeduplicator.executeOnce(
                     new ForceMergeRequestWrapper(forceMergeRequest),
-                    new ErrorRecordingActionListener(indexName, errorStore),
+                    new ErrorRecordingActionListener(
+                        indexName,
+                        errorStore,
+                        Strings.format(
+                            "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will "
+                                + "attempt to force merge the index on its next run.",
+                            indexName
+                        )
+                    ),
                     (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
                 );
             }
@@ -791,10 +836,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(
-                    () -> Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", rolloverTarget),
-                    e
-                );
                 DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
@@ -880,10 +921,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                                 + "read-only block to index [{}], but the response didn't contain an explicit result for the index.",
                             targetIndex
                         );
-                        logger.error(
-                            "Data stream lifecycle service request to mark index [{}] as readonly was not acknowledged",
-                            targetIndex
-                        );
                         listener.onFailure(
                             new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
                         );
@@ -911,10 +948,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             listener.onFailure(new ElasticsearchException(errorMessage));
                         }
                     } else {
-                        logger.error(
-                            "Data stream lifecycle service request to mark index [{}] as readonly was not acknowledged",
-                            targetIndex
-                        );
                         listener.onFailure(
                             new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
                         );
@@ -972,11 +1005,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             + "the next data stream lifecycle run",
                         targetIndex
                     );
-                } else {
-                    logger.error(
-                        () -> Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", targetIndex),
-                        e
-                    );
                 }
                 listener.onFailure(e);
             }
@@ -997,20 +1025,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                String previousError = errorStore.getError(sourceIndex);
-
                 listener.onFailure(e);
-                // To avoid spamming our logs, we only want to log the error once.
-                if (previousError == null || previousError.equals(errorStore.getError(sourceIndex)) == false) {
-                    logger.error(
-                        () -> Strings.format(
-                            "Data stream lifecycle encountered an error trying to downsample index [%s]. Data stream lifecycle will "
-                                + "attempt to downsample the index on its next run.",
-                            sourceIndex
-                        ),
-                        e
-                    );
-                }
             }
         });
     }
@@ -1054,23 +1069,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                String previousError = errorStore.getError(targetIndex);
-                /*
-                 * Note that this call to onFailure has to happen before the logging because we choose whether to log or not based on a
-                 * side effect of the onFailure call (it updates the error in the errorStore).
-                 */
                 listener.onFailure(e);
-                // To avoid spamming our logs, we only want to log the error once.
-                if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
-                    logger.warn(
-                        () -> Strings.format(
-                            "Data stream lifecycle encountered an error trying to force merge index [%s]. Data stream lifecycle will "
-                                + "attempt to force merge the index on its next run.",
-                            targetIndex
-                        ),
-                        e
-                    );
-                }
             }
         });
     }
@@ -1113,10 +1112,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     static class ErrorRecordingActionListener implements ActionListener<Void> {
         private final String targetIndex;
         private final DataStreamLifecycleErrorStore errorStore;
+        private final String errorLogMessage;
 
-        ErrorRecordingActionListener(String targetIndex, DataStreamLifecycleErrorStore errorStore) {
+        ErrorRecordingActionListener(String targetIndex, DataStreamLifecycleErrorStore errorStore, String errorLogMessage) {
             this.targetIndex = targetIndex;
             this.errorStore = errorStore;
+            this.errorLogMessage = errorLogMessage;
         }
 
         @Override
@@ -1126,7 +1127,21 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
         @Override
         public void onFailure(Exception e) {
-            errorStore.recordError(targetIndex, e);
+            recordAndLogError(targetIndex, errorStore, e, errorLogMessage);
+        }
+    }
+
+    /**
+     * Records the provided error for the index in the error store and logs the error message at `ERROR` level if the error for the index
+     * is different to what's already in the error store.
+     * This allows us to not spam the logs and only log new errors when we're about to record them in the store.
+     */
+    static void recordAndLogError(String targetIndex, DataStreamLifecycleErrorStore errorStore, Exception e, String logMessage) {
+        String previousError = errorStore.recordError(targetIndex, e);
+        if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
+            logger.error(logMessage, e);
+        } else {
+            logger.trace(logMessage, e);
         }
     }
 

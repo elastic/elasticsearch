@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -45,7 +44,7 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

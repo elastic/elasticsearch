@@ -114,8 +114,8 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
                 return new GroupByMappingHash(indices, indexMappingHash, responseMap);
             })
             .toList();
-        output.writeList(ungroupedResponses);
-        output.writeList(groupedResponses);
+        output.writeCollection(ungroupedResponses);
+        output.writeCollection(groupedResponses);
     }
 
     /**

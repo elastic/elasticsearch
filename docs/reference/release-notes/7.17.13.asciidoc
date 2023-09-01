@@ -1,0 +1,18 @@
+[[release-notes-7.17.13]]
+== {es} version 7.17.13
+
+coming[7.17.13]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[enhancement-7.17.13]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Enhance regex performance with duplicate wildcards {es-pull}98176[#98176]
+
+Search::
+* Refactor nested field handling in `FieldFetcher` {es-pull}97683[#97683]
+
+

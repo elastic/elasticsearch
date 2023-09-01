@@ -64,8 +64,8 @@ tasks.getByName('test') {
       )
     }
     doLast {
-      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list()
-      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list()
+      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
+      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
       int count = signatures == null ? 0 : signatures.size()
       if (count == 0) {
         logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")

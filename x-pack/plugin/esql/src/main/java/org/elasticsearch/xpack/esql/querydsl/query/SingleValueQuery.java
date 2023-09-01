@@ -204,6 +204,15 @@ public class SingleValueQuery extends Query {
         Stats stats() {
             return stats;
         }
+
+        @Override
+        public void visit(Visitor<?> visitor) {
+            visitor.enter(this);
+            if (next != null) {
+                next.visit(visitor);
+            }
+            visitor.exit(this);
+        }
     }
 
     private static class LuceneQuery extends org.apache.lucene.search.Query {

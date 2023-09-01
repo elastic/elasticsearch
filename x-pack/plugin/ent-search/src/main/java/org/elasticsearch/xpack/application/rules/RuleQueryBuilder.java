@@ -288,4 +288,12 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return NAME;
     }
 
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (organicQuery != null) {
+            organicQuery.visit(visitor);
+        }
+        visitor.exit(this);
+    }
 }

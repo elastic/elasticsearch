@@ -356,6 +356,15 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         );
     }
 
+    @Override
+    public void visit(Visitor<?> visitor) {
+        visitor.enter(this);
+        if (query != null) {
+            query.visit(visitor);
+        }
+        visitor.exit(this);
+    }
+
     /**
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}

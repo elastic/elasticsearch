@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
@@ -85,8 +84,16 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
      */
     class Visitor<V extends Visitor<V>> {
 
-        Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> enterConsumers;
-        Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> exitConsumers;
+        private final Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> enterConsumers;
+        private final Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> exitConsumers;
+
+        public Visitor(
+            Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> enterConsumers,
+            Map<Class<? extends QueryBuilder>, BiConsumer<QueryBuilder, V>> exitConsumers
+        ) {
+            this.enterConsumers = enterConsumers;
+            this.exitConsumers = exitConsumers;
+        }
 
         /**
          * Visits an individual query builder from top-down.
@@ -95,7 +102,7 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
         public void enter(QueryBuilder queryBuilder) {
             BiConsumer<QueryBuilder, V> callback = enterConsumers.get(queryBuilder.getClass());
             if (callback != null) {
-                callback.accept(queryBuilder, (V)this);
+                callback.accept(queryBuilder, (V) this);
             }
         }
 
@@ -106,7 +113,7 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
         public void exit(QueryBuilder queryBuilder) {
             BiConsumer<QueryBuilder, V> callback = exitConsumers.get(queryBuilder.getClass());
             if (callback != null) {
-                callback.accept(queryBuilder, (V)this);
+                callback.accept(queryBuilder, (V) this);
             }
         }
     }

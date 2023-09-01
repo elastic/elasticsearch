@@ -45,19 +45,16 @@ public class RRFQueryBuilder extends AbstractQueryBuilder<RRFQueryBuilder> imple
     private final int rankConstant;
     private final List<QueryBuilder> queryBuilders;
 
-    static final ConstructingObjectParser<RRFQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        RRFRankPlugin.NAME,
-        args -> {
-            int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
-            int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
-            if (rankConstant < 1) {
-                throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
-            }
-            @SuppressWarnings("unchecked")
-            List<QueryBuilder> queryBuilders = (List<QueryBuilder>) args[2];
-            return new RRFQueryBuilder(windowSize, rankConstant, queryBuilders);
+    static final ConstructingObjectParser<RRFQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
+        int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
+        int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
+        if (rankConstant < 1) {
+            throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
         }
-    );
+        @SuppressWarnings("unchecked")
+        List<QueryBuilder> queryBuilders = (List<QueryBuilder>) args[2];
+        return new RRFQueryBuilder(windowSize, rankConstant, queryBuilders);
+    });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);

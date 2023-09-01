@@ -392,7 +392,7 @@ c:long | languages:integer | still_hired:boolean
 ;
 
 byDateAndKeywordAndInt
-from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
+from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc, gender desc | limit 10;
 
 c:long |           d:date         | gender:keyword | languages:integer
      3 | 1986-01-01T00:00:00.000Z | M              | 2
@@ -408,7 +408,7 @@ c:long |           d:date         | gender:keyword | languages:integer
 ;
 
 byDateAndKeywordAndIntWithAlias
-from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc, g desc | limit 10;
 
 c:long |           d:date         | g:keyword | l:integer
      3 | 1986-01-01T00:00:00.000Z | M         | 2

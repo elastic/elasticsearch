@@ -59,7 +59,7 @@ if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   unset data
 fi
 
-if [[ "$USE_DRA_CREDENTIALS" == "true" ]]; then
+if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
   export DRA_VAULT_ROLE_ID_SECRET
 

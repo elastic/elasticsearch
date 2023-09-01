@@ -1485,3 +1485,10 @@ setup:
   - match: { hits.hits.3._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.3._source.k8s.pod.label: foo }
   - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - do:
+      indices.get_mapping:
+        index: test-downsample-label-ignore-above
+
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.type: keyword }
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.ignore_above: 3 }

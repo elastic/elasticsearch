@@ -36,8 +36,7 @@ BUILD_SNAPSHOT_ARG=""
 
 if [[ "$WORKFLOW" == "staging" ]]; then
   LICENSE_KEY=$(mktemp -d)/license.key
-  # Intentionally leaving this secret here instead of a hook
-  # Since it's getting redirected straight to a file, it's probably even safer to just leave it here rather than stick it in an env var for a short period of time
+  # Notice that only the public key is being read here, which isn't really secret
   vault read -field pubkey secret/ci/elastic-elasticsearch/migrated/license | base64 --decode > "$LICENSE_KEY"
   LICENSE_KEY_ARG="-Dlicense.key=$LICENSE_KEY"
 

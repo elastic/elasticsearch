@@ -138,7 +138,7 @@ class MutableSearchResponse {
         this.finalResponse = response;
         this.isPartial = isPartialResponse(response);
         this.frozen = State.FROZEN_NORMAL;
-        System.err.println("JJJ MSR.updateFinalResponse: f->FROZEN_NORMAL");
+        logger.warn("JJJ MSR.updateFinalResponse: f->FROZEN_NORMAL");
         try {
             throw new RuntimeException("JJJ");
         } catch (RuntimeException e) {
@@ -161,9 +161,9 @@ class MutableSearchResponse {
         /// MP TODO --- start
         Throwable cancelledExc = ExceptionsHelper.unwrap(exc, TaskCancelledException.class);
         if (cancelledExc != null) {  /// MP TODO: not really sure I need this check
-            System.err.println(" .>> !!! cancelledException in MSR.updateWithFailure: " + cancelledExc.getMessage());
+            logger.warn(" .>> !!! cancelledException in MSR.updateWithFailure: " + cancelledExc.getMessage());
             this.frozen = State.FROZEN_RETURN_EARLY;
-            System.err.println("JJJ MSR.updateWithFailure/then: f->FROZEN_RETURN_EARLY");
+            logger.warn("JJJ MSR.updateWithFailure/then: f->FROZEN_RETURN_EARLY");
             try {
                 throw new RuntimeException("JJJ");
             } catch (RuntimeException e) {
@@ -173,7 +173,7 @@ class MutableSearchResponse {
         } else {
             failIfFrozen();
             this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
-            System.err.println("JJJ MSR.updateWithFailure/else: f->" + frozen);
+            logger.warn("JJJ MSR.updateWithFailure/else: f->" + frozen);
             try {
                 throw new RuntimeException("JJJ");
             } catch (RuntimeException e) {
@@ -189,7 +189,7 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.failure = exc;
         if (failImmediately && clusters != null) {
-            System.err.println("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
+            logger.warn("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
             clusters.notifySearchCancelled();
         }
     }

@@ -915,8 +915,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                System.err.println(clusters);
-                System.err.println(clusters.toExtendedString());
+                logger.warn(clusters);
+                logger.warn(clusters.toExtendedString());
+                assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get().getCause();
@@ -964,9 +965,12 @@ public class TransportSearchActionTests extends ESTestCase {
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch)
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
+
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                System.err.println(clusters.toString());
-                System.err.println(clusters.toExtendedString());
+                logger.warn(clusters.toString());
+                logger.warn(clusters.toExtendedString());
+                assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));

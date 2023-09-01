@@ -278,7 +278,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
         boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
-        System.err.println("skipUnavailable: " + skipUnavailable);
+        logger.warn("skipUnavailable: " + skipUnavailable);
 
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);

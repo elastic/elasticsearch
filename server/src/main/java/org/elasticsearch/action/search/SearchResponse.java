@@ -698,7 +698,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 do {
                     retry = false;
                     Cluster curr = clusterRef.get();
-                    System.err.println(
+                    logger.warn(
                         "Clusters.notifySearchCancelled: cluster '" + curr.getClusterAlias() + "' status BEFORE: " + curr.getStatus()
                     );
                     if (curr.getStatus() == Cluster.Status.RUNNING) {
@@ -724,7 +724,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                         );
                     }
                 } while (retry);
-                System.err.println("Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
+                logger.warn("Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
             }
         }
 

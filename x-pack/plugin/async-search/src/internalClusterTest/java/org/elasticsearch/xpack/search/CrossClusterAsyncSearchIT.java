@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
@@ -663,8 +664,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
-            System.err.println(clusters);
-            System.err.println(clusters.toExtendedString());
+            logger.warn(clusters);
+            logger.warn(clusters.toExtendedString());
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
             assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
@@ -676,10 +677,18 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
                 assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
             }
+            // can be 0 or 1 depending on if it was cancelled before finishing
+            int numSuccessfulClusters = clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL);
+            assertThat(numSuccessfulClusters, lessThanOrEqualTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertNotNull(localClusterSearchInfo);
-            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            if (numSuccessfulClusters == 1) {
+                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            } else {
+                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.CANCELLED));
+            }
             assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
             assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
             assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));

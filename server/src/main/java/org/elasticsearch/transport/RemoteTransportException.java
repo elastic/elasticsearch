@@ -29,7 +29,7 @@ public class RemoteTransportException extends ActionTransportException implement
     }
 
     /**
-     * TODO: DOCUMENT ME
+     * TODO DOCUMENT ME
      * @param msg
      * @param clusterAlias
      * @param fatalForCCS

@@ -8,6 +8,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.transport.RemoteTransportException;
+
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -15,14 +19,19 @@ import java.util.Objects;
  * that the search should be stopped immediately. It acts as a marker, holding the
  * underlying error. The getCause() method is guaranteed to be non-null.
  */
-public class FatalCCSException extends RuntimeException {
+public class FatalCCSException extends RemoteTransportException {
 
     private final String clusterAlias;
 
-    public FatalCCSException(String clusterAlias, Throwable cause) {
-        super(cause);
+    public FatalCCSException(String clusterAlias, Exception cause) {
+        super(cause.getMessage(), cause);
         assert cause != null : "Cause should always be set on FatalCCSException";
         this.clusterAlias = Objects.requireNonNull(clusterAlias);
+    }
+
+    public FatalCCSException(StreamInput in) throws IOException {
+        super(in); /// MP: TODO probably don't need this??
+        this.clusterAlias = null;
     }
 
     /**
@@ -32,5 +41,10 @@ public class FatalCCSException extends RuntimeException {
      */
     public String getClusterAlias() {
         return clusterAlias;
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        return this;
     }
 }

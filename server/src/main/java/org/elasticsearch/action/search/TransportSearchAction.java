@@ -1535,10 +1535,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     if (failImmediately) {
                         Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
-                        System.err.println("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
+                        logger.warn("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
                         originalListener.onFailure(new FatalCCSException(clusterAlias, exceptions.get()));
                     } else {
-                        System.err.println("JJJ maybeFinish onFailure -> regular");
+                        logger.warn("JJJ maybeFinish onFailure -> regular");
                         originalListener.onFailure(exceptions.get());
                     }
                 }

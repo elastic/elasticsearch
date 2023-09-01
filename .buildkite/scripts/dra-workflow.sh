@@ -58,6 +58,7 @@ echo --- Building release artifacts
   exportCompressedDockerImages \
   :distribution:generateDependenciesReport
 
+PATH="$PATH:${JAVA_HOME}/bin" # Required by the following script
 x-pack/plugin/sql/connectors/tableau/package.sh asm qualifier="$VERSION_SUFFIX"
 
 # we regenerate this file as part of the release manager invocation

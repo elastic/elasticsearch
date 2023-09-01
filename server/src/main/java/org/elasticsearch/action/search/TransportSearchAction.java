@@ -1491,7 +1491,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, true, e);  /// MP TODO: remove the fatal flag from
+                    exception = wrapRemoteClusterFailure(clusterAlias, true, e);
                 }
                 // TODO support minimize_roundtrips=false
                 boolean failImmediately = (skipUnavailable == false && clusters.isCcsMinimizeRoundtrips());
@@ -1523,6 +1523,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private void maybeFinish(boolean failImmediately) {
             if (countDown.countDown() || failImmediately) {
                 Exception exception = exceptions.get();
+                assert failImmediately == false || exception != null : "If 'failImmediately' is true, exception must not be null";
                 if (exception == null) {
                     FinalResponse response;
                     try {
@@ -1533,14 +1534,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     originalListener.onResponse(response);
                 } else {
-                    if (failImmediately) {
-                        Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
-                        logger.warn("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
-                        originalListener.onFailure(new FatalCCSException(clusterAlias, exceptions.get()));
-                    } else {
-                        logger.warn("JJJ maybeFinish onFailure -> regular");
-                        originalListener.onFailure(exceptions.get());
-                    }
+                    Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
+                    logger.warn("JJJ maybeFinish onFailure->FatalCCSException. TaskCancelledException?: " + (unwrap != null));
+                    originalListener.onFailure(exceptions.get());
                 }
             }
         }

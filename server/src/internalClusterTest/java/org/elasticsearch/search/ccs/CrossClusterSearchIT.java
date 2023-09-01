@@ -9,7 +9,6 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.FatalCCSException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -45,7 +44,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -310,7 +308,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         if (skipUnavailable == false && minimizeRoundtrips) {
             ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
             assertNotNull(ee.getCause());
-            assertThat(ee.getCause(), instanceOf(FatalCCSException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
             assertThat(rootCause.getMessage(), containsString("index corrupted"));
         } else {

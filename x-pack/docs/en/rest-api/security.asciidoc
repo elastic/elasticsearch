@@ -69,8 +69,8 @@ without requiring basic authentication:
 * <<security-api-update-api-key,Update REST API key>>
 * <<security-api-bulk-update-api-keys,Bulk update REST API keys>>
 
-Use the following APIs to create and update cross-cluster API keys for
-API key based remote cluster access:
+beta:[] Use the following APIs to create and update cross-cluster API keys for
+<<remote-clusters-api-key,API key based remote cluster access>>:
 
 * <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key>>
 * <<security-api-update-cross-cluster-api-key,Update Cross-Cluster API key>>

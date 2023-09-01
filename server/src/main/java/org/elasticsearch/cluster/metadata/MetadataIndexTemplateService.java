@@ -1297,7 +1297,7 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toCollection(LinkedList::new));
         // Add the actual index template's mappings, since it takes the highest precedence
         Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
-        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (template.getDataStreamTemplate() != null && isDataStreamIndex(indexName)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
             if (template.getDataStreamTemplate().isAllowCustomRouting()) {
@@ -1308,7 +1308,7 @@ public class MetadataIndexTemplateService {
         }
 
         // Only include _timestamp mapping snippet if creating backing index.
-        if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+        if (isDataStreamIndex(indexName)) {
             // Only if template has data stream definition this should be added and
             // adding this template last, since _timestamp field should have highest precedence:
             if (template.getDataStreamTemplate() != null) {
@@ -1316,6 +1316,10 @@ public class MetadataIndexTemplateService {
             }
         }
         return Collections.unmodifiableList(mappings);
+    }
+
+    private static boolean isDataStreamIndex(String indexName) {
+        return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) || indexName.startsWith(DataStream.FAILURE_STORE_PREFIX);
     }
 
     /**

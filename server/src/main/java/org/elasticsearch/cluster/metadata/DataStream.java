@@ -75,6 +75,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
@@ -805,6 +806,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return String.format(
             Locale.ROOT,
             BACKING_INDEX_PREFIX + "%s-%s-%06d",
+            dataStreamName,
+            DATE_FORMATTER.formatMillis(epochMillis),
+            generation
+        );
+    }
+
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @param epochMillis creation time for the backing index
+     * @return backing index name
+     */
+    public static String getDefaultFailureStoreName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(
+            Locale.ROOT,
+            FAILURE_STORE_PREFIX + "%s-%s-%06d",
             dataStreamName,
             DATE_FORMATTER.formatMillis(epochMillis),
             generation

@@ -109,13 +109,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         super(in);
         this.fieldName = in.readString();
         this.numCands = in.readVInt();
-        if (in.getTransportVersion().before(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_7_0) || in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_069)) {
             this.queryVector = in.readFloatArray();
         } else {
-            this.queryVector = in.readBoolean() ? in.readFloatArray() : null;
-            if (in.getTransportVersion().before(TransportVersion.V_8_500_066)) {
-                in.readBoolean(); // used for byteQueryVector, which was always null
-            }
+            in.readBoolean();
+            this.queryVector = in.readFloatArray();
+            in.readBoolean(); // used for byteQueryVector, which was always null
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             this.filterQueries.addAll(readQueries(in));
@@ -165,18 +164,13 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(numCands);
-        if (out.getTransportVersion().before(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_7_0)
+            || out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_069)) {
             out.writeFloatArray(queryVector);
         } else {
-            if (queryVector == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeFloatArray(queryVector);
-            }
-            if (out.getTransportVersion().before(TransportVersion.V_8_500_066)) {
-                out.writeBoolean(false); // used for byteQueryVector, which was always null
-            }
+            out.writeBoolean(true);
+            out.writeFloatArray(queryVector);
+            out.writeBoolean(false); // used for byteQueryVector, which was always null
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             writeQueries(out, filterQueries);

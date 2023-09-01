@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -48,6 +49,7 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
     private final long maxCredit;
     private final Consumer<Request> refresh;
     private final ThreadPool threadPool;
+    private final Executor refreshExecutor;
     private final RefreshNodeCreditManager nodeCreditManager;
     private final LongSupplier relativeTimeSupplier;
     private final long firstIntervalStartMillis;
@@ -71,6 +73,7 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
         this.nodeCreditManager = nodeCreditManager;
         this.relativeTimeSupplier = nodeCreditManager.getRelativeTimeSupplier();
         this.threadPool = threadPool;
+        this.refreshExecutor = threadPool.executor(ThreadPool.Names.REFRESH);
         this.maxCredit = maxCredit;
         credit = Math.min(maxCredit, initialCredit + 1);
         firstIntervalStartMillis = relativeTimeSupplier.getAsLong();
@@ -121,7 +124,7 @@ public class RefreshBurstableThrottler implements RefreshThrottler {
         // last refresh timestamp.
         threadPool.scheduleUnlessShuttingDown(
             TimeValue.timeValueMillis(THROTTLING_INTERVAL.millis()),
-            ThreadPool.Names.REFRESH,
+            refreshExecutor,
             this::runPendingRequests
         );
     }

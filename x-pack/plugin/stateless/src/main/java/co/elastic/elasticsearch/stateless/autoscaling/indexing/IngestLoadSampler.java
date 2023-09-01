@@ -32,6 +32,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
@@ -70,6 +71,7 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     private final Logger logger = LogManager.getLogger(IngestLoadSampler.class);
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final AverageWriteLoadSampler writeLoadSampler;
     private final IngestLoadPublisher ingestionLoadPublisher;
     private final DoubleSupplier currentIndexLoadSupplier;
@@ -107,6 +109,7 @@ public class IngestLoadSampler implements ClusterStateListener {
         this.isIndexNode = isIndexNode;
 
         this.threadPool = threadPool;
+        this.executor = threadPool.generic();
         this.writeLoadSampler = writeLoadSampler;
         this.ingestionLoadPublisher = ingestionLoadPublisher;
         this.currentIndexLoadSupplier = currentIndexLoadSupplier;
@@ -256,7 +259,7 @@ public class IngestLoadSampler implements ClusterStateListener {
                 writeLoadSampler.sample();
                 sampleIngestionLoad(nodeId);
             } finally {
-                threadPool.scheduleUnlessShuttingDown(samplingFrequency, ThreadPool.Names.GENERIC, SamplingTask.this);
+                threadPool.scheduleUnlessShuttingDown(samplingFrequency, executor, SamplingTask.this);
             }
         }
     }

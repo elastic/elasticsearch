@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler.Request;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,8 +34,8 @@ import java.util.function.LongSupplier;
 import static co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService.THROTTLING_INTERVAL;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -52,7 +53,13 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
 
     public void testGetIntervalNo() {
         var now = randomNonNegativeLong(); // Millis
-        var throttler = new RefreshBurstableThrottler(request -> {}, 1, 10, mockRefreshNodeCreditManager(() -> now), null);
+        var throttler = new RefreshBurstableThrottler(
+            request -> {},
+            1,
+            10,
+            mockRefreshNodeCreditManager(() -> now),
+            new DeterministicTaskQueue().getThreadPool()
+        );
         assertThat(throttler.getIntervalNo(now + randomLongBetween(0, 4999)), equalTo(0L));
         assertThat(throttler.getIntervalNo(now + randomLongBetween(5000, 9999)), equalTo(1L));
         assertThat(throttler.getIntervalNo(now + randomLongBetween(25000, 25999)), equalTo(5L));
@@ -122,7 +129,7 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         // There should only be one scheduled call to handle pending throttled reqeuests
         verify(threadPool, times(1)).scheduleUnlessShuttingDown(
             eq(THROTTLING_INTERVAL),
-            matches(ThreadPool.Names.REFRESH),
+            argThat((Executor e) -> true),
             executorCaptor.capture()
         );
         // Manually call the schedule Runnable
@@ -168,7 +175,7 @@ public class RefreshBurstableThrottlerTests extends ESTestCase {
         // There should only be one scheduled call to handle pending throttled requests
         verify(threadPool, times(1)).scheduleUnlessShuttingDown(
             eq(THROTTLING_INTERVAL),
-            matches(ThreadPool.Names.REFRESH),
+            argThat((Executor e) -> true),
             executorCaptor.capture()
         );
 

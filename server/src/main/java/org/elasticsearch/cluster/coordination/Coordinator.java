@@ -1060,14 +1060,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (lastAcceptedState.metadata().clusterUUIDCommitted()) {
                 metadata.clusterUUID(lastAcceptedState.metadata().clusterUUID()).clusterUUIDCommitted(true);
             }
-            ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
+            ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(
                     ClusterBlocks.builder()
                         .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
-                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()));
-            ClusterState initialState = builder.putVersionsWrapper(getLocalNode().getId(), new VersionsWrapper(TransportVersion.current()))
+                .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
+                .putVersionsWrapper(getLocalNode().getId(), new VersionsWrapper(TransportVersion.current()))
                 .metadata(metadata)
                 .build();
             applierState = initialState;

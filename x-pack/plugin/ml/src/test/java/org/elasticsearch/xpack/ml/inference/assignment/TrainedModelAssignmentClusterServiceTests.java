@@ -118,14 +118,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         String modelId = "existing-model";
         String nodeId = "ml-node-with-room";
         String startedNode = "started-ml-node-with-room";
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("testUpdateModelRoutingTable"))
+        ClusterState currentState = ClusterState.builder(new ClusterName("testUpdateModelRoutingTable"))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(buildNode(nodeId, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .add(buildNode(startedNode, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .build()
-            );
-        ClusterState currentState = builder.putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
+            )
+            .putVersionsWrapper(nodeId, new VersionsWrapper(TransportVersion.current()))
             .metadata(
                 Metadata.builder()
                     .putCustom(

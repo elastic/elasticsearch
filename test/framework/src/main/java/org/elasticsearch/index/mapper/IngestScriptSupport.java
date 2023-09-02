@@ -14,9 +14,8 @@ import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Optional;
 
-// Extracted from MapperTestCase, was marked as a protected class there (and emptyFieldScript/nonEmptyFieldScript were package-private).
-// Will changing the access levels cause any issues?
-// Is it fine to keep this class in the index package, or should it be moved somewhere else?
+// Copied from MapperTestCase
+// TODO: Is it fine to keep this class in the index package and keep the weaker access levels for it, or should it be moved somewhere else?
 public abstract class IngestScriptSupport {
     // previously a private method
     <T> T compileScript(Script script, ScriptContext<T> context) {

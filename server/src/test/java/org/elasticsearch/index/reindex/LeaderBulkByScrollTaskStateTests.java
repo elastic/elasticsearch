@@ -85,6 +85,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
                 timeValueMillis(0),
                 0,
                 null,
+                timeValueMillis(0),
                 timeValueMillis(0)
             );
             total += thisTotal;

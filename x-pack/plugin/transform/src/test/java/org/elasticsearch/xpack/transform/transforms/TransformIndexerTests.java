@@ -190,6 +190,7 @@ public class TransformIndexerTests extends ESTestCase {
                         TimeValue.ZERO,
                         0.0f,
                         null,
+                        TimeValue.ZERO,
                         TimeValue.ZERO
                     ),
                     Collections.emptyList(),

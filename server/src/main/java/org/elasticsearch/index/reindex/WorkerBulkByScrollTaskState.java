@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.round;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
@@ -66,6 +67,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * style variables but there isn't an AtomicFloat so we just use a volatile.
      */
     private volatile float requestsPerSecond;
+    private volatile float lastBatchRequestsPerMillis;
 
     /**
      * Reference to any the last delayed prepareBulkRequest call. Used during rethrottling and canceling to reschedule the request.
@@ -93,7 +95,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
             timeValueNanos(throttledNanos.get()),
             getRequestsPerSecond(),
             task.getReasonCancelled(),
-            throttledUntil()
+            throttledUntil(),
+            eta()
         );
     }
 
@@ -168,6 +171,18 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         return timeValueNanos(max(0, delayed.scheduled.getDelay(TimeUnit.NANOSECONDS)));
     }
 
+    TimeValue eta() {
+        if (lastBatchRequestsPerMillis > 0) {
+            long done = updated.get() + created.get() + deleted.get() + noops.get() + versionConflicts.get();
+            long rest = total.get() - done;
+            // `done` should be less than `total`, just in case
+            rest = rest < 0 ? 0 : rest;
+            return timeValueMillis((long) Math.floor(rest / lastBatchRequestsPerMillis));
+        } else {
+            return timeValueMillis(0);
+        }
+    }
+
     /**
      * Schedule prepareBulkRequestRunnable to run after some delay. This is where throttling plugs into reindexing so the request can be
      * rescheduled over and over again.
@@ -195,6 +210,10 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
         long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
         long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
+        this.lastBatchRequestsPerMillis = 1.0f * lastBatchSize / max(
+            1,
+            TimeUnit.NANOSECONDS.toMillis(earliestNextBatchStartTime - lastBatchStartTimeNS)
+        );
         return timeValueNanos(waitTime);
     }
 

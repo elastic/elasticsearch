@@ -377,7 +377,7 @@ public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected Number missingValue() {
-        return null;
+        return 123L;
     }
 
     @Override

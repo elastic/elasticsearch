@@ -458,7 +458,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
     }
 
-    // copied from NumberFieldTypeTests, better to take the original class out of NumberFieldTypeTests instead?
+    // Copied from NumberFieldTypeTests, better to move this into a class of its own?
     public static class OutOfRangeSpec {
 
         final NumberFieldMapper.NumberType type;

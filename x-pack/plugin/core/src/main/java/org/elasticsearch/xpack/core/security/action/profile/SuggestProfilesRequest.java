@@ -161,7 +161,7 @@ public class SuggestProfilesRequest extends ActionRequest {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(uids);
-            out.writeMapOfLists(labels, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(labels, StreamOutput::writeStringCollection);
         }
 
         private ActionRequestValidationException validate(ActionRequestValidationException validationException) {

@@ -143,7 +143,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(patterns, (out1, value) -> value.writeTo(out1));
-        out.writeMapOfLists(followedLeaderIndexUUIDs, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(followedLeaderIndexUUIDs, StreamOutput::writeStringCollection);
         out.writeMap(headers, (valOut, header) -> valOut.writeMap(header, StreamOutput::writeString));
     }
 

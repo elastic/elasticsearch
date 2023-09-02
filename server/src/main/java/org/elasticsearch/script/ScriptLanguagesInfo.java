@@ -114,7 +114,7 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(typesAllowed);
-        out.writeMap(languageContexts, StreamOutput::writeString, StreamOutput::writeStringCollection);
+        out.writeMap(languageContexts, StreamOutput::writeStringCollection);
     }
 
     @Override

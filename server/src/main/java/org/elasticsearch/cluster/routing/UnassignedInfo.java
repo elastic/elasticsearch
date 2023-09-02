@@ -329,7 +329,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        out.writeStringCollection(failedNodeIds);
         if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }

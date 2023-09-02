@@ -279,7 +279,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeMap(matchedQueries, StreamOutput::writeFloat);
         } else {
-            out.writeStringArray(matchedQueries.keySet().toArray(new String[0]));
+            out.writeStringCollection(matchedQueries.keySet());
         }
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {

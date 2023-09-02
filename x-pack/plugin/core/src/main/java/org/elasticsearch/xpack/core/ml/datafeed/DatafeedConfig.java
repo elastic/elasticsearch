@@ -529,13 +529,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
@@ -837,13 +837,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
             if (scriptFields != null) {
                 out.writeBoolean(true);
-                out.writeList(scriptFields);
+                out.writeCollection(scriptFields);
             } else {
                 out.writeBoolean(false);
             }
             out.writeOptionalVInt(scrollSize);
             out.writeOptionalWriteable(chunkingConfig);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
             out.writeOptionalWriteable(delayedDataCheckConfig);
             out.writeOptionalVInt(maxEmptySearches);
             out.writeBoolean(indicesOptions != null);

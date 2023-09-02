@@ -310,7 +310,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(actualClasses);
+            out.writeCollection(actualClasses);
             out.writeVLong(otherActualClassCount);
         }
 
@@ -406,7 +406,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(actualClass);
             out.writeVLong(actualClassDocCount);
-            out.writeList(predictedClasses);
+            out.writeCollection(predictedClasses);
             out.writeVLong(otherPredictedClassDocCount);
         }
 

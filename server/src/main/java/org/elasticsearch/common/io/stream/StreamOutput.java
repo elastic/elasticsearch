@@ -552,10 +552,7 @@ public abstract class StreamOutput extends OutputStream {
         assert false == (map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
         this.writeVInt(map.size());
-        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet()
-            .stream()
-            .sorted((a, b) -> a.getKey().compareTo(b.getKey()))
-            .iterator();
+        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
             if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
@@ -627,6 +624,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Same as {@link #writeMap(Map, Writer, Writer)} but for {@code String} keys.
+     */
+    public final <V> void writeMap(final Map<String, V> map, final Writer<V> valueWriter) throws IOException {
+        writeMap(map, StreamOutput::writeString, valueWriter);
+    }
+
+    /**
      * Writes an {@link Instant} to the stream with nanosecond resolution
      */
     public final void writeInstant(Instant instant) throws IOException {
@@ -695,7 +699,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 @SuppressWarnings("unchecked")
                 final Map<String, ?> map = (Map<String, ?>) v;
-                o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
+                o.writeMap(map, StreamOutput::writeGenericValue);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -1042,13 +1046,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of {@link Writeable} objects
-     */
-    public void writeList(List<? extends Writeable> list) throws IOException {
-        writeCollection(list);
-    }
-
-    /**
      * Writes a collection of objects via a {@link Writer}.
      *
      * @param collection the collection of objects
@@ -1107,11 +1104,8 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a list of {@link NamedWriteable} objects.
      */
-    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeVInt(list.size());
-        for (NamedWriteable obj : list) {
-            writeNamedWriteable(obj);
-        }
+    public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeNamedWriteable);
     }
 
     /**

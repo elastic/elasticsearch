@@ -1,11 +1,15 @@
 ==== {component} TLS/SSL settings
 You can configure the following TLS/SSL settings.
 
-ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
 (<<static-cluster-setting,Static>>)
-Used to enable or disable TLS/SSL on the {ssl-layer}. The default is `false`.
-endif::server[]
+Used to enable or disable TLS/SSL on the {ssl-layer}.
+ifdef::enabled-by-default[]
+The default is `true`.
+endif::enabled-by-default[]
+ifndef::enabled-by-default[]
+The default is `false`.
+endif::enabled-by-default[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
 (<<static-cluster-setting,Static>>)

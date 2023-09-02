@@ -135,11 +135,11 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(imported);
-        out.writeList(constructors);
-        out.writeList(staticMethods);
-        out.writeList(methods);
-        out.writeList(staticFields);
-        out.writeList(fields);
+        out.writeCollection(constructors);
+        out.writeCollection(staticMethods);
+        out.writeCollection(methods);
+        out.writeCollection(staticFields);
+        out.writeCollection(fields);
     }
 
     public static PainlessContextClassInfo fromXContent(XContentParser parser) {

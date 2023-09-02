@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -165,7 +166,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return tp;
     }
 

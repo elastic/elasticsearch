@@ -8,7 +8,9 @@
 
 package org.elasticsearch.qa.die_with_dignity;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
@@ -25,6 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -36,7 +40,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         .distribution(DistributionType.INTEG_TEST)
         .module("test-die-with-dignity")
         .setting("xpack.security.enabled", "false")
-        .environment("CLI_JAVA_OPTS", "-Ddie.with.dignity.test=true")
+        .jvmArg("-Ddie.with.dignity.test=true")
         .jvmArg("-XX:-ExitOnOutOfMemoryError")
         .build();
 
@@ -45,9 +49,8 @@ public class DieWithDignityIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97789")
     public void testDieWithDignity() throws Exception {
-        final long pid = cluster.getPid(0);
+        final long pid = getElasticsearchPid();
         assertJvmArgs(pid, containsString("-Ddie.with.dignity.test=true"));
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
@@ -75,11 +78,26 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertTrue(fatalErrorInThreadExiting);
     }
 
-    private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException {
+    private Process startJcmd(long pid) throws IOException {
         final String jcmdPath = PathUtils.get(System.getProperty("tests.runtime.java"), "bin/jcmd").toString();
-        final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line")
-            .redirectErrorStream(true)
-            .start();
+        return new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line").redirectErrorStream(true).start();
+    }
+
+    private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException, InterruptedException {
+        Process jcmdProcess = startJcmd(pid);
+
+        if (Constants.WINDOWS) {
+            // jcmd on windows appears to have a subtle bug where if the process being connected to
+            // dies while jcmd is running, it can hang indefinitely. Here we detect this case by
+            // waiting a fixed amount of time, and then killing/retrying the process
+            boolean exited = jcmdProcess.waitFor(10, TimeUnit.SECONDS);
+            if (exited == false) {
+                logger.warn("jcmd hung, killing process and retrying");
+                jcmdProcess.destroyForcibly();
+                jcmdProcess = startJcmd(pid);
+            }
+        }
+
         List<String> outputLines = readLines(jcmdProcess.getInputStream());
 
         String jvmArgs = null;
@@ -97,6 +115,18 @@ public class DieWithDignityIT extends ESRestTestCase {
             logger.error("jcmd output: " + String.join("\n", outputLines));
             throw ae;
         }
+    }
+
+    private long getElasticsearchPid() throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_nodes/process"));
+        @SuppressWarnings("unchecked")
+        var nodesInfo = (Map<String, Object>) entityAsMap(response).get("nodes");
+        @SuppressWarnings("unchecked")
+        var nodeInfo = (Map<String, Object>) nodesInfo.values().iterator().next();
+        @SuppressWarnings("unchecked")
+        var processInfo = (Map<String, Object>) nodeInfo.get("process");
+        Object stringPid = processInfo.get("id");
+        return Long.parseLong(stringPid.toString());
     }
 
     private List<String> readLines(InputStream is) throws IOException {

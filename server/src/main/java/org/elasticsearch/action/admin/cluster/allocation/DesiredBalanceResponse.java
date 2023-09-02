@@ -76,7 +76,6 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         }
         out.writeMap(
             routingTable,
-            StreamOutput::writeString,
             (shardsOut, shards) -> shardsOut.writeMap(
                 shards,
                 StreamOutput::writeVInt,
@@ -169,7 +168,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(current);
+            out.writeCollection(current);
             desired.writeTo(out);
         }
 
@@ -308,7 +307,7 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(nodeIds, StreamOutput::writeString);
+            out.writeStringCollection(nodeIds);
             out.writeVInt(total);
             out.writeVInt(unassigned);
             out.writeVInt(ignored);

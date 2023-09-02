@@ -335,7 +335,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableList(inferenceResults);
+            out.writeNamedWriteableCollection(inferenceResults);
             out.writeBoolean(isLicensed);
             out.writeOptionalString(id);
         }

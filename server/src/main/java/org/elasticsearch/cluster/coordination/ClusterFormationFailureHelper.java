@@ -378,13 +378,13 @@ public class ClusterFormationFailureHelper {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
-            out.writeMap(masterEligibleNodes, StreamOutput::writeString, (streamOutput, node) -> node.writeTo(streamOutput));
+            out.writeMap(masterEligibleNodes, (streamOutput, node) -> node.writeTo(streamOutput));
             out.writeLong(clusterStateVersion);
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
             lastCommittedConfiguration.writeTo(out);
-            out.writeList(resolvedAddresses);
-            out.writeList(foundPeers);
+            out.writeCollection(resolvedAddresses);
+            out.writeCollection(foundPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

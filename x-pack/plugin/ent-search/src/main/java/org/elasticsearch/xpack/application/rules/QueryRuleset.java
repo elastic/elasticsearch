@@ -133,7 +133,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeList(rules);
+        out.writeCollection(rules);
     }
 
     public String id() {

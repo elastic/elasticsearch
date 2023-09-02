@@ -744,7 +744,7 @@ public class ProfileService {
                         .schedule(
                             () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, listener),
                             backoffTimeValue,
-                            ThreadPool.Names.GENERIC
+                            client.threadPool().generic()
                         );
                 } else {
                     // Retry has depleted. This can only happen when the document or the profile index itself gets deleted

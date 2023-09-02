@@ -88,11 +88,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeMap(breakdown, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(breakdown, StreamOutput::writeLong);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
-            out.writeMap(debug, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeMap(debug, StreamOutput::writeGenericValue);
         }
-        out.writeList(children);
+        out.writeCollection(children);
     }
 
     /**

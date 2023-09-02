@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -3103,10 +3102,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
             }
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         new MatchAllDocsQuery(),
                         keywordField("term-field"),
                         longField("time")
@@ -3680,10 +3678,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 }
             }
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
-                        .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                        .accept(searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
                 }
             }
         }

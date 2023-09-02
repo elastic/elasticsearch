@@ -59,7 +59,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override
@@ -199,11 +199,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeList(snapshots);
+                out.writeCollection(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeList(queuedWatches);
+                out.writeCollection(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {

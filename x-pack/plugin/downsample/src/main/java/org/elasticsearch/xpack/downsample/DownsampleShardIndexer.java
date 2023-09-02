@@ -157,7 +157,6 @@ class DownsampleShardIndexer {
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(initialStateQuery, bucketCollector);
-            bucketCollector.postCollection();
         }
 
         logger.info(

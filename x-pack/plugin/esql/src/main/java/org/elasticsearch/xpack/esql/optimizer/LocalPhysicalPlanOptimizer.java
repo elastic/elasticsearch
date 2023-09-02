@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAn
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 

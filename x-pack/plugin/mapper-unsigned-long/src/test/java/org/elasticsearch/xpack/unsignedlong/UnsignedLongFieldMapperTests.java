@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.IngestScriptSupport;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -368,7 +369,10 @@ public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
 
     @Override
     protected List<NumberFieldMapperTests.OutOfRangeSpec> outOfRangeSpecs() {
-        return null;
+        return List.of(
+            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "18446744073709551616", "is out of range for an unsigned long"),
+            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("18446744073709551616"), " out of range of unsigned long")
+        );
     }
 
     @Override

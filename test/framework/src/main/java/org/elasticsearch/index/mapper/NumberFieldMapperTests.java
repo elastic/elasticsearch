@@ -465,7 +465,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         final Object value;
         final String message;
 
-        static OutOfRangeSpec of(NumberFieldMapper.NumberType t, Object v, String m) {
+        public static OutOfRangeSpec of(NumberFieldMapper.NumberType t, Object v, String m) {
             return new OutOfRangeSpec(t, v, m);
         }
 
@@ -483,5 +483,4 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
         }
     }
-
 }

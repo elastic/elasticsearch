@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -81,10 +82,10 @@ public class FilterTests extends ESTestCase {
     public void testTimestampRequestFilterNoQueryFilter() {
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > 10
-            """.formatted(OTHER_FIELD), restFilter);
+            |WHERE {} > 10
+            """, OTHER_FIELD), restFilter);
 
         var filter = filterForTransportNodes(plan);
         assertEquals(restFilter.toString(), filter.toString());
@@ -93,10 +94,10 @@ public class FilterTests extends ESTestCase {
     public void testTimestampNoRequestFilterQueryFilter() {
         var value = 10;
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s
-            """.formatted(AT_TIMESTAMP, value), null);
+            |WHERE {} > {}
+            """, AT_TIMESTAMP, value), null);
 
         var filter = filterForTransportNodes(plan);
         var expected = sv(rangeQuery(AT_TIMESTAMP).gt(value), AT_TIMESTAMP);
@@ -107,10 +108,10 @@ public class FilterTests extends ESTestCase {
         var value = 10;
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > 10
-            """.formatted(AT_TIMESTAMP, value), restFilter);
+            |WHERE {} > 10
+            """, AT_TIMESTAMP, value), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var queryFilter = sv(rangeQuery(AT_TIMESTAMP).gt(value).includeUpper(false), AT_TIMESTAMP);
@@ -123,10 +124,10 @@ public class FilterTests extends ESTestCase {
         var highValue = 100;
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s AND %s < %s
-            """.formatted(AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            |WHERE {} > {} AND {} < {}
+            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var left = sv(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
@@ -141,10 +142,10 @@ public class FilterTests extends ESTestCase {
         var highValue = 100;
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s OR %s < %s
-            """.formatted(OTHER_FIELD, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            |WHERE {} > {} OR {} < {}
+            """, OTHER_FIELD, lowValue, AT_TIMESTAMP, highValue), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var expected = restFilter;
@@ -156,10 +157,10 @@ public class FilterTests extends ESTestCase {
         var highValue = 100;
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s OR %s < %s
-            """.formatted(AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            |WHERE {} > {} OR {} < {}
+            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var left = sv(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
@@ -175,10 +176,10 @@ public class FilterTests extends ESTestCase {
         var eqValue = 1234;
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s AND %s == %s AND %s < %s
-            """.formatted(AT_TIMESTAMP, lowValue, OTHER_FIELD, eqValue, AT_TIMESTAMP, highValue), restFilter);
+            |WHERE {} > {} AND {} == {} AND {} < {}
+            """, AT_TIMESTAMP, lowValue, OTHER_FIELD, eqValue, AT_TIMESTAMP, highValue), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var left = sv(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
@@ -195,12 +196,12 @@ public class FilterTests extends ESTestCase {
 
         var restFilter = restFilter(AT_TIMESTAMP);
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |WHERE %s > %s
-            |EVAL %s = %s
-            |WHERE %s > %s
-            """.formatted(AT_TIMESTAMP, lowValue, AT_TIMESTAMP, eqValue, AT_TIMESTAMP, highValue), restFilter);
+            |WHERE {} > {}
+            |EVAL {} = {}
+            |WHERE {} > {}
+            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, eqValue, AT_TIMESTAMP, highValue), restFilter);
 
         var filter = filterForTransportNodes(plan);
         var queryFilter = sv(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
@@ -211,11 +212,11 @@ public class FilterTests extends ESTestCase {
     public void testTimestampOverridenFilterFilter() {
         var eqValue = 1234;
 
-        var plan = plan("""
+        var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
-            |EVAL %s = %s
-            |WHERE %s > %s
-            """.formatted(AT_TIMESTAMP, OTHER_FIELD, AT_TIMESTAMP, eqValue), null);
+            |EVAL {} = {}
+            |WHERE {} > {}
+            """, AT_TIMESTAMP, OTHER_FIELD, AT_TIMESTAMP, eqValue), null);
 
         var filter = filterForTransportNodes(plan);
         assertThat(filter, nullValue());

@@ -40,7 +40,7 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, (o, v) -> v.writeTo(o));
+        out.writeMap(stats, StreamOutput::writeWriteable);
     }
 
     Map<String, IndexDiskUsageStats> getStats() {

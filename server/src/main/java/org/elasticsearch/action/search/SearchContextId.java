@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -74,7 +75,7 @@ public final class SearchContextId {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
             out.writeMap(shards);
-            out.writeMap(aliasFilter, (o, v) -> v.writeTo(o));
+            out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         } catch (IOException e) {
             throw new IllegalArgumentException(e);

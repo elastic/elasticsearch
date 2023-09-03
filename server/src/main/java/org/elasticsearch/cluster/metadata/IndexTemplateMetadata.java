@@ -206,7 +206,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         settings.writeTo(out);
-        out.writeMap(mappings, (o, v) -> v.writeTo(o));
+        out.writeMap(mappings, StreamOutput::writeWriteable);
         out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }

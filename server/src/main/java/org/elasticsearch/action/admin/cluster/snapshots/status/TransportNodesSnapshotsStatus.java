@@ -210,7 +210,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (status != null) {
-                out.writeMap(status, (o, s) -> s.writeTo(o), StreamOutput::writeMap);
+                out.writeMap(status, StreamOutput::writeWriteable, StreamOutput::writeMap);
             } else {
                 out.writeVInt(0);
             }

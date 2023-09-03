@@ -9,32 +9,30 @@ package org.elasticsearch.xpack.apm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.apm.ResourceUtils.APM_TEMPLATE_VERSION_VARIABLE;
+import static org.elasticsearch.xpack.apm.ResourceUtils.loadResource;
+import static org.elasticsearch.xpack.apm.ResourceUtils.loadVersionedResourceUTF8;
 
 /**
  * Creates all index templates and ingest pipelines that are required for using Elastic APM.
@@ -46,7 +44,10 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     // version should be rolled over after upgrading. Ideally this would be done
     // automatically: https://github.com/elastic/elasticsearch/issues/96521
 
-    public static final String APM_TEMPLATE_VERSION_VARIABLE = "xpack.apm.template.version";
+    /**
+     * The version that will be assigned to all resources loaded by this registry instance, as specified in resources.yaml
+     */
+    private final int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
@@ -68,10 +69,10 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 loadResource("/resources.yaml"),
                 false
             );
-            final int version = ((Number) apmResources.get("version")).intValue();
+            version = ((Number) apmResources.get("version")).intValue();
             final List<Object> componentTemplateNames = (List<Object>) apmResources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) apmResources.get("index-templates");
-            final List<Object> ingestPipelineNames = (List<Object>) apmResources.get("ingest-pipelines");
+            final List<Object> ingestPipelineConfigs = (List<Object>) apmResources.get("ingest-pipelines");
 
             componentTemplates = componentTemplateNames.stream()
                 .map(o -> (String) o)
@@ -79,13 +80,17 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
             composableIndexTemplates = indexTemplateNames.stream()
                 .map(o -> (String) o)
                 .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
-            ingestPipelines = ingestPipelineNames.stream()
-                .map(o -> (String) o)
-                .map(name -> loadIngestPipeline(name, version))
-                .collect(Collectors.toList());
+            ingestPipelines = ingestPipelineConfigs.stream().map(o -> (Map<String, Map<String, Object>>) o).map(map -> {
+                Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
+                return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
+            }).collect(Collectors.toList());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public int getVersion() {
+        return version;
     }
 
     public void close() {
@@ -135,34 +140,16 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static IngestPipelineConfig loadIngestPipeline(String name, int version) {
-        return new IngestPipelineConfig(
+    private static IngestPipelineConfig loadIngestPipeline(String name, int version, @Nullable List<String> dependencies) {
+        if (dependencies == null) {
+            dependencies = Collections.emptyList();
+        }
+        return new ApmIngestPipelineConfig(
             name,
+            "/ingest-pipelines/" + name + ".yaml",
             version,
-            Collections.emptyList(),
-            () -> new PutPipelineRequest(
-                name,
-                new BytesArray(loadVersionedResourceUTF8("/ingest-pipelines/" + name + ".yaml", version)),
-                XContentType.YAML
-            )
+            APM_TEMPLATE_VERSION_VARIABLE,
+            dependencies
         );
-    }
-
-    private static byte[] loadVersionedResourceUTF8(String name, int version) {
-        try {
-            String content = loadResource(name);
-            content = TemplateUtils.replaceVariable(content, APM_TEMPLATE_VERSION_VARIABLE, String.valueOf(version));
-            return content.getBytes(StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static String loadResource(String name) throws IOException {
-        InputStream is = APMIndexTemplateRegistry.class.getResourceAsStream(name);
-        if (is == null) {
-            throw new IOException("Resource [" + name + "] not found in classpath.");
-        }
-        return Streams.readFully(is).utf8ToString();
     }
 }

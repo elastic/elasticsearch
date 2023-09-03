@@ -41,8 +41,15 @@ index-templates:
   - traces-apm.rum
   - traces-apm.sampled
 
+# Ingest pipeline configuration requires to manually specify pipeline dependencies
 ingest-pipelines:
-  - apm
-  - traces-apm
-  - metrics-apm
-  - metrics-apm.internal
+  - apm: {}
+  - traces-apm:
+      dependencies:
+        - apm
+  - metrics-apm:
+      dependencies:
+        - apm
+  - metrics-apm.internal:
+      dependencies:
+        - metrics-apm

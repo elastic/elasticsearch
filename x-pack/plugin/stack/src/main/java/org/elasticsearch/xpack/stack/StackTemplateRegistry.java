@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
@@ -237,8 +238,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
-        new IngestPipelineConfig("logs@json-message", "/logs-json-message-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IngestPipelineConfig(
+        new JsonIngestPipelineConfig("logs@json-message", "/logs-json-message-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new JsonIngestPipelineConfig(
             "logs-default-pipeline",
             "/logs-default-pipeline.json",
             REGISTRY_VERSION,

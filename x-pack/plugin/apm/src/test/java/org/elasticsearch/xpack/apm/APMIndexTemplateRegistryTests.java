@@ -7,7 +7,14 @@
 
 package org.elasticsearch.xpack.apm;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -21,19 +28,25 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.stack.StackTemplateRegistry;
+import org.elasticsearch.xpack.stack.StackTemplateRegistryAccessor;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +55,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -49,7 +63,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class APMIndexTemplateRegistryTests extends ESTestCase {
-    private APMIndexTemplateRegistry registry;
+    private APMIndexTemplateRegistry apmIndexTemplateRegistry;
+    private StackTemplateRegistryAccessor stackTemplateRegistryAccessor;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
@@ -59,7 +74,16 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new APMIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
+            new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY)
+        );
+        apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
     }
 
     @After
@@ -79,101 +103,209 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         });
 
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
-        registry.clusterChanged(event);
+        apmIndexTemplateRegistry.clusterChanged(event);
     }
 
-    public void testIngestPipelines() throws Exception {
+    public void testThatIndependentTemplatesAreAddedImmediatelyIfMissing() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        // Parsing of ingest pipelines is deferred until they need to be loaded.
-        // We verify the ingest pipelines through functional YAML REST tests.
-        final List<IngestPipelineConfig> pipelineConfigs = registry.getIngestPipelines();
+        AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
+
+        client.setVerifier(
+            (action, request, listener) -> verifyActions(
+                actualInstalledIndexTemplates,
+                actualInstalledComponentTemplates,
+                actualInstalledIngestPipelines,
+                action,
+                request,
+                listener
+            )
+        );
+        apmIndexTemplateRegistry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), nodes));
+
+        assertBusy(() -> assertThat(actualInstalledIngestPipelines.get(), equalTo(getIndependentPipelineConfigs().size())));
+        assertBusy(() -> assertThat(actualInstalledComponentTemplates.get(), equalTo(getIndependentComponentTemplateConfigs().size())));
+
+        // index templates should not be installed as they are dependent in component templates and ingest pipelines
+        assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
+    }
+
+    public void testIngestPipelines() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        final List<IngestPipelineConfig> pipelineConfigs = apmIndexTemplateRegistry.getIngestPipelines();
         assertThat(pipelineConfigs, is(not(empty())));
 
-        AtomicInteger putPipelineRequests = new AtomicInteger(0);
-        client.setVerifier((a, r, l) -> {
-            if (a instanceof PutPipelineAction) {
-                putPipelineRequests.incrementAndGet();
+        pipelineConfigs.forEach(ingestPipelineConfig -> {
+            AtomicInteger putPipelineRequestsLocal = new AtomicInteger(0);
+            client.setVerifier((a, r, l) -> {
+                if (r instanceof PutPipelineRequest && ingestPipelineConfig.getId().equals(((PutPipelineRequest) r).getId())) {
+                    putPipelineRequestsLocal.incrementAndGet();
+                }
+                return AcknowledgedResponse.TRUE;
+            });
+
+            apmIndexTemplateRegistry.clusterChanged(
+                createClusterChangedEvent(Map.of(), Map.of(), ingestPipelineConfig.getPipelineDependencies(), nodes)
+            );
+            try {
+                assertBusy(() -> assertThat(putPipelineRequestsLocal.get(), equalTo(1)));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
-            return AcknowledgedResponse.TRUE;
         });
-        for (int i = 0; i < 2; i++) {
-            putPipelineRequests.set(0);
-            registry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), nodes));
-            assertBusy(() -> assertThat(putPipelineRequests.get(), equalTo(pipelineConfigs.size())));
-        }
     }
 
-    // TODO test installation of ingest pipelines, componente templates, and index templates.
-    // The test needs to consider dependencies between them, as installation will be skipped
-    // until required resources are installed.
-    /*
-    public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
+    public void testComponentTemplates() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        AtomicInteger calledTimes = new AtomicInteger(0);
+        AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
 
-        client.setVerifier((action, request, listener) -> verifyActions(calledTimes, action, request, listener));
-        registry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), nodes));
-    System.out.println(registry.getComposableTemplateConfigs().size());
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
+        client.setVerifier(
+            (action, request, listener) -> verifyActions(
+                actualInstalledIndexTemplates,
+                actualInstalledComponentTemplates,
+                actualInstalledIngestPipelines,
+                action,
+                request,
+                listener
+            )
+        );
+        apmIndexTemplateRegistry.clusterChanged(
+            createClusterChangedEvent(
+                Map.of(),
+                Map.of(),
+                apmIndexTemplateRegistry.getIngestPipelines().stream().map(IngestPipelineConfig::getId).collect(Collectors.toList()),
+                nodes
+            )
+        );
 
-        calledTimes.set(0);
+        assertBusy(
+            () -> assertThat(
+                actualInstalledComponentTemplates.get(),
+                equalTo(apmIndexTemplateRegistry.getComponentTemplateConfigs().size())
+            )
+        );
 
-        // attempting to register the event multiple times as a race condition can yield this test flaky, namely:
-        // when calling registry.clusterChanged(newEvent) the templateCreationsInProgress state that the IndexTemplateRegistry maintains
-        // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
-        // will not be issued anymore, leaving calledTimes to 0
-        assertBusy(() -> {
-            // now delete one template from the cluster state and lets retry
-            ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), nodes);
-            registry.clusterChanged(newEvent);
-            assertThat(calledTimes.get(), greaterThan(1));
-        });
+        // ingest pipelines should not have been installed as we used a cluster state that includes them already
+        assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
+        // index templates should not be installed as they are dependent in component templates and ingest pipelines
+        assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
     }
-    */
 
-    /*
-    private ActionResponse verifyPutPipelineActions(
-        AtomicInteger calledTimes,
+    public void testIndexTemplates() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
+        AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
+
+        client.setVerifier(
+            (action, request, listener) -> verifyActions(
+                actualInstalledIndexTemplates,
+                actualInstalledComponentTemplates,
+                actualInstalledIngestPipelines,
+                action,
+                request,
+                listener
+            )
+        );
+
+        // we need to add all component templates of the APM registry as well as the stack registry to ensure that all dependencies of
+        // the APM-registry index templates exist
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        apmIndexTemplateRegistry.getComponentTemplateConfigs()
+            .forEach((key, value) -> componentTemplates.put(key, apmIndexTemplateRegistry.getVersion()));
+        stackTemplateRegistryAccessor.getComponentTemplateConfigs()
+            .forEach((key, value) -> componentTemplates.put(key, apmIndexTemplateRegistry.getVersion()));
+        apmIndexTemplateRegistry.clusterChanged(
+            createClusterChangedEvent(
+                componentTemplates,
+                Map.of(),
+                apmIndexTemplateRegistry.getIngestPipelines().stream().map(IngestPipelineConfig::getId).collect(Collectors.toList()),
+                nodes
+            )
+        );
+
+        assertBusy(
+            () -> assertThat(actualInstalledIndexTemplates.get(), equalTo(apmIndexTemplateRegistry.getComposableTemplateConfigs().size()))
+        );
+
+        // ingest pipelines and component templates should not have been installed as we used a cluster state that includes them already
+        assertThat(actualInstalledComponentTemplates.get(), equalTo(0));
+        assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
+    }
+
+    private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {
+        return apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet().stream().filter(template -> {
+            Settings settings = template.getValue().template().settings();
+            return settings == null || (settings.get("index.default_pipeline") == null && settings.get("index.final_pipeline") == null);
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private List<IngestPipelineConfig> getIndependentPipelineConfigs() {
+        return apmIndexTemplateRegistry.getIngestPipelines()
+            .stream()
+            .filter(pipelineConfig -> pipelineConfig.getPipelineDependencies().isEmpty())
+            .collect(Collectors.toList());
+    }
+
+    private ActionResponse verifyActions(
+        AtomicInteger indexTemplatesCounter,
+        AtomicInteger componentTemplatesCounter,
+        AtomicInteger ingestPipelinesCounter,
         ActionType<?> action,
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        System.out.println(action);
         if (action instanceof PutComponentTemplateAction) {
+            componentTemplatesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutComposableIndexTemplateAction) {
-            //calledTimes.incrementAndGet();
-            //assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
-            //assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            //final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
-            //assertThat(putRequest.indexTemplate().version(), equalTo((long) APMIndexTemplateRegistry.INDEX_TEMPLATE_VERSION));
-            //assertNotNull(listener);
+            indexTemplatesCounter.incrementAndGet();
+            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
+            final PutComposableIndexTemplateAction.Request putRequest = ((PutComposableIndexTemplateAction.Request) request);
+            assertThat(putRequest.indexTemplate().version(), equalTo((long) apmIndexTemplateRegistry.getVersion()));
+            assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-    } else if (action instanceof PutPipelineAction) {
-            calledTimes.incrementAndGet();
+        } else if (action instanceof PutPipelineAction) {
+            ingestPipelinesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
         } else {
             fail("client called with unexpected request:" + request.toString());
             return null;
         }
     }
-    */
 
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingComponentTemplates,
         Map<String, Integer> existingComposableTemplates,
         DiscoveryNodes nodes
     ) {
-        return createClusterChangedEvent(existingComponentTemplates, existingComposableTemplates, Map.of(), nodes);
+        return createClusterChangedEvent(existingComponentTemplates, existingComposableTemplates, Collections.emptyList(), nodes);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingComponentTemplates,
         Map<String, Integer> existingComposableTemplates,
+        List<String> ingestPipelines,
+        DiscoveryNodes nodes
+    ) {
+        return createClusterChangedEvent(existingComponentTemplates, existingComposableTemplates, ingestPipelines, Map.of(), nodes);
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingComponentTemplates,
+        Map<String, Integer> existingComposableTemplates,
+        List<String> ingestPipelines,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
@@ -181,6 +313,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             Settings.EMPTY,
             existingComponentTemplates,
             existingComposableTemplates,
+            ingestPipelines,
             existingPolicies,
             nodes
         );
@@ -199,6 +332,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, Integer> existingComposableTemplates,
+        List<String> ingestPipelines,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
@@ -220,6 +354,20 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Map.of(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        Map<String, PipelineConfiguration> ingestPipelineConfigurations = new HashMap<>();
+        if (ingestPipelines.isEmpty() == false) {
+            for (IngestPipelineConfig ingestPipelineConfig : apmIndexTemplateRegistry.getIngestPipelines()) {
+                if (ingestPipelines.contains(ingestPipelineConfig.getId())) {
+                    // we cannot mock PipelineConfiguration as it is a final class
+                    ingestPipelineConfigurations.put(
+                        ingestPipelineConfig.getId(),
+                        new PipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.YAML)
+                    );
+                }
+            }
+        }
+        IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelineConfigurations);
+
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
@@ -227,6 +375,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                     .indexTemplates(composableTemplates)
                     .transientSettings(nodeSettings)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

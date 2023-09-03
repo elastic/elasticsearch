@@ -75,14 +75,14 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 "custom-plugin-default_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-default_pipeline.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 Collections.singletonList("custom-plugin-final_pipeline")
             ),
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 "custom-plugin-final_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-final_pipeline.json",
                 REGISTRY_VERSION,

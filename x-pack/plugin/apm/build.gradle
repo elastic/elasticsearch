@@ -17,6 +17,7 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')

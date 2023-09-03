@@ -1,0 +1,5 @@
+pr: 97726
+summary: Wire `QueryPhaseCollectorManager` into the query phase
+area: Search
+type: enhancement
+issues: []

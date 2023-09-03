@@ -101,9 +101,8 @@ cluster. You can also use the `found-snapshots` repository for your own
 
 The `found-snapshots` repository is specific to each deployment. However, you
 can restore snapshots from another deployment's `found-snapshots` repository if
-the deployments are under the same account and in the same region. See
-{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
-clusters].
+the deployments are under the same account and in the same region. See the Cloud
+{cloud}/ec-snapshot-restore.html[Snapshot and restore] documentation to learn more.
 
 {ess} deployments also support the following repository types:
 

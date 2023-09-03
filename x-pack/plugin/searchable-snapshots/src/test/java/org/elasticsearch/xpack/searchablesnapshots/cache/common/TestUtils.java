@@ -12,6 +12,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -155,6 +156,14 @@ public final class TestUtils {
                 }
             };
         }
+    }
+
+    public static ByteSizeValue pageAligned(ByteSizeValue val) {
+        final long remainder = val.getBytes() % SharedBytes.PAGE_SIZE;
+        if (remainder != 0L) {
+            return ByteSizeValue.ofBytes(val.getBytes() + SharedBytes.PAGE_SIZE - remainder);
+        }
+        return val;
     }
 
     private static class MostlyUnimplementedFakeBlobContainer implements BlobContainer {

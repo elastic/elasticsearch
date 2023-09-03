@@ -98,7 +98,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         var usageAction = new SqlUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             licenseState,

@@ -17,14 +17,14 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
-import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AnnotatedTextHighlighter extends UnifiedHighlighter {
+public class AnnotatedTextHighlighter extends DefaultHighlighter {
 
     public static final String NAME = "annotated";
 

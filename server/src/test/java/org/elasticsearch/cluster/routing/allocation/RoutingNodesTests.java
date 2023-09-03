@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
@@ -64,8 +64,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -130,8 +130,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -190,7 +190,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -263,7 +263,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Add new index 3 shards 1 replica");
 
         metadata = Metadata.builder(clusterState.metadata())
-            .put(IndexMetadata.builder("test1").settings(indexSettings(Version.CURRENT, 3, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), 3, 1)))
             .build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
@@ -356,7 +356,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);
         final var indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas))
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas))
             .build();
         final var metadata = Metadata.builder().put(indexMetadata, true).build();
         final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
@@ -427,7 +427,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
         var indexMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putInSyncAllocationIds(0, Set.copyOf(inSync))
             .build();
 

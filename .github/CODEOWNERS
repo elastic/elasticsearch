@@ -20,5 +20,8 @@ x-pack/plugin/monitoring/src/main/java/org/elasticsearch/xpack/monitoring/Monito
 x-pack/plugin/fleet/src/main/java/org/elasticsearch/xpack/fleet @elastic/fleet
 x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet
 
+# Kibana Security
+x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
+
 # APM
 x-pack/plugin/apm @elastic/apm-server

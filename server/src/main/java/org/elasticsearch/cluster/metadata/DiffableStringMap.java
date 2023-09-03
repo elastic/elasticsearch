@@ -135,7 +135,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(deletes);
-            out.writeMap(upserts, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(upserts, StreamOutput::writeString);
         }
 
         @Override

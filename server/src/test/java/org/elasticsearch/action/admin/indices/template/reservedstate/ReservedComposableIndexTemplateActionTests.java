@@ -40,6 +40,7 @@ import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -675,7 +676,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var putIndexAction = new TransportPutComposableIndexTemplateAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             null,
             mock(ActionFilters.class),
             null
@@ -688,7 +689,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var delIndexAction = new TransportDeleteComposableIndexTemplateAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             null,
             mock(ActionFilters.class),
             null
@@ -702,7 +703,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var putComponentAction = new TransportPutComponentTemplateAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             null,
             mock(ActionFilters.class),
             null,
@@ -717,7 +718,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var delComponentAction = new TransportDeleteComponentTemplateAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             null,
             mock(ActionFilters.class),
             null
@@ -923,7 +924,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var putTemplateAction = new TransportPutComposableIndexTemplateAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             null,
             mock(ActionFilters.class),
             null

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -99,7 +101,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Needed for scaled_float
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            // Needed for wildcard fields
+            Wildcard.class
         );
     }
 
@@ -162,7 +166,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
         return tp;
     }
 

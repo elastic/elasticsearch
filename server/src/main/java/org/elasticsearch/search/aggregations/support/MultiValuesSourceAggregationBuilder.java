@@ -104,7 +104,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
+        out.writeMap(fields, StreamOutput::writeWriteable);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         innerWriteTo(out);

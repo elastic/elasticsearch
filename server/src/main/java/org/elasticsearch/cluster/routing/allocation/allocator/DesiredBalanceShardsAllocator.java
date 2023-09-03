@@ -144,7 +144,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
             }
         };
-        this.queue = new PendingListenersQueue(threadPool);
+        this.queue = new PendingListenersQueue();
         this.masterServiceTaskQueue = clusterService.createTaskQueue(
             "reconcile-desired-balance",
             Priority.URGENT,

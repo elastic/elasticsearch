@@ -73,7 +73,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(stats);
+        out.writeCollection(stats);
     }
 
     @Override

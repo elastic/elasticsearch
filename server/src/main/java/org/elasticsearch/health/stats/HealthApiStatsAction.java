@@ -94,7 +94,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public Counters getStats() {

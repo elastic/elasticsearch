@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 
+import java.util.concurrent.Executor;
+
 /**
  * Combines an ActionListenerResponseHandler with an ActionListener.runAfter action, but with an explicit type so that tests that simulate
  * reboots can release resources without invoking the listener.
@@ -21,7 +23,7 @@ import org.elasticsearch.transport.TransportResponse;
 public class CleanableResponseHandler<T extends TransportResponse> extends ActionListenerResponseHandler<T> {
     private final Runnable cleanup;
 
-    public CleanableResponseHandler(ActionListener<? super T> listener, Writeable.Reader<T> reader, String executor, Runnable cleanup) {
+    public CleanableResponseHandler(ActionListener<? super T> listener, Writeable.Reader<T> reader, Executor executor, Runnable cleanup) {
         super(ActionListener.runAfter(listener, cleanup), reader, executor);
         this.cleanup = cleanup;
     }

@@ -101,7 +101,7 @@ public final class InternalItemSetMapReduceAggregation<
         mapReducer.writeTo(out);
         out.writeOptionalWriteable(mapFinalContext);
         out.writeOptionalWriteable(mapReduceResult);
-        out.writeList(fields);
+        out.writeCollection(fields);
         out.writeBoolean(profiling);
     }
 

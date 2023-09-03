@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoBoundingBoxQueryIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
@@ -42,7 +42,7 @@ public class GeoBoundingBoxQueryLegacyGeoShapeWithDocValuesIT extends GeoBoundin
     }
 
     @Override
-    public Version randomSupportedVersion() {
-        return VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+    public IndexVersion randomSupportedVersion() {
+        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
     }
 }

@@ -41,7 +41,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -296,7 +296,12 @@ public class JoinHelper {
                                     TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
                                     new TransportResponseHandler.Empty() {
                                         @Override
-                                        public void handleResponse(TransportResponse.Empty response) {
+                                        public Executor executor(ThreadPool threadPool) {
+                                            return TransportResponseHandler.TRANSPORT_WORKER;
+                                        }
+
+                                        @Override
+                                        public void handleResponse() {
                                             pendingJoinInfo.message = PENDING_JOIN_WAITING_STATE; // only logged if state delayed
                                             pendingOutgoingJoins.remove(dedupKey);
                                             logger.debug("successfully joined {} with {}", destination, joinRequest);
@@ -353,7 +358,12 @@ public class JoinHelper {
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
             @Override
-            public void handleResponse(TransportResponse.Empty response) {
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
+            @Override
+            public void handleResponse() {
                 logger.debug("successful response to {} from {}", startJoinRequest, destination);
             }
 

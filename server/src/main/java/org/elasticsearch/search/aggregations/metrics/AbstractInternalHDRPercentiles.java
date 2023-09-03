@@ -134,7 +134,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * Return the internal {@link DoubleHistogram} sketch for this metric.
      */
     public DoubleHistogram getState() {
-        return state;
+        return state == null ? EMPTY_HISTOGRAM_ZERO_DIGITS : state;
     }
 
     /**
@@ -207,7 +207,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM_ZERO_DIGITS;
+        DoubleHistogram state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

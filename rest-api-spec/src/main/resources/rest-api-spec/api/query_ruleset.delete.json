@@ -5,8 +5,7 @@
       "description": "Deletes a query ruleset."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "es.query_rules_feature_flag_enabled",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -40,6 +40,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -155,7 +156,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 } else {
                     delegate.onFailure(e);
                 }
-            }), IndicesShardStoresResponse::new)
+            }), IndicesShardStoresResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

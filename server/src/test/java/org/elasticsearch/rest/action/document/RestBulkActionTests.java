@@ -9,13 +9,13 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +48,7 @@ public class RestBulkActionTests extends ESTestCase {
         }) {
             final Map<String, String> params = new HashMap<>();
             params.put("pipeline", "timestamps");
-            new RestBulkAction(settings(Version.CURRENT).build()).handleRequest(
+            new RestBulkAction(settings(IndexVersion.current()).build()).handleRequest(
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk").withParams(params).withContent(new BytesArray("""
                     {"index":{"_id":"1"}}
                     {"field1":"val1"}

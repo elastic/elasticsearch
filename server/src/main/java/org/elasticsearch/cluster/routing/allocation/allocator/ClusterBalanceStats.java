@@ -65,8 +65,8 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(tiers, StreamOutput::writeString, StreamOutput::writeWriteable);
-        out.writeMap(nodes, StreamOutput::writeString, StreamOutput::writeWriteable);
+        out.writeMap(tiers, StreamOutput::writeWriteable);
+        out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     @Override

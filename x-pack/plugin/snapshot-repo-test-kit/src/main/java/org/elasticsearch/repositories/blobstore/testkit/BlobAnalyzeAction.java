@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -432,7 +433,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                                 );
 
                             }
-                        }, GetBlobChecksumAction.Response::new)
+                        }, GetBlobChecksumAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 }
             }
@@ -713,7 +714,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeString(blobName);
             out.writeVLong(targetLength);
             out.writeLong(seed);
-            out.writeList(nodes);
+            out.writeCollection(nodes);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
@@ -856,7 +857,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVLong(writeElapsedNanos);
             out.writeVLong(overwriteElapsedNanos);
             out.writeVLong(writeThrottledNanos);
-            out.writeList(readDetails);
+            out.writeCollection(readDetails);
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 
 import java.util.List;
 import java.util.Objects;
@@ -66,7 +67,7 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
     }
 
     public Iterable<DiscoveryNode> nodes() {
-        return () -> nodeJoinTasks.stream().map(j -> j.node).iterator();
+        return () -> Iterators.map(nodeJoinTasks.iterator(), j -> j.node);
     }
 
     public JoinTask alsoRefreshState(ClusterState latestState) {

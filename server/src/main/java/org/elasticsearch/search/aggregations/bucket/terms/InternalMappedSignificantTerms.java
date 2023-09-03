@@ -67,7 +67,7 @@ public abstract class InternalMappedSignificantTerms<
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
         out.writeNamedWriteable(significanceHeuristic);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

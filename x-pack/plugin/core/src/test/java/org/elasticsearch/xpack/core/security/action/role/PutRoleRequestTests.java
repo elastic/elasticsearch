@@ -35,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -174,7 +173,7 @@ public class PutRoleRequestTests extends ESTestCase {
             logger.info("Serializing with version {}", version);
             out.setTransportVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
@@ -191,7 +190,7 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+            TransportVersion.V_8_8_0
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -207,7 +206,7 @@ public class PutRoleRequestTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + TransportVersion.V_8_8_0
                         + "] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"

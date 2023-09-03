@@ -97,7 +97,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     /**

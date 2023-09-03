@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.core.Strings.format;
@@ -115,7 +116,11 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
                 });
             } else {
                 logger.trace("forwarding request [{}] to health node [{}]", actionName, healthNode);
-                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(listener, responseReader) {
+                ActionListenerResponseHandler<Response> handler = new ActionListenerResponseHandler<>(
+                    listener,
+                    responseReader,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
                     @Override
                     public void handleException(final TransportException exception) {
                         logger.trace(

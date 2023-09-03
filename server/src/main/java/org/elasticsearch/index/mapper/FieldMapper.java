@@ -60,9 +60,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
         "index.mapping.ignore_malformed",
         false,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
-    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
+    public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting(
+        "index.mapping.coerce",
+        false,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -152,6 +158,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * and each value is passed to the mapper for parsing.
      */
     public boolean parsesArrayValue() {
+        return false;
+    }
+
+    /**
+     * Whether this mapper can handle an object value during document parsing.
+     * When the subobjects property is set to false, and we encounter an object while
+     * parsing we need a way to understand if its fieldMapper is able to parse an object.
+     * If that's the case we can provide the entire object to the FieldMapper otherwise its
+     * name becomes the part of the dotted field name of each internal value.
+     */
+    protected boolean supportsParsingObject() {
         return false;
     }
 
@@ -285,7 +302,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
+        return multiFieldsIterator();
+    }
+
+    protected Iterator<Mapper> multiFieldsIterator() {
         return Iterators.forArray(multiFields.mappers);
+    }
+
+    /**
+     * @return a mapper iterator of all fields that use this field's source path as their source path
+     */
+    public Iterator<Mapper> sourcePathUsedBy() {
+        return multiFieldsIterator();
     }
 
     @Override
@@ -958,6 +986,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             T defaultValue,
             Class<T> enumClass
         ) {
+            return enumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass);
+        }
+
+        /**
+         * Defines a parameter that takes any of the values of an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         */
+        public static <T extends Enum<T>> Parameter<T> enumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass
+        ) {
             Set<T> acceptedValues = EnumSet.allOf(enumClass);
             return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
         }
@@ -980,10 +1027,32 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Class<T> enumClass,
             Set<T> acceptedValues
         ) {
+            return restrictedEnumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of values from an enumeration.
+         *
+         * @param name            the parameter name
+         * @param updateable      whether the parameter can be changed by a mapping update
+         * @param initializer     a function that reads the parameter value from an existing mapper
+         * @param defaultValue    a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass       the enumeration class the parameter takes values from
+         * @param acceptedValues  the set of values that the parameter can take
+         */
+        public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass,
+            Set<T> acceptedValues
+        ) {
             assert acceptedValues.size() > 0;
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            assert defaultValue != null;
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
-                    return defaultValue;
+                    return defaultValue.get();
                 }
                 EnumSet<T> enumSet = EnumSet.allOf(enumClass);
                 for (T t : enumSet) {

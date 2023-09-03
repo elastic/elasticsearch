@@ -199,7 +199,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 Version.CURRENT,
                 IndexVersion.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
-                Version.CURRENT.id
+                IndexVersion.current()
             ),
             """
                 The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
@@ -328,7 +328,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             .settings(
                                 indexSettings(1, 0).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
                                     .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
                             .build(),

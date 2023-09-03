@@ -40,7 +40,7 @@ public final class ExpressionParser {
     }
 
     static void writeExpressionList(List<RoleMapperExpression> list, StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(list);
+        out.writeNamedWriteableCollection(list);
     }
 
     /**

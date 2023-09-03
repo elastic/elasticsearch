@@ -200,6 +200,10 @@ public class TransformStats implements Writeable, ToXContentObject {
         return checkpointingInfo;
     }
 
+    public TransformHealth getHealth() {
+        return health;
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);

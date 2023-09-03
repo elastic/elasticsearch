@@ -9,12 +9,17 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -36,7 +41,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -69,7 +74,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertThat((long) executor.getTaskExecutionEWMA(), equalTo(83L));
             assertThat(executor.getTotalTaskExecutionTime(), equalTo(500L));
         });
-
+        assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }
@@ -88,7 +93,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -100,6 +105,43 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertBusy(() -> assertThat(executor.getCompletedTaskCount(), equalTo((long) taskCount)));
         assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
         assertThat(executor.getTotalTaskExecutionTime(), equalTo(0L));
+        assertThat(executor.getActiveCount(), equalTo(0));
+        assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetOngoingTasks() throws Exception {
+        var testStartTimeNanos = System.nanoTime();
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            TimedRunnable::new,
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context,
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+        );
+        var taskRunningLatch = new CountDownLatch(1);
+        var exitTaskLatch = new CountDownLatch(1);
+        assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
+        Runnable runnable = () -> {
+            taskRunningLatch.countDown();
+            safeAwait(exitTaskLatch);
+        };
+        executor.execute(runnable);
+        safeAwait(taskRunningLatch);
+        var ongoingTasks = executor.getOngoingTasks();
+        assertThat(ongoingTasks.toString(), ongoingTasks.size(), equalTo(1));
+        assertThat(ongoingTasks.values().iterator().next(), greaterThanOrEqualTo(testStartTimeNanos));
+        exitTaskLatch.countDown();
+        assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
+        assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
     }

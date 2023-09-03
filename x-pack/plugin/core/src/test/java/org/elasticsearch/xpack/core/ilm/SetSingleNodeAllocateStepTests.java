@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -95,7 +96,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionNoAttrs() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, numNodes - 1))
             .build();
@@ -118,7 +119,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsAllNodesValid() throws Exception {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }
@@ -152,7 +153,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -189,7 +190,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionWithClusterExcludeFilters() throws IOException {
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
             .numberOfShards(randomIntBetween(1, 5))
@@ -229,7 +230,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[] validAttr = new String[] { "box_type", "valid" };
         String[] invalidAttr = new String[] { "box_type", "not_valid" };
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + validAttr[0], validAttr[1]);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -259,7 +260,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsRequestFails() {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10));
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }
@@ -329,7 +330,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     public void testPerformActionAttrsNoShard() {
         final int numNodes = randomIntBetween(1, 20);
         var validAttrs = generateRandomValidAttributes(randomIntBetween(1, 10), "na_");
-        Settings.Builder indexSettings = settings(Version.CURRENT);
+        Builder indexSettings = settings(IndexVersion.current());
         for (var attr : validAttrs) {
             indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attr.getKey(), attr.getValue());
         }
@@ -374,14 +375,22 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        VersionInformation oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
+                VersionUtils.getPreviousVersion()
+            ),
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
 
         final int numberOfShards = randomIntBetween(1, 5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(oldVersion))
+            .settings(settings(oldVersion.maxIndexVersion()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(0, numNewNodes - 1))
             .build();
@@ -419,7 +428,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    oldVersion
                 )
             );
         }
@@ -436,7 +445,15 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        VersionInformation oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
+                VersionUtils.getPreviousVersion()
+            ),
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -444,7 +461,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final String attribute = "box_type";
         final String validAttr = "valid";
         final String invalidAttr = "not_valid";
-        Settings.Builder indexSettings = settings(oldVersion);
+        Settings.Builder indexSettings = settings(oldVersion.maxIndexVersion());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -491,7 +508,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    oldVersion
                 )
             );
         }
@@ -506,7 +523,15 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
-        final Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        VersionInformation oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
+                VersionUtils.getPreviousVersion()
+            ),
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
+        );
         final int numNodes = randomIntBetween(2, 20); // Need at least 2 nodes to have some nodes on a new version
         final int numNewNodes = randomIntBetween(1, numNodes - 1);
         final int numOldNodes = numNodes - numNewNodes;
@@ -514,7 +539,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final String attribute = "box_type";
         final String validAttr = "valid";
         final String invalidAttr = "not_valid";
-        Settings.Builder indexSettings = settings(oldVersion);
+        Settings.Builder indexSettings = settings(oldVersion.maxIndexVersion());
         indexSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + attribute, validAttr);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(indexSettings)
@@ -561,7 +586,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
                     Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
                     DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    new VersionInformation(oldVersion, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    oldVersion
                 )
             );
         }

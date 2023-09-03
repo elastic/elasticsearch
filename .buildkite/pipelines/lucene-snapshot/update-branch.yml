@@ -1,0 +1,9 @@
+steps:
+  - label: Update lucene-snapshot branch
+    command: .buildkite/scripts/lucene-snapshot/update-branch.sh
+    timeout_in_minutes: 15
+  - wait
+  - trigger: "elasticsearch-lucene-snapshot-tests"
+    build:
+      branch: "${BUILDKITE_BRANCH}"
+    async: true

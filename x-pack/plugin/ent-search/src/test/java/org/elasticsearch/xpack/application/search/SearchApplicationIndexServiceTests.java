@@ -69,6 +69,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateSearchApplication() throws Exception {
+        // Default case - no template specified
         final SearchApplication searchApp = new SearchApplication(
             "my_search_app",
             new String[] { "index_1" },
@@ -85,9 +86,31 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
 
-        assertThat(getSearchApp.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+        assertFalse(getSearchApp.hasStoredTemplate());
 
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
+
+        // With template specified
+        final SearchApplication searchApp2 = new SearchApplication(
+            "my_search_app2",
+            new String[] { "index_2" },
+            null,
+            System.currentTimeMillis(),
+            SearchApplicationTemplate.DEFAULT_TEMPLATE
+        );
+
+        IndexResponse resp2 = awaitPutSearchApplication(searchApp2, true);
+        assertThat(resp2.status(), equalTo(RestStatus.CREATED));
+        assertThat(resp2.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
+
+        SearchApplication getSearchApp2 = awaitGetSearchApplication(searchApp2.name());
+        assertThat(getSearchApp2, equalTo(searchApp2));
+        checkAliases(searchApp2);
+
+        assertThat(getSearchApp2.searchApplicationTemplateOrDefault(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+
+        resp2 = awaitPutSearchApplication(searchApp2, false);
+        assertThat(resp2.status(), equalTo(RestStatus.OK));
     }
 
     private void checkAliases(SearchApplication searchApp) {
@@ -130,7 +153,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
-        assertThat(searchApp.searchApplicationTemplate(), equalTo(getNewSearchApp.searchApplicationTemplate()));
+        assertThat(searchApp.searchApplicationTemplateOrDefault(), equalTo(getNewSearchApp.searchApplicationTemplateOrDefault()));
         checkAliases(searchApp);
     }
 
@@ -158,7 +181,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < NUM_INDICES; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
 
@@ -173,7 +195,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 int index = i + 5;
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + index));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + index }));
             }
         }
     }
@@ -193,22 +214,13 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         {
-            for (String queryString : new String[] {
-                "*my_search_app_4*",
-                "name:my_search_app_4",
-                "my_search_app_4",
-                "*_4",
-                "indices:index_4",
-                "index_4",
-                "*_4" }) {
-
+            for (String queryString : new String[] { "*my_search_app_4*", "name:my_search_app_4", "my_search_app_4", "*_4", "*_4" }) {
                 SearchApplicationIndexService.SearchApplicationResult searchResponse = awaitListSearchApplication(queryString, 0, 10);
                 final List<SearchApplicationListItem> apps = searchResponse.items();
                 assertNotNull(apps);
                 assertThat(apps.size(), equalTo(1));
                 assertThat(searchResponse.totalResults(), equalTo(1L));
                 assertThat(apps.get(0).name(), equalTo("my_search_app_4"));
-                assertThat(apps.get(0).indices(), equalTo(new String[] { "index_4" }));
             }
         }
     }
@@ -246,7 +258,6 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 4; i++) {
                 SearchApplicationListItem app = apps.get(i);
                 assertThat(app.name(), equalTo("my_search_app_" + i));
-                assertThat(app.indices(), equalTo(new String[] { "index_" + i }));
             }
         }
     }

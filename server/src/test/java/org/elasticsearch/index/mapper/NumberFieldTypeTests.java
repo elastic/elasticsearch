@@ -32,7 +32,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -585,7 +584,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void doTestIndexSortRangeQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
         // Create index settings with an index sort.
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -158,7 +159,7 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC
+                threadPool.generic()
             );
             success = true;
         } catch (Exception e) {
@@ -222,6 +223,11 @@ final class TransportHandshaker {
         @Override
         public HandshakeResponse read(StreamInput in) throws IOException {
             return new HandshakeResponse(in);
+        }
+
+        @Override
+        public Executor executor(ThreadPool threadPool) {
+            return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
         @Override

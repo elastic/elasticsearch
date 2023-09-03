@@ -75,7 +75,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policyMetadatas, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(policyMetadatas, StreamOutput::writeWriteable);
         out.writeEnum(operationMode);
     }
 
@@ -145,7 +145,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(this, false, true);
     }
 
     public static class IndexLifecycleMetadataDiff implements NamedDiff<Metadata.Custom> {

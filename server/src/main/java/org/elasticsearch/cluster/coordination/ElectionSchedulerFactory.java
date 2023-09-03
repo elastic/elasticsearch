@@ -191,6 +191,11 @@ public class ElectionSchedulerFactory {
                         logger.debug("{} not starting election", this);
                     } else {
                         logger.debug("{} starting election", this);
+                        if (thisAttempt > 0 && thisAttempt % 10 == 0) {
+                            logger.info("""
+                                retrying master election after [{}] failed attempts; \
+                                election attempts are currently scheduled up to [{}ms] apart""", thisAttempt, maxDelayMillis);
+                        }
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }
@@ -218,11 +223,12 @@ public class ElectionSchedulerFactory {
 
         @Override
         public String toString() {
-            return "ElectionScheduler{attempt=" + attempt + ", " + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{attempt=" + attempt + ",isClosed=" + isClosed.get() + "," + ElectionSchedulerFactory.this + "}";
         }
 
         @Override
         public void close() {
+            logger.trace("closing {}", this);
             boolean wasNotPreviouslyClosed = isClosed.compareAndSet(false, true);
             assert wasNotPreviouslyClosed;
         }

@@ -11,12 +11,14 @@ package org.elasticsearch.test.cluster.local;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.ClusterHandle;
-import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -74,7 +76,7 @@ public class LocalClusterHandle implements ClusterHandle {
     public void stop(boolean forcibly) {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
-            execute(() -> nodes.parallelStream().forEach(n -> n.stop(forcibly)));
+            execute(() -> nodes.parallelStream().forEach(n -> stopNode(nodes.indexOf(n), forcibly)));
         } else {
             // Make sure the process is stopped, otherwise wait
             execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
@@ -94,7 +96,7 @@ public class LocalClusterHandle implements ClusterHandle {
 
     @Override
     public void close() {
-        stop(false);
+        stop(true);
 
         executor.shutdownNow();
         try {
@@ -127,14 +129,14 @@ public class LocalClusterHandle implements ClusterHandle {
     }
 
     @Override
-    public String getRemoteClusterServerEndpoint() {
+    public String getRemoteClusterServerEndpoints() {
         start();
         return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
     }
 
     @Override
     public String getRemoteClusterServerEndpoint(int index) {
-        return getRemoteClusterServerEndpoint().split(",")[index];
+        return getRemoteClusterServerEndpoints().split(",")[index];
     }
 
     @Override
@@ -160,8 +162,18 @@ public class LocalClusterHandle implements ClusterHandle {
         return nodes.get(index).getName();
     }
 
-    public void stopNode(int index) {
+    @Override
+    public long getPid(int index) {
+        return nodes.get(index).getPid();
+    }
+
+    public void stopNode(int index, boolean forcibly) {
         nodes.get(index).stop(false);
+    }
+
+    @Override
+    public InputStream getNodeLog(int index, LogType logType) {
+        return nodes.get(index).getLog(logType);
     }
 
     protected void waitUntilReady() {

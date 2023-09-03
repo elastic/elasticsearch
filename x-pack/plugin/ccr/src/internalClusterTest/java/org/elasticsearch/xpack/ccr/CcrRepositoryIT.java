@@ -550,8 +550,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final PlainActionFuture<Void> waitForRestoreInProgress = PlainActionFuture.newFuture();
         final ClusterStateListener listener = event -> {
-            RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            if (restoreInProgress != null && restoreInProgress.isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
+            if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
                     if (shardRouting.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
@@ -637,10 +636,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
             final ClusterStateListener listener = event -> {
-                RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null
-                    && restoreInProgress.isEmpty() == false
-                    && event.state().routingTable().hasIndex(followerIndex)) {
+                if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                     try {
                         final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                         // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService

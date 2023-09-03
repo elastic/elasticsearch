@@ -39,6 +39,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     private final Map<String, Entry> entries;
 
+    public static RestoreInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     /**
      * Constructs new restore metadata
      *
@@ -401,7 +405,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray("snapshots")),
-            entries.values().stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.values().iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
                 builder.field("repository", entry.snapshot().getRepository());
@@ -431,7 +435,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 builder.endArray();
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }

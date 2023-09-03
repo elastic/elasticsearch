@@ -67,7 +67,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(updated);
         out.writeStringCollection(noops);
-        out.writeMap(errorDetails, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeMap(errorDetails, StreamOutput::writeException);
     }
 
     @Override

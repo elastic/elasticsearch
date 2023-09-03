@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Update Cross-Cluster API key</titleabbrev>
 ++++
 
-Update an existing cross-cluster API Key.
+Update an existing cross-cluster API Key that is used for <<remote-clusters-api-key,API key based remote cluster>> access.
 
 
 [[security-api-update-cross-cluster-api-key-request]]

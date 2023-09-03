@@ -981,7 +981,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeMap(versionsWrappers, StreamOutput::writeString, (streamOutput, versions) -> versions.writeTo(streamOutput));
+            out.writeMap(versionsWrappers, (streamOutput, versions) -> versions.writeTo(streamOutput));
         }
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);

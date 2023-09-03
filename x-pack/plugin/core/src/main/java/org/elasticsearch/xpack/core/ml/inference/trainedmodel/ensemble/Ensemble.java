@@ -143,7 +143,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(featureNames);
-        out.writeNamedWriteableList(models);
+        out.writeNamedWriteableCollection(models);
         out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
         out.writeBoolean(classificationLabels != null);

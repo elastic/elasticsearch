@@ -114,7 +114,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             out.writeVLong(globalOrdinalsStats.buildTimeMillis);
             if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
                 out.writeBoolean(true);
-                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, StreamOutput::writeString, (out1, value) -> {
+                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
                     out1.writeVLong(value.totalBuildingTime);
                     out1.writeVLong(value.valueCount);
                 });

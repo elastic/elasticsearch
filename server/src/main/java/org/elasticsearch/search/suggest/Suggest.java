@@ -112,7 +112,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(suggestions);
+        out.writeNamedWriteableCollection(suggestions);
     }
 
     @Override

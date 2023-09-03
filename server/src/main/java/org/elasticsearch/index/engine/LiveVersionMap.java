@@ -201,6 +201,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         long getMinDeleteTimestamp() {
             return Math.min(current.minDeleteTimestamp.get(), old.minDeleteTimestamp.get());
         }
+
+        long ramBytesUsed() {
+            return current.ramBytesUsed.get() + old.ramBytesUsed.get();
+        }
     }
 
     // All deletes also go here, and delete "tombstones" are retained after refresh:
@@ -448,7 +452,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     @Override
     public long ramBytesUsed() {
-        return maps.current.ramBytesUsed.get() + maps.old.ramBytesUsed.get() + ramBytesUsedTombstones.get();
+        return maps.ramBytesUsed() + ramBytesUsedTombstones.get();
     }
 
     /**

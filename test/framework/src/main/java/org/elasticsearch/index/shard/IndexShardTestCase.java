@@ -239,7 +239,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected IndexShard newShard(
         boolean primary,
-        ShardId shardID,
+        ShardId shardId,
         Settings settings,
         EngineFactory engineFactory,
         final IndexingOperationListener... listeners

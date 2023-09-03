@@ -191,12 +191,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     /** Record that the given shard needs to write its indexing buffer. */
     protected void enqueueWriteIndexingBuffer(IndexShard shard) {
-        if (pendingWriteIndexingBufferSet.add(shard) == false) {
-            // There is already a queued task for the same shard and there is no evidence that adding another one is required since we'd
-            // need the first one to start running to know about the number of bytes still not being written.
-            return;
+        if (pendingWriteIndexingBufferSet.add(shard)) {
+            pendingWriteIndexingBufferQueue.addLast(shard);
         }
-        pendingWriteIndexingBufferQueue.addLast(shard);
+        // Else there is already a queued task for the same shard and there is no evidence that adding another one is required since we'd
+        // need the first one to start running to know about the number of bytes still not being written.
     }
 
     /**
@@ -325,15 +324,16 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
 
         public boolean tryRun() {
-            if (runLock.tryLock() == false) {
+            if (runLock.tryLock()) {
+                try {
+                    runUnlocked();
+                } finally {
+                    runLock.unlock();
+                }
+                return true;
+            } else {
                 return false;
             }
-            try {
-                runUnlocked();
-            } finally {
-                runLock.unlock();
-            }
-            return true;
         }
 
         @Override
@@ -350,7 +350,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         }
 
         private void runUnlocked() {
-            assert runLock.isHeldByCurrentThread();
+            assert runLock.isHeldByCurrentThread() : "ShardsIndicesStatusChecker#runUnlocked must always run under the run lock";
             // NOTE: even if we hit an errant exc here, our ThreadPool.scheduledWithFixedDelay will log the exception and re-invoke us
             // again, on schedule
 

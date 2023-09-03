@@ -12,6 +12,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -27,7 +29,7 @@ import java.util.Map;
  *
  * @param transportVersion
  */
-public record VersionsWrapper(TransportVersion transportVersion) implements Writeable {
+public record VersionsWrapper(TransportVersion transportVersion) implements Writeable, ToXContentFragment {
 
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
@@ -53,5 +55,19 @@ public record VersionsWrapper(TransportVersion transportVersion) implements Writ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion.writeVersion(this.transportVersion(), out);
+    }
+
+    /**
+     * Adds fields to the builder without starting an object. We expect this method to be called within an object that may
+     * already have a nodeId field.
+     * @param builder The builder for the XContent
+     * @param params Ignored here.
+     * @return The builder with fields for versions added
+     * @throws IOException if the builder can't accept what we try to add
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("transport_version", this.transportVersion().toString());
+        return builder;
     }
 }

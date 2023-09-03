@@ -1714,7 +1714,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         }
         out.writeCollection(aliases.values());
-        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(customData, StreamOutput::writeWriteable);
         out.writeMap(
             inSyncAllocationIds,
             StreamOutput::writeVInt,

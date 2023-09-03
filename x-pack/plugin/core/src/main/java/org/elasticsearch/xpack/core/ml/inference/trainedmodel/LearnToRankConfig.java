@@ -120,7 +120,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteableList(featureExtractorBuilders);
+        out.writeNamedWriteableCollection(featureExtractorBuilders);
     }
 
     @Override

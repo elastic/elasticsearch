@@ -51,7 +51,7 @@ public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(errorKind.getKindValue());
-        out.writeCollection(errors, StreamOutput::writeString);
+        out.writeStringCollection(errors);
     }
 
     /**

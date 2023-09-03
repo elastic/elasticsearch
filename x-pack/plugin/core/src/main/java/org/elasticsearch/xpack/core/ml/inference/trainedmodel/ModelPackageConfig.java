@@ -266,7 +266,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeGenericMap(inferenceConfigSource);
         out.writeGenericMap(metadata);
         out.writeOptionalString(modelType);
-        out.writeOptionalCollection(tags, StreamOutput::writeString);
+        out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
     }
 

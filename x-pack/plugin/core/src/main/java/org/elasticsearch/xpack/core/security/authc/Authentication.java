@@ -767,7 +767,7 @@ public final class Authentication implements ToXContentObject {
         (out, v) -> {
             @SuppressWarnings("unchecked")
             final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
-            out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+            out.writeCollection(roleDescriptorsBytesList);
         }
     );
 

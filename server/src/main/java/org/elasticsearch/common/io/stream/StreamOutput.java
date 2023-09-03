@@ -552,10 +552,7 @@ public abstract class StreamOutput extends OutputStream {
         assert false == (map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
         this.writeVInt(map.size());
-        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet()
-            .stream()
-            .sorted((a, b) -> a.getKey().compareTo(b.getKey()))
-            .iterator();
+        Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
             if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
@@ -578,7 +575,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes values of a map as a collection
      */
     public final <V extends Writeable> void writeMapValues(final Map<?, V> map) throws IOException {
-        writeMapValues(map, (o, v) -> v.writeTo(o));
+        writeMapValues(map, StreamOutput::writeWriteable);
     }
 
     /**
@@ -605,7 +602,7 @@ public abstract class StreamOutput extends OutputStream {
      * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
      */
     public final <K extends Writeable, V extends Writeable> void writeMap(final Map<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+        writeMap(map, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
     }
 
     /**
@@ -624,6 +621,13 @@ public abstract class StreamOutput extends OutputStream {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
         }
+    }
+
+    /**
+     * Same as {@link #writeMap(Map, Writer, Writer)} but for {@code String} keys.
+     */
+    public final <V> void writeMap(final Map<String, V> map, final Writer<V> valueWriter) throws IOException {
+        writeMap(map, StreamOutput::writeString, valueWriter);
     }
 
     /**
@@ -695,7 +699,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 @SuppressWarnings("unchecked")
                 final Map<String, ?> map = (Map<String, ?>) v;
-                o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
+                o.writeMap(map, StreamOutput::writeGenericValue);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -951,7 +955,7 @@ public abstract class StreamOutput extends OutputStream {
      * integer is first written to the stream, and then the elements of the array are written to the stream.
      */
     public <T extends Writeable> void writeArray(T[] array) throws IOException {
-        writeArray((out, value) -> value.writeTo(out), array);
+        writeArray(StreamOutput::writeWriteable, array);
     }
 
     /**
@@ -959,7 +963,7 @@ public abstract class StreamOutput extends OutputStream {
      * serialized to indicate whether the array was null or not.
      */
     public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
-        writeOptionalArray((out, value) -> value.writeTo(out), array);
+        writeOptionalArray(StreamOutput::writeWriteable, array);
     }
 
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
@@ -1038,7 +1042,7 @@ public abstract class StreamOutput extends OutputStream {
      * @throws IOException if an I/O exception occurs writing the collection
      */
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
-        writeCollection(collection, (o, v) -> v.writeTo(o));
+        writeCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
@@ -1070,7 +1074,7 @@ public abstract class StreamOutput extends OutputStream {
      * {@link StreamInput#readOptionalList(Writeable.Reader)}.
      */
     public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
-        writeOptionalCollection(collection, (o, v) -> v.writeTo(o));
+        writeOptionalCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
@@ -1100,11 +1104,8 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a list of {@link NamedWriteable} objects.
      */
-    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeVInt(list.size());
-        for (NamedWriteable obj : list) {
-            writeNamedWriteable(obj);
-        }
+    public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeNamedWriteable);
     }
 
     /**

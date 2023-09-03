@@ -88,7 +88,7 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(alias);
         out.writeVLong(time);
-        out.writeNamedWriteableList(metConditions);
+        out.writeNamedWriteableCollection(metConditions);
     }
 
     @Override

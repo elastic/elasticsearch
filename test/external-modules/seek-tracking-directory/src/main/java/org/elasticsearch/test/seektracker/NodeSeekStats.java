@@ -37,7 +37,7 @@ public class NodeSeekStats extends BaseNodeResponse implements ToXContentFragmen
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(seeks, StreamOutput::writeString, (streamOutput, list) -> streamOutput.writeCollection(list));
+        out.writeMap(seeks, StreamOutput::writeCollection);
     }
 
     @Override

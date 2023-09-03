@@ -75,7 +75,7 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policyMetadatas, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(policyMetadatas, StreamOutput::writeWriteable);
         out.writeEnum(operationMode);
     }
 

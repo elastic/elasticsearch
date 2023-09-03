@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -78,16 +79,42 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         return EvaluatorMapper.super.fold();
     }
 
-    @Evaluator
-    static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
+    @Evaluator(extraName = "Constant")
+    static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
         }
 
         try {
+            return new BytesRef(str.utf8ToString().replaceAll(regex.pattern(), newStr.utf8ToString()));
+        } catch (PatternSyntaxException ex) {
+            // let's return the original string as if there is no match
+            // we don't want to throw a runtime error
+            return str;
+        }
+    }
+
+    @Evaluator(extraName = "Passthrough")
+    static BytesRef process(BytesRef str) {
+        return str;
+    }
+
+    @Evaluator
+    static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
+        if (str == null) {
+            return null;
+        }
+
+        if (regex == null || newStr == null) {
+            return str;
+        }
+
+        try {
             return new BytesRef(str.utf8ToString().replaceAll(regex.utf8ToString(), newStr.utf8ToString()));
         } catch (PatternSyntaxException ex) {
-            throw new IllegalArgumentException("The provided regex was invalid", ex);
+            // let's return the original string as if there is no match
+            // we don't want to throw a runtime error
+            return str;
         }
     }
 
@@ -103,7 +130,7 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
@@ -111,9 +138,19 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
         Supplier<EvalOperator.ExpressionEvaluator> strEval = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> regexEval = toEvaluator.apply(regex);
         Supplier<EvalOperator.ExpressionEvaluator> newStrEval = toEvaluator.apply(newStr);
 
+        if (regex.foldable() && regex.dataType() == DataTypes.KEYWORD) {
+            try {
+                Pattern regexPattern = Pattern.compile(((BytesRef) regex.fold()).utf8ToString());
+                return () -> new ReplaceConstantEvaluator(strEval.get(), regexPattern, newStrEval.get());
+            } catch (PatternSyntaxException ex) {
+                // let's return the original string as if there is no match
+                return () -> new ReplacePassthroughEvaluator(strEval.get());
+            }
+        }
+
+        Supplier<EvalOperator.ExpressionEvaluator> regexEval = toEvaluator.apply(regex);
         return () -> new ReplaceEvaluator(strEval.get(), regexEval.get(), newStrEval.get());
     }
 }

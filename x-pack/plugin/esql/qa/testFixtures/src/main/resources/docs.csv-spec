@@ -414,8 +414,11 @@ date_string:keyword | date:date
 
 docsReplace
 //tag::replaceString[]
-ROW str = "Hello World" | EVAL str = REPLACE(str, "World", "Universe") | KEEP str;
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+| KEEP str
 // end::replaceString[]
+;
 
 //tag::replaceString-result[]
 str:keyword

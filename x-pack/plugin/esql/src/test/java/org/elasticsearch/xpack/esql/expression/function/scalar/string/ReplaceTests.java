@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,36 +20,39 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReplaceTests extends AbstractScalarFunctionTestCase {
-    public ReplaceTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public ReplaceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Replace basic test", () -> {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(new TestCaseSupplier("basic", () -> {
             String text = randomAlphaOfLength(10);
             String oldStr = text.substring(1, 2);
             String newStr = randomAlphaOfLength(5);
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TypedData(new BytesRef(oldStr), DataTypes.KEYWORD, "oldStr"),
-                    new TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(oldStr), DataTypes.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
                 ),
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
                 DataTypes.KEYWORD,
-                equalTo(new BytesRef(text.replace(oldStr, newStr)))
+                equalTo(new BytesRef(text.replaceAll(oldStr, newStr)))
             );
-        })));
+        }));
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
@@ -56,11 +60,11 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    public Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String oldStr = ((BytesRef) typedData.get(1).data()).utf8ToString();
         String newStr = ((BytesRef) typedData.get(2).data()).utf8ToString();
-        return equalTo(new BytesRef(str.replace(oldStr, newStr)));
+        return equalTo(new BytesRef(str.replaceAll(oldStr, newStr)));
     }
 
     @Override
@@ -86,8 +90,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testInvalidRegex() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> process("a tiger", "\\", "any"));
-        assertThat(ex.getMessage(), containsString("regex was invalid"));
+        assertThat(process("a tiger", "\\", "pp"), equalTo("a tiger"));
     }
 
     public void testUnicode() {
@@ -97,6 +100,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     }
 
     private String process(String str, String oldStr, String newStr) {
+        List<Object> list = Arrays.asList(new BytesRef(str), new BytesRef(oldStr), new BytesRef(newStr));
         Block result = evaluator(
             new Replace(
                 Source.EMPTY,
@@ -104,8 +108,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 field("oldStr", DataTypes.KEYWORD),
                 field("newStr", DataTypes.KEYWORD)
             )
-        ).get().eval(row(List.of(new BytesRef(str), new BytesRef(oldStr), new BytesRef(newStr))));
+        ).get().eval(row(list));
         return result == null ? null : (Objects.requireNonNull((BytesRef) toJavaObject(result, 0)).utf8ToString());
     }
-
 }

@@ -174,8 +174,8 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
         out.writeMap(aliases, StreamOutput::writeCollection);
-        out.writeMap(settings, (o, v) -> v.writeTo(o));
-        out.writeMap(defaultSettings, (o, v) -> v.writeTo(o));
+        out.writeMap(settings, StreamOutput::writeWriteable);
+        out.writeMap(defaultSettings, StreamOutput::writeWriteable);
         out.writeMap(dataStreams, StreamOutput::writeOptionalString);
     }
 

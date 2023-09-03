@@ -125,12 +125,12 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (ids.isEmpty()) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null && context.hasMappings() == false) {
             // no mappings yet
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
         return super.doRewrite(queryRewriteContext);
     }

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
-import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotShardStats implements Writeable, ToXContentObject {
 
@@ -57,7 +56,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         shardRouting.writeTo(out);
         snapshotId.writeTo(out);
         indexId.writeTo(out);
-        out.writeList(inputStats);
+        out.writeCollection(inputStats);
     }
 
     public ShardRouting getShardRouting() {
@@ -97,7 +96,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             {
                 List<CacheIndexInputStats> stats = inputStats.stream()
                     .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt))
-                    .collect(toList());
+                    .toList();
                 for (CacheIndexInputStats stat : stats) {
                     stat.toXContent(builder, params);
                 }

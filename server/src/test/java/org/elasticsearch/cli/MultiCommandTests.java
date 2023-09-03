@@ -17,8 +17,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -213,7 +213,7 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand());
         executeMain("throw", "--silent");
         assertThat(terminal.getOutput(), is(emptyString()));
-        assertThat(terminal.getErrorOutput().lines().toList(), contains("ERROR: Dummy error"));
+        assertThat(terminal.getErrorOutput().lines().collect(Collectors.joining()), containsString("ERROR: Dummy error"));
     }
 
     public void testNullErrorMessageSuppressesErrorOutput() throws Exception {

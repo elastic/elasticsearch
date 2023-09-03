@@ -225,7 +225,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         boolean isPresent = writeables != null;
         out.writeBoolean(isPresent);
         if (isPresent) {
-            out.writeList(writeables);
+            out.writeCollection(writeables);
         }
     }
 

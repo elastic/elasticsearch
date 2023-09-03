@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -345,9 +344,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeCollection(formats, StreamOutput::writeNamedWriteable);
+        out.writeNamedWriteableCollection(formats);
         out.writeCollection(keyConverters, StreamOutput::writeEnum);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override
@@ -627,8 +626,4 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
 }

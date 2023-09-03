@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -88,6 +88,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_LIMIT;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_NAME;
 import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.CIRCUIT_BREAKER_OVERHEAD;
@@ -134,9 +135,16 @@ public class CircuitBreakerTests extends ESTestCase {
         QueryClient client = new TestQueryClient();
         List<SequenceCriterion> criteria = buildCriteria(stages);
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            false,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            CIRCUIT_BREAKER
+        );
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
 
         CIRCUIT_BREAKER.startBreaking();
 
@@ -147,7 +155,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
         CIRCUIT_BREAKER.stopBreaking();
 
-        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
+        window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
     }
 
     public void testCircuitBreakerSequenceMatcher() {
@@ -161,21 +169,23 @@ public class CircuitBreakerTests extends ESTestCase {
             );
         }
 
+        boolean[] missing = booleanArrayOf(stages, false);
+
         // Break on first iteration
-        SequenceMatcher matcher1 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(10000));
+        SequenceMatcher matcher1 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, new EqlTestCircuitBreaker(10000));
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> matcher1.match(0, hits));
         assertEquals("sequence_inflight", e.getMessage());
 
         // Break on second iteration
         EqlTestCircuitBreaker breaker = new EqlTestCircuitBreaker(15000);
-        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, breaker);
+        SequenceMatcher matcher2 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, breaker);
         matcher2.match(0, hits);
         assertEquals(matcher2.ramBytesUsedInFlight() + matcher2.ramBytesUsedCompleted(), breaker.ramBytesUsed);
         e = expectThrows(CircuitBreakingException.class, () -> matcher2.match(0, hits));
         assertEquals("sequence_inflight", e.getMessage());
 
         // Break on 3rd iteration with clear() called in between
-        SequenceMatcher matcher3 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, new EqlTestCircuitBreaker(15000));
+        SequenceMatcher matcher3 = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, missing, new EqlTestCircuitBreaker(15000));
         matcher3.match(0, hits);
         matcher3.clear();
         matcher3.match(0, hits);
@@ -204,9 +214,16 @@ public class CircuitBreakerTests extends ESTestCase {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
-            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
-            window.execute(wrap(p -> {}, ex -> {}));
+            SequenceMatcher matcher = new SequenceMatcher(
+                sequenceFiltersCount,
+                false,
+                TimeValue.MINUS_ONE,
+                null,
+                booleanArrayOf(sequenceFiltersCount, false),
+                eqlCircuitBreaker
+            );
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            window.execute(ActionListener.noop());
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
             assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip
@@ -234,8 +251,15 @@ public class CircuitBreakerTests extends ESTestCase {
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
             List<SequenceCriterion> criteria = buildCriteria(sequenceFiltersCount);
 
-            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            SequenceMatcher matcher = new SequenceMatcher(
+                sequenceFiltersCount,
+                false,
+                TimeValue.MINUS_ONE,
+                null,
+                booleanArrayOf(sequenceFiltersCount, false),
+                eqlCircuitBreaker
+            );
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
     }
@@ -271,6 +295,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     tsExtractor,
                     null,
                     implicitTbExtractor,
+                    false,
                     false
                 )
             );

@@ -122,6 +122,36 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         return "HealthMetadata{diskMetadata=" + Strings.toString(diskMetadata) + ", shardLimitsMetadata=" + shardLimitsMetadata + "}";
     }
 
+    public static Builder newBuilder(HealthMetadata healthMetadata) {
+        return new Builder(healthMetadata);
+    }
+
+    public static class Builder {
+        private Disk disk;
+        private ShardLimits shardLimits;
+
+        private Builder() {}
+
+        private Builder(HealthMetadata healthMetadata) {
+            this.disk = healthMetadata.diskMetadata;
+            this.shardLimits = healthMetadata.shardLimitsMetadata;
+        }
+
+        public Builder disk(Disk disk) {
+            this.disk = disk;
+            return this;
+        }
+
+        public Builder shardLimits(ShardLimits shardLimits) {
+            this.shardLimits = shardLimits;
+            return this;
+        }
+
+        public HealthMetadata build() {
+            return new HealthMetadata(disk, shardLimits);
+        }
+    }
+
     /**
      * Contains the thresholds needed to determine the health of a cluster when it comes to the amount of room available to create new
      * shards. These values are determined by the elected master.

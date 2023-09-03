@@ -2,7 +2,7 @@
 [[search-application-search]]
 === Search Application Search
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Search Application Search</titleabbrev>
@@ -41,6 +41,57 @@ Search Application `<name>` does not exist.
 
 The following example performs a search against a search application called `my-app`:
 
+////
+[source,console]
+----
+PUT /index1
+
+PUT _application/search_application/my-app
+{
+  "indices": ["index1"],
+  "template": {
+    "script": {
+      "lang": "mustache",
+      "source": """
+      {
+        "query": {
+          "multi_match": {
+            "query": "{{query_string}}",
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{^last}},{{/last}}{{/text_fields}}]
+          }
+        },
+        "explain": "{{explain}}",
+        "from": "{{from}}",
+        "size": "{{size}}"
+      }
+      """,
+      "params": {
+        "query_string": "*",
+        "text_fields": [
+          {"name": "title", "boost": 10, "last": false},
+          {"name": "description", "boost": 5, "last": true}
+        ],
+        "explain": false,
+        "from": 0,
+        "size": 10
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my-app
+
+DELETE /index1
+--------------------------------------------------
+// TEARDOWN
+
+////
+
 [source,console]
 ----
 POST _application/search_application/my-app/_search
@@ -62,7 +113,6 @@ POST _application/search_application/my-app/_search
   }
 }
 ----
-// TEST[skip:TBD]
 
 The expected results are search results from the query that was run.
 

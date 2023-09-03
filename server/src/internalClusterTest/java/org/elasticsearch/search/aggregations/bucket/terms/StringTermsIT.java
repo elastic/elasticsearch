@@ -115,14 +115,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
             return scripts;
         }
 
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("Math.random()", vars -> StringTermsIT.randomDouble());
-
-            return scripts;
-        }
     }
 
     @Override

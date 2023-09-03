@@ -141,7 +141,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         public TestParams(String testParam) {
-            this(testParam, TransportVersion.CURRENT, Optional.empty());
+            this(testParam, TransportVersion.current(), Optional.empty());
         }
 
         public TestParams(String testParam, TransportVersion minVersion, Optional<String> feature) {
@@ -519,7 +519,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(tasks);
+            out.writeCollection(tasks);
         }
 
         public List<TestTaskResponse> getTasks() {

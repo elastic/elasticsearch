@@ -106,4 +106,18 @@ public class SearchShardsGroup implements Writeable {
     public int hashCode() {
         return Objects.hash(shardId, allocatedNodes, skipped, preFiltered);
     }
+
+    @Override
+    public String toString() {
+        return "SearchShardsGroup{"
+            + "shardId="
+            + shardId
+            + ", allocatedNodes="
+            + allocatedNodes
+            + ", skipped="
+            + skipped
+            + ", preFiltered="
+            + preFiltered
+            + '}';
+    }
 }

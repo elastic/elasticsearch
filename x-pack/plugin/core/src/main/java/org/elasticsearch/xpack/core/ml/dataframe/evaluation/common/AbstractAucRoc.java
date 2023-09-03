@@ -322,7 +322,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(value);
-            out.writeList(curve);
+            out.writeCollection(curve);
         }
 
         @Override

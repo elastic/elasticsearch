@@ -129,7 +129,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
             }
         }
 
-        client().admin().indices().refresh(new RefreshRequest()).get();
+        indicesAdmin().refresh(new RefreshRequest()).get();
 
         SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
 

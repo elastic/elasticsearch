@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
@@ -53,6 +54,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
+import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -281,7 +283,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             transportAddress,
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT,
+            null,
             "_external_id"
         );
 
@@ -364,8 +366,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
-        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
+        when(mockNodeInfo.getBuild()).thenReturn(BuildUtils.newBuild(Build.current(), Map.of("type", Build.Type.DOCKER)));
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -456,6 +457,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             mockNodeVersion,
             Version.CURRENT,
             Version.CURRENT,
+            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersion.current(),
             apmIndicesExist };
         final String expectedJson = Strings.format("""
             {
@@ -572,13 +575,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_char_filters": [],
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
-                    "built_in_analyzers": []
+                    "built_in_analyzers": [],
+                    "synonyms": {}
                   },
                   "versions": [],
                   "search" : {
                     "total" : 0,
                     "queries" : {},
                     "sections" : {}
+                  },
+                  "dense_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {
@@ -756,7 +763,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "roles": [
                       "master"
                     ],
-                    "version": "%s"
+                    "version": "%s",
+                    "min_index_version":%s,
+                    "max_index_version":%s
                   }
                 },
                 "transport_versions": []

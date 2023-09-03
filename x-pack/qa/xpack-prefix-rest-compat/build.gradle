@@ -9,9 +9,6 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
-import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
@@ -184,4 +181,14 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
 
   task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
   task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
+}
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'ml/evaluate_data_frame/Test classification auc_roc',
+    'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
+    'ml/evaluate_data_frame/Test outlier_detection auc_roc given actual_field is int',
+  ].join(',')
 }

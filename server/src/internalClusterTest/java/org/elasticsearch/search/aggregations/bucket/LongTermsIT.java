@@ -90,14 +90,6 @@ public class LongTermsIT extends AbstractTermsTestCase {
             return scripts;
         }
 
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("Math.random()", vars -> LongTermsIT.randomDouble());
-
-            return scripts;
-        }
     }
 
     private static final int NUM_DOCS = 5; // TODO randomize the size?

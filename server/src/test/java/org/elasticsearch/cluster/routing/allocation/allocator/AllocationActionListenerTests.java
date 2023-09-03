@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,9 +26,10 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldDelegateWhenBothComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> completed.set(true), exception -> {
-            throw new AssertionError("Should not fail in test");
-        }), createEmptyThreadContext());
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)),
+            createEmptyThreadContext()
+        );
 
         listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
         listener.reroute().onResponse(null);
@@ -37,9 +39,10 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldNotDelegateWhenOnlyOneComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> completed.set(true), exception -> {
-            throw new AssertionError("Should not fail in test");
-        }), createEmptyThreadContext());
+        var listener = new AllocationActionListener<AcknowledgedResponse>(
+            ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)),
+            createEmptyThreadContext()
+        );
 
         if (randomBoolean()) {
             listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
@@ -75,10 +78,10 @@ public class AllocationActionListenerTests extends ESTestCase {
 
         var header = new AtomicReference<String>();
         var responseHeaders = new AtomicReference<List<String>>();
-        var listener = new AllocationActionListener<>(ActionListener.wrap(ignore -> {
+        var listener = new AllocationActionListener<>(ActionTestUtils.assertNoFailureListener(ignore -> {
             header.set(context.getHeader("header"));
             responseHeaders.set(context.getResponseHeaders().get("header"));
-        }, exception -> { throw new AssertionError("Should not fail in test"); }), context);
+        }), context);
 
         // this header should be ignored as it is added after context is captured
         context.addResponseHeader("header", "2");

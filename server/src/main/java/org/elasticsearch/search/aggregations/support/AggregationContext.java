@@ -15,10 +15,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -204,6 +206,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract IndexSettings getIndexSettings();
 
     /**
+     * The settings for the cluster against which this search is running.
+     */
+    public abstract ClusterSettings getClusterSettings();
+
+    /**
      * Compile a sort.
      */
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
@@ -335,6 +342,9 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+
+        private final ClusterSettings clusterSettings;
+
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final int maxBuckets;
@@ -354,6 +364,7 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
+            ClusterSettings clusterSettings,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
@@ -369,6 +380,7 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            this.clusterSettings = clusterSettings;
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -407,7 +419,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+        public Aggregator profileIfEnabled(Aggregator agg) {
             if (profiler == null) {
                 return agg;
             }
@@ -437,7 +449,14 @@ public abstract class AggregationContext implements Releasable {
             List<NameOrDefinition> charFilters,
             List<NameOrDefinition> tokenFilters
         ) throws IOException {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexService.IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                normalizer,
+                tokenizer,
+                charFilters,
+                tokenFilters
+            );
         }
 
         @Override
@@ -498,6 +517,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public IndexSettings getIndexSettings() {
             return context.getIndexSettings();
+        }
+
+        @Override
+        public ClusterSettings getClusterSettings() {
+            return clusterSettings;
         }
 
         @Override

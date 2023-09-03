@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -45,7 +46,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         var usageAction = new GraphUsageTransportAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,
@@ -83,7 +84,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         GraphUsageTransportAction usageAction = new GraphUsageTransportAction(
             mock(TransportService.class),
             null,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             settings.build(),

@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Random;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -85,8 +86,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public String executor() {
-                                        return executor;
+                                    public Executor executor(ThreadPool threadPool) {
+                                        return threadPool.executor(executor);
                                     }
                                 }
                             );
@@ -135,7 +136,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                     return super.executor(name);
                 }
             };
-            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.CURRENT, threadPool);
+            final var tcpTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
             transportService = new TransportService(
                 Settings.EMPTY,
                 tcpTransport,

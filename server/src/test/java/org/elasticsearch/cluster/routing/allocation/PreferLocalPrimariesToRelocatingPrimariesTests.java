@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -51,8 +51,12 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         logger.info("create 2 indices with [{}] no replicas, and wait till all are allocated", numberOfShards);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(0))
-            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(0))
+            .put(
+                IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(numberOfShards).numberOfReplicas(0)
+            )
+            .put(
+                IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(numberOfShards).numberOfReplicas(0)
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -78,11 +82,15 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test1"))
-                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
+                    )
             )
             .put(
                 IndexMetadata.builder(clusterState.metadata().index("test2"))
-                    .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
+                    )
             )
             .build();
         clusterState = ClusterState.builder(clusterState)

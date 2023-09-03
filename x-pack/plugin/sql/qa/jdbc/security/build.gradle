@@ -44,7 +44,7 @@ subprojects {
 
   tasks.withType(RestIntegTestTask).configureEach {
     dependsOn copyTestClasses
-    classpath = configurations.testArtifacts
+    classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)
     nonInputProperties.systemProperty 'tests.audit.logfile',
       "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"

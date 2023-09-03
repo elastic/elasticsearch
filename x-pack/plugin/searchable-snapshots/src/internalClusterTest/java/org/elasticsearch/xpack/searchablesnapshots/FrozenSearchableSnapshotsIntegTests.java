@@ -15,6 +15,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -44,6 +46,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -74,8 +77,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -101,7 +106,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum"));
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
-        assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
 
         populateIndex(indexName, 10_000);
 
@@ -132,9 +137,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertShardFolders(indexName, false);
 
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState()
                 .clear()
                 .setMetadata(true)
                 .setIndices(indexName)
@@ -148,9 +151,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final boolean deletedBeforeMount = randomBoolean();
         if (deletedBeforeMount) {
-            assertAcked(client().admin().indices().prepareDelete(indexName));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
         } else {
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertAcked(indicesAdmin().prepareClose(indexName));
         }
 
         logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
@@ -192,7 +195,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             while (statsWatcherRunning.get()) {
                 final IndicesStatsResponse indicesStatsResponse;
                 try {
-                    indicesStatsResponse = client().admin().indices().prepareStats(restoredIndexName).clear().setStore(true).get();
+                    indicesStatsResponse = indicesAdmin().prepareStats(restoredIndexName).clear().setStore(true).get();
                 } catch (IndexNotFoundException | IndexClosedException e) {
                     continue;
                     // ok
@@ -236,12 +239,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         ensureGreen(restoredIndexName);
 
-        final IndicesStatsResponse indicesStatsResponse = client().admin()
-            .indices()
-            .prepareStats(restoredIndexName)
-            .clear()
-            .setStore(true)
-            .get();
+        final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats(restoredIndexName).clear().setStore(true).get();
         assertThat(indicesStatsResponse.getShards().length, greaterThan(0));
         long totalExpectedSize = 0;
         for (ShardStats shardStats : indicesStatsResponse.getShards()) {
@@ -279,12 +277,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         statsWatcherRunning.set(false);
         statsWatcher.join();
 
-        final Settings settings = client().admin()
-            .indices()
-            .prepareGetSettings(restoredIndexName)
-            .get()
-            .getIndexToSettings()
-            .get(restoredIndexName);
+        final Settings settings = indicesAdmin().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SEARCHABLE_SNAPSHOT_STORE_TYPE));
         assertThat(IndexModule.INDEX_RECOVERY_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY));
@@ -307,9 +300,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareState()
+            clusterAdmin().prepareState()
                 .clear()
                 .setMetadata(true)
                 .setIndices(restoredIndexName)
@@ -322,24 +313,20 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         if (deletedBeforeMount) {
-            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
-            assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
-            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareAliases()
+                indicesAdmin().prepareAliases()
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
         }
-        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
-        final Decision diskDeciderDecision = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
+        final Decision diskDeciderDecision = clusterAdmin().prepareAllocationExplain()
             .setIndex(restoredIndexName)
             .setShard(0)
             .setPrimary(true)
@@ -369,9 +356,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        final DiscoveryNode dataNode = randomFrom(
-            client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
-        );
+        final DiscoveryNode dataNode = randomFrom(clusterAdmin().prepareState().get().getState().nodes().getDataNodes().values());
 
         updateIndexSettings(
             Settings.builder()
@@ -384,9 +369,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(restoredIndexName)
+            clusterAdmin().prepareHealth(restoredIndexName)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -410,9 +393,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareResizeIndex(restoredIndexName, clonedIndexName)
+            indicesAdmin().prepareResizeIndex(restoredIndexName, clonedIndexName)
                 .setResizeType(ResizeType.CLONE)
                 .setSettings(
                     Settings.builder()
@@ -425,9 +406,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
 
-        final Settings clonedIndexSettings = client().admin()
-            .indices()
-            .prepareGetSettings(clonedIndexName)
+        final Settings clonedIndexSettings = indicesAdmin().prepareGetSettings(clonedIndexName)
             .get()
             .getIndexToSettings()
             .get(clonedIndexName);
@@ -437,17 +416,15 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey()));
         assertFalse(clonedIndexSettings.hasValue(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey()));
 
-        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
-        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
+        assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
+        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }
 
     public void testRequestCacheOnFrozen() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test-index")
+            indicesAdmin().prepareCreate("test-index")
                 .setMapping("f", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
@@ -463,7 +440,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         createFullSnapshot("repo", "snap");
 
-        assertAcked(client().admin().indices().prepareDelete("test-index"));
+        assertAcked(indicesAdmin().prepareDelete("test-index"));
 
         logger.info("--> restoring index [{}]", "test-index");
 
@@ -499,14 +476,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         // The cached is actually used
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("test-index")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMemorySizeInBytes(),
+            indicesAdmin().prepareStats("test-index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(),
             greaterThan(0L)
         );
 
@@ -537,7 +507,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         }
 
         // shut down shard and check that cache entries are actually removed
-        client().admin().indices().prepareClose("test-index").get();
+        indicesAdmin().prepareClose("test-index").get();
         ensureGreen("test-index");
 
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -547,6 +517,60 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 assertThat(key, not(containsString("test-index")));
             }
         }
+    }
+
+    public void testTierPreferenceCannotBeRemovedForFrozenIndex() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String aliasName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepository(fsRepoName, FsRepository.TYPE);
+
+        final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        assertAcked(prepareCreate(indexName, originalIndexSettings));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+
+        populateIndex(indexName, 100);
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
+        ensureGreen(indexName);
+
+        assertShardFolders(indexName, false);
+
+        assertAcked(indicesAdmin().prepareClose(indexName));
+        logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
+        indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+            .putNull(DataTier.TIER_PREFERENCE);
+
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotInfo.snapshotId().getName(),
+            indexName,
+            indexSettingsBuilder.build(),
+            Strings.EMPTY_ARRAY,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        ensureGreen(restoredIndexName);
+
+        UpdateSettingsRequestBuilder settingsRequest = indicesAdmin().prepareUpdateSettings(restoredIndexName);
+        settingsRequest.setSettings(Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+        indicesAdmin().updateSettings(settingsRequest.request()).actionGet();
+
+        // we're expecting the tier preference to not be explicitly set in the settings (as we nullified it) but
+        // the index to still have the default value of `data_frozen`
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(restoredIndexName).get();
+        final Settings settings = getSettingsResponse.getIndexToSettings().get(restoredIndexName);
+        assertThat(settings.get(DataTier.TIER_PREFERENCE), nullValue());
+        assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), is("data_frozen"));
     }
 
     private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {

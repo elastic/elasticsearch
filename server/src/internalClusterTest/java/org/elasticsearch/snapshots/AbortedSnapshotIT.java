@@ -63,11 +63,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(repoName, "snapshot-1").setWaitForCompletion(false).setPartial(true).get();
         // resulting cluster state has been applied on all nodes, which means the first task for the SNAPSHOT pool is queued up
 
-        final var snapshot = clusterService.state()
-            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-            .forRepo(repoName)
-            .get(0)
-            .snapshot();
+        final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).get(0).snapshot();
         final var snapshotShardsService = internalCluster().getInstance(SnapshotShardsService.class, dataNode);
 
         // Run up to 3 snapshot tasks, which are (in order):
@@ -97,7 +93,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         assertTrue(store.hasReferences());
-        assertAcked(client().admin().indices().prepareDelete(indexName).get());
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         // this is the key assertion: we must release the store without needing any SNAPSHOT threads to make further progress
         assertBusy(() -> assertFalse(store.hasReferences()));
@@ -105,7 +101,7 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
         stopBlocking.set(true);
         safeAwait(barrier); // release snapshot thread
 
-        assertBusy(() -> assertTrue(clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty()));
+        assertBusy(() -> assertTrue(SnapshotsInProgress.get(clusterService.state()).isEmpty()));
     }
 
 }

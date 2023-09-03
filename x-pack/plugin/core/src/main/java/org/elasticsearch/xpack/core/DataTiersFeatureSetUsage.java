@@ -32,7 +32,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public DataTiersFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.tierStats = in.readMap(StreamInput::readString, TierSpecificStats::new);
+        this.tierStats = in.readMap(TierSpecificStats::new);
     }
 
     public DataTiersFeatureSetUsage(Map<String, TierSpecificStats> tierStats) {
@@ -52,7 +52,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(tierStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(tierStats, StreamOutput::writeWriteable);
     }
 
     @Override

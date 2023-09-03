@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -74,11 +75,7 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(
-                clusterService,
-                client,
-                ActionListener.wrap(response::set, e -> fail(e.getMessage()))
-            );
+            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
             verify(client).execute(
@@ -91,7 +88,7 @@ public class MachineLearningTests extends ESTestCase {
                 response.get(),
                 clusterService,
                 client,
-                ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+                ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
             verify(client).execute(
@@ -116,11 +113,7 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(
-                clusterService,
-                client,
-                ActionListener.wrap(response::set, e -> fail(e.getMessage()))
-            );
+            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
             verifyNoMoreInteractions(client);
@@ -129,7 +122,7 @@ public class MachineLearningTests extends ESTestCase {
                 response.get(),
                 clusterService,
                 client,
-                ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+                ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
             // Neither pre nor post should have called any action

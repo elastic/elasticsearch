@@ -21,6 +21,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +30,7 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
+    protected static final Iterator<Percentile> EMPTY_ITERATOR = Collections.emptyIterator();
     private static final DoubleHistogram EMPTY_HISTOGRAM_THREE_DIGITS = new DoubleHistogram(3);
     private static final DoubleHistogram EMPTY_HISTOGRAM_ZERO_DIGITS = new EmptyDoubleHdrHistogram();
 
@@ -131,7 +134,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * Return the internal {@link DoubleHistogram} sketch for this metric.
      */
     public DoubleHistogram getState() {
-        return state;
+        return state == null ? EMPTY_HISTOGRAM_ZERO_DIGITS : state;
     }
 
     /**
@@ -204,7 +207,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        DoubleHistogram state = this.state != null ? this.state : EMPTY_HISTOGRAM_ZERO_DIGITS;
+        DoubleHistogram state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

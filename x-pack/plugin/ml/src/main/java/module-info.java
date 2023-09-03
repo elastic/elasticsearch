@@ -24,6 +24,7 @@ module org.elasticsearch.ml {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
+    requires org.apache.lucene.analysis.kuromoji;
     requires commons.math3;
     requires ojalgo;
 

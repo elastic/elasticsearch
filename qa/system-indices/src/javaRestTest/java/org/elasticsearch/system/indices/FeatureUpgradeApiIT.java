@@ -8,12 +8,12 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -61,7 +61,7 @@ public class FeatureUpgradeApiIT extends ESRestTestCase {
             .orElse(Collections.emptyMap());
 
         assertThat(testFeature.size(), equalTo(4));
-        assertThat(testFeature.get("minimum_index_version"), equalTo(Version.CURRENT.toString()));
+        assertThat(testFeature.get("minimum_index_version"), equalTo(IndexVersion.current().toString()));
         assertThat(testFeature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(testFeature.get("indices"), instanceOf(List.class));
 

@@ -66,7 +66,8 @@ public class ExecutionManager {
         Attribute tiebreaker,
         OrderDirection direction,
         TimeValue maxSpan,
-        Limit limit
+        Limit limit,
+        boolean[] missing
     ) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
 
@@ -83,6 +84,13 @@ public class ExecutionManager {
         // secondary criteria
         List<SequenceCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
+        int firstPositive = -1;
+        for (int i = 0; i < missing.length; i++) {
+            if (missing[i] == false) {
+                firstPositive = i;
+                break;
+            }
+        }
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -129,7 +137,8 @@ public class ExecutionManager {
                     tsExtractor,
                     tbExtractor,
                     itbExtractor,
-                    i == 0 && descending
+                    i == firstPositive && descending,
+                    missing[i]
                 );
                 criteria.add(criterion);
             } else {
@@ -143,13 +152,21 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
+        SequenceMatcher matcher = new SequenceMatcher(
+            completionStage,
+            descending,
+            maxSpan,
+            limit,
+            toMissing(criteria.subList(0, criteria.size() - 1)), // no need for "until" here
+            session.circuitBreaker()
+        );
 
         TumblingWindow w = new TumblingWindow(
             new PITAwareQueryClient(session),
             criteria.subList(0, completionStage),
             criteria.get(completionStage),
-            matcher
+            matcher,
+            listOfKeys
         );
 
         return w;
@@ -219,6 +236,14 @@ public class ExecutionManager {
             session.circuitBreaker(),
             cfg.maxSamplesPerKey()
         );
+    }
+
+    private boolean[] toMissing(List<SequenceCriterion> criteria) {
+        boolean[] result = new boolean[criteria.size()];
+        for (int i = 0; i < criteria.size(); i++) {
+            result[i] = criteria.get(i).missing();
+        }
+        return result;
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

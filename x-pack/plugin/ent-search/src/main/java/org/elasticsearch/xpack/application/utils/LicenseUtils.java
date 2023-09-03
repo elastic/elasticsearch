@@ -14,9 +14,23 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackField;
 
-import java.util.function.Consumer;
-
 public final class LicenseUtils {
+    public enum Product {
+        SEARCH_APPLICATION("search application"),
+        BEHAVIORAL_ANALYTICS("behavioral analytics"),
+        QUERY_RULES("query rules");
+
+        private final String name;
+
+        Product(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
     public static final LicensedFeature.Momentary LICENSED_ENT_SEARCH_FEATURE = LicensedFeature.momentary(
         null,
         XPackField.ENTERPRISE_SEARCH,
@@ -27,23 +41,18 @@ public final class LicenseUtils {
         return LICENSED_ENT_SEARCH_FEATURE.check(licenseState);
     }
 
-    public static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState) {
+    public static ElasticsearchSecurityException newComplianceException(XPackLicenseState licenseState, Product product) {
         String licenseStatus = licenseState.statusDescription();
 
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(
-            "Current license is non-compliant for search application and behavioral analytics. Current license is {}. "
-                + "Search Applications and behavioral analytics require an active trial, platinum or enterprise license.",
+            "Current license is non-compliant for "
+                + product.getName()
+                + ". Current license is {}. "
+                + "This feature requires an active trial, platinum or enterprise license.",
             RestStatus.FORBIDDEN,
             licenseStatus
         );
         return e;
     }
 
-    public static void runIfSupportedLicense(XPackLicenseState licenseState, Runnable onSuccess, Consumer<Exception> onFailure) {
-        if (supportedLicense(licenseState)) {
-            onSuccess.run();
-        } else {
-            onFailure.accept(newComplianceException(licenseState));
-        }
-    }
 }

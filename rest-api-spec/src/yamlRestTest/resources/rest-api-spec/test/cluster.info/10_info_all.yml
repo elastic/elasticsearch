@@ -15,6 +15,7 @@ setup:
   - is_true: http
   - is_true: ingest
   - is_true: thread_pool
+  - is_true: script
 
 ---
 "Cluster Info fails when mixing _all with other targets":

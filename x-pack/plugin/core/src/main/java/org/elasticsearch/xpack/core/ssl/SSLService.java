@@ -407,9 +407,10 @@ public class SSLService {
     }
 
     public Set<String> getTransportProfileContextNames() {
-        return Collections.unmodifiableSet(
-            this.sslConfigurations.keySet().stream().filter(k -> k.startsWith("transport.profiles.")).collect(Collectors.toSet())
-        );
+        return this.sslConfigurations.keySet()
+            .stream()
+            .filter(k -> k.startsWith("transport.profiles."))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -663,8 +664,7 @@ public class SSLService {
             if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(
                     REMOTE_CLUSTER_SERVER_SSL_PREFIX,
-                    false,
-                    SSLConfigurationSettings.IntendedUse.SERVER
+                    false
                 );
                 throwExceptionForMissingKeyMaterial(REMOTE_CLUSTER_SERVER_SSL_PREFIX, configurationSettings);
             }

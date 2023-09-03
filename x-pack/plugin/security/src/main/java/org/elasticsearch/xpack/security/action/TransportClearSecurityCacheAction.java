@@ -53,8 +53,7 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
             actionFilters,
             ClearSecurityCacheRequest::new,
             ClearSecurityCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearSecurityCacheResponse.Node.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }

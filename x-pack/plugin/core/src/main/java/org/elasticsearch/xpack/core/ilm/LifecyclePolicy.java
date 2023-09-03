@@ -101,7 +101,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     public LifecyclePolicy(StreamInput in) throws IOException {
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
-        phases = in.readImmutableMap(StreamInput::readString, Phase::new);
+        phases = in.readImmutableMap(Phase::new);
         this.metadata = in.readMap();
     }
 
@@ -135,7 +135,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(type);
         out.writeString(name);
-        out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
+        out.writeMap(phases, StreamOutput::writeWriteable);
         out.writeGenericMap(this.metadata);
     }
 

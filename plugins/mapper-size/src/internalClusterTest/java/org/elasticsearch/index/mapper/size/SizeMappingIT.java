@@ -41,7 +41,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         String index = "foo";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -54,7 +54,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -65,7 +65,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         String index = "foo";
 
         XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // check mapping again
         assertSizeMappingEnabled(index, true);
@@ -76,7 +76,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             .field("enabled", false)
             .endObject()
             .endObject();
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setSource(updateMappingBuilder).get();
+        AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(index).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
         // make sure size field is still in mapping
@@ -89,7 +89,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s",
             index
         );
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();

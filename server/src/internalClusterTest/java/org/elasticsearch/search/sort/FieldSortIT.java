@@ -210,7 +210,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testTrackScores() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("svalue", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("svalue", "type=keyword").get());
         ensureGreen();
         index(
             "test",
@@ -321,7 +321,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void test3078() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field", "type=keyword").get());
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
@@ -459,7 +459,7 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testIssue2986() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
         client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
@@ -479,11 +479,11 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testIssue2991() {
         for (int i = 1; i < 4; i++) {
             try {
-                client().admin().indices().prepareDelete("test").get();
+                indicesAdmin().prepareDelete("test").get();
             } catch (Exception e) {
                 // ignore
             }
-            assertAcked(client().admin().indices().prepareCreate("test").setMapping("tag", "type=keyword").get());
+            assertAcked(indicesAdmin().prepareCreate("test").setMapping("tag", "type=keyword").get());
             ensureGreen();
             client().prepareIndex("test").setId("1").setSource("tag", "alpha").get();
             refresh();
@@ -582,7 +582,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 if (random.nextInt(5) != 0) {
                     refresh();
                 } else {
-                    client().admin().indices().prepareFlush().get();
+                    indicesAdmin().prepareFlush().get();
                 }
             }
 

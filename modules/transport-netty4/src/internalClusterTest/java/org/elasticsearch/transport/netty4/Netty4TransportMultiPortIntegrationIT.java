@@ -52,7 +52,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
 
     @Network
     public void testThatInfosAreExposed() throws Exception {
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().clear().setTransport(true).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses(), hasKey("client1"));

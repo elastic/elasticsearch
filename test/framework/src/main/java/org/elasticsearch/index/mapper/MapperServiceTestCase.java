@@ -20,7 +20,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
@@ -55,6 +56,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -98,7 +100,9 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class MapperServiceTestCase extends ESTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
@@ -138,7 +142,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
-    protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
+    protected final DocumentMapper createDocumentMapper(IndexVersion version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }
 
@@ -152,8 +156,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return createMapperService(getVersion(), mappings);
     }
 
-    protected Version getVersion() {
-        return Version.CURRENT;
+    protected IndexVersion getVersion() {
+        return IndexVersion.current();
     }
 
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
@@ -171,12 +175,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
-        MapperService mapperService = createMapperService(Version.CURRENT, settings, () -> true, mapping(b -> {}));
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> true, mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(IndexVersion version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -184,7 +188,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      * Create a {@link MapperService} like we would for an index.
      */
     protected final MapperService createMapperService(
-        Version version,
+        IndexVersion version,
         Settings settings,
         BooleanSupplier idFieldDataEnabled,
         XContentBuilder mapping
@@ -195,7 +199,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, Settings settings, BooleanSupplier idFieldDataEnabled) {
+    protected final MapperService createMapperService(IndexVersion version, Settings settings, BooleanSupplier idFieldDataEnabled) {
         IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
@@ -203,7 +207,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
-            () -> TransportVersion.CURRENT,
+            () -> TransportVersion.current(),
             indexSettings,
             createIndexAnalyzers(indexSettings),
             parserConfig(),
@@ -213,7 +217,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript
+            this::compileScript,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
     }
 
@@ -225,8 +230,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
     }
 
-    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
-        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
+    protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
+        settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }
@@ -272,7 +277,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, false);
     }
 
     /**
@@ -424,6 +429,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public IndexSettings getIndexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ClusterSettings getClusterSettings() {
                 throw new UnsupportedOperationException();
             }
 
@@ -608,9 +618,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
 
             }
-        },
-            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
-        );
+        }, reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, newSearcher(reader), query, lookupSupplier)));
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
@@ -699,7 +707,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
             roundTripIw.addDocument(
-                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of(), false)).rootDoc()
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

@@ -49,9 +49,6 @@ public class HttpResponseInputStream extends FilterInputStream {
         public void close() {}
 
         @Override
-        public void mark(final int readLimit) {}
-
-        @Override
         public boolean markSupported() {
             return true;
         }

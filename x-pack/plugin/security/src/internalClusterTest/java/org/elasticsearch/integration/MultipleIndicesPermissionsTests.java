@@ -299,9 +299,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMultiNamesWorkCorrectly() {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index1")
+            indicesAdmin().prepareCreate("index1")
                 .setMapping("field1", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );

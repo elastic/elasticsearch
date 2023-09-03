@@ -77,9 +77,7 @@ public class GraphTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(indexSettings(2, 0))
                 .setMapping("decade", "type=keyword", "people", "type=keyword", "description", "type=text,fielddata=true")
         );
@@ -98,19 +96,13 @@ public class GraphTests extends ESSingleNodeTestCase {
                 numDocs++;
             }
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         // Ensure single segment with no deletes. Hopefully solves test instability in
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
-        ForceMergeResponse actionGet = client().admin()
-            .indices()
-            .prepareForceMerge("test")
-            .setFlush(true)
-            .setMaxNumSegments(1)
-            .execute()
-            .actionGet();
-        client().admin().indices().prepareRefresh("test").get();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        indicesAdmin().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
-        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get("test")) {
+        for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get("test")) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertEquals(1, shardSegments.getSegments().size());

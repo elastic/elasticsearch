@@ -44,7 +44,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String remainNode;
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
+        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         final String node1Id = nodes.getNodes()
             .stream()
             .map(NodeInfo::getNode)

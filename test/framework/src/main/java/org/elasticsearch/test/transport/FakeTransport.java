@@ -78,7 +78,7 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
 
             @Override
             public TransportVersion getTransportVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

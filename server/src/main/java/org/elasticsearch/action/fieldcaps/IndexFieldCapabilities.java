@@ -75,7 +75,7 @@ public class IndexFieldCapabilities implements Writeable {
             this.isDimension = false;
             this.metricType = null;
         }
-        this.meta = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.meta = in.readMap(StreamInput::readString);
     }
 
     @Override
@@ -89,7 +89,7 @@ public class IndexFieldCapabilities implements Writeable {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
-        out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(meta, StreamOutput::writeString);
     }
 
     public String getName() {

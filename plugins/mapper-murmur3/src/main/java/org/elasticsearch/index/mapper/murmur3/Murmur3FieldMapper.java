@@ -122,7 +122,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value != null) {
-            final BytesRef bytes = new BytesRef(value.toString());
+            final BytesRef bytes = new BytesRef(value);
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().isStored()) {

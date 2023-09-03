@@ -86,7 +86,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
         }
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
+        indicesAdmin().refresh(new RefreshRequest("test")).get();
     }
 
     public void testIssue10719() throws Exception {

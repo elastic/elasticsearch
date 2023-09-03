@@ -660,7 +660,7 @@ public class ReplicationOperation<
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {
-        RetryOnPrimaryException(ShardId shardId, String msg) {
+        public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }
 

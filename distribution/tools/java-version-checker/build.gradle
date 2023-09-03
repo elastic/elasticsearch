@@ -5,7 +5,7 @@ sourceSets {
 }
 
 tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).configure {
-  targetCompatibility = JavaVersion.VERSION_1_7
+  targetCompatibility = JavaVersion.VERSION_1_8
 }
 
 tasks.named("jar") {

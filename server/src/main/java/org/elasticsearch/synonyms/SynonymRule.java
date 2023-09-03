@@ -8,6 +8,7 @@
 
 package org.elasticsearch.synonyms;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,7 +44,7 @@ public class SynonymRule implements Writeable, ToXContentObject {
     private final String id;
 
     public SynonymRule(@Nullable String id, String synonyms) {
-        this.id = id;
+        this.id = Objects.requireNonNullElse(id, UUIDs.base64UUID());
         this.synonyms = synonyms;
     }
 

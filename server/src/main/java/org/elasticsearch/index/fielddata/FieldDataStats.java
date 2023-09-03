@@ -52,7 +52,6 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
             if (in.readBoolean()) {
                 fieldGlobalOrdinalsStats = in.readMap(
-                    StreamInput::readString,
                     in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
                 );
             }
@@ -115,7 +114,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             out.writeVLong(globalOrdinalsStats.buildTimeMillis);
             if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
                 out.writeBoolean(true);
-                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, StreamOutput::writeString, (out1, value) -> {
+                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
                     out1.writeVLong(value.totalBuildingTime);
                     out1.writeVLong(value.valueCount);
                 });

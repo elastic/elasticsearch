@@ -50,7 +50,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
             Settings.EMPTY,
             new Netty4Transport(
                 Settings.EMPTY,
-                TransportVersion.CURRENT,
+                TransportVersion.current(),
                 threadPool,
                 networkService,
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,

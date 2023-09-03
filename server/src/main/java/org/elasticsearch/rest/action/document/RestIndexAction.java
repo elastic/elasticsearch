@@ -84,6 +84,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static final class AutoIdHandler extends RestIndexAction {
 
         private final Supplier<DiscoveryNodes> nodesInCluster;

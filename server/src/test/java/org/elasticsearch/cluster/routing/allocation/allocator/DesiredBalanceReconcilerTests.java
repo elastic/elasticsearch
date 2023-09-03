@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -55,6 +54,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -92,6 +92,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -556,7 +557,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID(random()))),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId("index", UUIDs.randomBase64UUID(random()))
         );
         routingTable.addAsRestore(restoredIndexMetadata, recoverySource);
@@ -1016,7 +1017,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {
 
-        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
@@ -1049,13 +1050,37 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().node("data-node-2").getByShardId(shardId), notNullValue());
     }
 
+    public void testDoNotAllocateIgnoredShards() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().localNodeId("node-1").masterNodeId("node-1").add(newNode("node-1")))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final var allocation = createRoutingAllocationFrom(clusterState);
+        final var balance = new DesiredBalance(
+            1,
+            Map.of(shardId, new ShardAssignment(Set.of(), 1, 1, 1)) // shard is ignored
+        );
+
+        reconcile(allocation, balance);
+
+        assertThat(allocation.routingNodes().node("node-1").size(), equalTo(0));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
+    }
+
     public void testRebalanceDoesNotCauseHotSpots() {
 
         int numberOfNodes = randomIntBetween(5, 9);
         int shardsPerNode = randomIntBetween(1, 15);
 
         var indexMetadata = IndexMetadata.builder("index-1")
-            .settings(indexSettings(Version.CURRENT, shardsPerNode * numberOfNodes, 0))
+            .settings(indexSettings(IndexVersion.current(), shardsPerNode * numberOfNodes, 0))
             .build();
         final var index = indexMetadata.getIndex();
 
@@ -1131,7 +1156,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testShouldLogOnTooManyUndesiredAllocations() {
 
-        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
@@ -1158,7 +1183,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 "Should log first too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "[100.0%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10.0%]"
+                "[100%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10%]"
             )
         );
         assertThatLogger(
@@ -1305,7 +1330,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static IndexMetadata randomPriorityIndex(String name, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(name)
             .settings(
-                indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+                indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
                     IndexMetadata.INDEX_PRIORITY_SETTING.getKey(),
                     between(1, 5)
                 ).put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))

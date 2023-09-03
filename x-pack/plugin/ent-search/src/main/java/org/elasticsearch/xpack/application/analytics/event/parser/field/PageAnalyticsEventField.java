@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PageAnalyticsEventField {
@@ -25,9 +25,9 @@ public class PageAnalyticsEventField {
 
     public static ParseField PAGE_REFERRER_FIELD = new ParseField("referrer");
 
-    private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         PAGE_FIELD.getPreferredName(),
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     static {
@@ -41,6 +41,6 @@ public class PageAnalyticsEventField {
     private PageAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 }

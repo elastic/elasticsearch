@@ -83,12 +83,12 @@ public class ServerCliTests extends CommandTestCase {
         final String expectedBuildOutput = String.format(
             Locale.ROOT,
             "Build: %s/%s/%s",
-            Build.CURRENT.type().displayName(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date()
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date()
         );
         Matcher<String> versionOutput = allOf(
-            containsString("Version: " + Build.CURRENT.qualifiedVersion()),
+            containsString("Version: " + Build.current().qualifiedVersion()),
             containsString(expectedBuildOutput),
             containsString("JVM: " + JvmInfo.jvmInfo().version())
         );

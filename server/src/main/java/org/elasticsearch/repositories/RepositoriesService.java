@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
@@ -43,6 +42,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -99,7 +100,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
-    private final List<BiConsumer<Snapshot, Version>> preRestoreChecks;
+    private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
 
     public RepositoriesService(
         Settings settings,
@@ -108,7 +109,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
         ThreadPool threadPool,
-        List<BiConsumer<Snapshot, Version>> preRestoreChecks
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
@@ -265,9 +266,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         @Override
         public ClusterState execute(ClusterState currentState) {
             RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
-            Metadata metadata = currentState.metadata();
             Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                 if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
@@ -367,10 +367,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
-        final RepositoriesMetadata currentReposMetadata = clusterService.state()
-            .metadata()
-            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
+        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(clusterService.state()).repository(repositoryName);
         if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
             listener.onResponse(null);
             return;
@@ -382,8 +379,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata currentReposMetadata = currentState.metadata()
-                        .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                    final RepositoriesMetadata currentReposMetadata = RepositoriesMetadata.get(currentState);
 
                     final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
                     if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
@@ -457,9 +453,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            Metadata metadata = currentState.metadata();
             Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
             if (repositories.repositories().size() > 0) {
                 List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size());
                 boolean changed = false;
@@ -544,10 +539,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
-            final RepositoriesMetadata oldMetadata = event.previousState()
-                .getMetadata()
-                .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-            final RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            final RepositoriesMetadata oldMetadata = RepositoriesMetadata.get(event.previousState());
+            final RepositoriesMetadata newMetadata = RepositoriesMetadata.get(state);
 
             // Check if repositories got changed
             if (oldMetadata.equalsIgnoreGenerations(newMetadata)) {
@@ -675,6 +668,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         List<RepositoryStatsSnapshot> repositoriesStats = new ArrayList<>(archivedRepoStats);
         repositoriesStats.addAll(activeRepoStats);
         return repositoriesStats;
+    }
+
+    public RepositoriesStats getRepositoriesThrottlingStats() {
+        return new RepositoriesStats(
+            repositories.values()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        r -> r.getMetadata().name(),
+                        r -> new RepositoriesStats.ThrottlingStats(r.getRestoreThrottleTimeInNanos(), r.getSnapshotThrottleTimeInNanos())
+                    )
+                )
+        );
     }
 
     private List<RepositoryStatsSnapshot> getRepositoryStatsForActiveRepositories() {
@@ -815,27 +821,20 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        if (snapshots.forRepo(repository).isEmpty() == false) {
+        if (SnapshotsInProgress.get(clusterState).forRepo(repository).isEmpty() == false) {
             throw newRepositoryConflictException(repository, "snapshot is in progress");
         }
-        for (SnapshotDeletionsInProgress.Entry entry : clusterState.custom(
-            SnapshotDeletionsInProgress.TYPE,
-            SnapshotDeletionsInProgress.EMPTY
-        ).getEntries()) {
+        for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
             if (entry.repository().equals(repository)) {
                 throw newRepositoryConflictException(repository, "snapshot deletion is in progress");
             }
         }
-        for (RepositoryCleanupInProgress.Entry entry : clusterState.custom(
-            RepositoryCleanupInProgress.TYPE,
-            RepositoryCleanupInProgress.EMPTY
-        ).entries()) {
+        for (RepositoryCleanupInProgress.Entry entry : RepositoryCleanupInProgress.get(clusterState).entries()) {
             if (entry.repository().equals(repository)) {
                 throw newRepositoryConflictException(repository, "repository clean up is in progress");
             }
         }
-        for (RestoreInProgress.Entry entry : clusterState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(clusterState)) {
             if (repository.equals(entry.snapshot().getRepository())) {
                 throw newRepositoryConflictException(repository, "snapshot restore is in progress");
             }
@@ -889,7 +888,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         );
     }
 
-    public List<BiConsumer<Snapshot, Version>> getPreRestoreVersionChecks() {
+    public List<BiConsumer<Snapshot, IndexVersion>> getPreRestoreVersionChecks() {
         return preRestoreChecks;
     }
 

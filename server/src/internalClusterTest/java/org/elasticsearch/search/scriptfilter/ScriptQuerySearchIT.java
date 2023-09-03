@@ -101,9 +101,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         final byte[] randomBytesDoc1 = getRandomBytes(15);
         final byte[] randomBytesDoc2 = getRandomBytes(16);
 
-        assertAcked(
-            client().admin().indices().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings())
-        );
+        assertAcked(indicesAdmin().prepareCreate("my-index").setMapping(createMappingSource("binary")).setSettings(indexSettings()));
         client().prepareIndex("my-index")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("binaryData", Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())

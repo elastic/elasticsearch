@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
@@ -133,8 +132,10 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         double idcg = 0;
 
         if (normalize) {
-            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed().collect(Collectors.toList());
-            Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
+            List<Integer> allRatings = ratedDocs.stream()
+                .map(RatedDocument::getRating)
+                .sorted(Collections.reverseOrder())
+                .collect(Collectors.toList());
             idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             if (idcg != 0) {
                 result = dcg / idcg;

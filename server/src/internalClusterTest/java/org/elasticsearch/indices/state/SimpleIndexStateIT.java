@@ -52,7 +52,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
-        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(indicesAdmin().prepareClose("test"));
 
         stateResponse = clusterAdmin().prepareState().get();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
@@ -67,7 +67,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> opening index...");
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").get();
+        OpenIndexResponse openIndexResponse = indicesAdmin().prepareOpen("test").get();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> waiting for green status");
@@ -97,12 +97,12 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
+        assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.include.tag", ""), "test");
 
-        client().admin().indices().prepareOpen("test").get();
+        indicesAdmin().prepareOpen("test").get();
 
         logger.info("--> waiting for green status");
         ensureGreen();
@@ -124,14 +124,14 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
     public void testConsistencyAfterIndexCreationFailure() {
         logger.info("--> deleting test index....");
         try {
-            client().admin().indices().prepareDelete("test").get();
+            indicesAdmin().prepareDelete("test").get();
         } catch (IndexNotFoundException ex) {
             // Ignore
         }
 
         logger.info("--> creating test index with invalid settings ");
         try {
-            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", "bad")).get();
+            indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", "bad")).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [bad] for setting [index.number_of_shards]", ex.getMessage());

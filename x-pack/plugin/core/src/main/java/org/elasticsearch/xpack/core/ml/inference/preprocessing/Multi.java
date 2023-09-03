@@ -130,9 +130,9 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(Arrays.asList(processors));
+        out.writeNamedWriteableCollection(Arrays.asList(processors));
         out.writeBoolean(custom);
-        out.writeMap(outputFields, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(outputFields, StreamOutput::writeString);
         out.writeStringArray(inputFields);
     }
 

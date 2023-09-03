@@ -28,7 +28,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
     public void testCloseAllRequiresName() {
         createIndex("test1", "test2", "test3");
 
-        assertAcked(client().admin().indices().prepareClose("test3", "test2"));
+        assertAcked(indicesAdmin().prepareClose("test3", "test2"));
         assertIndexIsClosed("test2", "test3");
 
         // disable closing
@@ -37,7 +37,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> client().admin().indices().prepareClose("test_no_close").get()
+            () -> indicesAdmin().prepareClose("test_no_close").get()
         );
         assertEquals(
             illegalStateException.getMessage(),

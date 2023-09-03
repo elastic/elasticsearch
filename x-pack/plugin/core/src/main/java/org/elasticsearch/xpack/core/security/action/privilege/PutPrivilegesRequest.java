@@ -111,9 +111,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.unmodifiableSet(
-            privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toSet())
-        );
+        return privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -129,7 +127,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(privileges);
+        out.writeCollection(privileges);
         refreshPolicy.writeTo(out);
     }
 }

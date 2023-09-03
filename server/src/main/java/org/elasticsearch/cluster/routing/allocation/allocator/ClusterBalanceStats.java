@@ -60,16 +60,13 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
     }
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
-        return new ClusterBalanceStats(
-            in.readImmutableMap(StreamInput::readString, TierBalanceStats::readFrom),
-            in.readImmutableMap(StreamInput::readString, NodeBalanceStats::readFrom)
-        );
+        return new ClusterBalanceStats(in.readImmutableMap(TierBalanceStats::readFrom), in.readImmutableMap(NodeBalanceStats::readFrom));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(tiers, StreamOutput::writeString, StreamOutput::writeWriteable);
-        out.writeMap(nodes, StreamOutput::writeString, StreamOutput::writeWriteable);
+        out.writeMap(tiers, StreamOutput::writeWriteable);
+        out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     @Override

@@ -50,8 +50,8 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
     }
 
     public void testStreamFormat() throws IOException {
-        assertStreamInputOutput(TransportVersion.CURRENT, "family", "context");
+        assertStreamInputOutput(TransportVersion.current(), "family", "context");
         // family and context are optional
-        assertStreamInputOutput(TransportVersion.CURRENT, null, null);
+        assertStreamInputOutput(TransportVersion.current(), null, null);
     }
 }

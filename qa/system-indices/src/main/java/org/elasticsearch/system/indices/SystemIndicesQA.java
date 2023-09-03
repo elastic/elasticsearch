@@ -111,6 +111,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

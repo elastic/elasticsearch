@@ -37,7 +37,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         super(in);
         this.updated = in.readStringList();
         this.noops = in.readStringList();
-        this.errorDetails = in.readMap(StreamInput::readString, StreamInput::readException);
+        this.errorDetails = in.readMap(StreamInput::readException);
     }
 
     public List<String> getUpdated() {
@@ -67,7 +67,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(updated);
         out.writeStringCollection(noops);
-        out.writeMap(errorDetails, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeMap(errorDetails, StreamOutput::writeException);
     }
 
     @Override

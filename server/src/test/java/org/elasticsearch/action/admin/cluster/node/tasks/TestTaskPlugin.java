@@ -146,7 +146,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int getFailureCount() {
@@ -269,8 +269,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 new ActionFilters(new HashSet<>()),
                 NodesRequest::new,
                 NodeRequest::new,
-                ThreadPool.Names.GENERIC,
-                NodeResponse.class
+                ThreadPool.Names.GENERIC
             );
         }
 

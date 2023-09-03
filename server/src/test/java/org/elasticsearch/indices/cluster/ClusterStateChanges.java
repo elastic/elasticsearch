@@ -10,7 +10,6 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -85,6 +84,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -99,7 +99,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -227,7 +226,7 @@ public class ClusterStateChanges {
             @Override
             public Transport.Connection getConnection(DiscoveryNode node) {
                 Transport.Connection conn = mock(Transport.Connection.class);
-                when(conn.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+                when(conn.getTransportVersion()).thenReturn(TransportVersion.current());
                 return conn;
             }
         };
@@ -241,7 +240,7 @@ public class ClusterStateChanges {
         ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
                 return indexMetadata;
             }
         };
@@ -531,7 +530,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<TransportResponse.Empty> createTestListener() {
+    private ActionListener<Void> createTestListener() {
         return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

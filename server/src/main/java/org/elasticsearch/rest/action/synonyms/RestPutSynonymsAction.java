@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.synonyms;
 
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.SynonymUpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -44,7 +45,7 @@ public class RestPutSynonymsAction extends BaseRestHandler {
         );
         return channel -> client.execute(PutSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel) {
             @Override
-            protected RestStatus getStatus(PutSynonymsAction.Response response) {
+            protected RestStatus getStatus(SynonymUpdateResponse response) {
                 return response.status();
             }
         });

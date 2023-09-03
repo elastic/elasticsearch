@@ -96,7 +96,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new IndexLifecycle(settings));
-        plugins.add(new DataStreamsPlugin()); // Otherwise the watcher history index template can't be added
+        plugins.add(new DataStreamsPlugin(settings)); // Otherwise the watcher history index template can't be added
     }
 
     public Monitoring getMonitoring() {

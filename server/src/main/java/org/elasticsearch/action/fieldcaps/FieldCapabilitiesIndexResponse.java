@@ -42,12 +42,12 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
-        this.originVersion = TransportVersion.CURRENT;
+        this.originVersion = TransportVersion.current();
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
-        this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
+        this.responseMap = in.readMap(IndexFieldCapabilities::new);
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
         if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
@@ -60,7 +60,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
-        out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(responseMap, StreamOutput::writeWriteable);
         out.writeBoolean(canMatch);
         if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
@@ -71,18 +71,18 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         implements
             Writeable {
         GroupByMappingHash(StreamInput in) throws IOException {
-            this(in.readStringList(), in.readString(), in.readMap(StreamInput::readString, IndexFieldCapabilities::new));
+            this(in.readStringList(), in.readString(), in.readMap(IndexFieldCapabilities::new));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(indices);
             out.writeString(indexMappingHash);
-            out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+            out.writeMap(responseMap, StreamOutput::writeWriteable);
         }
 
-        List<FieldCapabilitiesIndexResponse> getResponses() {
-            return indices.stream().map(index -> new FieldCapabilitiesIndexResponse(index, indexMappingHash, responseMap, true)).toList();
+        Stream<FieldCapabilitiesIndexResponse> getResponses() {
+            return indices.stream().map(index -> new FieldCapabilitiesIndexResponse(index, indexMappingHash, responseMap, true));
         }
     }
 
@@ -92,7 +92,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         }
         final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readList(FieldCapabilitiesIndexResponse::new);
         final List<GroupByMappingHash> groups = input.readList(GroupByMappingHash::new);
-        return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(g -> g.getResponses().stream())).toList();
+        return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(GroupByMappingHash::getResponses)).toList();
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
@@ -114,8 +114,8 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
                 return new GroupByMappingHash(indices, indexMappingHash, responseMap);
             })
             .toList();
-        output.writeList(ungroupedResponses);
-        output.writeList(groupedResponses);
+        output.writeCollection(ungroupedResponses);
+        output.writeCollection(groupedResponses);
     }
 
     /**

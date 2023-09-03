@@ -209,7 +209,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
             .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
-        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
+        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).toList();
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
@@ -270,12 +270,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<SearchSourceBuilder> reader
     ) throws IOException {
-        Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.CURRENT);
-            writer.write(output, original);
+            output.setTransportVersion(TransportVersion.current());
+            original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(TransportVersion.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 return reader.read(in);
             }
         }

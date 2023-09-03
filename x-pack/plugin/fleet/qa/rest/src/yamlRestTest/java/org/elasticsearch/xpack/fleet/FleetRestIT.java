@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.fleet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
@@ -16,6 +19,12 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
 
     public FleetRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String authentication = basicAuthHeaderValue("elastic_admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", authentication).build();
     }
 
     @ParametersFactory

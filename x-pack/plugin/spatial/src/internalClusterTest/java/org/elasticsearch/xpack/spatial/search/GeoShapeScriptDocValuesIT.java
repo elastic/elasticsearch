@@ -158,7 +158,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             .startObject("location")
             .field("type", "geo_shape");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(xContentBuilder));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
     }
 
@@ -255,7 +255,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             )
             .get();
 
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(geometry);
 
@@ -314,7 +314,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
             .get();
 
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch()
             .addStoredField("_source")

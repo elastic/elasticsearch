@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -47,7 +46,7 @@ public class WatchExecutionContextMockBuilder {
     }
 
     public WatchExecutionContextMockBuilder payload(String key, Object value) {
-        return payload(new Payload.Simple(MapBuilder.<String, Object>newMapBuilder().put(key, value).map()));
+        return payload(new Payload.Simple(Map.of(key, value)));
     }
 
     public WatchExecutionContextMockBuilder payload(Map<String, Object> payload) {
@@ -79,7 +78,7 @@ public class WatchExecutionContextMockBuilder {
     }
 
     public WatchExecutionContextMockBuilder metadata(String key, String value) {
-        return metadata(MapBuilder.<String, Object>newMapBuilder().put(key, value).map());
+        return metadata(Map.of(key, value));
     }
 
     public WatchExecutionContext buildMock() {

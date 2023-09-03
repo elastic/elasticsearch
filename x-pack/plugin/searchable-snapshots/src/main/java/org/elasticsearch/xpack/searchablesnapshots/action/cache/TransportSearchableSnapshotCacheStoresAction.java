@@ -62,9 +62,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.SAME,
-            NodeCacheFilesMetadata.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.cacheService = cacheService.get();
     }
@@ -188,7 +186,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeCacheFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 }

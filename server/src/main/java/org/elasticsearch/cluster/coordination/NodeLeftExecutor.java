@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.HashMap;
@@ -49,11 +50,16 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         this.allocationService = allocationService;
     }
 
+    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
+    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
+        return clusterState.transportVersions();
+    }
+
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        Map<String, TransportVersion> transportVersions = new HashMap<>(initialState.transportVersions());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();

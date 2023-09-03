@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.AB_FROM_TRIANGLE;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.BC_FROM_TRIANGLE;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.CA_FROM_TRIANGLE;
+
 /** Visitor for triangle interval tree.
  *
  * @see TriangleTreeReader
@@ -41,6 +45,18 @@ public interface TriangleTreeVisitor {
     /** Should the visitor visit the tree given the bounding box of the tree. Called before
      * visiting the tree. */
     boolean push(int minX, int minY, int maxX, int maxY);
+
+    static boolean abFromTriangle(byte metadata) {
+        return (metadata & AB_FROM_TRIANGLE) == AB_FROM_TRIANGLE;
+    }
+
+    static boolean bcFromTriangle(byte metadata) {
+        return (metadata & BC_FROM_TRIANGLE) == BC_FROM_TRIANGLE;
+    }
+
+    static boolean caFromTriangle(byte metadata) {
+        return (metadata & CA_FROM_TRIANGLE) == CA_FROM_TRIANGLE;
+    }
 
     /** Visitor for triangle interval tree which decodes the coordinates */
     abstract class TriangleTreeDecodedVisitor implements TriangleTreeVisitor {

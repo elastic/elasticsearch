@@ -932,7 +932,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
-        client().admin().indices().prepareCreate(INDEX).setSettings(indexSettings(2, 0)).get();
+        indicesAdmin().prepareCreate(INDEX).setSettings(indexSettings(2, 0)).get();
         ensureGreen();
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping(INDEX)
             .setSource(
@@ -1299,18 +1299,18 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             .get();
         // we have 2 docs in a segment...
         client().prepareIndex(INDEX).setId("2").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
-        ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX).setId("1").setSource(jsonBuilder().startObject().field("somefield", "somevalue").endObject()).get();
-        actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
+        actionGet = indicesAdmin().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(actionGet);
         refresh();
 
         assertSuggestions("b");
         assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
-        for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
+        for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertThat(shardSegments.getSegments().size(), equalTo(1));
@@ -1525,7 +1525,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             builder.field("collapse_field", "collapse me").endObject();  // all docs the same value for collapsing
             client().prepareIndex(index).setId("" + i).setSource(builder).get();
         }
-        client().admin().indices().prepareRefresh(index).get();
+        indicesAdmin().prepareRefresh(index).get();
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(suggestField).prefix("sug").size(1);
 
         SearchResponse searchResponse = client().prepareSearch("test")

@@ -173,7 +173,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
-                    return TransportVersion.CURRENT;
+                    return TransportVersion.current();
                 }
             }));
         }

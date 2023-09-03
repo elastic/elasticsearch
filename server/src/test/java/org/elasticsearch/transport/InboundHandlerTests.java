@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,7 +69,7 @@ public class InboundHandlerTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
         TransportHandshaker handshaker = new TransportHandshaker(
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             threadPool,
             (n, c, r, v) -> {},
             ignoreDeserializationErrors
@@ -75,7 +77,7 @@ public class InboundHandlerTests extends ESTestCase {
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             new StatsTracker(),
             threadPool,
             new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
@@ -110,7 +112,7 @@ public class InboundHandlerTests extends ESTestCase {
             TestRequest::new,
             taskManager,
             (request, channel, task) -> channelCaptor.set(channel),
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             true,
             Tracer.NOOP
@@ -127,7 +129,7 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
-        int headerSize = TcpHeader.headerSize(TransportVersion.CURRENT);
+        int headerSize = TcpHeader.headerSize(TransportVersion.current());
         boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
@@ -135,6 +137,11 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
         long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+            @Override
+            public Executor executor(ThreadPool threadPool) {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(TestResponse response) {
                 responseCaptor.set(response);
@@ -158,7 +165,7 @@ public class InboundHandlerTests extends ESTestCase {
                 channelCaptor.set(channel);
                 requestCaptor.set(request);
             },
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             true,
             Tracer.NOOP
@@ -168,7 +175,7 @@ public class InboundHandlerTests extends ESTestCase {
         OutboundMessage.Request request = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             new TestRequest(requestValue),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             action,
             requestId,
             false,
@@ -182,14 +189,14 @@ public class InboundHandlerTests extends ESTestCase {
             fullRequestBytes.length() - 6,
             requestId,
             TransportStatus.setRequest((byte) 0),
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
         requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, requestMessage);
 
         TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(TransportVersion.CURRENT, transportChannel.getVersion());
+        assertEquals(TransportVersion.current(), transportChannel.getVersion());
         assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
@@ -204,7 +211,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
         BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
-        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.CURRENT);
+        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
         handler.inboundMessage(channel, responseMessage);
@@ -275,7 +282,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
-            final TransportVersion remoteVersion = TransportVersion.CURRENT;
+            final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

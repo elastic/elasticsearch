@@ -199,7 +199,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         if (descriptor.isAutomaticallyManaged()) {
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(descriptor.getSettings());
-            settingsBuilder.remove("index.version.created"); // Simplifies testing, should never impact real uses.
+            settingsBuilder.remove(IndexMetadata.SETTING_VERSION_CREATED); // Simplifies testing, should never impact real uses.
             settings = settingsBuilder.build();
 
             mapping = descriptor.getMappings();

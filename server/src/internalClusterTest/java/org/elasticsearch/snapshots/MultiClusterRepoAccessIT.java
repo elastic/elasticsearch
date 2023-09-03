@@ -127,12 +127,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4")
-                .setWaitForCompletion(true)
-                .execute()
-                .actionGet()
+            () -> clusterAdmin().prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true).execute().actionGet()
         );
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
@@ -147,7 +142,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                     + "] at generation [4]."
             )
         );
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
     }
@@ -160,9 +155,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoName, "snap-1");
-        final String repoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String repoUuid = clusterAdmin().prepareGetRepositories(repoName)
             .get()
             .repositories()
             .stream()
@@ -196,14 +189,12 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             equalTo(repoUuid)
         );
 
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
         IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snap-1");
 
-        final String newRepoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String newRepoUuid = clusterAdmin().prepareGetRepositories(repoName)
             .get()
             .repositories()
             .stream()

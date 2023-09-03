@@ -426,7 +426,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
-            out.writeNamedWriteableList(expected);
+            out.writeNamedWriteableCollection(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
                 assertEquals(0, in.available());
@@ -516,7 +516,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeList(expected);
+        out.writeCollection(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
@@ -602,7 +602,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
 

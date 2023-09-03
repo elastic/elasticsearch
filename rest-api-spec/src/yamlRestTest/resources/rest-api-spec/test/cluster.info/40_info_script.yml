@@ -1,0 +1,16 @@
+---
+"Cluster HTTP Info":
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/script only available from v8.9"
+
+  - do:
+      cluster.info:
+        target: [ script ]
+
+  - is_true: cluster_name
+  - is_true: script
+
+  - gte: { script.compilations: 0 }
+  - gte: { script.cache_evictions: 0 }
+  - gte: { script.compilation_limit_triggered: 0 }

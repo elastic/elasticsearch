@@ -50,7 +50,7 @@ public class CursorTests extends ESTestCase {
         // encoded with a different but compatible version
         assertEquals(
             cursor,
-            decodeFromString(encodeToString(cursor, TransportVersion.fromId(TransportVersion.CURRENT.id() + 1), randomZone()))
+            decodeFromString(encodeToString(cursor, TransportVersion.fromId(TransportVersion.current().id() + 1), randomZone()))
         );
 
         TransportVersion otherVersion = TransportVersionUtils.randomVersionBetween(
@@ -66,7 +66,7 @@ public class CursorTests extends ESTestCase {
         );
 
         assertEquals(
-            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", otherVersion, TransportVersion.CURRENT),
+            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", otherVersion, TransportVersion.current()),
             exception.getMessage()
         );
     }

@@ -46,7 +46,7 @@ public class PrivateSettingsIT extends ESIntegTestCase {
         );
         final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));
-        final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
+        final GetSettingsResponse responseAfterAttemptedUpdate = indicesAdmin().prepareGetSettings("test").get();
         assertNull(responseAfterAttemptedUpdate.getSetting("test", "index.private"));
     }
 
@@ -56,7 +56,7 @@ public class PrivateSettingsIT extends ESIntegTestCase {
             InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
             new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.private", "private-update")
         ).actionGet();
-        final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
+        final GetSettingsResponse responseAfterUpdate = indicesAdmin().prepareGetSettings("test").get();
         assertThat(responseAfterUpdate.getSetting("test", "index.private"), equalTo("private-update"));
     }
 

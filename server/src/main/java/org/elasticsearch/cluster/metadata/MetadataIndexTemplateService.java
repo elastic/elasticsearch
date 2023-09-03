@@ -13,7 +13,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1433,10 +1433,10 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into a {@link DataLifecycle} object
+     * Resolve the given v2 template into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
+    public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1447,21 +1447,24 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the provided v2 template and component templates into a {@link DataLifecycle} object
+     * Resolve the provided v2 template and component templates into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+    public static DataStreamLifecycle resolveLifecycle(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
 
-        List<DataLifecycle> lifecycles = new ArrayList<>();
+        List<DataStreamLifecycle> lifecycles = new ArrayList<>();
         for (String componentTemplateName : template.composedOf()) {
             if (componentTemplates.containsKey(componentTemplateName) == false) {
                 continue;
             }
-            DataLifecycle dataLifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
-            if (dataLifecycle != null) {
-                lifecycles.add(dataLifecycle);
+            DataStreamLifecycle lifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
+            if (lifecycle != null) {
+                lifecycles.add(lifecycle);
             }
         }
         // The actual index template's lifecycle has the highest precedence.
@@ -1478,43 +1481,50 @@ public class MetadataIndexTemplateService {
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "20d"
      *     }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
-     * However, if we have the following two lifecycles:
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "20d"}} because the second data retention overrides the
+     * first. However, if we have the following two lifecycles:
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": false,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
-     *   "lifecycle": { }
+     *   "lifecycle": {
+     *      "enabled": true
+     *   }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "10d"} } because the latest lifecycle does not have any
      * information on retention.
      * @param lifecycles a sorted list of lifecycles in the order that they will be composed
      * @return the final lifecycle
      */
     @Nullable
-    public static DataLifecycle composeDataLifecycles(List<DataLifecycle> lifecycles) {
-        DataLifecycle.Builder builder = null;
-        for (DataLifecycle current : lifecycles) {
-            if (current == Template.NO_LIFECYCLE) {
-                builder = null;
-            } else if (builder == null) {
-                builder = DataLifecycle.Builder.newBuilder(current);
+    public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
+        DataStreamLifecycle.Builder builder = null;
+        for (DataStreamLifecycle current : lifecycles) {
+            if (builder == null) {
+                builder = DataStreamLifecycle.newBuilder(current);
             } else {
+                builder.enabled(current.isEnabled());
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());
+                }
+                if (current.getDownsampling() != null) {
+                    builder.downsampling(current.getDownsampling());
                 }
             }
         }
@@ -1551,7 +1561,7 @@ public class MetadataIndexTemplateService {
 
         // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
         Settings finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(resolvedSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
@@ -1624,7 +1634,7 @@ public class MetadataIndexTemplateService {
 
             // create index service for parsing and validating "mappings"
             Settings dummySettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(settings)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)

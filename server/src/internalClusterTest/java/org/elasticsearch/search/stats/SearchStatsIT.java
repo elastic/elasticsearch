@@ -74,7 +74,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
     public void testSimpleStats() throws Exception {
         // clear all stats first
-        client().admin().indices().prepareStats().clear().get();
+        indicesAdmin().prepareStats().clear().get();
         final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
@@ -115,7 +115,7 @@ public class SearchStatsIT extends ESIntegTestCase {
             assertAllSuccessful(searchResponse);
         }
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
@@ -123,7 +123,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), nullValue());
 
-        indicesStats = client().admin().indices().prepareStats().setGroups("group1").get();
+        indicesStats = indicesAdmin().prepareStats().setGroups("group1").get();
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
@@ -182,9 +182,9 @@ public class SearchStatsIT extends ESIntegTestCase {
                     .get();
             }
         }
-        client().admin().indices().prepareRefresh(index).get();
+        indicesAdmin().prepareRefresh(index).get();
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(index).get();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats(index).get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
@@ -196,7 +196,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertSearchResponse(searchResponse);
 
         // refresh the stats now that scroll contexts are opened
-        indicesStats = client().admin().indices().prepareStats(index).get();
+        indicesStats = indicesAdmin().prepareStats(index).get();
 
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long) numAssignedShards(index)));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getScrollCurrent(), equalTo((long) numAssignedShards(index)));
@@ -212,18 +212,18 @@ public class SearchStatsIT extends ESIntegTestCase {
         long expected = 0;
 
         // the number of queries executed is equal to at least the sum of number of pages in shard over all shards
-        IndicesStatsResponse r = client().admin().indices().prepareStats(index).get();
+        IndicesStatsResponse r = indicesAdmin().prepareStats(index).get();
         for (int s = 0; s < numAssignedShards(index); s++) {
             expected += (long) Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
         }
-        indicesStats = client().admin().indices().prepareStats().get();
+        indicesStats = indicesAdmin().prepareStats().get();
         Stats stats = indicesStats.getTotal().getSearch().getTotal();
         assertEquals(hits, docs * numAssignedShards(index));
         assertThat(stats.getQueryCount(), greaterThanOrEqualTo(expected));
 
         clearScroll(searchResponse.getScrollId());
 
-        indicesStats = client().admin().indices().prepareStats().get();
+        indicesStats = indicesAdmin().prepareStats().get();
         stats = indicesStats.getTotal().getSearch().getTotal();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         assertThat(stats.getScrollCount(), equalTo((long) numAssignedShards(index)));

@@ -29,6 +29,6 @@ public interface TransportChannel {
      * Returns the version of the data to communicate in this channel.
      */
     default TransportVersion getVersion() {
-        return TransportVersion.CURRENT;
+        return TransportVersion.current();
     }
 }

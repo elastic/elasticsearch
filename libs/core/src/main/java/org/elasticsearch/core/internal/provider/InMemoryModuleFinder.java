@@ -72,8 +72,8 @@ class InMemoryModuleFinder implements ModuleFinder {
         md.requires().stream().filter(req -> missingModules.contains(req.name()) == false).forEach(builder::requires);
         md.exports().forEach(builder::exports);
         md.opens().forEach(builder::opens);
-        md.provides().stream().forEach(builder::provides);
-        md.uses().stream().forEach(builder::uses);
+        md.provides().forEach(builder::provides);
+        md.uses().forEach(builder::uses);
         builder.packages(md.packages());
         return builder.build();
     }

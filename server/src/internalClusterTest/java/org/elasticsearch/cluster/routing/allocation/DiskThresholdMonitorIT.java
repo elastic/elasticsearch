@@ -55,7 +55,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .build()
         );
         // ensure we have a system index on the data node too.
-        assertAcked(client().admin().indices().prepareCreate(TaskResultsService.TASK_INDEX));
+        assertAcked(indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX));
 
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
@@ -110,7 +110,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .build()
         );
         // ensure we have a system index on the data node too.
-        assertAcked(client().admin().indices().prepareCreate(TaskResultsService.TASK_INDEX));
+        assertAcked(indicesAdmin().prepareCreate(TaskResultsService.TASK_INDEX));
 
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
@@ -143,7 +143,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
     // Retrieves the value of the given block on an index.
     private static String getIndexBlock(String indexName, String blockName) {
-        return client().admin().indices().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
+        return indicesAdmin().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
     }
 
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -106,11 +105,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     @Override
     public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
         return load(context);
-    }
-
-    @Override
-    public OrdinalMap getOrdinalMap() {
-        return null;
     }
 
     @Override

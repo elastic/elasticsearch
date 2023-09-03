@@ -68,7 +68,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -80,7 +80,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -118,7 +118,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -133,7 +133,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).setRouting(routing).get();
         }
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse = client().prepareSearch()
             .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -185,7 +185,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testScrollAndUpdateIndex() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
@@ -201,7 +201,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
         assertThat(
@@ -237,7 +237,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
             } while (searchResponse.getHits().getHits().length > 0);
 
-            client().admin().indices().prepareRefresh().get();
+            indicesAdmin().prepareRefresh().get();
             assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
             assertThat(
                 client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
@@ -261,7 +261,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -273,7 +273,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -381,7 +381,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
+        indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
@@ -393,7 +393,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -553,11 +553,11 @@ public class SearchScrollIT extends ESIntegTestCase {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
         }
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
-            assertAcked(client().admin().indices().prepareOpen("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareOpen("test"));
             ensureGreen("test");
         } else {
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertAcked(indicesAdmin().prepareDelete("test"));
         }
     }
 
@@ -647,7 +647,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
         client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
         SearchResponse resp = null;
         try {
             int totalHits = 0;
@@ -671,7 +671,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95759")
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
         createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
@@ -681,7 +680,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             index("demo", "demo-" + i, Map.of());
             index("prod", "prod-" + i, Map.of());
         }
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
         SearchResponse respFromDemoIndex = client().prepareSearch("demo")
             .setSize(randomIntBetween(1, 10))
             .setQuery(new MatchAllQueryBuilder())

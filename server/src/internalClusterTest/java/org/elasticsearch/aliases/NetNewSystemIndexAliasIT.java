@@ -49,7 +49,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         ensureGreen();
 
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        GetAliasesResponse aliasResponse = client().admin().indices().getAliases(getAliasesRequest).get();
+        GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
 
@@ -68,6 +68,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");

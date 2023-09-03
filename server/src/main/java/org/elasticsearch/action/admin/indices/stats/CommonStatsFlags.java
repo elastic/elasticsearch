@@ -222,7 +222,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         Recovery("recovery", 16),
         Bulk("bulk", 17),
         Shards("shard_stats", 18),
-        Mappings("mappings", 19);
+        Mappings("mappings", 19),
+        DenseVector("dense_vector", 20);
 
         private final String restName;
         private final int index;

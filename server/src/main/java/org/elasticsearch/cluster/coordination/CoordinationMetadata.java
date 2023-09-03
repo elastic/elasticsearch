@@ -98,7 +98,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         term = in.readLong();
         lastCommittedConfiguration = new VotingConfiguration(in);
         lastAcceptedConfiguration = new VotingConfiguration(in);
-        votingConfigExclusions = Collections.unmodifiableSet(in.readSet(VotingConfigExclusion::new));
+        votingConfigExclusions = in.readImmutableSet(VotingConfigExclusion::new);
     }
 
     public static Builder builder() {

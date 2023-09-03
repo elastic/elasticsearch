@@ -48,11 +48,6 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected QuestionAnsweringConfigUpdate doParseInstance(XContentParser parser) throws IOException {
         return QuestionAnsweringConfigUpdate.fromXContentStrict(parser);
     }

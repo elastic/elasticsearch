@@ -3,7 +3,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-security-cli'
+base {
+  archivesName = 'elasticsearch-security-cli'
+}
 
 dependencies {
   compileOnly project(":server")

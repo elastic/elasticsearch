@@ -162,7 +162,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_7_7_0,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(
             doc,

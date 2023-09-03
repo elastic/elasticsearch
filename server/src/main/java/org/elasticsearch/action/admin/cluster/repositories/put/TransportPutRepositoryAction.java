@@ -68,7 +68,7 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        repositoriesService.registerRepository(request, listener.map(response -> AcknowledgedResponse.of(response.isAcknowledged())));
+        repositoriesService.registerRepository(request, listener);
     }
 
     @Override

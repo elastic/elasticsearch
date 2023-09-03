@@ -87,8 +87,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STORE,
-            NodeStoreFilesMetadata.class
+            ThreadPool.Names.FETCH_SHARD_STORE
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -226,7 +225,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 assert out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
+            out.writeCollection(peerRecoveryRetentionLeases);
         }
 
         public boolean isEmpty() {
@@ -335,7 +334,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 

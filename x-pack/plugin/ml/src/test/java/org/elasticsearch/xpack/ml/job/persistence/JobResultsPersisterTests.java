@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -56,6 +57,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -292,7 +294,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         persister.persistDatafeedTimingStats(
             timingStats,
             WriteRequest.RefreshPolicy.IMMEDIATE,
-            ActionListener.wrap(r -> {}, e -> fail("unexpected exception " + e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         InOrder inOrder = inOrder(client);
@@ -434,7 +436,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }

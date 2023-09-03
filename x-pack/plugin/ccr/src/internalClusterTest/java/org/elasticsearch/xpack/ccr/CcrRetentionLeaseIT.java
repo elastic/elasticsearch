@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -263,9 +263,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final RestoreInfo restoreInfo = future.actionGet();
 
-        assertEquals(restoreInfo.totalShards(), restoreInfo.
-
-            successfulShards());
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
 
         assertEquals(0, restoreInfo.failedShards());
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -459,10 +457,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                             final IndexShard primary = getLeaderCluster().getInstance(IndicesService.class, primaryShardNodeName)
                                 .getShardOrNull(removeRequest.getShardId());
                             final CountDownLatch latch = new CountDownLatch(1);
-                            primary.removeRetentionLease(
-                                retentionLeaseId,
-                                ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()))
-                            );
+                            primary.removeRetentionLease(retentionLeaseId, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
                             try {
                                 latch.await();
                             } catch (final InterruptedException e) {
@@ -879,7 +874,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                 logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
                                 primary.removeRetentionLease(
                                     retentionLeaseId,
-                                    ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString()))
+                                    ActionTestUtils.assertNoFailureListener(r -> innerLatch.countDown())
                                 );
                                 logger.info(
                                     "--> waiting for the removed retention lease [{}] to be synced on the leader",

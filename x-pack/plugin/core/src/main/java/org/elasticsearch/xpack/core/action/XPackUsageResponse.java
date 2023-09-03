@@ -41,7 +41,7 @@ public class XPackUsageResponse extends ActionResponse {
     }
 
     private static void writeTo(final StreamOutput out, final List<XPackFeatureSet.Usage> usages) throws IOException {
-        out.writeNamedWriteableList(usages);
+        out.writeNamedWriteableCollection(usages);
     }
 
 }

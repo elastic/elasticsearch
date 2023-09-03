@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -62,7 +63,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
-        this.project.setProperty("archivesBaseName", name);
+        this.project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().set(name);
         this.name = name;
     }
 

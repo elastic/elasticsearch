@@ -11,12 +11,12 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -57,6 +57,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return Map.of("key", "value");
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
     }
 
     @Override
@@ -418,7 +423,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
         );
         IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
@@ -436,7 +441,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             )
         );
         IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
@@ -452,7 +457,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
         );
         IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2", "field.key3"))
@@ -483,7 +488,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         IndexSettings settings = createIndexSettings(
-            Version.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("flattened_field.key1", "keyword_field"))

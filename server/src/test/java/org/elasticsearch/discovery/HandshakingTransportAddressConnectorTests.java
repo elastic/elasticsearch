@@ -92,7 +92,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     } else {
                         handleResponse(
                             requestId,
-                            new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), remoteNode, new ClusterName(remoteClusterName))
+                            new HandshakeResponse(Version.CURRENT, Build.current().hash(), remoteNode, new ClusterName(remoteClusterName))
                         );
                     }
                 }

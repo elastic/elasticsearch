@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -179,7 +178,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
         return mockExecutionContextBuilder("watch1").wid(wid)
             .payload(new Payload.Simple())
             .time("watch1", now)

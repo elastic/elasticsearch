@@ -1,0 +1,5 @@
+pr: 96895
+summary: Fix cluster bootstrap warning for single-node discovery
+area: Cluster Coordination
+type: bug
+issues: [96874]

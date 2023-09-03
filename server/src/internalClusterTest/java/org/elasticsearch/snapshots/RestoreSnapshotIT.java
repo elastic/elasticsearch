@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
@@ -905,7 +905,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, FsRepository.TYPE, repoPath);
-        final Version oldVersion = Version.CURRENT.previousMajor().previousMajor();
+        final IndexVersion oldVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1);
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
@@ -917,7 +917,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 "the snapshot was created with Elasticsearch version ["
                     + oldVersion
                     + "] which is below the current versions minimum index compatibility version ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + IndexVersion.MINIMUM_COMPATIBLE
                     + "]"
             )
         );
@@ -931,7 +931,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(indexName));
         index(indexName, "some_id", Map.of("foo", "bar"));
-        assertAcked(admin().indices().prepareClose(indexName).get());
+        assertAcked(indicesAdmin().prepareClose(indexName).get());
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.addExpectation(
             new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")

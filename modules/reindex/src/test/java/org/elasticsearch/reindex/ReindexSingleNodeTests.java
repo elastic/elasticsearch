@@ -33,7 +33,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
         }
 
-        client().admin().indices().prepareRefresh("source").get();
+        indicesAdmin().prepareRefresh("source").get();
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy a subset of the docs sorted

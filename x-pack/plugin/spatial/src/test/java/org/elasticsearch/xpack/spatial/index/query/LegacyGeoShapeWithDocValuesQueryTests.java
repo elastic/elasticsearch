@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
@@ -16,12 +15,13 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeQueryTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
@@ -64,15 +64,15 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         final Settings finalSetting;
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get()
+            () -> indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(settings).get()
         );
         assertThat(
             ex.getMessage(),
             containsString("using deprecated parameters [tree] in mapper [" + fieldName + "] of type [geo_shape] is no longer allowed")
         );
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         finalSetting = settings(version).put(settings).build();
-        client().admin().indices().prepareCreate(indexName).setMapping(xcb).setSettings(finalSetting).get();
+        indicesAdmin().prepareCreate(indexName).setMapping(xcb).setSettings(finalSetting).get();
     }
 
     @Override
@@ -98,7 +98,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get()
+            () -> indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get()
         );
         assertThat(
             ex.getMessage(),
@@ -108,9 +108,9 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             )
         );
 
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         Settings settings = settings(version).build();
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         // MULTIPOINT
@@ -153,7 +153,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get()
+            () -> indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).get()
         );
         assertThat(
             ex.getMessage(),
@@ -163,9 +163,9 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             )
         );
 
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         Settings settings = settings(version).build();
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
+        indicesAdmin().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
@@ -207,16 +207,16 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get()
+            () -> indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).get()
         );
         assertThat(
             ex.getMessage(),
             containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed")
         );
 
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         Settings settings = settings(version).build();
-        client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).setSettings(settings).get();
+        indicesAdmin().prepareCreate(defaultIndexName).setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);

@@ -1683,3 +1683,44 @@
     - length: { tokens: 6 }
     - match: { tokens.0.token: the }
     - match: { tokens.1.token: THE }
+
+---
+"pattern_replace_filter":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              normalizer:
+                my_normalizer:
+                  type: custom
+                  filter: ["replace_zeros"]
+              filter:
+                replace_zeros:
+                  type: pattern_replace
+                  pattern: "0+"
+                  replacement: ""
+                  all: true
+          mappings:
+            properties:
+              pagerank:
+                type: keyword
+                normalizer: my_normalizer
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { pagerank: "000000111"}
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        q: pagerank:111
+
+  - match: {hits.total.value: 1}

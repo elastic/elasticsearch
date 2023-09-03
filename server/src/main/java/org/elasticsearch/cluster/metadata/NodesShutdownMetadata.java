@@ -74,12 +74,12 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this(in.readImmutableMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
+        this(in.readImmutableMap(SingleNodeShutdownMetadata::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(nodes, StreamOutput::writeString, (outStream, v) -> v.writeTo(outStream));
+        out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     /**

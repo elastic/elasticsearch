@@ -93,7 +93,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public void testNodeInfoIsFiltered() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().setSettings(true).get();
         for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);

@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.Maps;
@@ -186,7 +185,7 @@ public class IndexActionTests extends ESTestCase {
 
         // using doc_id with bulk fails regardless of using ID
         expectThrows(IllegalStateException.class, () -> {
-            final List<Map<?, ?>> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
+            final List<Map<?, ?>> idList = Arrays.asList(docWithId, Map.of("foo", "bar1", "_id", "1"));
 
             final Object list = randomFrom(
                 new Map<?, ?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },

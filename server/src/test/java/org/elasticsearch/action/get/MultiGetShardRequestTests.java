@@ -107,7 +107,7 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }
 
-    private static MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {
+    static MultiGetShardRequest createTestInstance(boolean forceSyntheticSource) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         if (randomBoolean()) {
             multiGetRequest.preference(randomAlphaOfLength(randomIntBetween(1, 10)));

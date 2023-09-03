@@ -559,7 +559,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             Predicate<ClusterName> clusterNamePredicate,
             ActionListener<HandshakeResponse> listener
         ) {
-            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), connection.getNode(), new ClusterName("")));
+            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.current().hash(), connection.getNode(), new ClusterName("")));
         }
 
     }
@@ -632,7 +632,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
                         @Override
                         public TransportVersion getTransportVersion() {
-                            return TransportVersion.CURRENT;
+                            return TransportVersion.current();
                         }
 
                         @Override

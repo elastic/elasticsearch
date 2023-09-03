@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Restriction;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 
 import java.io.IOException;
 
@@ -30,11 +31,11 @@ public class RoleRestrictionTests extends ESTestCase {
     public void testParse() throws Exception {
         final String json = """
             {
-                "workflows": ["search_application", "search_analytics"]
+                "workflows": ["search_application_query"]
             }
             """;
         Restriction r = Restriction.parse("test_restriction", createJsonParser(json));
-        assertThat(r.getWorkflows(), arrayContaining("search_application", "search_analytics"));
+        assertThat(r.getWorkflows(), arrayContaining("search_application_query"));
         assertThat(r.hasWorkflows(), equalTo(true));
         assertThat(r.isEmpty(), equalTo(false));
 
@@ -108,7 +109,6 @@ public class RoleRestrictionTests extends ESTestCase {
     }
 
     public static String[] randomWorkflowNames(int min, int max) {
-        // TODO: Change this to use actual workflow names instead of random ones.
-        return randomArray(min, max, String[]::new, () -> randomAlphaOfLengthBetween(3, 6));
+        return randomArray(min, max, String[]::new, () -> randomFrom(WorkflowResolver.allWorkflows()).name());
     }
 }

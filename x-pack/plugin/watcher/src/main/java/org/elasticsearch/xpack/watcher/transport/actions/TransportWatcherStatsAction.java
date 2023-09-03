@@ -60,8 +60,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
             actionFilters,
             WatcherStatsRequest::new,
             WatcherStatsRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            WatcherStatsResponse.Node.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;

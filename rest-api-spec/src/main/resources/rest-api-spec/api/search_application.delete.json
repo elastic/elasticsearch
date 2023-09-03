@@ -1,7 +1,7 @@
 {
   "search_application.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-search-application.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-search-application.html",
       "description": "Deletes a search application."
     },
     "stability": "experimental",

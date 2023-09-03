@@ -1,0 +1,6 @@
+pr: 97700
+summary: Add `completion_time` time field to `async_search` get and status response
+area: Search
+type: enhancement
+issues:
+ - 88640

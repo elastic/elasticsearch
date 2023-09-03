@@ -10,6 +10,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 
@@ -33,11 +34,12 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
     }
 
     void build(
+        final IndexCreationContext context,
         final Map<String, TokenizerFactory> tokenizers,
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
+        customAnalyzer = create(context, name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
     }
 
     /**
@@ -45,6 +47,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
      * and search time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
      */
     private static Analyzer create(
+        IndexCreationContext context,
         String name,
         Settings analyzerSettings,
         Map<String, TokenizerFactory> tokenizers,
@@ -54,7 +57,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
-        AnalyzerComponents components = createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = createComponents(context, name, analyzerSettings, tokenizers, charFilters, tokenFilters);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
             return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {

@@ -68,10 +68,7 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        repositoriesService.unregisterRepository(
-            request,
-            listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))
-        );
+        repositoriesService.unregisterRepository(request, listener);
     }
 
     @Override

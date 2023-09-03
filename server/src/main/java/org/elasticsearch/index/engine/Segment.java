@@ -60,7 +60,7 @@ public class Segment implements Writeable {
         }
         segmentSort = readSegmentSort(in);
         if (in.readBoolean()) {
-            attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+            attributes = in.readMap(StreamInput::readString);
         } else {
             attributes = null;
         }
@@ -168,7 +168,7 @@ public class Segment implements Writeable {
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
         if (hasAttributes) {
-            out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(attributes, StreamOutput::writeString);
         }
     }
 

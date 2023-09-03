@@ -55,7 +55,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         populateIndex(indexName, 10);
         ensureGreen(indexName);
         createFullSnapshot(fsRepoName, snapshotName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
@@ -141,9 +141,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(mountRequest.mountedIndexName());
 
-        final Settings mountedIndexSettings = client().admin()
-            .indices()
-            .prepareGetSettings(mountRequest.mountedIndexName())
+        final Settings mountedIndexSettings = indicesAdmin().prepareGetSettings(mountRequest.mountedIndexName())
             .get()
             .getIndexToSettings()
             .get(mountRequest.mountedIndexName());

@@ -44,6 +44,16 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
 
+  // In 8.9.0, the default t-digest algorithm changed from AVL-tree-based to hybrid, combining a sorted array of samples with a merging
+  // implementation. This change leads to slight different percentile results, compared to previous versions.
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Basic test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Non-keyed test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Only aggs test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Explicit Percents test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Metadata test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Filtered test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/filtered", "Hybrid t-digest produces different results.")
+
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 

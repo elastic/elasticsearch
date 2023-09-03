@@ -31,7 +31,7 @@ import java.util.function.Function;
 public class ValuesSourceConfig {
 
     /**
-     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggretation run, and construct a new
+     * Given the query context and other information, decide on the input {@link ValuesSource} for this aggregation run, and construct a new
      * {@link ValuesSourceConfig} based on that {@link ValuesSourceType}
      *
      * @param context - the query context
@@ -451,8 +451,15 @@ public class ValuesSourceConfig {
 
         MappedFieldType fieldType = fieldType();
         if (fieldType != null) {
-            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+            String typeName = fieldType.typeName();
+            String valuesSourceTypeName = valuesSourceType.typeName();
+            if (valuesSourceType instanceof TimeSeriesValuesSourceType) {
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "][" + valuesSourceTypeName + "]";
+            } else {
+                // Avoid repeated names. Currently only time series values source types have a different behaviour/validation.
+                return "Field [" + fieldType.name() + "] of type [" + typeName + "]";
+            }
         }
-        return "unmapped field";
+        return "unmapped field with value source type [" + valuesSourceType.typeName() + "]";
     }
 }

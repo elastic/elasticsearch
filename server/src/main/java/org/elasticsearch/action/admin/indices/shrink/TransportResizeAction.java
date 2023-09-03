@@ -163,12 +163,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             client.execute(
                 IndicesStatsAction.INSTANCE,
                 statsRequest,
-                listener.delegateFailure(
-                    (delegatedListener, indicesStatsResponse) -> delegatedListener.onResponse(
-                        new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(indicesStatsResponse.getPrimaries().store, i -> {
+                listener.safeMap(
+                    indicesStatsResponse -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                        indicesStatsResponse.getPrimaries().store,
+                        i -> {
                             IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                             return shard == null ? null : shard.getPrimary().getDocs();
-                        })
+                        }
                     )
                 )
             );

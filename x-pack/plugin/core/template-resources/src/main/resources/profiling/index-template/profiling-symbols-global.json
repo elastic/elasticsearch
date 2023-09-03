@@ -1,0 +1,22 @@
+{
+  "index_patterns": [
+    ".profiling-symbols-global*"
+  ],
+  "composed_of": [
+    "profiling-symbols",
+    "profiling-ilm",
+    "profiling-hot-tier"
+  ],
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle.rollover_alias": "profiling-symbols-global"
+      }
+    }
+  },
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for .profiling-symbols-global"
+  },
+  "version": ${xpack.profiling.template.version}
+}

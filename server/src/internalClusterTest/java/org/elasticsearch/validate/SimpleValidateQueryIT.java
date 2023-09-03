@@ -225,7 +225,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testValidateEmptyCluster() {
         try {
-            client().admin().indices().prepareValidateQuery().get();
+            indicesAdmin().prepareValidateQuery().get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [_all] and no indices exist"));
@@ -236,7 +236,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery().setExplain(true).get();
+        ValidateQueryResponse validateQueryResponse = indicesAdmin().prepareValidateQuery().setExplain(true).get();
         assertThat(validateQueryResponse.isValid(), equalTo(true));
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
@@ -337,7 +337,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+        assertThat(indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
             {"foo": "bar", "query": {"term" : { "user" : "kimchy" }}}
             """))).get().isValid(), equalTo(false));
     }
@@ -347,7 +347,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+        assertThat(indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
             {"query": {"term" : { "user" : "kimchy" }}, "foo": "bar"}
             """))).get().isValid(), equalTo(false));
     }

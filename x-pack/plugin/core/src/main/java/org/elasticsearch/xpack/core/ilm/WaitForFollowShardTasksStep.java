@@ -63,7 +63,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
             .stream()
             .map(FollowStatsAction.StatsResponse::status)
             .filter(shardFollowStatus -> shardFollowStatus.leaderGlobalCheckpoint() != shardFollowStatus.followerGlobalCheckpoint())
-            .collect(Collectors.toList());
+            .toList();
 
         // Follow stats api needs to return stats for follower index and all shard follow tasks should be synced:
         boolean conditionMet = responses.getStatsResponses().size() > 0 && unSyncedShardFollowStatuses.isEmpty();

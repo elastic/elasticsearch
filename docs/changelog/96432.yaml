@@ -1,5 +1,0 @@
-pr: 96432
-summary: Improve error message on transform `_update` conflict
-area: Transform
-type: bug
-issues: []

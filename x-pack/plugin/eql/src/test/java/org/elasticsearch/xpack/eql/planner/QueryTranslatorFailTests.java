@@ -292,11 +292,11 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     public void testSamplesWithIncorrectOptions() {
         assertThat(
             errorParsing("sample by pid with maxspan=1h [any where true] [any where true]"),
-            startsWith("1:15: mismatched input 'with' expecting '['")
+            startsWith("1:15: mismatched input 'with' expecting {'[', '!['}")
         );
         assertThat(
             errorParsing("sample with maxspan=1h [any where true] by pid [any where true] by pid"),
-            startsWith("1:8: mismatched input 'with' expecting {'by', '['}")
+            startsWith("1:8: mismatched input 'with' expecting {'by', '[', '!['}")
         );
         assertThat(
             errorParsing("sample by pid [any where true] [any where true] until [process where event.type == \"termination\"]"),

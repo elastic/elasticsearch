@@ -147,7 +147,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(featureImportance);
+        out.writeCollection(featureImportance);
         out.writeOptionalString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);

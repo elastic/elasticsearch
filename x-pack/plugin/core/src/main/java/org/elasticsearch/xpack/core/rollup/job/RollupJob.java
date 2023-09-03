@@ -57,7 +57,7 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
 
     public RollupJob(StreamInput in) throws IOException {
         this.config = new RollupJobConfig(in);
-        headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        headers = in.readMap(StreamInput::readString);
     }
 
     public RollupJobConfig getConfig() {
@@ -86,7 +86,7 @@ public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParam
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         config.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     static Diff<RollupJob> readJobDiffFrom(StreamInput in) throws IOException {

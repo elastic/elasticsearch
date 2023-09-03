@@ -177,7 +177,13 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 randomBoolean()
             );
 
-            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);
+            final FixedExecutorBuilder fixed = new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "my_pool2",
+                1,
+                1,
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            );
 
             threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), scaling, fixed);
 

@@ -26,7 +26,7 @@ public class NlpTask {
     private final NlpConfig config;
     private final NlpTokenizer tokenizer;
 
-    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) throws IOException {
         this.config = config;
         this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }

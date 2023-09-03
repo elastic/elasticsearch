@@ -41,7 +41,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         createRepository(repoName, "mock");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         final String secondDataNode = internalCluster().startDataOnlyNode();
@@ -82,7 +82,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);
         assertEquals(firstDataNode, primaryNode.getName());
@@ -91,9 +91,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         latch.countDown();
 
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(restoredIndex)
+            clusterAdmin().prepareHealth(restoredIndex)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -115,9 +113,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
     }
 
     private static Stream<RecoveryState> getRelocationsStream(String restoredIndex) {
-        return client().admin()
-            .indices()
-            .prepareRecoveries(restoredIndex)
+        return indicesAdmin().prepareRecoveries(restoredIndex)
             .setDetailed(true)
             .setActiveOnly(true)
             .get()

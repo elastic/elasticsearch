@@ -259,7 +259,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
 
         TransportVersion minVersion = getFirstVersion();
-        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.CURRENT));
+        TransportVersion streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(TransportVersion.current()));
         tasks.addTask(
             "test_compatible_version",
             TestPersistentTasksExecutor.NAME,
@@ -275,7 +275,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.CURRENT),
+                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.current()),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -386,7 +386,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
         };
     }

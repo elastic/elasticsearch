@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexService;
@@ -42,7 +41,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            new IndexSearcher(reader),
+            newSearcher(reader),
             null,
             null,
             null,
@@ -124,7 +123,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            new IndexSearcher(reader),
+            newSearcher(reader),
             null,
             null,
             null,

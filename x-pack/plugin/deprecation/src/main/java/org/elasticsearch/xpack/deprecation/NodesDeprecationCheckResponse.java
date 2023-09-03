@@ -38,7 +38,7 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesDeprecationCheckAction.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

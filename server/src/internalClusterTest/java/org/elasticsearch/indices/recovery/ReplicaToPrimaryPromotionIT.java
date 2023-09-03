@@ -49,7 +49,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         // sometimes test with a closed index
         final IndexMetadata.State indexState = randomFrom(IndexMetadata.State.OPEN, IndexMetadata.State.CLOSE);
         if (indexState == IndexMetadata.State.CLOSE) {
-            CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+            CloseIndexResponse closeIndexResponse = indicesAdmin().prepareClose(indexName).get();
             assertThat("close index not acked - " + closeIndexResponse, closeIndexResponse.isAcknowledged(), equalTo(true));
             ensureGreen(indexName);
         }
@@ -73,7 +73,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         }
 
         if (indexState == IndexMetadata.State.CLOSE) {
-            assertAcked(client().admin().indices().prepareOpen(indexName));
+            assertAcked(indicesAdmin().prepareOpen(indexName));
             ensureYellowAndNoInitializingShards(indexName);
         }
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);

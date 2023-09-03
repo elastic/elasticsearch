@@ -22,6 +22,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,8 +51,8 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
-    @Before
-    private void restoreDefaultInitialDelay() {
+    @After
+    public void restoreDefaultInitialDelay() {
         CoordinationDiagnosticsService.remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
     }
 

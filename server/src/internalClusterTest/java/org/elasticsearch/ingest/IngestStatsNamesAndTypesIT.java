@@ -97,7 +97,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             }
             """, MockScriptEngine.NAME, MockScriptEngine.NAME);
         BytesReference pipeline1Reference = new BytesArray(pipeline1);
-        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
+        clusterAdmin().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
 
         // index a single document through the pipeline
         BulkRequest bulkRequest = new BulkRequest();
@@ -143,7 +143,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         {
             // the bits that we want to read from the cluster stats response aren't visible in java code (no getters,
             // non-public classes and methods), roundtrip through json so that we can read what we want
-            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             response.toXContent(builder, new ToXContent.MapParams(Map.of()));

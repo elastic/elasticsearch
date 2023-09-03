@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+
 public class OperationRouting {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
@@ -122,8 +124,11 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
-                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
+                var shardsThatCanHandleSearches = iterator.getShardRoutings()
+                    .stream()
+                    .filter(shardRouting -> canSearchShard(shardRouting, clusterState))
+                    .toList();
+                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
@@ -261,5 +266,13 @@ public class OperationRouting {
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
+    }
+
+    public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
+        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
+            return shardRouting.isPromotableToPrimary();
+        } else {
+            return shardRouting.isSearchable();
+        }
     }
 }

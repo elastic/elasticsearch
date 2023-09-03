@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.analytics.event;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
@@ -79,7 +78,7 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
     }
 
     private static BytesReference toRequestPayload(AnalyticsEvent event) throws IOException {
-        MapBuilder<String, Object> requestPayloadBuilder = MapBuilder.newMapBuilder(event.payloadAsMap());
+        Map<String, Object> requestPayloadBuilder = new HashMap<>(event.payloadAsMap());
 
         @SuppressWarnings("unchecked")
         Map<String, String> eventSessionData = (Map<String, String>) event.payloadAsMap().get(SESSION_FIELD.getPreferredName());
@@ -92,7 +91,7 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
 
         requestPayloadBuilder.put(SESSION_FIELD.getPreferredName(), requestSessionData);
 
-        return convertMapToJson(requestPayloadBuilder.map());
+        return convertMapToJson(requestPayloadBuilder);
     }
 
     public void testFromPayloadSearchClickEvent() throws IOException {

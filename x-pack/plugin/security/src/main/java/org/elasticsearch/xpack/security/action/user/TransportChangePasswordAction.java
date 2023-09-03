@@ -60,6 +60,6 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
             );
             return;
         }
-        nativeUsersStore.changePassword(request, listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
+        nativeUsersStore.changePassword(request, listener.safeMap(v -> ActionResponse.Empty.INSTANCE));
     }
 }

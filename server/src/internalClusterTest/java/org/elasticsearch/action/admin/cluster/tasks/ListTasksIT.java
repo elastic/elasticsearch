@@ -44,13 +44,10 @@ public class ListTasksIT extends ESSingleNodeTestCase {
     public void testListTasksFilteredByDescription() {
 
         // The list tasks action itself is filtered out via this description filter
-        assertThat(
-            client().admin().cluster().prepareListTasks().setDetailed(true).setDescriptions("match_nothing*").get().getTasks(),
-            is(empty())
-        );
+        assertThat(clusterAdmin().prepareListTasks().setDetailed(true).setDescriptions("match_nothing*").get().getTasks(), is(empty()));
 
         // The list tasks action itself is kept via this description filter which matches everything
-        assertThat(client().admin().cluster().prepareListTasks().setDetailed(true).setDescriptions("*").get().getTasks(), is(not(empty())));
+        assertThat(clusterAdmin().prepareListTasks().setDetailed(true).setDescriptions("*").get().getTasks(), is(not(empty())));
 
     }
 
@@ -58,7 +55,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         ActionRequestValidationException ex = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().admin().cluster().prepareListTasks().setDescriptions("*").get()
+            () -> clusterAdmin().prepareListTasks().setDescriptions("*").get()
         );
         assertThat(ex.getMessage(), containsString("matching on descriptions is not available when [detailed] is false"));
 
@@ -79,23 +76,21 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         barrier.await(10, TimeUnit.SECONDS);
 
-        final var listTasksResponse = client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).get();
+        final var listTasksResponse = clusterAdmin().prepareListTasks().setActions(TestTransportAction.NAME).get();
         assertThat(listTasksResponse.getNodeFailures(), empty());
         assertEquals(1, listTasksResponse.getTasks().size());
         final var task = listTasksResponse.getTasks().get(0);
         assertEquals(TestTransportAction.NAME, task.action());
 
         final var listWaitFuture = new PlainActionFuture<Void>();
-        client().admin()
-            .cluster()
-            .prepareListTasks()
+        clusterAdmin().prepareListTasks()
             .setTargetTaskId(task.taskId())
             .setWaitForCompletion(true)
             .execute(listWaitFuture.delegateFailure((l, listResult) -> {
                 assertEquals(1, listResult.getTasks().size());
                 assertEquals(task.taskId(), listResult.getTasks().get(0).taskId());
                 // the task must now be complete:
-                client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
+                clusterAdmin().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
                     assertThat(listAfterWaitResult.getTasks(), empty());
                     assertThat(listAfterWaitResult.getNodeFailures(), empty());
                     assertThat(listAfterWaitResult.getTaskFailures(), empty());
@@ -109,23 +104,19 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         flushThreadPool(threadPool, ThreadPool.Names.MANAGEMENT);
 
         final var getWaitFuture = new PlainActionFuture<Void>();
-        client().admin()
-            .cluster()
-            .prepareGetTask(task.taskId())
-            .setWaitForCompletion(true)
-            .execute(getWaitFuture.delegateFailure((l, getResult) -> {
-                assertTrue(getResult.getTask().isCompleted());
-                assertEquals(task.taskId(), getResult.getTask().getTask().taskId());
-                // the task must now be complete:
-                client().admin().cluster().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
-                    assertThat(listAfterWaitResult.getTasks(), empty());
-                    assertThat(listAfterWaitResult.getNodeFailures(), empty());
-                    assertThat(listAfterWaitResult.getTaskFailures(), empty());
-                    return null;
-                }));
-                // and we must not see its header:
-                assertNull(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME));
+        clusterAdmin().prepareGetTask(task.taskId()).setWaitForCompletion(true).execute(getWaitFuture.delegateFailure((l, getResult) -> {
+            assertTrue(getResult.getTask().isCompleted());
+            assertEquals(task.taskId(), getResult.getTask().getTask().taskId());
+            // the task must now be complete:
+            clusterAdmin().prepareListTasks().setActions(TestTransportAction.NAME).execute(l.map(listAfterWaitResult -> {
+                assertThat(listAfterWaitResult.getTasks(), empty());
+                assertThat(listAfterWaitResult.getNodeFailures(), empty());
+                assertThat(listAfterWaitResult.getTaskFailures(), empty());
+                return null;
             }));
+            // and we must not see its header:
+            assertNull(threadContext.getResponseHeaders().get(TestTransportAction.HEADER_NAME));
+        }));
 
         assertFalse(listWaitFuture.isDone());
         assertFalse(testActionFuture.isDone());

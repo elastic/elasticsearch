@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 

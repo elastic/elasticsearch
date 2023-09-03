@@ -40,8 +40,8 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToSettings = in.readImmutableMap(Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableMap(Settings::readSettingsFromStream);
     }
 
     /**
@@ -79,8 +79,8 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexToSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(indexToSettings, StreamOutput::writeWriteable);
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeWriteable);
     }
 
     private static void parseSettingsField(

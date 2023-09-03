@@ -49,7 +49,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override
@@ -65,8 +65,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
             builder.field("version", nodeInfo.getVersion());
             builder.field("transport_version", nodeInfo.getTransportVersion().id());
-            // flavor no longer exists, but we keep it here for backcompat
-            builder.field("build_flavor", "default");
+            builder.field("build_flavor", nodeInfo.getBuild().flavor());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {

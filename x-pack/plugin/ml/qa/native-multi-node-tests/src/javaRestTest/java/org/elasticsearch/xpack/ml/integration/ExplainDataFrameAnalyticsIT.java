@@ -57,9 +57,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String sourceIndex = "test-source-query-is-applied";
 
-        client().admin()
-            .indices()
-            .prepareCreate(sourceIndex)
+        indicesAdmin().prepareCreate(sourceIndex)
             .setMapping(
                 "numeric_1",
                 "type=double",

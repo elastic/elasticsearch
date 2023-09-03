@@ -83,7 +83,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     public ModelAliasMetadata(StreamInput in) throws IOException {
-        this.modelAliases = in.readImmutableMap(StreamInput::readString, ModelAliasEntry::new);
+        this.modelAliases = in.readImmutableMap(ModelAliasEntry::new);
     }
 
     public Map<String, ModelAliasEntry> modelAliases() {
@@ -117,7 +117,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.modelAliases, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.modelAliases, StreamOutput::writeWriteable);
     }
 
     public String getModelId(String modelAlias) {

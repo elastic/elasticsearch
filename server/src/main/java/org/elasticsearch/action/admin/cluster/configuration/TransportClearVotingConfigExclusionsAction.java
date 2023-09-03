@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,6 +42,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
     ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
+    private final Reconfigurator reconfigurator;
 
     @Inject
     public TransportClearVotingConfigExclusionsAction(
@@ -48,7 +50,8 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Reconfigurator reconfigurator
     ) {
         super(
             ClearVotingConfigExclusionsAction.NAME,
@@ -62,6 +65,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
             in -> ActionResponse.Empty.INSTANCE,
             ThreadPool.Names.SAME
         );
+        this.reconfigurator = reconfigurator;
     }
 
     @Override
@@ -71,6 +75,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         ClusterState initialState,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
+        reconfigurator.ensureVotingConfigCanBeModified();
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 

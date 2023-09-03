@@ -50,8 +50,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
             actionFilters,
             DeprecationCacheResetAction.Request::new,
             DeprecationCacheResetAction.NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            DeprecationCacheResetAction.NodeResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
     }

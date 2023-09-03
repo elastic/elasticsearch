@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
 import org.opensaml.saml.saml2.metadata.AttributeConsumingService;
@@ -60,7 +60,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Constructs SAML Metadata to describe a <em>Service Provider</em>.
@@ -393,15 +395,13 @@ public class SamlSpMetadataBuilder {
     }
 
     public static class ContactInfo {
-        static final Map<String, ContactPersonTypeEnumeration> TYPES = MapBuilder.<String, ContactPersonTypeEnumeration>newMapBuilder(
-            new LinkedHashMap<>()
-        )
-            .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
-            .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
-            .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
-            .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
-            .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-            .map();
+        static final Map<String, ContactPersonTypeEnumeration> TYPES = Stream.of(
+            ContactPersonTypeEnumeration.ADMINISTRATIVE,
+            ContactPersonTypeEnumeration.BILLING,
+            ContactPersonTypeEnumeration.SUPPORT,
+            ContactPersonTypeEnumeration.TECHNICAL,
+            ContactPersonTypeEnumeration.OTHER
+        ).collect(Maps.toUnmodifiableOrderedMap(ContactPersonTypeEnumeration::toString, Function.identity()));
 
         public final ContactPersonTypeEnumeration type;
         public final String givenName;

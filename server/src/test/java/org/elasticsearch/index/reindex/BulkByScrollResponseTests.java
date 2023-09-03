@@ -82,7 +82,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     private void assertResponseEquals(BulkByScrollResponse expected, BulkByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
-        BulkByScrollTaskStatusTests.assertTaskStatusEquals(TransportVersion.CURRENT, expected.getStatus(), actual.getStatus());
+        BulkByScrollTaskStatusTests.assertTaskStatusEquals(TransportVersion.current(), expected.getStatus(), actual.getStatus());
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);

@@ -137,6 +137,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("germanstem", GermanStemTokenFilterFactory.class);
         // this filter is not exposed and should only be used internally
         filters.put("fixedshingle", Void.class);
+        filters.put("word2vecsynonym", Void.class); // not exposed
         return filters;
     }
 

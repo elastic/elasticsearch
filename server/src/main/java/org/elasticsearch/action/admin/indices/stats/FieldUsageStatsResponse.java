@@ -35,13 +35,13 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
 
     FieldUsageStatsResponse(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap(StreamInput::readString, i -> i.readList(FieldUsageShardResponse::new));
+        stats = in.readMap(i -> i.readList(FieldUsageShardResponse::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(stats, StreamOutput::writeCollection);
     }
 
     public Map<String, List<FieldUsageShardResponse>> getStats() {

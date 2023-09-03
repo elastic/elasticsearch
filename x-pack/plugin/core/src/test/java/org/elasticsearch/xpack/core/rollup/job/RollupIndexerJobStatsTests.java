@@ -49,8 +49,4 @@ public class RollupIndexerJobStatsTests extends AbstractXContentSerializingTestC
         );
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

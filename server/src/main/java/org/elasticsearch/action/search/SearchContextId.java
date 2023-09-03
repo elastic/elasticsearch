@@ -74,8 +74,8 @@ public final class SearchContextId {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             TransportVersion.writeVersion(version, out);
-            out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
-            out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(shards);
+            out.writeMap(aliasFilter, StreamOutput::writeWriteable);
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
@@ -93,7 +93,7 @@ public final class SearchContextId {
             final TransportVersion version = TransportVersion.readVersion(in);
             in.setTransportVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
-            final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
+            final Map<String, AliasFilter> aliasFilters = in.readMap(AliasFilter::readFrom);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }

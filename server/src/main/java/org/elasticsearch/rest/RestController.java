@@ -70,7 +70,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
-    static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
@@ -96,15 +95,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
-    private final boolean serverlessEnabled;
+    private final ServerlessApiProtections apiProtections;
 
     public RestController(
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        boolean serverlessEnabled
+        Tracer tracer
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
@@ -115,7 +113,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.serverlessEnabled = serverlessEnabled;
+        this.apiProtections = new ServerlessApiProtections(false);
+    }
+
+    public ServerlessApiProtections getApiProtections() {
+        return apiProtections;
     }
 
     /**
@@ -374,16 +376,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (serverlessEnabled) {
+        if (apiProtections.isEnabled()) {
             Scope scope = handler.getServerlessScope();
-            if (Scope.INTERNAL.equals(scope)) {
-                final String internalOrigin = request.header(ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER);
-                boolean internalRequest = internalOrigin != null;
-                if (internalRequest == false) {
-                    handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
-                    return;
-                }
-            } else if (Scope.PUBLIC.equals(scope) == false) {
+            if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
                 return;
             }
@@ -668,17 +663,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
         throws IOException {
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
-            builder.startObject();
-            {
-                builder.field(
-                    "error",
-                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
-                );
-            }
-            builder.endObject();
-            channel.sendResponse(new RestResponse(BAD_REQUEST, builder));
-        }
+        String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
+        channel.sendResponse(new RestResponse(channel, new ApiNotAvailableException(msg)));
     }
 
     /**

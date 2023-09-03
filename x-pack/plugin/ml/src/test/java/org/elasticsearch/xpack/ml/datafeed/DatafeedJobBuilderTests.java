@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -121,12 +122,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
             assertThat(datafeedJob.lastEndTimeMs(), is(nullValue()));
             wasHandlerCalled.compareAndSet(false, true);
-        }, e -> fail());
+        });
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
@@ -151,12 +152,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
             assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_200_000L));
             wasHandlerCalled.compareAndSet(false, true);
-        }, e -> fail());
+        });
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
@@ -181,12 +182,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
             assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_199_999L));
             wasHandlerCalled.compareAndSet(false, true);
-        }, e -> fail());
+        });
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())

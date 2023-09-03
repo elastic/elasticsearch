@@ -44,11 +44,6 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected ZeroShotClassificationConfigUpdate doParseInstance(XContentParser parser) throws IOException {
         return ZeroShotClassificationConfigUpdate.fromXContentStrict(parser);
     }

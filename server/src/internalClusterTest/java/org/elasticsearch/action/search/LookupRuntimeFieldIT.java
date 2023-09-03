@@ -42,7 +42,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         for (Map<String, String> author : authors) {
             client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
-        client().admin().indices().prepareRefresh("authors").get();
+        indicesAdmin().prepareRefresh("authors").get();
 
         indicesAdmin().prepareCreate("publishers")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))

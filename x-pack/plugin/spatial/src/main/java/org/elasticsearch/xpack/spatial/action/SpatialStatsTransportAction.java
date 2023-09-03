@@ -45,8 +45,7 @@ public class SpatialStatsTransportAction extends TransportNodesAction<
             actionFilters,
             SpatialStatsAction.Request::new,
             SpatialStatsAction.NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            SpatialStatsAction.NodeResponse.class
+            ThreadPool.Names.MANAGEMENT
         );
         this.usage = usage;
     }

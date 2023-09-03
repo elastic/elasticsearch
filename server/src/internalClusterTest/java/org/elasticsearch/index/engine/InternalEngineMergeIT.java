@@ -44,7 +44,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             BulkResponse response = request.execute().actionGet();
             refresh();
             assertNoFailures(response);
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").setSegments(true).setMerge(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").setSegments(true).setMerge(true).get();
             logger.info(
                 "index round [{}] - segments {}, total merges {}, current merge {}",
                 i,
@@ -56,7 +56,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
         final long upperNumberSegments = 2 * numOfShards * 10;
 
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats().setSegments(true).setMerge(true).get();
             logger.info(
                 "numshards {}, segments {}, total merges {}, current merge {}",
                 numOfShards,
@@ -70,7 +70,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             assertThat(current, equalTo(0L));
         });
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats().setSegments(true).setMerge(true).get();
         logger.info(
             "numshards {}, segments {}, total merges {}, current merge {}",
             numOfShards,

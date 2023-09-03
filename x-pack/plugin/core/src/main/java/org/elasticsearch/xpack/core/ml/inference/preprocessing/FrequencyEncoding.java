@@ -86,7 +86,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     public FrequencyEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.featureName = in.readString();
-        this.frequencyMap = in.readImmutableMap(StreamInput::readString, StreamInput::readDouble);
+        this.frequencyMap = in.readImmutableMap(StreamInput::readDouble);
         this.custom = in.readBoolean();
     }
 
@@ -159,7 +159,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeString(featureName);
-        out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(frequencyMap, StreamOutput::writeDouble);
         out.writeBoolean(custom);
     }
 

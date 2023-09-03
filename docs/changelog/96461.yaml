@@ -1,5 +1,0 @@
-pr: 96461
-summary: Fix NPE when indexing a document that just has been deleted in a tsdb index
-area: TSDB
-type: bug
-issues: []

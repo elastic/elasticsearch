@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -279,7 +279,7 @@ public class PriorityComparatorTests extends ESTestCase {
     }
 
     private static Settings buildSettings(int creationDate, int priority) {
-        return indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_CREATION_DATE, creationDate)
+        return indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_CREATION_DATE, creationDate)
             .put(IndexMetadata.SETTING_PRIORITY, priority)
             .build();
     }

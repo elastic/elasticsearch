@@ -24,10 +24,7 @@ public class FrozenStorageDeciderIT extends AbstractFrozenAutoscalingIntegTestCa
         setupRepoAndPolicy();
         createAndMountIndex();
 
-        IndicesStatsResponse statsResponse = client().admin()
-            .indices()
-            .stats(new IndicesStatsRequest().indices(restoredIndexName))
-            .actionGet();
+        IndicesStatsResponse statsResponse = indicesAdmin().stats(new IndicesStatsRequest().indices(restoredIndexName)).actionGet();
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         assertThat(

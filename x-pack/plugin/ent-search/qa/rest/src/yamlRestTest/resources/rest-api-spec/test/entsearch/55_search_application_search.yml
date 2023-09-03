@@ -257,3 +257,18 @@ teardown:
           params:
             field_name: field3
             field_value: value3
+
+---
+"Search application search fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_value: puggles
+

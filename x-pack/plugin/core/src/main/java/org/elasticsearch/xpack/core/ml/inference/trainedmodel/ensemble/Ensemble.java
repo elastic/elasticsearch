@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -143,7 +143,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(featureNames);
-        out.writeNamedWriteableList(models);
+        out.writeNamedWriteableCollection(models);
         out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
         out.writeBoolean(classificationLabels != null);
@@ -281,8 +281,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public Version getMinimalCompatibilityVersion() {
-        return models.stream().map(TrainedModel::getMinimalCompatibilityVersion).max(Version::compareTo).orElse(Version.V_7_6_0);
+    public TransportVersion getMinimalCompatibilityVersion() {
+        return models.stream()
+            .map(TrainedModel::getMinimalCompatibilityVersion)
+            .max(TransportVersion::compareTo)
+            .orElse(TransportVersion.V_7_6_0);
     }
 
     public static class Builder {

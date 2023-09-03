@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -51,6 +52,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
@@ -66,7 +68,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
-                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                factory = factory.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, previousTokenFilters, allFilters);
                 filters.add(factory);
                 mode = mode.merge(factory.getAnalysisMode());
             } else {
@@ -74,7 +76,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
                     TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
-                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    factory = factory.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
                     chain.add(factory);
                     existingChain.add(factory);
                     mode = mode.merge(factory.getAnalysisMode());

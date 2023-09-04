@@ -153,7 +153,7 @@ public class TsdbIT extends AbstractRollingTestCase {
     // [-9999-01-01T00:00:00.000Z TO 9999-12-31T23:59:59.999Z] is overlapping with backing index [.ds-test-with-component-template-
     // 2023.08.25-000002] with range [2023-08-25T05:54:36.000Z TO 2023-08-25T09:54:36.000Z]"
     // (The fix is that upon upgrading the invalid tsdb data stream be downgraded)
-//    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98833")
+    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98833")
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
         assumeTrue(
             "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",

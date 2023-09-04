@@ -78,7 +78,7 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     public IndexGraveyard(final StreamInput in) throws IOException {
-        this.tombstones = in.readImmutableList(Tombstone::new);
+        this.tombstones = in.readCollectionAsImmutableList(Tombstone::new);
     }
 
     @Override
@@ -255,7 +255,7 @@ public final class IndexGraveyard implements Metadata.Custom {
         private final int removedCount;
 
         IndexGraveyardDiff(final StreamInput in) throws IOException {
-            added = in.readImmutableList(Tombstone::new);
+            added = in.readCollectionAsImmutableList(Tombstone::new);
             removedCount = in.readVInt();
         }
 

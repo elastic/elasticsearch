@@ -63,7 +63,7 @@ public class SnapshotStatus implements ChunkedToXContentObject, Writeable {
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
-        shards = in.readImmutableList(SnapshotIndexShardStatus::new);
+        shards = in.readCollectionAsImmutableList(SnapshotIndexShardStatus::new);
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
         final long time = in.readLong();

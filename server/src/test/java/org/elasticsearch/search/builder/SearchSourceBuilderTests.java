@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -41,6 +42,9 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -63,7 +67,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -886,25 +892,61 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testSupportsParallelCollection() {
-        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
-        searchSourceBuilder.collapse(null);
-        if (searchSourceBuilder.aggregations() == null) {
-            assertTrue(searchSourceBuilder.supportsParallelCollection());
-        } else {
-            assertEquals(searchSourceBuilder.aggregations().supportsParallelCollection(), searchSourceBuilder.supportsParallelCollection());
+        Supplier<SearchSourceBuilder> newSearchSourceBuilder = () -> {
+            SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
+            searchSourceBuilder.collapse(null);
+            searchSourceBuilder.sort((List<SortBuilder<?>>) null);
+            searchSourceBuilder.profile(false);
+            return searchSourceBuilder;
+        };
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            if (searchSourceBuilder.aggregations() == null) {
+                assertTrue(searchSourceBuilder.supportsParallelCollection());
+            } else {
+                assertEquals(
+                    searchSourceBuilder.aggregations().supportsParallelCollection(),
+                    searchSourceBuilder.supportsParallelCollection()
+                );
+            }
         }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
 
-        searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
-        assertTrue(searchSourceBuilder.supportsParallelCollection());
-
-        searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
-        assertFalse(searchSourceBuilder.supportsParallelCollection());
-
-        searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
-        assertFalse(searchSourceBuilder.supportsParallelCollection());
-
-        SearchSourceBuilder collapse = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
-        assertFalse(collapse.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            searchSourceBuilder.sort(
+                SortBuilders.scriptSort(
+                    new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
+                    ScriptSortBuilder.ScriptSortType.NUMBER
+                ).order(randomFrom(SortOrder.values()))
+            );
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.profile(true);
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

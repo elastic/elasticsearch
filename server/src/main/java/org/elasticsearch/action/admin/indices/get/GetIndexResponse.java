@@ -87,7 +87,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);
@@ -173,10 +173,10 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
-        out.writeMap(aliases, StreamOutput::writeString, (streamOutput, list) -> streamOutput.writeCollection(list));
-        out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
+        out.writeMap(aliases, StreamOutput::writeCollection);
+        out.writeMap(settings, StreamOutput::writeWriteable);
+        out.writeMap(defaultSettings, StreamOutput::writeWriteable);
+        out.writeMap(dataStreams, StreamOutput::writeOptionalString);
     }
 
     @Override

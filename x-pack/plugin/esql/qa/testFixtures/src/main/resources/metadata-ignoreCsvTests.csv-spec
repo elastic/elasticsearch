@@ -102,7 +102,7 @@ min:integer |i:double
 ;
 
 overwritten
-from employees [metadata _index, _version] | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
+from employees [metadata _index, _version] | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
 
 emp_no:integer |_index:integer |_version:keyword
 10001          |3              |version

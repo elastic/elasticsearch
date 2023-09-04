@@ -157,8 +157,8 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         return policy;
     }
 
-    public String getName() {
-        return policy.getName();
+    public String getId() {
+        return policy.getId();
     }
 
     public long getVersion() {

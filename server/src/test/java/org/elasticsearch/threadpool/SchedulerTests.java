@@ -40,7 +40,11 @@ public class SchedulerTests extends ESTestCase {
     }
 
     private void scheduleAndCancel(ThreadPool threadPool, AtomicLong executed, String type) {
-        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(executed::incrementAndGet, TimeValue.timeValueSeconds(20), type);
+        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(
+            executed::incrementAndGet,
+            TimeValue.timeValueSeconds(20),
+            threadPool.executor(type)
+        );
         assertEquals(1, schedulerQueueSize(threadPool));
         assertFalse(scheduled.isCancelled());
         assertTrue(scheduled.cancel());
@@ -77,7 +81,7 @@ public class SchedulerTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         try {
             List<Scheduler.ScheduledCancellable> jobs = LongStream.range(20, 30)
-                .mapToObj(delay -> threadPool.schedule(() -> {}, TimeValue.timeValueSeconds(delay), ThreadPool.Names.SAME))
+                .mapToObj(delay -> threadPool.schedule(() -> {}, TimeValue.timeValueSeconds(delay), EsExecutors.DIRECT_EXECUTOR_SERVICE))
                 .collect(Collectors.toCollection(ArrayList::new));
 
             Collections.reverse(jobs);
@@ -118,7 +122,13 @@ public class SchedulerTests extends ESTestCase {
         CountDownLatch missingExecutions = new CountDownLatch(ThreadPool.THREAD_POOL_TYPES.keySet().size());
         try {
             ThreadPool.THREAD_POOL_TYPES.keySet()
-                .forEach(type -> threadPool.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), type));
+                .forEach(
+                    type -> threadPool.schedule(
+                        missingExecutions::countDown,
+                        TimeValue.timeValueMillis(randomInt(5)),
+                        threadPool.executor(type)
+                    )
+                );
 
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {

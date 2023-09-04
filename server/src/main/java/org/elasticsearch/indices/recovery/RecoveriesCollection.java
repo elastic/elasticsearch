@@ -82,7 +82,7 @@ public class RecoveriesCollection {
         threadPool.schedule(
             new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout),
             activityTimeout,
-            ThreadPool.Names.GENERIC
+            threadPool.generic()
         );
     }
 
@@ -321,7 +321,7 @@ public class RecoveriesCollection {
             }
             lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
-            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
+            threadPool.schedule(this, checkInterval, threadPool.generic());
         }
     }
 

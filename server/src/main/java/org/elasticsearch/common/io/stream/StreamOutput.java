@@ -1035,21 +1035,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readCollectionAsList(Writeable.Reader)}.
-     *
-     * @param collection the collection to write to this stream
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection which can then be read using {@link StreamInput#readCollectionAsList} or another {@code readCollectionAs*}
+     * method. Make sure to read the collection back into the same type as was originally written.
      */
     public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
         writeCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
-     * Writes a collection of objects via a {@link Writer}.
-     *
-     * @param collection the collection of objects
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection which can then be read using {@link StreamInput#readCollectionAsList} or another {@code readCollectionAs*}
+     * method. Make sure to read the collection back into the same type as was originally written.
      */
     public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
@@ -1059,29 +1054,24 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readCollectionAsList(Writeable.Reader)}.
-     *
-     * @param collection the collection of strings
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a collection of strings which can then be read using {@link StreamInput#readStringCollectionAsList} or another {@code
+     * readStringCollectionAs*} method. Make sure to read the collection back into the same type as was originally written.
      */
     public void writeStringCollection(final Collection<String> collection) throws IOException {
         writeCollection(collection, StreamOutput::writeString);
     }
 
     /**
-     * Writes an optional collection. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readOptionalCollectionAsList(Writeable.Reader)}.
+     * Writes a possibly-{@code null} collection which can then be read using {@link StreamInput#readOptionalCollectionAsList}.
      */
-    public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
+    public <T extends Writeable> void writeOptionalCollection(@Nullable final Collection<T> collection) throws IOException {
         writeOptionalCollection(collection, StreamOutput::writeWriteable);
     }
 
     /**
-     * Writes an optional collection via {@link Writer}. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readOptionalCollectionAsList(Writeable.Reader)}.
+     * Writes a possibly-{@code null} collection which can then be read using {@link StreamInput#readOptionalCollectionAsList}.
      */
-    public <T> void writeOptionalCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+    public <T> void writeOptionalCollection(@Nullable final Collection<T> collection, final Writer<T> writer) throws IOException {
         if (collection != null) {
             writeBoolean(true);
             writeCollection(collection, writer);
@@ -1091,18 +1081,16 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readCollectionAsList(Writeable.Reader)}.
-     *
-     * @param collection the collection of strings
-     * @throws IOException if an I/O exception occurs writing the collection
+     * Writes a possibly-{@code null} collection of strings which can then be read using
+     * {@link StreamInput#readOptionalStringCollectionAsList}.
      */
-    public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
+    public void writeOptionalStringCollection(@Nullable final Collection<String> collection) throws IOException {
         writeOptionalCollection(collection, StreamOutput::writeString);
     }
 
     /**
-     * Writes a collection of {@link NamedWriteable} objects.
+     * Writes a collection of {@link NamedWriteable} objects which can then be read using {@link
+     * StreamInput#readNamedWriteableCollectionAsList}.
      */
     public void writeNamedWriteableCollection(Collection<? extends NamedWriteable> list) throws IOException {
         writeCollection(list, StreamOutput::writeNamedWriteable);

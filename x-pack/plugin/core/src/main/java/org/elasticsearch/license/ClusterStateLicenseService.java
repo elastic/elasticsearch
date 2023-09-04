@@ -122,7 +122,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
-        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), threadPool.generic());
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {

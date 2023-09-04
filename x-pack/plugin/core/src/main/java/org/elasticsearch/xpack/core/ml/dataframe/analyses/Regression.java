@@ -238,7 +238,7 @@ public class Regression implements DataFrameAnalysis {
         out.writeOptionalLong(randomizeSeed);
         out.writeEnum(lossFunction);
         out.writeOptionalDouble(lossFunctionParameter);
-        out.writeNamedWriteableList(featureProcessors);
+        out.writeNamedWriteableCollection(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 

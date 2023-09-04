@@ -264,7 +264,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalStringArray(nonDimensionIndices);
             out.writeOptionalStringArray(metricConflictsIndices);
         }
-        out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
+        out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 
     @Override

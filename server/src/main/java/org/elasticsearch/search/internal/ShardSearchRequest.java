@@ -382,7 +382,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     rankQueryBuilders.add(subSearchSourceBuilder.getQueryBuilder());
                 }
             }
-            out.writeNamedWriteableList(rankQueryBuilders);
+            out.writeNamedWriteableCollection(rankQueryBuilders);
         }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions

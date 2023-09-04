@@ -306,7 +306,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         taskParams.writeTo(out);
-        out.writeMap(nodeRoutingTable, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+        out.writeMap(nodeRoutingTable, StreamOutput::writeWriteable);
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
@@ -410,6 +410,15 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             return this;
         }
 
+        /**
+         * Adds the {@link RoutingInfo} regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteRoutingEntry(String nodeId, RoutingInfo routingInfo) {
+            nodeRoutingTable.put(nodeId, routingInfo);
+
+            return this;
+        }
+
         public Builder removeRoutingEntry(String nodeId) {
             nodeRoutingTable.remove(nodeId);
             return this;
@@ -462,6 +471,12 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                 return this;
             }
             reason = null;
+            return this;
+        }
+
+        public Builder clearNodeRoutingTable() {
+            nodeRoutingTable.clear();
+
             return this;
         }
 

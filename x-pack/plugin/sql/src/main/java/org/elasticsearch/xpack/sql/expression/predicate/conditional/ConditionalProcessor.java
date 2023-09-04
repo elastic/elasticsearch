@@ -70,7 +70,7 @@ public class ConditionalProcessor implements Processor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processors);
+        out.writeNamedWriteableCollection(processors);
         out.writeEnum(operation);
     }
 

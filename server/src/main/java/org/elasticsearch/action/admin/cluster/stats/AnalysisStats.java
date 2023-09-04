@@ -301,7 +301,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
         if (out.getTransportVersion().onOrAfter(SYNONYM_SETS_VERSION)) {
-            out.writeMap(usedSynonyms, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
         }
     }
 

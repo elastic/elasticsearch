@@ -120,7 +120,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         out.writeIntArray(reverseMuls);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            out.writeArray((o, order) -> order.writeTo(o), missingOrders);
+            out.writeArray(missingOrders);
         }
         out.writeCollection(buckets);
         out.writeOptionalWriteable(afterKey);

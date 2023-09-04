@@ -278,7 +278,7 @@ public class Classification implements DataFrameAnalysis {
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
         out.writeOptionalLong(randomizeSeed);
-        out.writeNamedWriteableList(featureProcessors);
+        out.writeNamedWriteableCollection(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 

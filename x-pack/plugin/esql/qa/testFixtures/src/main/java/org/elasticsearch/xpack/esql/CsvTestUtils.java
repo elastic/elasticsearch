@@ -310,12 +310,18 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
-        IP(StringUtils::parseIP, BytesRef.class),
+        IP(
+            StringUtils::parseIP,
+            (l, r) -> l instanceof String maybeIP
+                ? StringUtils.parseIP(maybeIP).compareTo(StringUtils.parseIP(String.valueOf(r)))
+                : ((BytesRef) l).compareTo((BytesRef) r),
+            BytesRef.class
+        ),
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
-            (l, r) -> l instanceof Long l2 ? l2.compareTo((Long) r) : l.toString().compareTo(r.toString()),
+            (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class);

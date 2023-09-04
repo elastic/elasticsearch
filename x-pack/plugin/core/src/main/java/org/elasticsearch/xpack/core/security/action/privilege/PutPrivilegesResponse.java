@@ -50,7 +50,7 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
+        out.writeMap(created, StreamOutput::writeStringCollection);
     }
 
 }

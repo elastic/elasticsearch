@@ -112,7 +112,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            scriptContextNames = in.readStringList();
+            scriptContextNames = in.readStringCollectionAsList();
             painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
         }
 

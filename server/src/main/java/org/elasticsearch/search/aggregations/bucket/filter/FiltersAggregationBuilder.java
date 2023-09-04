@@ -132,7 +132,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
+        out.writeCollection(filters, keyed ? StreamOutput::writeWriteable : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {

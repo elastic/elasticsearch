@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTestCase {
 
-    protected abstract Matcher<Object> resultsMatcher(List<TypedData> typedData);
+    protected abstract Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData);
 
     /**
      * Return a {@link Matcher} to validate the results of evaluating the function

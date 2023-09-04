@@ -86,7 +86,7 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             if (profileUidLookup != null) {
                 out.writeBoolean(true);
-                out.writeMap(profileUidLookup, StreamOutput::writeString, StreamOutput::writeString);
+                out.writeMap(profileUidLookup, StreamOutput::writeString);
             } else {
                 out.writeBoolean(false);
             }

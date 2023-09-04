@@ -64,11 +64,16 @@ information, refer to https://www.elastic.co/subscriptions.
 ===== On the remote cluster
 
 // tag::remote-cluster-steps[]
-. Enable the remote cluster server port on every node of the remote cluster by
-setting `remote_cluster_server.enabled` to `true` in `elasticsearch.yml`. The
-port number defaults to `9443` and can be configured with the
-`remote_cluster.port` setting. Refer to <<remote-cluster-network-settings>>.
-
+. Enable the remote cluster server on every node of the remote cluster. In 
+`elasticsearch.yml`:
+.. Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to 
+`true`.
+.. Configure the bind and publish address for remote cluster server traffic, for
+example using <<remote-cluster-network-settings,`remote_cluster.host`>>. Without
+configuring the address, remote cluster traffic may be bound to the local
+interface, and remote clusters running on other machines can't connect.
+.. Optionally, configure the remote server port using 
+<<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).
 . Next, generate a certificate authority (CA) and a server certificate/key pair.
 On one of the nodes of the remote cluster, from the directory where {es} has
 been installed:

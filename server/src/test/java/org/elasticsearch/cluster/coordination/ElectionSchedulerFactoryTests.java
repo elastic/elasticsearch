@@ -223,6 +223,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), is("failed to parse value [601s] for setting [cluster.election.max_timeout], must be <= [600s]"));
         }
 
+        final var threadPool = new DeterministicTaskQueue().getThreadPool();
+
         {
             final long initialTimeoutMillis = randomLongBetween(1, 10000);
             final long backOffMillis = randomLongBetween(1, 60000);
@@ -238,7 +240,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(backOffMillis)));
             assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(maxTimeoutMillis)));
 
-            assertThat(new ElectionSchedulerFactory(settings, random(), null), not(nullValue())); // doesn't throw an IAE
+            assertThat(new ElectionSchedulerFactory(settings, random(), threadPool), not(nullValue())); // doesn't throw an IAE
         }
 
         {
@@ -252,7 +254,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new ElectionSchedulerFactory(settings, random(), null)
+                () -> new ElectionSchedulerFactory(settings, random(), threadPool)
             );
             assertThat(
                 e.getMessage(),

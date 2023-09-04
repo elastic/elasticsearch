@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlSampleMultipleEntriesTestCase;
+import org.junit.ClassRule;
 
 import java.util.List;
 
 public class EqlSampleMultipleEntriesIT extends EqlSampleMultipleEntriesTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public EqlSampleMultipleEntriesIT(
         String query,

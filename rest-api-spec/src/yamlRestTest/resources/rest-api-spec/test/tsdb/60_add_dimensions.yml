@@ -96,7 +96,7 @@ add dimensions to no dims with dynamic_template over index:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid:  U6txPvtQs7IIPDHGBuj5hg } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---

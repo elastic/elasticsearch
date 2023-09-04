@@ -445,19 +445,19 @@ flattened field misspelled routing path field:
   - match: { hits.total.value: 6 }
   - length: { aggregations.tsids.buckets: 4 }
 
-  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: "1516op6778" }
+  - match: { aggregations.tsids.buckets.0.key._tsid: CGcajru3QohMHSqC7Hamag }
   - match: { aggregations.tsids.buckets.0.doc_count: 2 }
   - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.09, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: "1516op6885" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: QTTaRfl0gDouwjSzzE09QA }
   - match: { aggregations.tsids.buckets.1.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.40, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.59, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "16w3xaca09" }
+  - match: { aggregations.tsids.buckets.2.key._tsid: aCmczDP-VvnayVco5Uds2A }
   - match: { aggregations.tsids.buckets.2.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.59, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.40, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "16w3xacq34" }
+  - match: { aggregations.tsids.buckets.3.key._tsid: usXWhQGRpc1D-Uc3-LF2RQ }
   - match: { aggregations.tsids.buckets.3.doc_count: 2 }
   - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
 

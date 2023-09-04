@@ -76,7 +76,7 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { "key": "foo" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
 ---

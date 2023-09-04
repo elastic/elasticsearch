@@ -88,8 +88,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         long startTime = System.currentTimeMillis();
 
-        ActionListener<EsqlQueryResponse> loggingListener = logQueryAndExecutionTime(listener, startTime, request.query());
-
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -106,7 +104,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 request,
                 sessionId,
                 configuration,
-                loggingListener.delegateFailureAndWrap(
+                listener.delegateFailureAndWrap(
                     (delegate, plan) -> computeService.execute(
                         sessionId,
                         (CancellableTask) task,
@@ -147,23 +145,5 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public EnrichLookupService enrichLookupService() {
         return enrichLookupService;
-    }
-
-    private static ActionListener<EsqlQueryResponse> logQueryAndExecutionTime(
-        ActionListener<EsqlQueryResponse> listener,
-        long startTime,
-        String query
-    ) {
-        return ActionListener.wrap(r -> {
-            long endTime = System.currentTimeMillis();
-            LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}", endTime - startTime, query);
-
-            listener.onResponse(r);
-        }, ex -> {
-            long endTime = System.currentTimeMillis();
-            LOGGER.info("Failed executing ES|QL query in {}ms:\n{}", endTime - startTime, query);
-
-            listener.onFailure(ex);
-        });
     }
 }

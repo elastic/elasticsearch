@@ -251,10 +251,13 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         IndexMetadata sourceIndexMetadata,
         DateHistogramInterval fixedInterval
     ) {
-        String downsampleOriginName = sourceIndexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY);
+        String downsampleOriginName = IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(sourceIndexMetadata.getSettings());
         String sourceIndexName;
-        if (downsampleOriginName != null) {
+        if (Strings.hasText(downsampleOriginName)) {
             sourceIndexName = downsampleOriginName;
+        } else if (Strings.hasText(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(sourceIndexMetadata.getSettings()))) {
+            // bwc for downsample indices created pre 8.10 which didn't configure the origin
+            sourceIndexName = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(sourceIndexMetadata.getSettings());
         } else {
             sourceIndexName = sourceIndexMetadata.getIndex().getName();
         }

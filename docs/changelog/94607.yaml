@@ -3,3 +3,30 @@ summary: Use `IndexWriter.flushNextBuffer()` in `InternalEngine.writeIndexingBuf
 area: Engine
 type: enhancement
 issues: []
+highlight:
+  title: Use `IndexWriter.flushNextBuffer()` in `InternalEngine.writeIndexingBuffer()`
+  body: |-
+    Rather than forcing a refresh, which will flush all segments no matter
+    how large, we can use `IndexWriter#flushNextBuffer` which will only
+    write the largest segment. This should smooth out indexing allowing for
+    larger segment sizes, fewer merges and higher throughput.
+
+    This pull request iterates over #34553 with a few major differences:  -
+    `writeIndexingBuffer()` runs in indexing threads as much as possible,
+    following a similar model as Lucene where every index operation then
+    checks if there is a pending flush that it could help with.  -
+    `writeIndexingBuffer()` checks the memory usage of the version map in
+    order to decide whether to call `IndexWriter#flushNextBuffer` or a
+    refresh, the latter being the only way to reclaim memory of the version
+    map.  - `IndexingMemoryController` does not run multiple iterations of
+    the loop in order to write segments until memory usage goes under the
+    configured limit. A problem with this approach is that segments would
+    generally not even have started flushing before the next iteration
+    starts. Instead, the number of bytes that need to be written in the
+    translog to trigger another check was decreased so that it would be very
+    (very very) unlikely that the amount of used RAM increased by more than
+    20% between two checks.
+
+    This should especially help in conjunction with #93524, which would
+    further reduce the number of refreshes.
+  notable: true

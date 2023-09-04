@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.version.VersionsWrapper;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -101,8 +101,8 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    TransportVersion recordedTv = Optional.ofNullable(builder.versionsWrappers().get(e.getKey()))
-                        .map(VersionsWrapper::transportVersion)
+                    TransportVersion recordedTv = Optional.ofNullable(builder.compatibilityVersions().get(e.getKey()))
+                        .map(CompatibilityVersions::transportVersion)
                         .orElse(null);
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
@@ -117,9 +117,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#versionsWrappers requires reading them")
-    private static Map<String, VersionsWrapper> getVersionsWrappers(ClusterState clusterState) {
-        return clusterState.versionsWrappers();
+    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     @Override
@@ -133,7 +133,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
-            Set<String> nodes = getVersionsWrappers(event.state()).entrySet()
+            Set<String> nodes = getCompatibilityVersions(event.state()).entrySet()
                 .stream()
                 .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
                 .map(Map.Entry::getKey)

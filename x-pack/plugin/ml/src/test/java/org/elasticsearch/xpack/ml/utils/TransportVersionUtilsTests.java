@@ -10,7 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.version.VersionsWrapper;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 
@@ -20,15 +20,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransportVersionUtilsTests extends ESTestCase {
 
-    private static final Map<String, VersionsWrapper> transportVersions = Map.of(
+    private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
         "Alfredo",
-        new VersionsWrapper(TransportVersion.V_7_0_0),
+        new CompatibilityVersions(TransportVersion.V_7_0_0),
         "Bertram",
-        new VersionsWrapper(TransportVersion.V_7_0_1),
+        new CompatibilityVersions(TransportVersion.V_7_0_1),
         "Charles",
-        new VersionsWrapper(TransportVersion.V_8_500_010),
+        new CompatibilityVersions(TransportVersion.V_8_500_010),
         "Dominic",
-        new VersionsWrapper(TransportVersion.V_8_0_0)
+        new CompatibilityVersions(TransportVersion.V_8_0_0)
     );
 
     private static final ClusterState state = new ClusterState(
@@ -52,7 +52,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     public void testIsMinTransformVersionSameAsCurrent() {
         assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state), equalTo(false));
 
-        Map<String, VersionsWrapper> transportVersions1 = Map.of("Eugene", new VersionsWrapper(TransportVersion.current()));
+        Map<String, CompatibilityVersions> transportVersions1 = Map.of("Eugene", new CompatibilityVersions(TransportVersion.current()));
 
         ClusterState state1 = new ClusterState(
             new ClusterName("harry"),

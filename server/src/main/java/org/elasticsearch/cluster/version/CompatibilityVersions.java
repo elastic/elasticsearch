@@ -27,29 +27,29 @@ import java.util.Map;
  * It's similar to {@link org.elasticsearch.cluster.node.VersionInformation}, but this class is meant to
  * be constructed during node startup and hold values from plugins as well.
  *
- * @param transportVersion
+ * @param transportVersion A transport version, usually a minimum compatible one for a node.
  */
-public record VersionsWrapper(TransportVersion transportVersion) implements Writeable, ToXContentFragment {
+public record CompatibilityVersions(TransportVersion transportVersion) implements Writeable, ToXContentFragment {
 
     /**
      * Constructs a VersionWrapper collecting all the minimum versions from the values of the map.
      *
-     * @param versionsWrappers A map of strings (typically node identifiers) and versions wrappers
+     * @param compatibilityVersions A map of strings (typically node identifiers) and versions wrappers
      * @return Minimum versions for the cluster
      */
-    public static VersionsWrapper minimumVersions(Map<String, VersionsWrapper> versionsWrappers) {
-        return new VersionsWrapper(
-            versionsWrappers.values()
+    public static CompatibilityVersions minimumVersions(Map<String, CompatibilityVersions> compatibilityVersions) {
+        return new CompatibilityVersions(
+            compatibilityVersions.values()
                 .stream()
-                .map(VersionsWrapper::transportVersion)
+                .map(CompatibilityVersions::transportVersion)
                 .min(Comparator.naturalOrder())
                 // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
                 .orElse(TransportVersion.MINIMUM_COMPATIBLE)
         );
     }
 
-    public static VersionsWrapper readVersion(StreamInput in) throws IOException {
-        return new VersionsWrapper(TransportVersion.readVersion(in));
+    public static CompatibilityVersions readVersion(StreamInput in) throws IOException {
+        return new CompatibilityVersions(TransportVersion.readVersion(in));
     }
 
     @Override

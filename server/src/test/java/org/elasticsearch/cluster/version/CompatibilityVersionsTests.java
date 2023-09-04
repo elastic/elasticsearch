@@ -16,10 +16,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class VersionsWrapperTests extends ESTestCase {
+public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testMinimumVersions() {
-        assertThat(VersionsWrapper.minimumVersions(Map.of()), equalTo(new VersionsWrapper(TransportVersion.MINIMUM_COMPATIBLE)));
+        assertThat(CompatibilityVersions.minimumVersions(Map.of()), equalTo(new CompatibilityVersions(TransportVersion.MINIMUM_COMPATIBLE)));
 
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_COMPATIBLE, true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
@@ -28,11 +28,11 @@ public class VersionsWrapperTests extends ESTestCase {
             TransportVersion.current()
         );
 
-        VersionsWrapper versionsWrapper1 = new VersionsWrapper(version1);
-        VersionsWrapper versionsWrapper2 = new VersionsWrapper(version2);
+        CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1);
+        CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2);
 
-        Map<String, VersionsWrapper> versionsMap = Map.of("node1", versionsWrapper1, "node2", versionsWrapper2);
+        Map<String, CompatibilityVersions> versionsMap = Map.of("node1", compatibilityVersions1, "node2", compatibilityVersions2);
 
-        assertThat(VersionsWrapper.minimumVersions(versionsMap), equalTo(versionsWrapper1));
+        assertThat(CompatibilityVersions.minimumVersions(versionsMap), equalTo(compatibilityVersions1));
     }
 }

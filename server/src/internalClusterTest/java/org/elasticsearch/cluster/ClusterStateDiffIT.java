@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.version.VersionsWrapper;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -227,7 +227,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private ClusterState.Builder randomNodes(ClusterState clusterState) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        Map<String, VersionsWrapper> versions = new HashMap<>(clusterState.versionsWrappers());
+        Map<String, CompatibilityVersions> versions = new HashMap<>(clusterState.compatibilityVersions());
         List<String> nodeIds = randomSubsetOf(
             randomInt(clusterState.nodes().getNodes().size() - 1),
             clusterState.nodes().getNodes().keySet().toArray(new String[0])
@@ -238,7 +238,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 versions.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
-                    versions.put(nodeId, new VersionsWrapper(TransportVersionUtils.randomVersion(random())));
+                    versions.put(nodeId, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
                 }
             }
         }
@@ -246,10 +246,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < additionalNodeCount; i++) {
             String id = "node-" + randomAlphaOfLength(10);
             nodes.add(randomNode(id));
-            versions.put(id, new VersionsWrapper(TransportVersionUtils.randomVersion(random())));
+            versions.put(id, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
         }
 
-        return ClusterState.builder(clusterState).nodes(nodes).versionsWrappers(versions);
+        return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersions(versions);
     }
 
     /**

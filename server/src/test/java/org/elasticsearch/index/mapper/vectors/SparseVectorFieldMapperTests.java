@@ -35,6 +35,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
+import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
 import static org.hamcrest.Matchers.containsString;
 
 public class SparseVectorFieldMapperTests extends MapperTestCase {
@@ -193,7 +195,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
         String[] additionalWarnings = null;
-        if (indexVersion.before(IndexVersion.V_8_0_0)) {
+        if (indexVersion.before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
             additionalWarnings = new String[] { SparseVectorFieldMapper.ERROR_MESSAGE_7X };
         }
         return Strings.concatStringArrays(super.getParseMinimalWarnings(indexVersion), additionalWarnings);
@@ -201,11 +203,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion boostNotAllowedIndexVersion() {
-        return IndexVersion.V_8_11_0;
+        return NEW_SPARSE_VECTOR_INDEX_VERSION;
     }
 
     public void testSparseVectorWith7xIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), PREVIOUS_SPARSE_VECTOR_INDEX_VERSION);
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
@@ -243,7 +245,11 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testSparseVectorUnsupportedIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.V_8_10_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            PREVIOUS_SPARSE_VECTOR_INDEX_VERSION,
+            IndexVersion.V_8_500_000
+        );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");
         })));

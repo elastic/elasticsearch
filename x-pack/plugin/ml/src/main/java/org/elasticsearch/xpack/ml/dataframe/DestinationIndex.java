@@ -25,14 +25,12 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -109,27 +107,28 @@ public final class DestinationIndex {
         Client client,
         Clock clock,
         DataFrameAnalyticsConfig analyticsConfig,
+        String[] destIndexAllowedSettings,
         ActionListener<CreateIndexResponse> listener
     ) {
-        ActionListener<CreateIndexRequest> createIndexRequestListener = ActionListener.wrap(
-            createIndexRequest -> ClientHelper.executeWithHeadersAsync(
+        ActionListener<CreateIndexRequest> createIndexRequestListener = ActionListener.wrap(createIndexRequest -> {
+            ClientHelper.executeWithHeadersAsync(
                 analyticsConfig.getHeaders(),
                 ClientHelper.ML_ORIGIN,
                 client,
                 CreateIndexAction.INSTANCE,
                 createIndexRequest,
                 listener
-            ),
-            listener::onFailure
-        );
+            );
+        }, listener::onFailure);
 
-        prepareCreateIndexRequest(client, clock, analyticsConfig, createIndexRequestListener);
+        prepareCreateIndexRequest(client, clock, analyticsConfig, destIndexAllowedSettings, createIndexRequestListener);
     }
 
     private static void prepareCreateIndexRequest(
         Client client,
         Clock clock,
         DataFrameAnalyticsConfig config,
+        String[] destIndexAllowedSettings,
         ActionListener<CreateIndexRequest> listener
     ) {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
@@ -150,7 +149,7 @@ public final class DestinationIndex {
         }, listener::onFailure);
 
         ActionListener<GetSettingsResponse> getSettingsResponseListener = ActionListener.wrap(
-            settingsResponse -> settingsListener.onResponse(settings(settingsResponse)),
+            settingsResponse -> settingsListener.onResponse(settings(settingsResponse, destIndexAllowedSettings)),
             listener::onFailure
         );
 
@@ -211,20 +210,10 @@ public final class DestinationIndex {
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
-    private static Settings settings(GetSettingsResponse settingsResponse) {
-        String[] settingsIndexKeys = {
-            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
-            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(),
-            MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey() };
-
+    private static Settings settings(GetSettingsResponse settingsResponse, String[] destIndexAllowedSettings) {
         Settings.Builder settingsBuilder = Settings.builder();
 
-        for (String key : settingsIndexKeys) {
+        for (String key : destIndexAllowedSettings) {
             Long value = findMaxSettingValue(settingsResponse, key);
             if (value != null) {
                 settingsBuilder.put(key, value);

@@ -160,7 +160,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        this.fields = in.readList(MultiValuesSourceFieldConfig::new);
+        this.fields = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
@@ -182,6 +182,11 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     }
 
     @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size, filter, executionHint);
     }
@@ -193,7 +198,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(fields);
+        out.writeCollection(fields);
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);

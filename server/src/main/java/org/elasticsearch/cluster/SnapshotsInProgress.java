@@ -61,6 +61,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // keyed by repository name
     private final Map<String, ByRepo> entries;
 
+    public static SnapshotsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     public SnapshotsInProgress(StreamInput in) throws IOException {
         this(collectByRepo(in));
     }
@@ -834,13 +838,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();
             final IndexVersion version = IndexVersion.readVersion(in);
-            final List<String> dataStreams = in.readImmutableStringList();
+            final List<String> dataStreams = in.readStringCollectionAsImmutableList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
                 RepositoryShardId::readFrom,
                 ShardSnapshotStatus::readFrom
             );
-            final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+            final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
             if (source == null) {
                 return snapshot(
                     snapshot,
@@ -1340,7 +1344,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 out.writeMap(shardStatusByRepoShardId);
             }
-            out.writeList(featureStates);
+            out.writeCollection(featureStates);
         }
 
         @Override
@@ -1427,7 +1431,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.indexByIndexNameDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_ID_VALUE_SERIALIZER);
             this.updatedState = State.fromValue(in.readByte());
             this.updatedRepositoryStateId = in.readLong();
-            this.updatedDataStreams = in.readOptionalStringList();
+            this.updatedDataStreams = in.readOptionalStringCollectionAsList();
             this.updatedFailure = in.readOptionalString();
             this.shardsByShardIdDiff = DiffableUtils.readJdkMapDiff(
                 in,
@@ -1594,7 +1598,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.mapDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                i -> new ByRepo(i.readImmutableList(Entry::readFrom)),
+                i -> new ByRepo(i.readCollectionAsImmutableList(Entry::readFrom)),
                 i -> new ByRepo.ByRepoDiff(
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
@@ -1657,7 +1661,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(entries);
+            out.writeCollection(entries);
         }
 
         @Override

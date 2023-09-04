@@ -211,19 +211,20 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
             unconfiguredBootstrapTimeout
         );
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
-                logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                startBootstrap(discoveredNodes, emptyList());
-            }
+        transportService.getThreadPool()
+            .scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, transportService.getThreadPool().generic(), new Runnable() {
+                @Override
+                public void run() {
+                    final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
+                    logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
+                    startBootstrap(discoveredNodes, emptyList());
+                }
 
-            @Override
-            public String toString() {
-                return "unconfigured-discovery delayed bootstrap";
-            }
-        });
+                @Override
+                public String toString() {
+                    return "unconfigured-discovery delayed bootstrap";
+                }
+            });
     }
 
     private Set<DiscoveryNode> getDiscoveredNodes() {
@@ -259,17 +260,18 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
             logger.warn(() -> "exception when bootstrapping with " + votingConfiguration + ", rescheduling", e);
-            transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    doBootstrap(votingConfiguration);
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), transportService.getThreadPool().generic(), new Runnable() {
+                    @Override
+                    public void run() {
+                        doBootstrap(votingConfiguration);
+                    }
 
-                @Override
-                public String toString() {
-                    return "retry of failed bootstrapping with " + votingConfiguration;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "retry of failed bootstrapping with " + votingConfiguration;
+                    }
+                });
         }
     }
 

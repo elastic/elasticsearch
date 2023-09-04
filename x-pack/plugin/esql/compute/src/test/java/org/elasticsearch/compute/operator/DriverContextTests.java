@@ -43,6 +43,8 @@ public class DriverContextTests extends ESTestCase {
 
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
 
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+
     public void testEmptyFinished() {
         DriverContext driverContext = new DriverContext();
         driverContext.finish();
@@ -107,7 +109,7 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testMultiThreaded() throws Exception {
-        ExecutorService executor = threadPool.executor("esql_test_executor");
+        ExecutorService executor = threadPool.executor(ESQL_TEST_EXECUTOR);
 
         int tasks = randomIntBetween(4, 32);
         List<TestDriver> testDrivers = IntStream.range(0, tasks)
@@ -265,7 +267,7 @@ public class DriverContextTests extends ESTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 

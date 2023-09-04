@@ -8,10 +8,38 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
-public class Mod {
+public class Mod extends EsqlArithmeticOperation {
+
+    public Mod(Source source, Expression left, Expression right) {
+        super(
+            source,
+            left,
+            right,
+            MOD,
+            ModIntsEvaluator::new,
+            ModLongsEvaluator::new,
+            ModUnsignedLongsEvaluator::new,
+            (s, l, r) -> new ModDoublesEvaluator(l, r)
+        );
+    }
+
+    @Override
+    protected NodeInfo<Mod> info() {
+        return NodeInfo.create(this, Mod::new, left(), right());
+    }
+
+    @Override
+    protected Mod replaceChildren(Expression left, Expression right) {
+        return new Mod(source(), left, right);
+    }
+
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
         return lhs % rhs;

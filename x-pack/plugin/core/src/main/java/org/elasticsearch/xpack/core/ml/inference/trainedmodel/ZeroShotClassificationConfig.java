@@ -151,10 +151,10 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     public ZeroShotClassificationConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        classificationLabels = in.readStringList();
+        classificationLabels = in.readStringCollectionAsList();
         isMultiLabel = in.readBoolean();
         hypothesisTemplate = in.readString();
-        labels = in.readOptionalStringList();
+        labels = in.readOptionalStringCollectionAsList();
         resultsField = in.readOptionalString();
     }
 

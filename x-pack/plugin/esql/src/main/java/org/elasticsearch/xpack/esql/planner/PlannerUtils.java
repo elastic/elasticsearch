@@ -35,8 +35,6 @@ import java.util.Set;
 
 public class PlannerUtils {
 
-    private static final Mapper mapper = new Mapper(true);
-
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, EsqlConfiguration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
@@ -84,13 +82,23 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(EsqlConfiguration configuration, PhysicalPlan plan, SearchStats searchStats) {
-        var isCoordPlan = new Holder<>(Boolean.TRUE);
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
 
-        final var localOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+        return localPlan(plan, logicalOptimizer, physicalOptimizer);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer
+    ) {
+        final Mapper mapper = new Mapper(true);
+        var isCoordPlan = new Holder<>(Boolean.TRUE);
 
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = localOptimizer.localOptimize(f.fragment());
+            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
             var physicalFragment = mapper.map(optimizedFragment);
             var filter = f.esFilter();
             if (filter != null) {
@@ -99,8 +107,7 @@ public class PlannerUtils {
                     query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
                 );
             }
-            var optimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), optimizer.localOptimize(physicalFragment));
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalOptimizer.localOptimize(physicalFragment));
         });
         return isCoordPlan.get() ? plan : localPhysicalPlan;
     }

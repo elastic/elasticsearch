@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -106,6 +105,7 @@ public final class TransformIndex {
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         TransformConfig config,
+        Settings destIndexSettings,
         Map<String, String> destIndexMappings,
         ActionListener<Boolean> listener
     ) {
@@ -137,6 +137,7 @@ public final class TransformIndex {
 
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
+                destIndexSettings,
                 destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
@@ -248,12 +249,15 @@ public final class TransformIndex {
         );
     }
 
-    public static TransformDestIndexSettings createTransformDestIndexSettings(Map<String, String> mappings, String id, Clock clock) {
+    public static TransformDestIndexSettings createTransformDestIndexSettings(
+        Settings settings,
+        Map<String, String> mappings,
+        String id,
+        Clock clock
+    ) {
         Map<String, Object> indexMappings = new HashMap<>();
         indexMappings.put(PROPERTIES, createMappingsFromStringMap(mappings));
         indexMappings.put(META, createMetadata(id, clock));
-
-        Settings settings = createSettings();
 
         // transform does not create aliases, however the user might customize this in future
         Set<Alias> aliases = null;
@@ -286,17 +290,6 @@ public final class TransformIndex {
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);
         return metadata;
-    }
-
-    /**
-     * creates generated index settings, hardcoded at the moment, in future this might be customizable or generation could
-     * be based on source settings.
-     */
-    private static Settings createSettings() {
-        return Settings.builder() // <1>
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
     }
 
     /**

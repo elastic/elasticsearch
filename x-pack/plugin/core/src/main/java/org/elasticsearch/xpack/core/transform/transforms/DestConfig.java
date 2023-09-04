@@ -65,7 +65,7 @@ public class DestConfig implements Writeable, ToXContentObject {
     public DestConfig(final StreamInput in) throws IOException {
         index = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            aliases = in.readOptionalList(DestAlias::new);
+            aliases = in.readOptionalCollectionAsList(DestAlias::new);
         } else {
             aliases = null;
         }

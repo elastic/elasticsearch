@@ -206,9 +206,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
+        out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(statsByIndex);
         }
     }
 
@@ -257,7 +257,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                             ChunkedToXContentHelper.startArray(entry.getKey().getName()),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
-                                indexShardStats -> Iterators.<ToXContent>concat(
+                                indexShardStats -> Iterators.concat(
                                     Iterators.single(
                                         (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
                                     ),

@@ -1,0 +1,5 @@
+pr: 98337
+summary: TopN sorting with min and max for multi-value fields
+area: ES|QL
+type: feature
+issues: []

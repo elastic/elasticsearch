@@ -167,7 +167,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         nowInMillis = in.readVLong();
         clusterAlias = in.readOptionalString();
         waitForCheckpointsTimeout = in.readTimeValue();
-        shards = in.readList(Shard::new);
+        shards = in.readCollectionAsList(Shard::new);
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
@@ -188,7 +188,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         out.writeVLong(nowInMillis);
         out.writeOptionalString(clusterAlias);
         out.writeTimeValue(waitForCheckpointsTimeout);
-        out.writeList(shards);
+        out.writeCollection(shards);
     }
 
     public List<Shard> getShardLevelRequests() {

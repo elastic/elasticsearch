@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -227,9 +226,7 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         assert creatorUser.equals(MANAGE_OWN_API_KEY_USER) || creatorUser.equals(MANAGE_SECURITY_USER);
 
         // Exercise cross cluster keys, if viable (i.e., creator has enough privileges and feature flag is enabled)
-        final boolean createCrossClusterKey = creatorUser.equals(MANAGE_SECURITY_USER)
-            && TcpTransport.isUntrustedRemoteClusterEnabled()
-            && randomBoolean();
+        final boolean createCrossClusterKey = creatorUser.equals(MANAGE_SECURITY_USER) && randomBoolean();
         if (createCrossClusterKey) {
             final Map<String, Object> createApiKeyRequestBody = expiration == null
                 ? Map.of("name", apiKeyName, "access", Map.of("search", List.of(Map.of("names", List.of("*")))))

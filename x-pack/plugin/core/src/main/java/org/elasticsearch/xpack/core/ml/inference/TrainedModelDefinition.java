@@ -90,7 +90,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(trainedModel);
-        out.writeNamedWriteableList(preProcessors);
+        out.writeNamedWriteableCollection(preProcessors);
     }
 
     @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Request class used for the creation of an API key. The request requires a name to be provided
@@ -103,10 +102,6 @@ public final class CreateApiKeyRequest extends AbstractCreateApiKeyRequest {
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
     }
 
-    public void setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
-        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy may not be null");
-    }
-
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
     }
@@ -132,7 +127,7 @@ public final class CreateApiKeyRequest extends AbstractCreateApiKeyRequest {
             out.writeString(name);
         }
         out.writeOptionalTimeValue(expiration);
-        out.writeList(getRoleDescriptors());
+        out.writeCollection(getRoleDescriptors());
         refreshPolicy.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeGenericMap(metadata);

@@ -42,7 +42,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(keys, StreamOutput::writeString);
+        out.writeStringCollection(keys);
     }
 
     /**
@@ -59,7 +59,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
-        builder.stringListField(KEYS.getPreferredName(), keys().stream().sorted().toList()); // ordered keys for output consistency
+        builder.array(KEYS.getPreferredName(), keys().stream().sorted().toArray(String[]::new)); // ordered keys for output consistency
         builder.endObject();
         return builder;
     }

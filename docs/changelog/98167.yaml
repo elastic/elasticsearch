@@ -1,6 +1,0 @@
-pr: 98167
-summary: Fix failure processing Question Answering model output where the input has been spanned over multiple sequences   
-area: Machine Learning
-type: bug
-issues:
- - 97917

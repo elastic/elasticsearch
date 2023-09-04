@@ -153,12 +153,3 @@ if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
 }
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
-  }
-  tasks.named("internalClusterTest").configure {
-    systemProperty 'es.dlm_feature_flag_enabled', 'true'
-  }
-}

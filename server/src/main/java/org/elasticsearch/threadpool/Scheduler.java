@@ -18,6 +18,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.RunnableFuture;
@@ -80,19 +81,25 @@ public interface Scheduler {
 
     /**
      * Schedules a one-shot command to be run after a given delay. The command is run in the context of the calling thread.
-     * The command runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
-     * to execute on a different executor, in which case blocking calls are allowed.
+     * Implementations may choose to run the command on the given {@code executor} or on the scheduler thread. If {@code executor} is {@link
+     * EsExecutors#DIRECT_EXECUTOR_SERVICE} then the command runs on the scheduler thread in all cases. Do not run blocking calls on the
+     * scheduler thread.
      *
      * @param command the command to run
      * @param delay delay before the task executes
-     * @param executor the name of the executor that has to execute this task. Ignored in the default implementation but can be used
-     *                 by subclasses that support multiple executors.
-     * @return a ScheduledFuture who's get will return when the task has been added to its target thread pool and throws an exception if
-     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
-     *         the ScheduledFuture cannot interact with it.
+     * @param executor the executor that has to execute this task.
+     * @return a ScheduledFuture whose {@link ScheduledFuture#get()} will return when the task has been added to its target thread pool and
+     *         throws an exception if the task is canceled before it was added to its target thread pool. Once the task has been added to
+     *         its target thread pool the ScheduledFuture cannot interact with it.
      * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
      */
-    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor);
+    ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor);
+
+    /**
+     * @deprecated Use {@link #schedule(Runnable, TimeValue, Executor)} instead.
+     */
+    @Deprecated(forRemoval = true)
+    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executorName);
 
     /**
      * Schedules a periodic action that runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
@@ -105,6 +112,16 @@ public interface Scheduler {
      * @return a {@link Cancellable} that can be used to cancel the subsequent runs of the command. If the command is running, it will
      *         not be interrupted.
      */
+    default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+        runnable.start();
+        return runnable;
+    }
+
+    /**
+     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
+     */
+    @Deprecated(forRemoval = true)
     default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
         runnable.start();
@@ -165,10 +182,9 @@ public interface Scheduler {
 
         private final Runnable runnable;
         private final TimeValue interval;
-        private final String executor;
-        private final Scheduler scheduler;
         private final Consumer<Exception> rejectionConsumer;
         private final Consumer<Exception> failureConsumer;
+        private final Runnable doSchedule;
 
         private volatile boolean run = true;
 
@@ -183,6 +199,25 @@ public interface Scheduler {
         ReschedulingRunnable(
             Runnable runnable,
             TimeValue interval,
+            Executor executor,
+            Scheduler scheduler,
+            Consumer<Exception> rejectionConsumer,
+            Consumer<Exception> failureConsumer
+        ) {
+            this.runnable = runnable;
+            this.interval = interval;
+            this.rejectionConsumer = rejectionConsumer;
+            this.failureConsumer = failureConsumer;
+            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
+        }
+
+        /**
+         * @deprecated Use {@link #ReschedulingRunnable(Runnable, TimeValue, Executor, Scheduler, Consumer, Consumer)}} instead.
+         */
+        @Deprecated(forRemoval = true)
+        ReschedulingRunnable(
+            Runnable runnable,
+            TimeValue interval,
             String executor,
             Scheduler scheduler,
             Consumer<Exception> rejectionConsumer,
@@ -190,17 +225,16 @@ public interface Scheduler {
         ) {
             this.runnable = runnable;
             this.interval = interval;
-            this.executor = executor;
-            this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
+            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
         }
 
         /**
          * Schedules the first execution of this runnable
          */
         void start() {
-            scheduler.schedule(this, interval, executor);
+            doSchedule.run();
         }
 
         @Override
@@ -239,7 +273,7 @@ public interface Scheduler {
             // if this has not been cancelled reschedule it to run again
             if (run) {
                 try {
-                    scheduler.schedule(this, interval, executor);
+                    doSchedule.run();
                 } catch (final EsRejectedExecutionException e) {
                     onRejection(e);
                 }

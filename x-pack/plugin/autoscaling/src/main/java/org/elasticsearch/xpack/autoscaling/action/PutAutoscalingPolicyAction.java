@@ -109,7 +109,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             out.writeString(name);
             if (roles != null) {
                 out.writeBoolean(true);
-                out.writeCollection(roles, StreamOutput::writeString);
+                out.writeStringCollection(roles);
             } else {
                 out.writeBoolean(false);
             }

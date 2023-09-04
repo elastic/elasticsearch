@@ -30,7 +30,6 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.Closeable;
@@ -235,7 +234,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
         }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public void handleResponse() {
             fail("should not get successful response");
         }
 

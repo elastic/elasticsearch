@@ -52,7 +52,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByteArray(currentKeyHash);
-        out.writeList(keys);
+        out.writeCollection(keys);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {

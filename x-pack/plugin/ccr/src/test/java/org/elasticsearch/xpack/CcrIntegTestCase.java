@@ -831,10 +831,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     ) {
         final var future = new PlainActionFuture<RestoreInfo>();
         restoreService.restoreSnapshot(restoreSnapshotRequest, future.delegateFailure((delegate, restoreCompletionResponse) -> {
-            assertNull(restoreCompletionResponse.getRestoreInfo());
+            assertNull(restoreCompletionResponse.restoreInfo());
             // this would only be non-null if the restore was a no-op, but that would be a test bug
-            final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-            final String uuid = restoreCompletionResponse.getUuid();
+            final Snapshot snapshot = restoreCompletionResponse.snapshot();
+            final String uuid = restoreCompletionResponse.uuid();
             final ClusterStateListener clusterStateListener = new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent changedEvent) {

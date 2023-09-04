@@ -301,7 +301,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 out.writeBoolean(fetchFields != null);
                 if (fetchFields != null) {
-                    out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+                    out.writeMap(fetchFields, StreamOutput::writeWriteable);
                 }
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
@@ -449,7 +449,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeGenericValue(joinKeys);
-            out.writeList(events);
+            out.writeCollection(events);
         }
 
         @Override
@@ -534,13 +534,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             if (events != null) {
                 out.writeBoolean(true);
-                out.writeList(events);
+                out.writeCollection(events);
             } else {
                 out.writeBoolean(false);
             }
             if (sequences != null) {
                 out.writeBoolean(true);
-                out.writeList(sequences);
+                out.writeCollection(sequences);
             } else {
                 out.writeBoolean(false);
             }

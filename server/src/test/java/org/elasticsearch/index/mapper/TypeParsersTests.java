@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +76,7 @@ public class TypeParsersTests extends ESTestCase {
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();

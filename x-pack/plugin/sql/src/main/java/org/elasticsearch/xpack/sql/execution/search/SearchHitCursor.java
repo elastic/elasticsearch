@@ -77,7 +77,7 @@ public class SearchHitCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
@@ -124,17 +124,16 @@ public class SearchHitCursor implements Cursor {
 
         client.search(
             request,
-            ActionListener.wrap(
-                (SearchResponse response) -> handle(
+            listener.delegateFailureAndWrap(
+                (l, response) -> handle(
                     client,
                     response,
                     request.source(),
                     makeRowSet(response),
-                    listener,
+                    l,
                     includeFrozen,
                     allowPartialSearchResults
-                ),
-                listener::onFailure
+                )
             )
         );
     }
@@ -162,11 +161,7 @@ public class SearchHitCursor implements Cursor {
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
-            closePointInTime(
-                client,
-                response.pointInTimeId(),
-                ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
-            );
+            closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
         } else {
             updateSearchAfter(hits, source);
 

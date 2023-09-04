@@ -64,7 +64,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(getInternalAggregations());
+        out.writeNamedWriteableCollection(getInternalAggregations());
     }
 
     /**

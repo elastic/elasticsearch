@@ -272,8 +272,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment) {
-            return new ProxyS3Service(environment);
+        S3Service s3Service(Environment environment, Settings nodeSettings) {
+            return new ProxyS3Service(environment, nodeSettings);
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
@@ -289,8 +289,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment) {
-                super(environment);
+            ProxyS3Service(Environment environment, Settings nodeSettings) {
+                super(environment, nodeSettings);
             }
 
             @Override

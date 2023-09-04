@@ -250,6 +250,7 @@ public class PeerFinderTests extends ESTestCase {
     @After
     public void deactivateAndRunRemainingTasks() {
         peerFinder.deactivate(localNode);
+        peerFinder.closePeers();
         deterministicTaskQueue.runAllRunnableTasks();
         assertThat(connectedNodes, empty());
     }
@@ -358,7 +359,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
     }
 
-    public void testDeactivationClearsPastKnowledge() {
+    public void testDeactivationRetainsPastKnowledgeUntilClosed() {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
         providedAddresses.add(otherNode.getAddress());
         transportAddressConnector.addReachableNode(otherNode);
@@ -369,12 +370,40 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+
+        peerFinder.activate(DiscoveryNodes.EMPTY_NODES);
+        assertFoundPeers(otherNode);
+
+        peerFinder.deactivate(localNode);
+        assertFoundPeers();
+        assertEquals(Set.of(otherNode), connectedNodes);
+        peerFinder.closePeers();
         assertThat(connectedNodes, empty());
 
         providedAddresses.clear();
         peerFinder.activate(lastAcceptedNodes);
         runAllRunnableTasks();
         assertFoundPeers();
+    }
+
+    public void testDeactivationDuringConnectionAttemptReleasesPeer() {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(10000);
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks(); // mainly verifying that this doesn't trip an assertion
+        } while (deterministicTaskQueue.hasDeferredTasks());
+        assertFoundPeers();
+
+        peerFinder.closePeers();
+        assertThat(connectedNodes, empty());
     }
 
     public void testAddsReachableNodesFromClusterState() {

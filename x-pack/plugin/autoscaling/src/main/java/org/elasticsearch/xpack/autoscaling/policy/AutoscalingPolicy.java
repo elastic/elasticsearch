@@ -99,7 +99,7 @@ public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToX
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(roles, StreamOutput::writeString);
+        out.writeStringCollection(roles);
         out.writeInt(deciders.size());
         for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
             out.writeString(entry.getKey());

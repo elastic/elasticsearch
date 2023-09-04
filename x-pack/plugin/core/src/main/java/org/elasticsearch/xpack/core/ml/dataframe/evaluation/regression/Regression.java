@@ -114,7 +114,7 @@ public class Regression implements Evaluation {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
         out.writeString(fields.getPredictedField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

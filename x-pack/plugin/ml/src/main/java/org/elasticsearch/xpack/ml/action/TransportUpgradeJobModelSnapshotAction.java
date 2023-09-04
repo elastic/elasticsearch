@@ -174,7 +174,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 client,
                 state,
                 request.masterNodeTimeout(),
-                configIndexMappingUpdaterListener
+                configIndexMappingUpdaterListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             listener::onFailure
         );

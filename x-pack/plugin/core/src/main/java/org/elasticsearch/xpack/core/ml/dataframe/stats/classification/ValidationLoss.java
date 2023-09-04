@@ -63,7 +63,7 @@ public class ValidationLoss implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(lossType);
-        out.writeList(foldValues);
+        out.writeCollection(foldValues);
     }
 
     @Override

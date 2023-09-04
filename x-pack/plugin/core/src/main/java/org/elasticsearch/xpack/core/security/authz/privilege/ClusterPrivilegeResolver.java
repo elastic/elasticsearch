@@ -24,7 +24,6 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -375,8 +374,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
             MANAGE_SEARCH_QUERY_RULES,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
+            CROSS_CLUSTER_SEARCH,
+            CROSS_CLUSTER_REPLICATION
         ).filter(Objects::nonNull).toList()
     );
 

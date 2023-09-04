@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
@@ -166,7 +167,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index1SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.mapping.total_fields.limit", 1000)
@@ -228,7 +229,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index2SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.mapping.total_fields.limit", 99999999)

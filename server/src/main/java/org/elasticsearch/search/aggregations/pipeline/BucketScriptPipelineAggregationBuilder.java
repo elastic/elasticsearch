@@ -95,7 +95,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString);
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);

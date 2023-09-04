@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -37,8 +38,7 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  */
 public class RemoteClusterPortSettings {
 
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS = TransportVersion.V_8_8_0;
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR = TransportVersion.V_8_500_010;
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersion.V_8_500_059;
 
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
@@ -128,6 +128,14 @@ public class RemoteClusterPortSettings {
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting(
         REMOTE_CLUSTER_PREFIX + "tcp.receive_buffer_size",
         TransportSettings.TCP_RECEIVE_BUFFER_SIZE,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
+        REMOTE_CLUSTER_PREFIX + "max_request_header_size",
+        new ByteSizeValue(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
+        new ByteSizeValue(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
+        new ByteSizeValue(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
         Setting.Property.NodeScope
     );
 

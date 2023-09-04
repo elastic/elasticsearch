@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -57,6 +56,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -405,10 +407,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
         );
         spFields.put("privileges", Map.of("resource", entityId, "roles", Set.of("sso:(\\w+)")));
-        Request request = new Request(
-            "PUT",
-            "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()
-        );
+        Request request = new Request("PUT", "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(spFields);
@@ -437,7 +436,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerApplicationPrivileges(Map<String, Set<String>> privileges) throws IOException {
-        Request request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        Request request = new Request("PUT", "/_security/privilege?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -487,6 +486,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
+            .setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE, NONE))
             .get();
         assertNotNull(response);
         return Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));

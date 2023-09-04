@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -75,7 +74,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             userProfileUsage = in.readMap();
         }
-        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             remoteClusterServerUsage = in.readMap();
         }
     }
@@ -145,7 +144,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
         }
-        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeGenericMap(remoteClusterServerUsage);
         }
     }

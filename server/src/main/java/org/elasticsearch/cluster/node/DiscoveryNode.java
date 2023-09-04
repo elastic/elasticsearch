@@ -300,7 +300,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (version.before(Version.V_8_10_0)) {
             return new VersionInformation(
                 version,
-                IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
+                IndexVersion.getMinimumCompatibleIndexVersion(version.id),
                 IndexVersion.fromId(version.id)
             );
         } else {
@@ -375,7 +375,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(attributes, StreamOutput::writeString);
         out.writeCollection(roles, (o, role) -> {
             o.writeString(role.roleName());
             o.writeString(role.roleNameAbbreviation());

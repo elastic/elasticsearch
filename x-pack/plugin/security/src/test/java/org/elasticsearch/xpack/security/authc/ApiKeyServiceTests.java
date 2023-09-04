@@ -156,7 +156,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
@@ -576,6 +576,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             );
             assertEquals("invalid ApiKey value", e.getMessage());
         }
+    }
+
+    public void testGetCredentialsFromHeaderFailsForInvalidCrossClusterApiKeySecretLength() {
+        final String id = randomAlphaOfLength(20);
+        final String key = randomAlphaOfLength(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.getCredentialsFromHeader(
+                "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)),
+                ApiKey.Type.CROSS_CLUSTER
+            )
+        );
+        assertThat(e.getMessage(), containsString("invalid cross-cluster API key value"));
     }
 
     public void testAuthenticateWithApiKey() throws Exception {
@@ -2329,7 +2342,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
         final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
@@ -2366,7 +2379,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Selecting random supported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS,
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
             TransportVersion.current()
         );
 
@@ -2419,7 +2432,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(ApiKey.CROSS_CLUSTER_KEY_VERSION)
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
@@ -2441,7 +2454,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             e.getMessage(),
             containsString(
                 "all nodes must have transport version ["
-                    + ApiKey.CROSS_CLUSTER_KEY_VERSION
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] or higher to support creating cross cluster API keys"
             )
         );
@@ -2640,7 +2653,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
             1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean())
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean())
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);

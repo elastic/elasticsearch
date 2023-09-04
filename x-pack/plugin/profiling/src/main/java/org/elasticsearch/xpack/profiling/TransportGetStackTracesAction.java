@@ -409,7 +409,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     // Adjust the sample counts from down-sampled to fully sampled.
                     // Be aware that downsampling drops entries from stackTraceEvents, so that
                     // the sum of the upscaled count values is less that totalCount.
-                    return (int) Math.floor(newCount / (sampleRate * p));
+                    // This code needs to be refactored to move all scaling into the server
+                    // side, not just the resampling-scaling.
+                    return (int) Math.floor(newCount / (p));
                 } else {
                     return 0;
                 }
@@ -472,7 +474,16 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
+                        String fileName = ObjectPath.eval("Executable.file.name", executable.getResponse().getSource());
+                        if (fileName != null) {
+                            executables.putIfAbsent(executable.getId(), fileName);
+                        } else {
+                            String priorKey = executables.putIfAbsent(executable.getId(), "<missing>");
+                            // avoid spurious logging by checking whether we have actually inserted the 'missing' key
+                            if (priorKey == null) {
+                                log.trace("Executable with id [{}] has no file name.", executable.getId());
+                            }
+                        }
                     }
                 }
             }

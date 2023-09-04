@@ -1005,6 +1005,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     // test that docs in same date bucket with a later date than the updated doc are not ignored by the transform.
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98377")
     public void testContinuousDateHistogramPivot() throws Exception {
         String indexName = "continuous_reviews_date_histogram";
 

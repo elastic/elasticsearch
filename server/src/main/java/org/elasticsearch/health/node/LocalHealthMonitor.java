@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -418,7 +420,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.getTotalBytes());
 
-            if (node.isDedicatedFrozenNode()) {
+            if (node.isDedicatedFrozenNode() || isDedicatedSearchNode(node)) {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
                     logger.debug("Flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
@@ -426,7 +428,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 }
                 return new DiskHealthInfo(HealthStatus.GREEN);
             }
-
             long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
             if (usage.getFreeBytes() < floodStageThreshold) {
                 logger.debug("Flood stage disk watermark [{}] exceeded on {}", floodStageThreshold, usage);
@@ -448,6 +449,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 }
             }
             return new DiskHealthInfo(HealthStatus.GREEN);
+        }
+
+        private static boolean isDedicatedSearchNode(DiscoveryNode node) {
+            Set<DiscoveryNodeRole> roles = node.getRoles();
+            return roles.contains(DiscoveryNodeRole.SEARCH_ROLE)
+                && roles.stream().filter(DiscoveryNodeRole::canContainData).anyMatch(r -> r != DiscoveryNodeRole.SEARCH_ROLE) == false;
         }
 
         private DiskUsage getDiskUsage() {

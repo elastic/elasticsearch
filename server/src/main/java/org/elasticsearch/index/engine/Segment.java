@@ -168,7 +168,7 @@ public class Segment implements Writeable {
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
         if (hasAttributes) {
-            out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(attributes, StreamOutput::writeString);
         }
     }
 

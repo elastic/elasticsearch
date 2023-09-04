@@ -105,11 +105,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
+        Fields fields = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(fields, null, flags, fields);
         outResponse.setExists(true);
@@ -140,11 +140,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields termVectors = dr.getTermVectors(doc);
+        Fields termVectors = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(termVectors, null, flags, termVectors);
         dr.close();

@@ -213,7 +213,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(evaluationName);
-            out.writeNamedWriteableList(metrics);
+            out.writeNamedWriteableCollection(metrics);
         }
 
         @Override

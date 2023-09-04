@@ -103,7 +103,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override
@@ -208,10 +208,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             if (stats != null) {
                 stats.writeTo(out);
             }
-            out.writeCollection(databases, StreamOutput::writeString);
-            out.writeCollection(filesInTemp, StreamOutput::writeString);
+            out.writeStringCollection(databases);
+            out.writeStringCollection(filesInTemp);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-                out.writeCollection(configDatabases, StreamOutput::writeString);
+                out.writeStringCollection(configDatabases);
             }
         }
 

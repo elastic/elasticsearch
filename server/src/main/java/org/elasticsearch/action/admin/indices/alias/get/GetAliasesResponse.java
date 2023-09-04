@@ -45,8 +45,8 @@ public class GetAliasesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(aliases, StreamOutput::writeCollection);
+        out.writeMap(dataStreamAliases, StreamOutput::writeCollection);
     }
 
     @Override

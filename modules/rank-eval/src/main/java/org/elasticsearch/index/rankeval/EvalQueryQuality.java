@@ -59,7 +59,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryId);
         out.writeDouble(metricScore);
-        out.writeList(ratedHits);
+        out.writeCollection(ratedHits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
 

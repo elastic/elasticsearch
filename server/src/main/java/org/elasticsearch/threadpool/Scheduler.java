@@ -246,7 +246,7 @@ public interface Scheduler {
             // if this has not been cancelled reschedule it to run again
             if (run) {
                 try {
-                    doSchedule.run();
+                    scheduler.schedule(this, interval, executor);
                 } catch (final EsRejectedExecutionException e) {
                     onRejection(e);
                 }

@@ -502,10 +502,7 @@ public abstract class StreamOutput extends OutputStream {
         if (array == null) {
             writeVInt(0);
         } else {
-            writeVInt(array.length);
-            for (String s : array) {
-                writeString(s);
-            }
+            writeStringArray(array);
         }
     }
 
@@ -682,10 +679,7 @@ public abstract class StreamOutput extends OutputStream {
         entry(Object[].class, (o, v) -> {
             o.writeByte((byte) 8);
             final Object[] list = (Object[]) v;
-            o.writeVInt(list.length);
-            for (Object item : list) {
-                o.writeGenericValue(item);
-            }
+            o.writeArray(StreamOutput::writeGenericValue, list);
         }),
         entry(Map.class, (o, v) -> {
             if (v instanceof LinkedHashMap) {

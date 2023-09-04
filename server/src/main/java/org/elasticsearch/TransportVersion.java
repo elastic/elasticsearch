@@ -181,7 +181,6 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_066 = registerTransportVersion(8_500_066, "F398ECC6-5D2A-4BD8-A9E8-1101F030DF85");
     public static final TransportVersion V_8_500_067 = registerTransportVersion(8_500_067, "a7c86604-a917-4aff-9a1b-a4d44c3dbe02");
     public static final TransportVersion V_8_500_068 = registerTransportVersion(8_500_068, "2683c8b4-5372-4a6a-bb3a-d61aa679089a");
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -204,7 +203,8 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *
      * DETERMINING TRANSPORT VERSIONS FROM GIT HISTORY
      *
-     * You can use git to find the transport versions known by a particular release ...
+     * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
+     * transport versions known by a particular release ...
      *
      *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
      *

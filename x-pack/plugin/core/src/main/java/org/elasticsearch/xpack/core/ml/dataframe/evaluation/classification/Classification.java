@@ -140,7 +140,7 @@ public class Classification implements Evaluation {
         out.writeOptionalString(fields.getTopClassesField());
         out.writeOptionalString(fields.getPredictedClassField());
         out.writeOptionalString(fields.getPredictedProbabilityField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

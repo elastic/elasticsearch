@@ -71,7 +71,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(concreteConditions);
-        out.writeCollection(automaticConditions, StreamOutput::writeString);
+        out.writeStringCollection(automaticConditions);
     }
 
     @Override

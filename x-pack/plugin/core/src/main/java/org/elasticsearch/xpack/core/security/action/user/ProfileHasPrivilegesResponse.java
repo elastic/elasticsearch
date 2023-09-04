@@ -69,7 +69,7 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(hasPrivilegeUids);
-        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeMap(errors, StreamOutput::writeException);
     }
 
     @Override

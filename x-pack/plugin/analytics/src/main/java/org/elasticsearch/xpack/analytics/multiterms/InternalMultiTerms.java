@@ -344,7 +344,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeCollection(formats, StreamOutput::writeNamedWriteable);
+        out.writeNamedWriteableCollection(formats);
         out.writeCollection(keyConverters, StreamOutput::writeEnum);
         out.writeCollection(buckets);
     }

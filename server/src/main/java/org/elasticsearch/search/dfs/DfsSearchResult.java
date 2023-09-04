@@ -158,7 +158,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
+        out.writeMap(fieldStatistics, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
             o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers

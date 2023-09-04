@@ -332,7 +332,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableList(subSources);
+            out.writeNamedWriteableCollection(subSources);
             out.writeOptionalWriteable(filter);
         }
 
@@ -447,7 +447,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(ordered);
-            out.writeNamedWriteableList(subSources);
+            out.writeNamedWriteableCollection(subSources);
             out.writeInt(maxGaps);
             out.writeOptionalWriteable(filter);
         }

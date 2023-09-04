@@ -86,7 +86,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.includes, StreamOutput::writeString);
+            out.writeStringCollection(this.includes);
         }
 
         public boolean isIncludeModelDefinition() {

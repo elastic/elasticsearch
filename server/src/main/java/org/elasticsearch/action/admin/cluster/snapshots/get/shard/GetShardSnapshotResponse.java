@@ -40,7 +40,7 @@ public class GetShardSnapshotResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(latestShardSnapshot);
-        out.writeMap(repositoryFailures, StreamOutput::writeString, (o, err) -> err.writeTo(o));
+        out.writeMap(repositoryFailures, StreamOutput::writeWriteable);
     }
 
     public Optional<RepositoryException> getFailureForRepository(String repository) {

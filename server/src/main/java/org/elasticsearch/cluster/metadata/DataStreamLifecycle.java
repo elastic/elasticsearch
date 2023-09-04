@@ -419,7 +419,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, (o, v) -> v.writeTo(o));
+            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
         }
 
         @Override

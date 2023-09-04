@@ -74,7 +74,9 @@ public class NodeLeftExecutorTests extends ESTestCase {
                 DiscoveryNodes.Builder remainingNodesBuilder,
                 Map<String, CompatibilityVersions> compatibilityVersions
             ) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, compatibilityVersions));
+                remainingNodesClusterState.set(
+                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, compatibilityVersions)
+                );
                 return remainingNodesClusterState.get();
             }
         };

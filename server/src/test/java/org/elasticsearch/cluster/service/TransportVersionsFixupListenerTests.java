@@ -139,7 +139,9 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
-            .compatibilityVersions(Maps.transformValues(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0), CompatibilityVersions::new))
+            .compatibilityVersions(
+                Maps.transformValues(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0), CompatibilityVersions::new)
+            )
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);

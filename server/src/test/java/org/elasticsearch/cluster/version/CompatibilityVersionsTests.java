@@ -19,7 +19,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class CompatibilityVersionsTests extends ESTestCase {
 
     public void testMinimumVersions() {
-        assertThat(CompatibilityVersions.minimumVersions(Map.of()), equalTo(new CompatibilityVersions(TransportVersion.MINIMUM_COMPATIBLE)));
+        assertThat(
+            CompatibilityVersions.minimumVersions(Map.of()),
+            equalTo(new CompatibilityVersions(TransportVersion.MINIMUM_COMPATIBLE))
+        );
 
         TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_COMPATIBLE, true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(

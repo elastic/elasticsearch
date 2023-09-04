@@ -1035,7 +1035,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.readBoolean()) {
-                versions = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), COMPATIBILITY_VERSIONS_VALUE_SERIALIZER);
+                versions = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
+                );
             } else {
                 versions = null;   // infer at application time
             }

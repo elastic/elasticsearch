@@ -81,7 +81,6 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         }
 
         long tookNanos = System.nanoTime() - startNanos;
-        // Round to the nearest millisecond.
         long tookMillis = TimeUnit.NANOSECONDS.toMillis(tookNanos);
         LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}", tookMillis, esqlQuery);
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));

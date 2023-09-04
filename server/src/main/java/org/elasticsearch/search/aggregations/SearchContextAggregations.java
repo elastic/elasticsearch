@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 
 import java.util.ArrayList;
@@ -22,7 +21,7 @@ public class SearchContextAggregations {
     private final AggregatorFactories factories;
     private final Supplier<AggregationReduceContext.Builder> toAggregationReduceContextBuilder;
     private final List<Aggregator[]> aggregators;
-    private CollectorManager<Collector, Void> aggCollectorManager;
+    private CollectorManager<AggregatorCollector, Void> aggCollectorManager;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
@@ -56,14 +55,14 @@ public class SearchContextAggregations {
     /**
      * Registers the collector to be run for the aggregations phase
      */
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> aggCollectorManager) {
+    public void registerAggsCollectorManager(CollectorManager<AggregatorCollector, Void> aggCollectorManager) {
         this.aggCollectorManager = aggCollectorManager;
     }
 
     /**
      * Returns the collector to be run for the aggregations phase
      */
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+    public CollectorManager<AggregatorCollector, Void> getAggsCollectorManager() {
         return aggCollectorManager;
     }
 

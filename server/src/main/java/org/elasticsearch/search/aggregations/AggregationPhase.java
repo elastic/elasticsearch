@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -16,7 +14,6 @@ import org.elasticsearch.search.query.QueryPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -31,36 +28,24 @@ public class AggregationPhase {
         if (context.aggregations() == null) {
             return;
         }
-        final Supplier<Collector> collectorSupplier;
+        final Supplier<AggregatorCollector> collectorSupplier;
         if (context.aggregations().isInSortOrderExecutionRequired()) {
-            executeInSortOrder(context, newBucketCollector(context));
-            collectorSupplier = () -> BucketCollector.NO_OP_COLLECTOR;
+            AggregatorCollector collector = newAggregatorCollector(context);
+            executeInSortOrder(context, collector.bucketCollector);
+            collectorSupplier = () -> new AggregatorCollector(collector.aggregators, BucketCollector.NO_OP_BUCKET_COLLECTOR);
         } else {
-            collectorSupplier = () -> newBucketCollector(context).asCollector();
+            collectorSupplier = () -> newAggregatorCollector(context);
         }
-        context.aggregations().registerAggsCollectorManager(new CollectorManager<>() {
-            @Override
-            public Collector newCollector() {
-                return collectorSupplier.get();
-            }
-
-            @Override
-            public Void reduce(Collection<Collector> collectors) {
-                // we cannot run post-collection method here because we need to do it after the optional timeout
-                // has been removed from the index searcher. Therefore, we delay this processing to the
-                // AggregationPhase#execute method.
-                return null;
-            }
-        });
+        context.aggregations().registerAggsCollectorManager(new AggregatorCollectorManager(collectorSupplier));
     }
 
-    private static BucketCollector newBucketCollector(SearchContext context) {
+    private static AggregatorCollector newAggregatorCollector(SearchContext context) {
         try {
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
             context.aggregations().aggregators(aggregators);
             BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
             bucketCollector.preCollection();
-            return bucketCollector;
+            return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }

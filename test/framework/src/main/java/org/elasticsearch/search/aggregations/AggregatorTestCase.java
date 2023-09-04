@@ -149,7 +149,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -160,6 +159,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -297,20 +297,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
     }
 
-    private AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
-        throws IOException {
-        return createAggregationContext(
-            indexSearcher,
-            createIndexSettings(),
-            query,
-            new NoneCircuitBreakerService(),
-            AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
-            DEFAULT_MAX_BUCKETS,
-            false,
-            fieldTypes
-        );
-    }
-
     /**
      * Create a {@linkplain AggregationContext} for testing an {@link Aggregator}.
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
@@ -331,7 +317,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         return createAggregationContext(
-            newIndexSearcher(indexReader),
+            newIndexSearcher(indexReader, false),
             indexSettings,
             query,
             breakerService,
@@ -509,7 +495,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig)
         throws IOException {
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggTestConfig.builder.supportsParallelCollection());
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -613,25 +599,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
                 } else {
-                    CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
-                        @Override
-                        public Collector newCollector() throws IOException {
-                            C collector = createAggregator(builder, context);
-                            collector.preCollection();
-                            aggregators.add(collector);
-                            return MultiBucketCollector.wrap(true, List.of(collector)).asCollector();
-                        }
-
-                        @Override
-                        public Void reduce(Collection<Collector> collectors) {
-                            return null;
+                    Supplier<AggregatorCollector> aggregatorSupplier = () -> {
+                        try {
+                            C aggregator = createAggregator(builder, context);
+                            aggregators.add(aggregator);
+                            aggregator.preCollection();
+                            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
+                            return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
+                        } catch (IOException e) {
+                            throw new AggregationInitializationException("Could not initialize aggregators", e);
                         }
                     };
-                    if (aggTestConfig.builder().supportsParallelCollection()) {
-                        searcher.search(rewritten, collectorManager);
-                    } else {
-                        searcher.search(rewritten, collectorManager.newCollector());
-                    }
+
+                    CollectorManager<AggregatorCollector, Void> collectorManager = new AggregatorCollectorManager(aggregatorSupplier);
+                    searcher.search(rewritten, collectorManager);
                 }
                 for (C agg : aggregators) {
                     internalAggs.add(agg.buildTopLevel());
@@ -806,7 +787,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggregationBuilder.supportsParallelCollection());
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -954,7 +935,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread.
      */
-    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException {
+    private IndexSearcher newIndexSearcher(IndexReader indexReader, boolean supportsParallelCollection) throws IOException {
         return new ContextIndexSearcher(
             indexReader,
             IndexSearcher.getDefaultSimilarity(),
@@ -963,7 +944,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexReader instanceof DirectoryReader ? randomBoolean() : false, // we can only wrap DirectoryReader instances
             this.threadPoolExecutor,
             this.threadPoolExecutor.getMaximumPoolSize(),
-            1 // forces multiple slices
+            supportsParallelCollection ? 1 /* forces multiple slices */ : Integer.MAX_VALUE // one slice
         );
     }
 

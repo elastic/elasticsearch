@@ -172,9 +172,10 @@ public interface Scheduler {
 
         private final Runnable runnable;
         private final TimeValue interval;
+        private final Executor executor;
+        private final Scheduler scheduler;
         private final Consumer<Exception> rejectionConsumer;
         private final Consumer<Exception> failureConsumer;
-        private final Runnable doSchedule;
 
         private volatile boolean run = true;
 
@@ -196,35 +197,17 @@ public interface Scheduler {
         ) {
             this.runnable = runnable;
             this.interval = interval;
+            this.executor = executor;
+            this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
-            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
-        }
-
-        /**
-         * @deprecated Use {@link #ReschedulingRunnable(Runnable, TimeValue, Executor, Scheduler, Consumer, Consumer)}} instead.
-         */
-        @Deprecated(forRemoval = true)
-        ReschedulingRunnable(
-            Runnable runnable,
-            TimeValue interval,
-            String executor,
-            Scheduler scheduler,
-            Consumer<Exception> rejectionConsumer,
-            Consumer<Exception> failureConsumer
-        ) {
-            this.runnable = runnable;
-            this.interval = interval;
-            this.rejectionConsumer = rejectionConsumer;
-            this.failureConsumer = failureConsumer;
-            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
         }
 
         /**
          * Schedules the first execution of this runnable
          */
         void start() {
-            doSchedule.run();
+            scheduler.schedule(this, interval, executor);
         }
 
         @Override

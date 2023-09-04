@@ -110,7 +110,7 @@ public class Classification implements Evaluation {
             in.readOptionalString(),
             true
         );
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override

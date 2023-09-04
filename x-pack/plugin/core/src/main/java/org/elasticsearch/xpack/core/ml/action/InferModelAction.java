@@ -147,7 +147,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
@@ -156,7 +156,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
@@ -316,7 +316,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
+            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
             this.id = in.readOptionalString();
         }

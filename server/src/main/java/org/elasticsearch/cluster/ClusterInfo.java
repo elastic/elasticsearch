@@ -358,7 +358,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         ReservedSpace(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readSet(ShardId::new));
+            this(in.readVLong(), in.readCollectionAsSet(ShardId::new));
         }
 
         @Override

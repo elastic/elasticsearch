@@ -140,7 +140,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     public MultiTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        terms = in.readList(MultiValuesSourceFieldConfig::new);
+        terms = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         order = InternalOrder.Streams.readOrder(in);
         collectMode = in.readOptionalWriteable(Aggregator.SubAggCollectionMode::readFromStream);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);

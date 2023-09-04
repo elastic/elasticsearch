@@ -439,7 +439,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @SuppressWarnings("unchecked")
         public Sequence(StreamInput in) throws IOException {
             this.joinKeys = (List<Object>) in.readGenericValue();
-            this.events = in.readList(Event::readFrom);
+            this.events = in.readCollectionAsList(Event::readFrom);
         }
 
         public static Sequence fromXContent(XContentParser parser) {
@@ -521,8 +521,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events = in.readBoolean() ? in.readList(Event::readFrom) : null;
-            sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
+            events = in.readBoolean() ? in.readCollectionAsList(Event::readFrom) : null;
+            sequences = in.readBoolean() ? in.readCollectionAsList(Sequence::new) : null;
         }
 
         @Override

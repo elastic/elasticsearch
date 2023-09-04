@@ -123,6 +123,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 )
             );
         } catch (RuntimeException e) {
+            // To log the query on parsing/planning failure, we need to catch, log and re-throw.
             long endTime = System.currentTimeMillis();
             LOGGER.info("Failed parsing/planning ES|QL query in {}ms:\n{}", endTime - startTime, request.query());
 

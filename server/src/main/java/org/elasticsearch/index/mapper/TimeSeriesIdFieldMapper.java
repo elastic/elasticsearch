@@ -157,7 +157,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, 0, hash);
             ByteUtils.writeLongLE(hash.h1, buffer, 0);
             ByteUtils.writeLongLE(hash.h2, buffer, 8);
-            final BytesRef encoded = new BytesRef(TSID_HASH_PREFIX + Base64.getUrlEncoder().encodeToString(buffer));
+            final BytesRef encoded = new BytesRef(TSID_HASH_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(buffer));
             out.writeBytesRef(encoded);
             return out.bytes();
         }

@@ -88,7 +88,7 @@ public class ScriptException extends ElasticsearchException {
     @Override
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
-        out.writeStringArray(scriptStack.toArray(new String[0]));
+        out.writeStringCollection(scriptStack);
         out.writeString(script);
         out.writeString(lang);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {

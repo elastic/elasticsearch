@@ -502,10 +502,7 @@ public abstract class StreamOutput extends OutputStream {
         if (array == null) {
             writeVInt(0);
         } else {
-            writeVInt(array.length);
-            for (String s : array) {
-                writeString(s);
-            }
+            writeStringArray(array);
         }
     }
 
@@ -576,26 +573,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     public final <V extends Writeable> void writeMapValues(final Map<?, V> map) throws IOException {
         writeMapValues(map, StreamOutput::writeWriteable);
-    }
-
-    /**
-     * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
-     * <pre><code>
-     * Map&lt;String, List&lt;String&gt;&gt; map = ...;
-     * out.writeMapOfLists(map, StreamOutput::writeString, StreamOutput::writeString);
-     * </code></pre>
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeMap(map, keyWriter, (stream, list) -> {
-            writeVInt(list.size());
-            for (final V value : list) {
-                valueWriter.write(this, value);
-            }
-        });
     }
 
     /**
@@ -682,10 +659,7 @@ public abstract class StreamOutput extends OutputStream {
         entry(Object[].class, (o, v) -> {
             o.writeByte((byte) 8);
             final Object[] list = (Object[]) v;
-            o.writeVInt(list.length);
-            for (Object item : list) {
-                o.writeGenericValue(item);
-            }
+            o.writeArray(StreamOutput::writeGenericValue, list);
         }),
         entry(Map.class, (o, v) -> {
             if (v instanceof LinkedHashMap) {

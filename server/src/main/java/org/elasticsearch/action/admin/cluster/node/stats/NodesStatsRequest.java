@@ -173,7 +173,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**

@@ -29,17 +29,15 @@ public class InferenceActionRequestTests extends AbstractWireSerializingTestCase
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
         int select = randomIntBetween(0, 1);
-        switch (select) {
+        return switch (select) {
             case 0 -> {
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
-                return new InferenceAction.Request(nextTask, instance.getModelId());
+                yield new InferenceAction.Request(nextTask, instance.getModelId());
             }
-            case 1 -> {
-                return new InferenceAction.Request(instance.getTaskType(), instance.getModelId() + "foo");
-            }
+            case 1 -> new InferenceAction.Request(instance.getTaskType(), instance.getModelId() + "foo");
             default -> {
                 throw new UnsupportedOperationException();
             }
-        }
+        };
     }
 }

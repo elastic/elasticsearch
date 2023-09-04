@@ -19,7 +19,7 @@
   - match: { task_settings: { } }
 
 ---
-"Get Inference Model":
+"Inference Model life cyle":
   - do:
       inference.put_model:
         task_type: sparse_embedding
@@ -34,3 +34,26 @@
           }
   - match: { model_id: model_to_get }
 
+  - do:
+      inference.get_model:
+        task_type: sparse_embedding
+        model_id: model_to_get
+  - match: { model_id: model_to_get }
+  - match: { service: elser }
+  - match: { task_type: sparse_embedding }
+  - match: { service_settings: { } }
+  - match: { task_settings: { } }
+
+  - do:
+      inference.delete_model:
+        task_type: sparse_embedding
+        model_id: model_to_get
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      inference.get_model:
+        task_type: sparse_embedding
+        model_id: model_to_get
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Model not found [model_to_get]" }

@@ -17,5 +17,6 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.inference;
     exports org.elasticsearch.inference.rest;
     exports org.elasticsearch.inference.action;
+    exports org.elasticsearch.inference.registry;
     exports org.elasticsearch.inference.results;
 }

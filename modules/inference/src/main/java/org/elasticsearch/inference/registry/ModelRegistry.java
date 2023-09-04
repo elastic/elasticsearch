@@ -24,6 +24,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.InferenceIndex;
 import org.elasticsearch.inference.InferencePlugin;
 import org.elasticsearch.inference.Model;
@@ -58,7 +60,7 @@ public class ModelRegistry {
 
         }, listener::onFailure);
 
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
+        QueryBuilder queryBuilder = documentIdQuery(modelId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).request();
 
         client.search(modelSearch, searchListener);
@@ -84,6 +86,19 @@ public class ModelRegistry {
         }));
     }
 
+    public void deleteModel(String modelId, ActionListener<Boolean> listener) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
+        request.indices(InferenceIndex.INDEX_PATTERN);
+        request.setQuery(documentIdQuery(modelId));
+        request.setRefresh(true);
+
+        client.execute(
+            DeleteByQueryAction.INSTANCE,
+            request,
+            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
+        );
+    }
+
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             var request = new IndexRequest(indexName);
@@ -94,5 +109,9 @@ public class ModelRegistry {
         } catch (IOException ex) {
             throw new ElasticsearchException("Unexpected serialization exception for [" + docId + "]", ex);
         }
+    }
+
+    private QueryBuilder documentIdQuery(String modelId) {
+        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
     }
 }

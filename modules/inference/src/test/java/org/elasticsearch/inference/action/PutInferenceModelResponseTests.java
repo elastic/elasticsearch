@@ -23,7 +23,7 @@ public class PutInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected PutInferenceModelAction.Response mutateInstance(PutInferenceModelAction.Response instance) {
-        var mutatedModel = ModelTests.mutateTestInstance(instance.getModelConfig());
+        var mutatedModel = ModelTests.mutateTestInstance(instance.getModel());
         return new PutInferenceModelAction.Response(mutatedModel);
     }
 

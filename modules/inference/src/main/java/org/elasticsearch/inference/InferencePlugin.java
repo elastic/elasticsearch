@@ -25,12 +25,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.inference.action.GetInferenceModelAction;
 import org.elasticsearch.inference.action.InferenceAction;
 import org.elasticsearch.inference.action.PutInferenceModelAction;
+import org.elasticsearch.inference.action.TransportDeleteInferenceModelAction;
+import org.elasticsearch.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.inference.action.TransportInferenceAction;
 import org.elasticsearch.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.inference.registry.ModelRegistry;
 import org.elasticsearch.inference.registry.ServiceRegistry;
+import org.elasticsearch.inference.rest.RestDeleteInferenceModelAction;
+import org.elasticsearch.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.inference.rest.RestInferenceAction;
 import org.elasticsearch.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.inference.services.elser.ElserService;
@@ -60,7 +66,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
-            new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class)
+            new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
+            new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
+            new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class)
         );
     }
 
@@ -84,7 +92,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestInferenceAction(), new RestPutInferenceModelAction());
+        return List.of(
+            new RestInferenceAction(),
+            new RestGetInferenceModelAction(),
+            new RestPutInferenceModelAction(),
+            new RestDeleteInferenceModelAction()
+        );
     }
 
     @Override

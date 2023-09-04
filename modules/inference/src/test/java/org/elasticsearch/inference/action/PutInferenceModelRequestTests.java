@@ -13,8 +13,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
-
 public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
     @Override
     protected Writeable.Reader<PutInferenceModelAction.Request> instanceReader() {
@@ -32,8 +30,8 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) throws IOException {
-        switch (randomIntBetween(0, 3)) {
+    protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new PutInferenceModelAction.Request(
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getModelId(),
@@ -59,7 +57,6 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
                 XContentType.values()[(instance.getContentType().ordinal() + 1) % XContentType.values().length]
             );
             default -> throw new IllegalStateException();
-        }
-        return null;
+        };
     }
 }

@@ -90,6 +90,32 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         );
     }
 
+    public void testDeleteModel() throws Exception {
+        // put models
+        for (var id : new String[] { "model1", "model2", "model3" }) {
+            Model model = buildModelConfig(id, ElserService.NAME, TaskType.SPARSE_EMBEDDING);
+            AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
+            AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+            blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
+            assertThat(putModelHolder.get(), is(true));
+        }
+
+        AtomicReference<Boolean> deleteResponseHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.deleteModel("model1", listener), deleteResponseHolder, exceptionHolder);
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        assertTrue(deleteResponseHolder.get());
+
+        // get should fail
+        deleteResponseHolder.set(false);
+        AtomicReference<ModelRegistry.ModelConfigMap> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getUnparsedModel("model1", listener), modelHolder, exceptionHolder);
+
+        assertThat(exceptionHolder.get(), not(nullValue()));
+        assertFalse(deleteResponseHolder.get());
+        assertThat(exceptionHolder.get().getMessage(), containsString("foo"));
+    }
+
     private Model buildModelConfig(String modelId, String service, TaskType taskType) {
         return switch (service) {
             case ElserService.NAME -> ElserServiceTests.randomModelConfig(modelId, taskType);

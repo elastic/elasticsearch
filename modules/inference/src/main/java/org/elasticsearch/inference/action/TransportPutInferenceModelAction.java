@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.registry.ModelRegistry;
@@ -42,7 +41,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     @Inject
     public TransportPutInferenceModelAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

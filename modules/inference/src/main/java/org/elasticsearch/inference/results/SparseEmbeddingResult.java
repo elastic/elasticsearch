@@ -9,6 +9,7 @@
 package org.elasticsearch.inference.results;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +24,7 @@ public class SparseEmbeddingResult implements InferenceResult {
 
     public static final String NAME = "sparse_embedding_result";
 
-    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
+    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment, Comparable<WeightedToken> {
 
         public WeightedToken(StreamInput in) throws IOException {
             this(in.readString(), in.readFloat());
@@ -39,6 +40,11 @@ public class SparseEmbeddingResult implements InferenceResult {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(token, weight);
             return builder;
+        }
+
+        @Override
+        public int compareTo(WeightedToken o) {
+            return token.compareTo(o.token);
         }
     }
 
@@ -94,5 +100,10 @@ public class SparseEmbeddingResult implements InferenceResult {
     @Override
     public int hashCode() {
         return Objects.hash(weightedTokens);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

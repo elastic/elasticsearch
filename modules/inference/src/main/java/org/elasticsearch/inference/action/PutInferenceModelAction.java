@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,8 +50,8 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.taskType = TaskType.fromStream(in);
             this.modelId = in.readString();
+            this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
         }
@@ -76,8 +75,8 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            taskType.writeTo(out);
             out.writeString(modelId);
+            taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
         }

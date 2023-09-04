@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -132,14 +133,15 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     ) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
         logger.debug(
-            "[{}]: starting unsearchable primary relocation to [{}]",
+            "[{}]: starting unsearchable primary relocation to [{}] with allocation ID [{}]",
             request.shardId(),
-            request.targetNode().descriptionWithoutAttributes()
+            request.targetNode().descriptionWithoutAttributes(),
+            request.targetAllocationId()
         );
 
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
-        final var engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state());
+        final var engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         indexShard.recoveryStats().incCurrentAsSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
@@ -210,11 +212,16 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
     }
 
-    private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState) {
+    private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
         if (engine instanceof IndexEngine indexEngine) {
             return indexEngine;
         } else {
-            final var message = Strings.format("not an IndexEngine: %s [indexShardState=%s]", engine, indexShardState);
+            final var message = Strings.format(
+                "not an IndexEngine: %s [indexShardState=%s, shardRouting=%s]",
+                engine,
+                indexShardState,
+                shardRouting
+            );
             assert false : message;
             throw new IllegalStateException(message);
         }

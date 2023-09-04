@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -1443,6 +1444,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         logger.info("--> stopped breaking requests on nodes [{}]", Strings.collectionToCommaDelimitedString(Arrays.stream(nodes).toList()));
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/776",
+        value = "org.elasticsearch.cluster.service.MasterService:TRACE"
+            + ",co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:DEBUG"
+    )
     public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {
         String indexName = "test";
         startMasterOnlyNode(); // second master eligible node

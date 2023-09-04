@@ -37,7 +37,6 @@ public class RestSnapshotGlobalStateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        System.out.println("Preparing Request");
         String repository = request.param("repository");
         String snapshot = request.param("snapshot");
         SnapshotGlobalStateRequest snapshotGlobalStateRequest = new SnapshotGlobalStateRequest(repository, snapshot);

@@ -56,7 +56,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
-    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersion.V_8_500_066;
+    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersion.V_8_500_069;
 
     private final List<String> ids;
     private final List<Item> docs;
@@ -117,6 +117,11 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
                 out.writeOptionalString(index);
             } else {
+                if (index == null) {
+                    throw new IllegalArgumentException(
+                        "[_index] needs to be specified for docs elements when cluster nodes are not in the same version"
+                    );
+                }
                 out.writeString(index);
             }
             out.writeString(id);
@@ -125,7 +130,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            if (this.index != null) {
+                builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            }
             builder.field(ID_FIELD.getPreferredName(), this.id);
             return builder.endObject();
         }
@@ -136,7 +143,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         );
 
         static {
-            PARSER.declareStringOrNull(optionalConstructorArg(), INDEX_FIELD);
+            PARSER.declareString(optionalConstructorArg(), INDEX_FIELD);
             PARSER.declareString(constructorArg(), ID_FIELD);
         }
 

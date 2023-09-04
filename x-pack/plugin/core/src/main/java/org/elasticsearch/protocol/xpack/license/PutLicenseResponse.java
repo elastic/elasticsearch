@@ -72,7 +72,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         super.writeTo(out);
         out.writeVInt(status.id());
         out.writeOptionalString(acknowledgeHeader);
-        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     @Override

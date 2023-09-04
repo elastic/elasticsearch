@@ -110,7 +110,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         if (isMaster) {
             try {
                 TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);
-                cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
+                cancellable = threadPool.schedule(this::execute, waitTime, threadPool.generic());
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("Failed to schedule next [enrich] maintenance task; Shutting down", e);

@@ -135,6 +135,8 @@ include::aggregation-functions.asciidoc[]
 
 include::multivalued-fields.asciidoc[]
 
+include::metadata-fields.asciidoc[]
+
 include::task-management.asciidoc[]
 
 :esql-tests!:

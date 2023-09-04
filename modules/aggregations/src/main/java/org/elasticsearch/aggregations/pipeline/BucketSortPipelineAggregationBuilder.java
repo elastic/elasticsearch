@@ -92,7 +92,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
      */
     public BucketSortPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        sorts = in.readList(FieldSortBuilder::new);
+        sorts = in.readCollectionAsList(FieldSortBuilder::new);
         from = in.readVInt();
         size = in.readOptionalVInt();
         gapPolicy = GapPolicy.readFrom(in);

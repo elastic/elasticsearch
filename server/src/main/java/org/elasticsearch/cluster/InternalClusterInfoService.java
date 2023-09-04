@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
@@ -387,7 +388,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ActionListener<ClusterInfo> getListener() {
             return ActionListener.running(() -> {
                 if (shouldRefresh()) {
-                    threadPool.scheduleUnlessShuttingDown(updateFrequency, ThreadPool.Names.SAME, () -> {
+                    threadPool.scheduleUnlessShuttingDown(updateFrequency, EsExecutors.DIRECT_EXECUTOR_SERVICE, () -> {
                         if (shouldRefresh()) {
                             refreshAsync(getListener());
                         }

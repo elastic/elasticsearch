@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -51,7 +51,7 @@ public class MvMedian extends AbstractMultivalueFunction {
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? () -> new MvMedianUnsignedLongEvaluator(fieldEval.get())
                 : () -> new MvMedianLongEvaluator(fieldEval.get());
-            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
 

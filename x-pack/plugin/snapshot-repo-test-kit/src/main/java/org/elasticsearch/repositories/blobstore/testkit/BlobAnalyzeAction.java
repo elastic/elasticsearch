@@ -694,7 +694,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             blobName = in.readString();
             targetLength = in.readVLong();
             seed = in.readLong();
-            nodes = in.readList(DiscoveryNode::new);
+            nodes = in.readCollectionAsList(DiscoveryNode::new);
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
@@ -841,7 +841,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             writeElapsedNanos = in.readVLong();
             overwriteElapsedNanos = in.readVLong();
             writeThrottledNanos = in.readVLong();
-            readDetails = in.readList(ReadDetail::new);
+            readDetails = in.readCollectionAsList(ReadDetail::new);
         }
 
         @Override

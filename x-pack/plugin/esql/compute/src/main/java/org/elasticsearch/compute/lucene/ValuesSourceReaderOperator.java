@@ -160,7 +160,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(readersBuilt, StreamOutput::writeString, StreamOutput::writeVInt);
+            out.writeMap(readersBuilt, StreamOutput::writeVInt);
         }
 
         @Override

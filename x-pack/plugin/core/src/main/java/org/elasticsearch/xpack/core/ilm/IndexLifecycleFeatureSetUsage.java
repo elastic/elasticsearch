@@ -33,7 +33,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     public IndexLifecycleFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         if (input.readBoolean()) {
-            policyStats = input.readList(PolicyStats::new);
+            policyStats = input.readCollectionAsList(PolicyStats::new);
         }
     }
 
@@ -111,7 +111,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(phaseStats, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            out.writeMap(phaseStats, StreamOutput::writeWriteable);
             out.writeVInt(indicesManaged);
         }
 

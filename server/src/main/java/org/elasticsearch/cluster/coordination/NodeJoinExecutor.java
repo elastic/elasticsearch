@@ -267,6 +267,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
         Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(currentState));
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
+        nodesBuilder.resetNodeLeftGeneration();
 
         for (final var taskContext : taskContexts) {
             for (final var joiningNode : taskContext.getTask().nodes()) {

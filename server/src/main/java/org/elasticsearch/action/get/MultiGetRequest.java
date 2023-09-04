@@ -262,7 +262,7 @@ public class MultiGetRequest extends ActionRequest
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-        items = in.readList(Item::new);
+        items = in.readCollectionAsList(Item::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {

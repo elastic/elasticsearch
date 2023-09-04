@@ -207,7 +207,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 new ShardId(in);
             }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
-            final var peerRecoveryRetentionLeases = in.readImmutableList(RetentionLease::new);
+            final var peerRecoveryRetentionLeases = in.readCollectionAsImmutableList(RetentionLease::new);
             if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
                 return EMPTY;
             } else {
@@ -329,7 +329,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected List<NodeStoreFilesMetadata> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
+            return in.readCollectionAsList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
         }
 
         @Override

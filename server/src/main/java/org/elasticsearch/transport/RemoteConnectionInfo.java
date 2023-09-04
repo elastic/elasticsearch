@@ -96,7 +96,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         } else {
             if (modeInfo.modeType() == RemoteConnectionStrategy.ConnectionStrategy.SNIFF) {
                 SniffConnectionStrategy.SniffModeInfo sniffInfo = (SniffConnectionStrategy.SniffModeInfo) this.modeInfo;
-                out.writeStringArray(sniffInfo.seedNodes.toArray(new String[0]));
+                out.writeStringCollection(sniffInfo.seedNodes);
                 out.writeVInt(sniffInfo.maxConnectionsPerCluster);
                 out.writeTimeValue(initialConnectionTimeout);
                 out.writeVInt(sniffInfo.numNodesConnected);

@@ -281,6 +281,8 @@ public class MachineLearningTests extends ESTestCase {
 
     public static class MlTestExtension implements MachineLearningExtension {
 
+        public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
+
         private final boolean useIlm;
         private final boolean includeNodeInfo;
         private final boolean isAnomalyDetectionEnabled;
@@ -324,6 +326,11 @@ public class MachineLearningTests extends ESTestCase {
         @Override
         public boolean isNlpEnabled() {
             return isNlpEnabled;
+        }
+
+        @Override
+        public String[] getAnalyticsDestIndexAllowedSettings() {
+            return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
         }
     }
 

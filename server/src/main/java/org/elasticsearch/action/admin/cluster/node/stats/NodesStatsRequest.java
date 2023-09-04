@@ -43,7 +43,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        requestedMetrics.addAll(in.readStringCollectionAsList());
     }
 
     /**
@@ -173,7 +173,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**

@@ -66,7 +66,8 @@ setup:
   - do: #superuser
       cluster.health:
         index: test
-        wait_for_status: green
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
 
   # terms_enum returns 0 results if the search fails, so perform a search here so that any failures are picked up early
   - do:

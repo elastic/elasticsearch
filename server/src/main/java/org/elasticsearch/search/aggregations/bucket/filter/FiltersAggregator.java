@@ -12,6 +12,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -294,9 +296,16 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             if (QueryToFilterAdapter.matchesNoDocs(filters()) && otherBucketKey == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
+
+            /*
+             * Track both the scorer and the doc iterator per filter since the scorer may use a two-phase iterator that requires
+             * further match checking, after retrieving approximate matches. The extra match only applies to docs matching the main query.
+             */
+            final Scorer[] filteredScorers = new Scorer[filters().size()];
             final DocIdSetIterator[] filteredDocIdSetIterators = new DocIdSetIterator[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                filteredDocIdSetIterators[filterOrd] = filters().get(filterOrd).matchingDocIdSetIterator(aggCtx.getLeafReaderContext());
+                filteredScorers[filterOrd] = filters().get(filterOrd).matchingScorer(aggCtx.getLeafReaderContext());
+                filteredDocIdSetIterators[filterOrd] = QueryToFilterAdapter.matchingDocIdSetIterator(filteredScorers[filterOrd]);
             }
 
             final boolean useCompetitiveIterator = (parent == null && otherBucketKey == null);
@@ -323,12 +332,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                         if (doc == currentDocID.get()) {
                             for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
                                 if (lastMatches[i] == doc) {
-                                    collectBucket(sub, doc, bucketOrd(bucket, i));
+                                    TwoPhaseIterator twoPhase = filteredScorers[i].twoPhaseIterator();
+                                    if (twoPhase == null || twoPhase.matches()) {
+                                        collectBucket(sub, doc, bucketOrd(bucket, i));
+                                    }
                                 }
                             }
                         } else {
                             currentDocID.set(doc);
-                            advanceAndCollectBuckets(doc, bucket, filteredDocIdSetIterators, lastMatches, sub);
+                            advanceAndCollectBuckets(doc, bucket, filteredScorers, filteredDocIdSetIterators, lastMatches, sub);
                         }
                     }
 
@@ -343,7 +355,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    boolean matched = advanceAndCollectBuckets(doc, bucket, filteredDocIdSetIterators, lastMatches, sub);
+                    boolean matched = advanceAndCollectBuckets(doc, bucket, filteredScorers, filteredDocIdSetIterators, lastMatches, sub);
                     if (otherBucketKey != null && matched == false) {
                         collectBucket(sub, doc, bucketOrd(bucket, filteredDocIdSetIterators.length));
                     }
@@ -354,6 +366,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         private boolean advanceAndCollectBuckets(
             int doc,
             long bucket,
+            Scorer[] filteredScorers,
             DocIdSetIterator[] filteredDocIdSetIterators,
             int[] lastMatches,
             LeafBucketCollector sub
@@ -364,8 +377,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     lastMatches[i] = filteredDocIdSetIterators[i].advance(doc);
                 }
                 if (lastMatches[i] == doc) {
-                    collectBucket(sub, doc, bucketOrd(bucket, i));
-                    matched = true;
+                    TwoPhaseIterator twoPhase = filteredScorers[i].twoPhaseIterator();
+                    if (twoPhase == null || twoPhase.matches()) {
+                        collectBucket(sub, doc, bucketOrd(bucket, i));
+                        matched = true;
+                    }
                 }
             }
             return matched;

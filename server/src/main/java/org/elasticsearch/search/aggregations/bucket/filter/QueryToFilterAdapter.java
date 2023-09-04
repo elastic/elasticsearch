@@ -22,10 +22,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -171,12 +173,29 @@ public class QueryToFilterAdapter {
     }
 
     /**
-     * Builds a {@link DocIdSetIterator} that the "compatible" implementation of the
-     * {@link FiltersAggregator} will use to iterate over the docs matching the filter.
+     * Builds a {@link Scorer} that the "compatible" implementation of the
+     * {@link FiltersAggregator} will use to get an iterator over the docs matching the filter.
      */
     @SuppressWarnings("resource")  // Closing the reader is someone else's problem
-    DocIdSetIterator matchingDocIdSetIterator(LeafReaderContext ctx) throws IOException {
-        return Lucene.asDocIdSetIterator(ctx.reader().maxDoc(), weight().scorerSupplier(ctx));
+    Scorer matchingScorer(LeafReaderContext ctx) throws IOException {
+        ScorerSupplier scorerSupplier = weight().scorerSupplier(ctx);
+        if (scorerSupplier == null) {
+            return null;
+        }
+        return scorerSupplier.get(ctx.reader().maxDoc()); // this never returns null
+    }
+
+    /**
+     * Retrieves a {@link DocIdSetIterator} from the passed Scorer object. If the Scorer points to
+     * a two-phase iterator, the returned DocIdSetIterator is approximate - requiring calling {TwoPhaseIterator#matches}
+     * to verify a (filtering) query match.
+     */
+    static DocIdSetIterator matchingDocIdSetIterator(Scorer scorer) {
+        if (scorer == null) {
+            return DocIdSetIterator.empty();
+        }
+        final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+        return (twoPhase != null) ? twoPhase.approximation() : scorer.iterator();
     }
 
     /**

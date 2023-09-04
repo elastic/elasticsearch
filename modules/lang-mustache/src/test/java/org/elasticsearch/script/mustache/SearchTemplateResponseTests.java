@@ -12,10 +12,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -25,12 +26,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class SearchTemplateResponseTests extends AbstractXContentTestCase<SearchTemplateResponse> {
+public class SearchTemplateResponseTests extends ESTestCase {
 
-    @Override
-    protected SearchTemplateResponse createTestInstance() {
+    private SearchTemplateResponse createTestInstance() {
         SearchTemplateResponse response = new SearchTemplateResponse();
         if (randomBoolean()) {
             response.setResponse(createSearchResponse());
@@ -40,8 +41,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         return response;
     }
 
-    @Override
-    protected SearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
+    private SearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
         return SearchTemplateResponse.fromXContent(parser);
     }
 
@@ -84,8 +84,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         }
     }
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
+    private Predicate<String> getRandomFieldsExcludeFilter() {
         String templateOutputField = SearchTemplateResponse.TEMPLATE_OUTPUT_FIELD.getPreferredName();
         return field -> field.equals(templateOutputField) || field.startsWith(templateOutputField + ".");
     }
@@ -95,8 +94,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
      * currently implement equals and hashCode. Instead, we compare the template outputs for equality,
      * and perform some sanity checks on the search response instances.
      */
-    @Override
-    protected void assertEqualInstances(SearchTemplateResponse expectedInstance, SearchTemplateResponse newInstance) {
+    public void assertEqualInstances(SearchTemplateResponse expectedInstance, SearchTemplateResponse newInstance) {
         assertNotSame(newInstance, expectedInstance);
 
         BytesReference expectedSource = expectedInstance.getSource();
@@ -120,9 +118,13 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
         }
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    public final void testFromXContent() throws IOException {
+        chunkedXContentTester(this::createParser, t -> createTestInstance(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .numberOfTestRuns(20)
+            .supportsUnknownFields(true)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .test();
     }
 
     public void testSourceToXContent() throws IOException {
@@ -151,7 +153,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject();
 
         XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
-        response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(response).toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
     }
@@ -211,7 +213,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject();
 
         XContentBuilder actualResponse = XContentFactory.contentBuilder(contentType);
-        response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(response).toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
     }

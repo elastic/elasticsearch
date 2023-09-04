@@ -10,23 +10,22 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<MultiSearchTemplateResponse> {
+public class MultiSearchTemplateResponseTests extends ESTestCase {
 
-    @Override
     protected MultiSearchTemplateResponse createTestInstance() {
         int numItems = randomIntBetween(0, 128);
         long overallTookInMillis = randomNonNegativeLong();
@@ -97,21 +96,14 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    @Override
     protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
         return MultiSearchTemplateResponse.fromXContext(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
     }
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
     }
 
-    @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
         assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.getResponses().length, equalTo(expectedInstance.getResponses().length));
@@ -128,29 +120,29 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         }
     }
 
+    public final void testFromXContent() throws IOException {
+        chunkedXContentTester(this::createParser, t -> createTestInstance(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .numberOfTestRuns(20)
+            .supportsUnknownFields(true)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .test();
+    }
+
     /**
      * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<MultiSearchTemplateResponse> instanceSupplier = MultiSearchTemplateResponseTests::createTestInstanceWithFailures;
-        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        // but that does not bother our assertions, as we only want to test that we don't break.
-        boolean supportsUnknownFields = true;
-        // exceptions are not of the same type whenever parsed back
-        boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(
-            NUMBER_OF_TEST_RUNS,
-            instanceSupplier,
-            supportsUnknownFields,
-            Strings.EMPTY_ARRAY,
-            getRandomFieldsExcludeFilterWhenResultHasErrors(),
-            this::createParser,
-            this::doParseInstance,
-            this::assertEqualInstances,
-            assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS
-        );
+        chunkedXContentTester(this::createParser, t -> createTestInstanceWithFailures(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .numberOfTestRuns(20)
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilterWhenResultHasErrors())
+            // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+            // but that does not bother our assertions, as we only want to test that we don't break.
+            .supportsUnknownFields(true)
+            // exceptions are not of the same type whenever parsed back
+            .assertToXContentEquivalence(false)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .test();
     }
 }

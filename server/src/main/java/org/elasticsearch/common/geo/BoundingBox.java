@@ -8,7 +8,8 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
@@ -27,7 +28,7 @@ import java.util.Objects;
  * A class representing a Bounding-Box for use by Geo and Cartesian queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentFragment, NamedWriteable {
+public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentFragment, GenericNamedWriteable {
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -193,5 +194,10 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
     @Override
     public String toString() {
         return "BBOX (" + left() + ", " + right() + ", " + top() + ", " + bottom() + ")";
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_500_070;
     }
 }

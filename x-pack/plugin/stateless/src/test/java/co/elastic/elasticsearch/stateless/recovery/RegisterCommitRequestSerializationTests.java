@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationSerializationTests;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
 
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationSerializationTests.randomPrimaryTermAndGeneration;
+import static co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests.randomPrimaryTermAndGeneration;
 
 public class RegisterCommitRequestSerializationTests extends AbstractWireSerializingTestCase<RegisterCommitRequest> {
 
@@ -46,7 +46,7 @@ public class RegisterCommitRequestSerializationTests extends AbstractWireSeriali
         int i = randomIntBetween(0, 3);
         return switch (i) {
             case 0 -> new RegisterCommitRequest(
-                randomValueOtherThan(instance.getCommit(), PrimaryTermAndGenerationSerializationTests::randomPrimaryTermAndGeneration),
+                randomValueOtherThan(instance.getCommit(), PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration),
                 instance.getShardId(),
                 instance.getNodeId(),
                 instance.getClusterStateVersion()

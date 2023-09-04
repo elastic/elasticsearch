@@ -80,6 +80,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.newSetFromMap;
+import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
@@ -529,16 +530,7 @@ public class StatelessCommitService implements ClusterStateListener {
                 recoveredCommit.getInternalFiles()
             );
 
-            PriorityQueue<CompoundCommitBlob> nonRecoveredCommits = new PriorityQueue<>((c1, c2) -> {
-                PrimaryTermAndGeneration o1 = c1.getPrimaryTermAndGeneration();
-                PrimaryTermAndGeneration o2 = c2.getPrimaryTermAndGeneration();
-                int primaryTermComparison = Long.compare(o1.primaryTerm(), o2.primaryTerm());
-                if (primaryTermComparison == 0) {
-                    return Long.compare(o1.generation(), o2.generation());
-                } else {
-                    return primaryTermComparison;
-                }
-            });
+            PriorityQueue<CompoundCommitBlob> nonRecoveredCommits = new PriorityQueue<>(comparing(c -> c.primaryTermAndGeneration));
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
@@ -1089,8 +1081,7 @@ public class StatelessCommitService implements ClusterStateListener {
             compoundCommit.decRef();
         }
         var proposed = compoundCommit.primaryTermAndGeneration;
-        assert proposed.primaryTerm() >= commit.primaryTerm()
-            && (proposed.primaryTerm() > commit.primaryTerm() || proposed.generation() >= commit.generation())
+        assert proposed.compareTo(commit) >= 0
             : Strings.format("Proposed commit ({}) for unpromotable recovery must be newer that the requested one ({})", proposed, commit);
         return proposed;
     }

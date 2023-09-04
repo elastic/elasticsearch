@@ -17,8 +17,37 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 public class ModelTests extends AbstractWireSerializingTestCase<Model> {
 
     public static Model createRandomInstance() {
-        var taskType = randomFrom(TaskType.values());
+        // TODO randomise task types and settings
+        var taskType = TaskType.SPARSE_EMBEDDING;
         return new Model(randomAlphaOfLength(6), taskType, randomAlphaOfLength(6), randomServiceSettings(), randomTaskSettings(taskType));
+    }
+
+    public static Model mutateTestInstance(Model instance) {
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> new Model(
+                instance.getModelId() + "foo",
+                instance.getTaskType(),
+                instance.getService(),
+                instance.getServiceSettings(),
+                instance.getTaskSettings()
+            );
+            case 1 -> new Model(
+                instance.getModelId(),
+                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
+                instance.getService(),
+                instance.getServiceSettings(),
+                instance.getTaskSettings()
+            );
+            case 2 -> new Model(
+                instance.getModelId(),
+                instance.getTaskType(),
+                instance.getService() + "bar",
+                instance.getServiceSettings(),
+                instance.getTaskSettings()
+            );
+            default -> throw new IllegalStateException();
+        }
+        return null;
     }
 
     private static ServiceSettings randomServiceSettings() {
@@ -46,30 +75,6 @@ public class ModelTests extends AbstractWireSerializingTestCase<Model> {
 
     @Override
     protected Model mutateInstance(Model instance) {
-        switch (randomIntBetween(0, 2)) {
-            case 0 -> new Model(
-                instance.getModelId() + "foo",
-                instance.getTaskType(),
-                instance.getService(),
-                instance.getServiceSettings(),
-                instance.getTaskSettings()
-            );
-            case 1 -> new Model(
-                instance.getModelId(),
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
-                instance.getService(),
-                instance.getServiceSettings(),
-                instance.getTaskSettings()
-            );
-            case 2 -> new Model(
-                instance.getModelId(),
-                instance.getTaskType(),
-                instance.getService() + "bar",
-                instance.getServiceSettings(),
-                instance.getTaskSettings()
-            );
-            default -> throw new IllegalStateException();
-        }
-        return null;
+        return mutateTestInstance(instance);
     }
 }

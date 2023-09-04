@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class PutInferenceModelActionRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
+public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Request> {
     @Override
     protected Writeable.Reader<PutInferenceModelAction.Request> instanceReader() {
         return PutInferenceModelAction.Request::new;

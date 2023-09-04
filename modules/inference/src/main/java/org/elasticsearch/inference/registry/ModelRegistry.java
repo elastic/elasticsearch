@@ -15,7 +15,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,8 +34,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ModelRegistry {
+    public record ModelConfigMap(Map<String, Object> config) {}
 
     private final OriginSettingClient client;
 
@@ -44,38 +45,26 @@ public class ModelRegistry {
         this.client = new OriginSettingClient(client, InferencePlugin.INFERENCE_ORIGIN);
     }
 
+    public void getUnparsedModel(String modelId, ActionListener<ModelConfigMap> listener) {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
+                return;
+            }
 
-    public void getModel(String modelId, ActionListener<Boolean> listener) {
+            var hits = searchResponse.getHits().getHits();
+            assert hits.length == 1;
+            listener.onResponse(new ModelConfigMap(hits[0].getSourceAsMap()));
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-            searchResponse -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
-                    return;
-                }
+        }, listener::onFailure);
 
-                var hits = searchResponse.getHits().getHits();
-                assert hits.length == 1;
-                var map = hits[0].getSourceAsMap();
-
-
-
-
-            },
-            listener::onFailure
-        );
-
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(modelId));
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
-            .setQuery(queryBuilder)
-            .setSize(1)
-            .request();
+        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
+        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).request();
 
         client.search(modelSearch, searchListener);
     }
 
     public void storeModel(Model model, ActionListener<Boolean> listener) {
-
         IndexRequest request = createIndexRequest(Model.documentId(model.getModelId()), InferenceIndex.INDEX_NAME, model, false);
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

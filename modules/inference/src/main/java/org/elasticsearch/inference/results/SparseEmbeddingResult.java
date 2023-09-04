@@ -80,7 +80,7 @@ public class SparseEmbeddingResult implements InferenceResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(weightedTokens);
+        out.writeCollection(weightedTokens);
     }
 
     @Override

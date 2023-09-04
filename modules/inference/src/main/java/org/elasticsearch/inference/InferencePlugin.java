@@ -30,8 +30,10 @@ import org.elasticsearch.inference.action.PutInferenceModelAction;
 import org.elasticsearch.inference.action.TransportInferenceAction;
 import org.elasticsearch.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.inference.registry.ModelRegistry;
+import org.elasticsearch.inference.registry.ServiceRegistry;
 import org.elasticsearch.inference.rest.RestInferenceAction;
 import org.elasticsearch.inference.rest.RestPutInferenceModelAction;
+import org.elasticsearch.inference.services.elser.ElserService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -103,7 +105,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         IndicesService indicesService
     ) {
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        return List.of(modelRegistry);
+        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserService());
+        return List.of(modelRegistry, serviceRegistry);
     }
 
     @Override
@@ -115,6 +118,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                 .setIndexPattern(InferenceIndex.INDEX_PATTERN)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
                 .setDescription("Contains inference service and model configuration")

@@ -3,9 +3,34 @@
   - do:
       inference.put_model:
         task_type: sparse_embedding
-        model_id: test
+        model_id: elser_service_model
         body: >
           {
+            "service": "elser",
+            "service_settings": {
+            },
+            "task_settings": {
+            }
           }
+  - match: { model_id: elser_service_model }
+  - match: { service: elser }
+  - match: { task_type: sparse_embedding }
+  - match: { service_settings: { } }
+  - match: { task_settings: { } }
 
-  - is_true: acknowledged
+---
+"Get Inference Model":
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        model_id: model_to_get
+        body: >
+          {
+            "service": "elser",
+            "service_settings": {
+            },
+            "task_settings": {
+            }
+          }
+  - match: { model_id: model_to_get }
+

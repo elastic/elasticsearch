@@ -27,6 +27,8 @@ public class ElserSparseEmbeddingTaskSettings implements TaskSettings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.endObject();
         return builder;
     }
 

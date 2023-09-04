@@ -9,6 +9,7 @@
 package org.elasticsearch.inference.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -16,19 +17,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutInferenceModelAction extends ActionType<AcknowledgedResponse> {
+public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 
     public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
     public static final String NAME = "cluster:admin/inference/put";
 
     public PutInferenceModelAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, PutInferenceModelAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -97,6 +101,47 @@ public class PutInferenceModelAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(taskType, modelId, content, contentType);
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final Model model;
+
+        public Response(Model model) {
+            this.model = model;
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            model = new Model(in);
+        }
+
+        public Model getModel() {
+            return model;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            model.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return model.toXContent(builder, params);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(model, response.model);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(model);
         }
     }
 }

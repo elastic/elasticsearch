@@ -8,15 +8,14 @@
 
 package org.elasticsearch.inference.services;
 
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+
+import java.util.Map;
 
 public interface InferenceService {
 
     String name();
 
-    ServiceSettings serviceSettings();
-
-    TaskSettings taskSettings(TaskType taskType);
+    Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config);
 }

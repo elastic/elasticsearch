@@ -16,9 +16,9 @@ import java.util.Optional;
 public class ServiceRegistry {
 
     ElserService elserService;
+
     public ServiceRegistry(ElserService elserService) {
         this.elserService = elserService;
-
     }
 
     public Optional<InferenceService> getService(String name) {

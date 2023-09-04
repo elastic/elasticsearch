@@ -28,6 +28,8 @@ public class InferenceIndex {
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
 
+    private static final int INDEX_MAPPING_VERSION = 1;
+
     public static Settings settings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -44,7 +46,8 @@ public class InferenceIndex {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field("version", Version.CURRENT)   // TODO
+                .field("managed_index_mappings_version", INDEX_MAPPING_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

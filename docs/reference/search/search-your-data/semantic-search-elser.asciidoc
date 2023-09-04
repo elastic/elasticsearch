@@ -173,7 +173,7 @@ GET _tasks/<task_id>
 // TEST[skip:TBD]
 
 You can also open the Trained Models UI, select the Pipelines tab under ELSER to 
-follow the progress. It may take a couple of minutes to complete the process.
+follow the progress.
 
 
 [discrete]

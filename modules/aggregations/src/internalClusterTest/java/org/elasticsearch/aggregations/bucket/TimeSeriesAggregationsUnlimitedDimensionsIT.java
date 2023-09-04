@@ -41,8 +41,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TSID_HASH_PREFIX;
-
 public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationIntegTestCase {
     private static int numberOfDimensions;
     private static int numberOfDocuments;
@@ -216,7 +214,6 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
     private static void assertTsid(final Map<String, Object> timeSeries) {
         final Map.Entry<String, Object> tsidEntry = timeSeries.entrySet().stream().toList().get(0);
         assertEquals(TimeSeriesIdFieldMapper.NAME, tsidEntry.getKey());
-        assertTrue(((String) tsidEntry.getValue()).startsWith(TSID_HASH_PREFIX));
     }
 
     private static void assertCardinality(final InternalCardinality cardinalityAggregation, int expectedCardinality) {

@@ -22,8 +22,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Comparator;
 
-public record PrimaryTermAndGeneration(long primaryTerm, long generation) implements Writeable {
+public record PrimaryTermAndGeneration(long primaryTerm, long generation) implements Writeable, Comparable<PrimaryTermAndGeneration> {
+
+    private static final Comparator<PrimaryTermAndGeneration> COMPARATOR = Comparator.comparing(PrimaryTermAndGeneration::primaryTerm)
+        .thenComparing(PrimaryTermAndGeneration::generation);
+
     public PrimaryTermAndGeneration(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong());
     }
@@ -37,5 +42,10 @@ public record PrimaryTermAndGeneration(long primaryTerm, long generation) implem
     @Override
     public String toString() {
         return "[primary term=" + primaryTerm + ", generation=" + generation + ']';
+    }
+
+    @Override
+    public int compareTo(PrimaryTermAndGeneration other) {
+        return COMPARATOR.compare(this, other);
     }
 }

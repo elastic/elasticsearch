@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationSerializationTests;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,23 +37,19 @@ public class NewCommitNotificationResponseSerializationTests extends AbstractWir
 
     @Override
     protected NewCommitNotificationResponse createTestInstance() {
-        return new NewCommitNotificationResponse(
-            randomSet(0, 10, PrimaryTermAndGenerationSerializationTests::randomPrimaryTermAndGeneration)
-        );
+        return new NewCommitNotificationResponse(randomSet(0, 10, PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration));
     }
 
     @Override
     protected NewCommitNotificationResponse mutateInstance(NewCommitNotificationResponse instance) throws IOException {
         if (instance.getUsedPrimaryTermAndGenerations().isEmpty()) {
-            return new NewCommitNotificationResponse(
-                randomSet(1, 10, PrimaryTermAndGenerationSerializationTests::randomPrimaryTermAndGeneration)
-            );
+            return new NewCommitNotificationResponse(randomSet(1, 10, PrimaryTermAndGenerationTests::randomPrimaryTermAndGeneration));
         }
 
         return new NewCommitNotificationResponse(
             instance.getUsedPrimaryTermAndGenerations()
                 .stream()
-                .map(PrimaryTermAndGenerationSerializationTests::mutatePrimaryTermAndGeneration)
+                .map(PrimaryTermAndGenerationTests::mutatePrimaryTermAndGeneration)
                 .collect(Collectors.toSet())
         );
     }

@@ -50,12 +50,12 @@ public class IndexTierMetrics extends AbstractBaseTierMetrics implements Autosca
     public IndexTierMetrics(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersion.V_8_500_063)) {
-            this.nodesLoad = in.readList(NodeIngestLoadSnapshot::new);
+            this.nodesLoad = in.readCollectionAsList(NodeIngestLoadSnapshot::new);
             this.memoryMetrics = new MemoryMetrics(in);
             return;
         }
 
-        this.nodesLoad = in.readOptionalList(NodeIngestLoadSnapshot::new);
+        this.nodesLoad = in.readOptionalCollectionAsList(NodeIngestLoadSnapshot::new);
         this.memoryMetrics = in.readOptionalWriteable(MemoryMetrics::new);
     }
 

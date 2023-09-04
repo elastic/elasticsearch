@@ -45,7 +45,7 @@ public class GetBlobStoreStatsNodesResponse extends BaseNodesResponse<GetBlobSto
 
     @Override
     protected List<GetBlobStoreStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(GetBlobStoreStatsNodeResponse::new);
+        return in.readCollectionAsList(GetBlobStoreStatsNodeResponse::new);
     }
 
     @Override

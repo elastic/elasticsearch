@@ -48,7 +48,7 @@ public class ClearBlobCacheNodesResponse extends BaseNodesXContentResponse<Clear
 
     @Override
     protected List<ClearBlobCacheNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(ClearBlobCacheNodeResponse::new);
+        return in.readCollectionAsList(ClearBlobCacheNodeResponse::new);
     }
 
     @Override

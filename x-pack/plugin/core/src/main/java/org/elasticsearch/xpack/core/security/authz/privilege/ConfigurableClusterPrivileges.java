@@ -188,7 +188,7 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+            out.writeStringCollection(this.applicationNames);
         }
 
         public static WriteProfileDataPrivileges createFrom(StreamInput in) throws IOException {
@@ -297,7 +297,7 @@ public final class ConfigurableClusterPrivileges {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.applicationNames, StreamOutput::writeString);
+            out.writeStringCollection(this.applicationNames);
         }
 
         public static ManageApplicationPrivileges createFrom(StreamInput in) throws IOException {

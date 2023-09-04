@@ -67,10 +67,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
+            out.writeMap(shardResults, StreamOutput::writeWriteable);
         } else {
             // Before 8.0.0 we only send the query phase
-            out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.getQueryPhase().writeTo(o));
+            out.writeMap(shardResults, (o, r) -> r.getQueryPhase().writeTo(o));
         }
     }
 

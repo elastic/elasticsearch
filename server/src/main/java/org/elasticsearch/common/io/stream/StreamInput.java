@@ -759,7 +759,7 @@ public abstract class StreamInput extends InputStream {
             case 4 -> readDouble();
             case 5 -> readBoolean();
             case 6 -> readByteArray();
-            case 7 -> readArrayList();
+            case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
             case 9 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
@@ -808,18 +808,6 @@ public abstract class StreamInput extends InputStream {
     public final Instant readOptionalInstant() throws IOException {
         final boolean present = readBoolean();
         return present ? readInstant() : null;
-    }
-
-    private List<Object> readArrayList() throws IOException {
-        int size = readArraySize();
-        if (size == 0) {
-            return Collections.emptyList();
-        }
-        List<Object> list = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            list.add(readGenericValue());
-        }
-        return list;
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -1190,6 +1178,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     */
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
      * Reads a collection of objects
      */
     private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader, IntFunction<C> constructor, C empty)
@@ -1203,14 +1199,6 @@ public abstract class StreamInput extends InputStream {
             builder.add(reader.read(this));
         }
         return builder;
-    }
-
-    /**
-     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
-     * If it is empty it might be immutable.
-     */
-    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
-        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**

@@ -147,13 +147,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
+        out.writeMap(responseMap, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeCollection(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
-        out.writeMap(map, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(map, StreamOutput::writeWriteable);
     }
 
     @Override

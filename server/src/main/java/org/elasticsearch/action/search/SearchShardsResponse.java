@@ -56,7 +56,7 @@ public final class SearchShardsResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(groups);
         out.writeCollection(nodes);
-        out.writeMap(aliasFilters, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(aliasFilters, StreamOutput::writeWriteable);
     }
 
     /**

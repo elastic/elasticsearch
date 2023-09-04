@@ -332,7 +332,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             super.writeTo(out);
 
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
-                out.writeNamedWriteableList(results);
+                out.writeNamedWriteableCollection(results);
             } else {
                 out.writeNamedWriteable(results.get(0));
             }

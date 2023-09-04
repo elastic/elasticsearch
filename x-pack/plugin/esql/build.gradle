@@ -64,12 +64,29 @@ tasks.getByName('test') {
       )
     }
     doLast {
-      project.sync {
-        from "${projectDir}/build/testrun/test/temp/esql/functions"
-        into "${rootDir}/docs/reference/esql/functions"
-        include '**/*.asciidoc', '**/*.svg'
-        preserve {
-          include '/*.asciidoc'
+      List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
+      List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
+      int count = signatures == null ? 0 : signatures.size()
+      if (count == 0) {
+        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
+      } else if (count == 1) {
+        logger.quiet("ESQL Docs: Only updated $signatures and $types, patching them into place")
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg'
+          }
+        }
+      } else {
+        project.sync {
+          from "${projectDir}/build/testrun/test/temp/esql/functions"
+          into "${rootDir}/docs/reference/esql/functions"
+          include '**/*.asciidoc', '**/*.svg'
+          preserve {
+            include '/*.asciidoc'
+          }
         }
       }
     }

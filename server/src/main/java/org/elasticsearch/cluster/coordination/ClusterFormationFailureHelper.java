@@ -378,7 +378,7 @@ public class ClusterFormationFailureHelper {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
-            out.writeMap(masterEligibleNodes, StreamOutput::writeString, (streamOutput, node) -> node.writeTo(streamOutput));
+            out.writeMap(masterEligibleNodes, StreamOutput::writeWriteable);
             out.writeLong(clusterStateVersion);
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);

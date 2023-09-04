@@ -433,12 +433,12 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             clusterState
         );
         assertEquals("0", numberOfReplicas);
-        Version version = Version.fromId(
+        IndexVersion version = IndexVersion.fromId(
             Integer.valueOf(
                 (String) XContentMapValues.extractValue("metadata.indices." + index + ".settings.index.version.created", clusterState)
             )
         );
-        assertEquals(getOldClusterVersion(), version);
+        assertEquals(getOldClusterIndexVersion(), version);
 
     }
 

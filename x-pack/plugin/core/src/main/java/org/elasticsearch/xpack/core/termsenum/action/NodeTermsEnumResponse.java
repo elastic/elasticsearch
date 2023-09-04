@@ -32,13 +32,13 @@ class NodeTermsEnumResponse extends TransportResponse {
     NodeTermsEnumResponse(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
-            terms = in.readList(r -> {
+            terms = in.readCollectionAsList(r -> {
                 String term = r.readString();
                 in.readLong(); // obsolete docCount field
                 return term;
             });
         } else {
-            terms = in.readStringList();
+            terms = in.readStringCollectionAsList();
         }
         error = in.readOptionalString();
         complete = in.readBoolean();

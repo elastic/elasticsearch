@@ -9,13 +9,7 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$else$
 $endif$
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 /**
  * Block view of a $Type$Vector.
@@ -58,54 +52,6 @@ $endif$
     @Override
     public $Type$Block filter(int... positions) {
         return new Filter$Type$Vector(vector, positions).asBlock();
-    }
-
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "$Type$VectorBlock",
-        $Type$VectorBlock::of
-    );
-
-    @Override
-    public String getWriteableName() {
-        return "$Type$VectorBlock";
-    }
-
-    static $Type$VectorBlock of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new $Type$VectorBlock(new Constant$Type$Vector(in.read$Type$(), positions));
-        } else {
-            var builder = $Type$Vector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
-            }
-            return new $Type$VectorBlock(builder.build());
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final $Type$Vector vector = this.vector;
-        final int positions = vector.getPositionCount();
-        out.writeVInt(positions);
-        out.writeBoolean(vector.isConstant());
-        if (vector.isConstant() && positions > 0) {
-$if(BytesRef)$
-            out.write$Type$(get$Type$(0, new BytesRef()));
-$else$
-            out.write$Type$(get$Type$(0));
-$endif$
-        } else {
-            for (int i = 0; i < positions; i++) {
-$if(BytesRef)$
-                out.write$Type$(get$Type$(i, new BytesRef()));
-$else$
-                out.write$Type$(get$Type$(i));
-$endif$
-            }
-        }
     }
 
     @Override

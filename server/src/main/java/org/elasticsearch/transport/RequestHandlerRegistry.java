@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Releasables.assertOnce;
 
@@ -27,7 +28,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
-    private final String executor;
+    private final Executor executor;
     private final TaskManager taskManager;
     private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
@@ -38,7 +39,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
         Writeable.Reader<Request> requestReader,
         TaskManager taskManager,
         TransportRequestHandler<Request> handler,
-        String executor,
+        Executor executor,
         boolean forceExecution,
         boolean canTripCircuitBreaker,
         Tracer tracer
@@ -86,7 +87,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
         return canTripCircuitBreaker;
     }
 
-    public String getExecutor() {
+    public Executor getExecutor() {
         return executor;
     }
 

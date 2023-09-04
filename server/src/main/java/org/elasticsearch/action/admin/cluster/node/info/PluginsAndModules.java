@@ -35,18 +35,18 @@ public class PluginsAndModules implements ReportingService.Info {
     }
 
     public PluginsAndModules(StreamInput in) throws IOException {
-        this.plugins = in.readImmutableList(PluginRuntimeInfo::new);
-        this.modules = in.readImmutableList(PluginDescriptor::new);
+        this.plugins = in.readCollectionAsImmutableList(PluginRuntimeInfo::new);
+        this.modules = in.readCollectionAsImmutableList(PluginDescriptor::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
-            out.writeList(plugins);
+            out.writeCollection(plugins);
         } else {
-            out.writeList(plugins.stream().map(PluginRuntimeInfo::descriptor).toList());
+            out.writeCollection(plugins.stream().map(PluginRuntimeInfo::descriptor).toList());
         }
-        out.writeList(modules);
+        out.writeCollection(modules);
     }
 
     /**

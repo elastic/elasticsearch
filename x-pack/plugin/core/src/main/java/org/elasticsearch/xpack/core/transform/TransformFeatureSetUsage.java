@@ -55,8 +55,8 @@ public class TransformFeatureSetUsage extends Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(transformCountByState, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(transformCountByFeature, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(transformCountByState, StreamOutput::writeLong);
+        out.writeMap(transformCountByFeature, StreamOutput::writeLong);
         accumulatedStats.writeTo(out);
     }
 

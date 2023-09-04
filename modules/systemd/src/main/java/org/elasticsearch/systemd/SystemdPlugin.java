@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -111,7 +112,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
             if (rc < 0) {
                 logger.warn("extending startup timeout via sd_notify failed with [{}]", rc);
             }
-        }, TimeValue.timeValueSeconds(15), ThreadPool.Names.SAME));
+        }, TimeValue.timeValueSeconds(15), EsExecutors.DIRECT_EXECUTOR_SERVICE));
         return List.of();
     }
 

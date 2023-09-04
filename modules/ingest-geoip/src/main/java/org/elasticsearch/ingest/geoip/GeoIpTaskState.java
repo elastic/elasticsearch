@@ -127,7 +127,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(databases, StreamOutput::writeString, (o, v) -> {
+        out.writeMap(databases, (o, v) -> {
             o.writeLong(v.lastUpdate);
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);

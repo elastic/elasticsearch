@@ -43,14 +43,14 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
-        values = in.readList(StreamInput::readGenericValue);
+        values = in.readCollectionAsList(StreamInput::readGenericValue);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            ignoredValues = in.readList(StreamInput::readGenericValue);
+            ignoredValues = in.readCollectionAsList(StreamInput::readGenericValue);
         } else {
             ignoredValues = Collections.emptyList();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            lookupFields = in.readList(LookupField::new);
+            lookupFields = in.readCollectionAsList(LookupField::new);
         } else {
             lookupFields = List.of();
         }
@@ -118,7 +118,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            out.writeList(lookupFields);
+            out.writeCollection(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {
                 assert false : "Lookup fields require all nodes be on 8.2 or later";

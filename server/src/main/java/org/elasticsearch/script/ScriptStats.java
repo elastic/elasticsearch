@@ -140,7 +140,7 @@ public record ScriptStats(
             cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
         var compilationLimitTriggered = in.readVLong();
-        var contextStats = in.readList(ScriptContextStats::read);
+        var contextStats = in.readCollectionAsList(ScriptContextStats::read);
         return new ScriptStats(
             contextStats,
             compilations,
@@ -161,7 +161,7 @@ public record ScriptStats(
             out.writeVLong(cacheEvictions);
         }
         out.writeVLong(compilationLimitTriggered);
-        out.writeList(contextStats);
+        out.writeCollection(contextStats);
     }
 
     public List<ScriptContextStats> getContextStats() {

@@ -14,13 +14,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class CatIndicesWithSecurityIT extends ESRestTestCase {
+public class CatIndicesWithSecurityIT extends SecurityOnTrialLicenseRestTestCase {
+
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);

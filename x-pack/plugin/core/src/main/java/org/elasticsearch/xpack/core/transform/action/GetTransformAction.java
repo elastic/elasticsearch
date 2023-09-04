@@ -138,7 +138,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 if (in.readBoolean()) {
-                    this.errors = in.readList(Error::new);
+                    this.errors = in.readCollectionAsList(Error::new);
                 } else {
                     this.errors = null;
                 }
@@ -200,7 +200,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 if (errors != null) {
                     out.writeBoolean(true);
-                    out.writeList(errors);
+                    out.writeCollection(errors);
                 } else {
                     out.writeBoolean(false);
                 }

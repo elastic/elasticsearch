@@ -12,5 +12,4 @@ package org.elasticsearch.common.io.stream;
  * Marker interface that allows specific NamedWritable objects to be serialized as part of the
  * generic serialization in StreamOutput and StreamInput.
  */
-public interface GenericNamedWriteable extends VersionedNamedWriteable {
-}
+public interface GenericNamedWriteable extends VersionedNamedWriteable {}

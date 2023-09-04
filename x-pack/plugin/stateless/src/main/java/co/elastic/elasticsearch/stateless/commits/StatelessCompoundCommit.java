@@ -340,7 +340,7 @@ public record StatelessCompoundCommit(
                     StreamInput::readString,
                     (is) -> BlobLocation.readFromStore(is, version == VERSION_WITH_BLOB_LENGTH)
                 );
-                List<Writer.InternalFile> internalFiles = input.readList(Writer.InternalFile::new);
+                List<Writer.InternalFile> internalFiles = input.readCollectionAsList(Writer.InternalFile::new);
                 long headerSize = input.readLong();
                 verifyChecksum(input);
                 return statelessCompoundCommit(

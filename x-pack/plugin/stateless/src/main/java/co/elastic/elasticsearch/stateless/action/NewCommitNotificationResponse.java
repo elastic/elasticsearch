@@ -45,7 +45,7 @@ public class NewCommitNotificationResponse extends ActionResponse {
     public NewCommitNotificationResponse(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE)) {
-            this.usedPrimaryTermAndGenerations = in.readImmutableSet(PrimaryTermAndGeneration::new);
+            this.usedPrimaryTermAndGenerations = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
         } else {
             this.usedPrimaryTermAndGenerations = Collections.emptySet();
         }

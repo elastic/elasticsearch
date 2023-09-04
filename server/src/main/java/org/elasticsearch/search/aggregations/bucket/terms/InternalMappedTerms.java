@@ -76,7 +76,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
-        buckets = in.readList(stream -> bucketReader.read(stream, format, showTermDocCountError));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format, showTermDocCountError));
     }
 
     @Override
@@ -95,7 +95,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

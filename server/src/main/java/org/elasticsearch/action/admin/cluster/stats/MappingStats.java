@@ -216,8 +216,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalDeduplicatedFieldCount = null;
             totalMappingSizeBytes = null;
         }
-        fieldTypeStats = in.readImmutableList(FieldStats::new);
-        runtimeFieldStats = in.readImmutableList(RuntimeFieldStats::new);
+        fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
+        runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
     }
 
     @Override

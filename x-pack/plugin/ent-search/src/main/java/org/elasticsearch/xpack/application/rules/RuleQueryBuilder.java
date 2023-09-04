@@ -84,9 +84,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
         rulesetId = in.readString();
-        pinnedIds = in.readOptionalStringList();
+        pinnedIds = in.readOptionalStringCollectionAsList();
         pinnedIdsSupplier = null;
-        pinnedDocs = in.readOptionalList(Item::new);
+        pinnedDocs = in.readOptionalCollectionAsList(Item::new);
         pinnedDocsSupplier = null;
     }
 

@@ -131,7 +131,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         seqNoAndPrimaryTerm = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
     }
@@ -143,7 +143,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -157,7 +157,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
@@ -165,7 +165,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
         }
     }

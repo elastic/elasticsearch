@@ -416,7 +416,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, threadPool.generic());
     }
 
     @Override
@@ -753,6 +753,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 logger.warn(() -> format("%s, [%s], closing connection", e.getMessage(), channel));
             } else if (e instanceof TransportNotReadyException) {
                 logger.debug(() -> format("%s on [%s], closing connection", e.getMessage(), channel));
+            } else if (e instanceof HeaderValidationException headerValidationException) {
+                Header header = headerValidationException.header;
+                if (channel.isOpen()) {
+                    try {
+                        outboundHandler.sendErrorResponse(
+                            header.getVersion(),
+                            channel,
+                            header.getRequestId(),
+                            header.getActionName(),
+                            ResponseStatsConsumer.NONE,
+                            headerValidationException.validationException
+                        );
+                    } catch (IOException inner) {
+                        inner.addSuppressed(headerValidationException.validationException);
+                        logger.warn(() -> "Failed to send error message back to client for validation failure", inner);
+                    }
+                }
             } else {
                 logger.warn(() -> "exception caught on transport layer [" + channel + "], closing connection", e);
             }

@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.LongArrayVector;
@@ -56,15 +58,15 @@ final class LongBlockHash extends BlockHash {
         }
     }
 
-    private LongVector add(LongVector vector) {
-        long[] groups = new long[vector.getPositionCount()];
+    private IntVector add(LongVector vector) {
+        int[] groups = new int[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = hashOrdToGroupNullReserved(longHash.add(vector.getLong(i)));
+            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i))));
         }
-        return new LongArrayVector(groups, groups.length);
+        return new IntArrayVector(groups, groups.length);
     }
 
-    private LongBlock add(LongBlock block) {
+    private IntBlock add(LongBlock block) {
         MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(longHash);
         seenNull |= result.sawNull();
         return result.ords();

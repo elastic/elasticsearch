@@ -33,7 +33,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
@@ -83,7 +82,8 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
         // Preload the cache at 2/3 of its expiry time (TTL). This means that we should never have an empty cache, but if for some reason
         // the preload thread stops running, we will still automatically refresh the cache on access.
         final TimeValue preloadInterval = TimeValue.timeValueMillis(cacheTtl.millis() * 2 / 3);
-        client.threadPool().scheduleWithFixedDelay(this::loadPrivilegesForDefaultApplication, preloadInterval, ThreadPool.Names.GENERIC);
+        client.threadPool()
+            .scheduleWithFixedDelay(this::loadPrivilegesForDefaultApplication, preloadInterval, client.threadPool().generic());
     }
 
     public static Collection<? extends Setting<?>> getSettings() {

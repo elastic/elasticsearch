@@ -44,7 +44,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -203,7 +202,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
+        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -257,7 +256,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+        throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -297,7 +296,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        throw new EsqlUnsupportedOperationException("Exchange needs to be replaced with a sink/source");
+        throw new UnsupportedOperationException("Exchange needs to be replaced with a sink/source");
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
@@ -365,7 +364,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new EsqlUnsupportedOperationException("limit only supported with literal values");
+            throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down
@@ -383,15 +382,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
 
-        for (NamedExpression namedExpression : eval.fields()) {
+        for (Alias field : eval.fields()) {
             Supplier<ExpressionEvaluator> evaluatorSupplier;
-            if (namedExpression instanceof Alias alias) {
-                evaluatorSupplier = EvalMapper.toEvaluator(alias.child(), source.layout);
-            } else {
-                throw new EsqlIllegalArgumentException("source fields for eval nodes have to be aliases");
-            }
+            evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(namedExpression.toAttribute().id());
+            layout.appendChannel(field.toAttribute().id());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
@@ -483,13 +478,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> {
-            if (f instanceof Alias) {
-                return ((Alias) f).child().fold();
-            } else {
-                return f.fold();
-            }
-        }).toList();
+        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
         Layout.Builder layout = new Layout.Builder();
         var output = row.output();
         for (Attribute attribute : output) {

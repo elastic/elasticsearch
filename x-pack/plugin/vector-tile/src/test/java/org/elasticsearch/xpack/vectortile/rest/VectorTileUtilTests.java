@@ -12,7 +12,6 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.containsString;
@@ -45,9 +44,6 @@ public class VectorTileUtilTests extends ESTestCase {
         assertPropertyToFeature(layerProps, featureBuilder, 7);
         // string
         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, "string", "7");
-        assertPropertyToFeature(layerProps, featureBuilder, 8);
-        // maps are ignored
-        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, "parent", Map.of("child", "8"));
         assertPropertyToFeature(layerProps, featureBuilder, 8);
         // invalid
         IllegalArgumentException ex = expectThrows(

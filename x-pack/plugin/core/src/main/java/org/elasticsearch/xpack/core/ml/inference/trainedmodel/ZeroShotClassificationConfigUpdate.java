@@ -88,7 +88,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
 
     public ZeroShotClassificationConfigUpdate(StreamInput in) throws IOException {
         super(in);
-        labels = in.readOptionalStringList();
+        labels = in.readOptionalStringCollectionAsList();
         isMultiLabel = in.readOptionalBoolean();
         resultsField = in.readOptionalString();
     }

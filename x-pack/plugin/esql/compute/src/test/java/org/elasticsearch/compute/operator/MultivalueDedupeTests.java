@@ -252,7 +252,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         if (previousValues.contains(true)) {
             everSeen[2] = true;
         }
-        LongBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
+        IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
         List<Boolean> hashedValues = new ArrayList<>();
         if (everSeen[1]) {
             hashedValues.add(false);
@@ -297,7 +297,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private void assertHash(
         BasicBlockTests.RandomBlock b,
-        LongBlock hashes,
+        IntBlock hashes,
         long hashSize,
         Set<? extends Object> previousValues,
         LongFunction<Object> lookup
@@ -311,13 +311,13 @@ public class MultivalueDedupeTests extends ESTestCase {
             List<Object> v = b.values().get(p);
             if (v == null) {
                 assertThat(count, equalTo(1));
-                assertThat(hashes.getLong(start), equalTo(0L));
+                assertThat(hashes.getInt(start), equalTo(0));
                 return;
             }
             List<Object> actualValues = new ArrayList<>(count);
             int end = start + count;
             for (int i = start; i < end; i++) {
-                actualValues.add(lookup.apply(hashes.getLong(i) - 1));
+                actualValues.add(lookup.apply(hashes.getInt(i) - 1));
             }
             assertThat(actualValues, containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray()));
             allValues.addAll(v);

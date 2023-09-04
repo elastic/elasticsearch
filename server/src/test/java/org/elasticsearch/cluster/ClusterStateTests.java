@@ -989,7 +989,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""", Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current()), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {

@@ -126,7 +126,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
             runtimeMappings = in.readMap();
         } else {
@@ -463,7 +463,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
             out.writeGenericMap(runtimeMappings);
         }

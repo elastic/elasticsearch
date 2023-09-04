@@ -39,6 +39,10 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     private final Map<String, Entry> entries;
 
+    public static RestoreInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     /**
      * Constructs new restore metadata
      *
@@ -367,7 +371,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
                 quiet = true;
             }
-            List<String> indices = in.readImmutableList(StreamInput::readString);
+            List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
                 new Entry(

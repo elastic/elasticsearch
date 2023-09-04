@@ -59,13 +59,12 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
+import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -173,6 +172,7 @@ public class IndexResolver {
         EnumSet.of(WildcardStates.OPEN)
     );
 
+    public static final Set<String> ALL_FIELDS = Set.of("*");
     private static final String UNMAPPED = "unmapped";
 
     private final Client client;
@@ -304,6 +304,7 @@ public class IndexResolver {
             IndicesOptions indicesOptions = retrieveFrozenIndices ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
             FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(
                 qualifyAndJoinIndices(clusterWildcard, indexWildcards),
+                ALL_FIELDS,
                 indicesOptions,
                 emptyMap()
             );
@@ -356,11 +357,12 @@ public class IndexResolver {
      */
     public void resolveAsMergedMapping(
         String indexWildcard,
+        Set<String> fieldNames,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
         ActionListener<IndexResolution> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
@@ -372,11 +374,12 @@ public class IndexResolver {
      */
     public void resolveAsMergedMapping(
         String indexWildcard,
+        Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
         ActionListener<IndexResolution> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
@@ -559,11 +562,12 @@ public class IndexResolver {
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         String index,
+        Set<String> fieldNames,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings
     ) {
         return new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index))
-            .fields("*")
+            .fields(fieldNames.toArray(String[]::new))
             .includeUnmapped(true)
             .runtimeFields(runtimeMappings)
             // lenient because we throw our own errors looking at the response e.g. if something was not resolved
@@ -573,11 +577,12 @@ public class IndexResolver {
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(
         String index,
+        Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings
     ) {
         IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-        return createFieldCapsRequest(index, indicesOptions, runtimeMappings);
+        return createFieldCapsRequest(index, fieldNames, indicesOptions, runtimeMappings);
     }
 
     /**
@@ -590,7 +595,7 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         ActionListener<List<EsIndex>> listener
     ) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, ALL_FIELDS, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
                 delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
@@ -653,15 +658,12 @@ public class IndexResolver {
             }
         }
 
-        List<String> resolvedIndices = new ArrayList<>(asList(fieldCapsResponse.getIndices()));
-        int mapSize = CollectionUtils.mapSize(resolvedIndices.size() + resolvedAliases.size());
-        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(mapSize);
+        final List<String> resolvedIndices = arrayAsArrayList(fieldCapsResponse.getIndices());
+        Map<String, Fields> indices = Maps.newLinkedHashMapWithExpectedSize(resolvedIndices.size() + resolvedAliases.size());
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
         // sort fields in reverse order to build the field hierarchy
-        Set<Entry<String, Map<String, FieldCapabilities>>> sortedFields = new TreeSet<>(
-            Collections.reverseOrder(Comparator.comparing(Entry::getKey))
-        );
+        Set<Entry<String, Map<String, FieldCapabilities>>> sortedFields = new TreeSet<>(Collections.reverseOrder(Entry.comparingByKey()));
         final Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResponse.get();
         sortedFields.addAll(fieldCaps.entrySet());
 
@@ -676,29 +678,18 @@ public class IndexResolver {
             // apply verification for fields belonging to index aliases
             Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);
 
-            // filter unmapped
-            FieldCapabilities unmapped = types.get(UNMAPPED);
-            Set<String> unmappedIndices = unmapped != null ? new HashSet<>(asList(unmapped.indices())) : emptySet();
-
             // check each type
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {
+                if (UNMAPPED.equals(typeEntry.getKey())) {
+                    continue;
+                }
                 FieldCapabilities typeCap = typeEntry.getValue();
                 String[] capIndices = typeCap.indices();
 
                 // compute the actual indices - if any are specified, take into account the unmapped indices
-                List<String> concreteIndices = null;
+                final List<String> concreteIndices;
                 if (capIndices != null) {
-                    if (unmappedIndices.isEmpty()) {
-                        concreteIndices = new ArrayList<>(asList(capIndices));
-                    } else {
-                        concreteIndices = new ArrayList<>(capIndices.length);
-                        for (String capIndex : capIndices) {
-                            // add only indices that have a mapping
-                            if (unmappedIndices.contains(capIndex) == false) {
-                                concreteIndices.add(capIndex);
-                            }
-                        }
-                    }
+                    concreteIndices = arrayAsArrayList(capIndices);
                 } else {
                     concreteIndices = resolvedIndices;
                 }
@@ -721,11 +712,7 @@ public class IndexResolver {
                     // TODO is split still needed?
                     if (pattern == null || pattern.matcher(splitQualifiedIndex(index).v2()).matches() || isIndexAlias) {
                         String indexName = isIndexAlias ? index : indexNameProcessor.apply(index);
-                        Fields indexFields = indices.get(indexName);
-                        if (indexFields == null) {
-                            indexFields = new Fields();
-                            indices.put(indexName, indexFields);
-                        }
+                        Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         boolean createField = false;
                         if (isIndexAlias == false) {

@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
@@ -275,7 +274,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
@@ -371,7 +370,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -436,7 +435,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
@@ -539,7 +538,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -648,7 +647,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPIReservedMetadata() throws IOException {
@@ -828,7 +827,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {

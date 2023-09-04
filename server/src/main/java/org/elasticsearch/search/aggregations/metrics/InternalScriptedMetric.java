@@ -48,7 +48,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         if (in.getTransportVersion().before(TransportVersion.V_7_8_0)) {
             aggregations = singletonList(in.readGenericValue());
         } else {
-            aggregations = in.readList(StreamInput::readGenericValue);
+            aggregations = in.readCollectionAsList(StreamInput::readGenericValue);
         }
     }
 

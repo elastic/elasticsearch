@@ -213,7 +213,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         verify(client, times(1)).nodesInfo(any(), action.capture());
         // do response immediately
         action.getValue().onFailure(new RuntimeException("failure"));
-        verify(scheduler).schedule(retry.capture(), any(), any());
+        verify(scheduler).schedule(retry.capture(), any(), anyString());
 
         // running retry should cause another check
         retry.getValue().run();

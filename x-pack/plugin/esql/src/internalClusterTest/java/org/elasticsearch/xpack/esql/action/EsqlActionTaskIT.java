@@ -270,7 +270,12 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         Exception e = expectThrows(Exception.class, response::actionGet);
         Throwable cancelException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
         assertNotNull(cancelException);
-        assertThat(cancelException.getMessage(), equalTo("test cancel"));
+        /*
+         * Either the task was cancelled by out request and has "test cancel"
+         * or the cancellation chained from another cancellation and has
+         * "task cancelled".
+         */
+        assertThat(cancelException.getMessage(), either(equalTo("test cancel")).or(equalTo("task cancelled")));
         assertBusy(
             () -> assertThat(
                 client().admin()

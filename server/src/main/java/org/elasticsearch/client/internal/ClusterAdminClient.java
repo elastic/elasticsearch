@@ -69,6 +69,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -455,6 +458,10 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Restores a snapshot.
      */
     RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot);
+
+    void snapshotGlobalState(SnapshotGlobalStateRequest request, ActionListener<SnapshotGlobalStateResponse> listener);
+
+    SnapshotGlobalStateRequestBuilder prepareGlobalStateSnapshot(String repository, String snapshot);
 
     /**
      * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations

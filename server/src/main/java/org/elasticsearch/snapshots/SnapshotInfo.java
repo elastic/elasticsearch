@@ -502,19 +502,19 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
-        final List<String> indices = in.readImmutableStringList();
+        final List<String> indices = in.readStringCollectionAsImmutableList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
-        final List<SnapshotShardFailure> shardFailures = in.readImmutableList(SnapshotShardFailure::new);
+        final List<SnapshotShardFailure> shardFailures = in.readCollectionAsImmutableList(SnapshotShardFailure::new);
         final IndexVersion version = in.readBoolean() ? IndexVersion.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readMap();
-        final List<String> dataStreams = in.readImmutableStringList();
-        final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+        final List<String> dataStreams = in.readStringCollectionAsImmutableList();
+        final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
         return new SnapshotInfo(
             snapshot,

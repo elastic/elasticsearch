@@ -62,7 +62,11 @@ public record ReservedStateErrorMetadata(Long version, ErrorKind errorKind, List
      * @throws IOException
      */
     public static ReservedStateErrorMetadata readFrom(StreamInput in) throws IOException {
-        return new ReservedStateErrorMetadata(in.readLong(), ErrorKind.of(in.readString()), in.readList(StreamInput::readString));
+        return new ReservedStateErrorMetadata(
+            in.readLong(),
+            ErrorKind.of(in.readString()),
+            in.readCollectionAsList(StreamInput::readString)
+        );
     }
 
     @Override

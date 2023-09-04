@@ -62,15 +62,15 @@ public class Vocabulary implements Writeable, ToXContentObject {
     }
 
     public Vocabulary(StreamInput in) throws IOException {
-        vocab = in.readStringList();
+        vocab = in.readStringCollectionAsList();
         modelId = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-            merges = in.readStringList();
+            merges = in.readStringCollectionAsList();
         } else {
             merges = List.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
-            scores = in.readList(StreamInput::readDouble);
+            scores = in.readCollectionAsList(StreamInput::readDouble);
         } else {
             scores = List.of();
         }

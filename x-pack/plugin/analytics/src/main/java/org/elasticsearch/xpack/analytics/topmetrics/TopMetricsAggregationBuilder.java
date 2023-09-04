@@ -152,10 +152,10 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     public TopMetricsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         @SuppressWarnings({ "unchecked", "HiddenField" })
-        List<SortBuilder<?>> sortBuilders = (List<SortBuilder<?>>) (List<?>) in.readNamedWriteableList(SortBuilder.class);
+        List<SortBuilder<?>> sortBuilders = (List<SortBuilder<?>>) (List<?>) in.readNamedWriteableCollectionAsList(SortBuilder.class);
         this.sortBuilders = sortBuilders;
         this.size = in.readVInt();
-        this.metricFields = in.readList(MultiValuesSourceFieldConfig::new);
+        this.metricFields = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
     }
 
     @Override

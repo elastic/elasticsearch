@@ -94,7 +94,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     public InternalComposite(StreamInput in) throws IOException {
         super(in);
         this.size = in.readVInt();
-        this.sourceNames = in.readStringList();
+        this.sourceNames = in.readStringCollectionAsList();
         this.formats = new ArrayList<>(sourceNames.size());
         for (int i = 0; i < sourceNames.size(); i++) {
             formats.add(in.readNamedWriteable(DocValueFormat.class));
@@ -106,7 +106,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             this.missingOrders = new MissingOrder[reverseMuls.length];
             Arrays.fill(missingOrders, MissingOrder.DEFAULT);
         }
-        this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
+        this.buckets = in.readCollectionAsList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
     }

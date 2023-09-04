@@ -87,7 +87,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);

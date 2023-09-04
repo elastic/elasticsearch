@@ -33,7 +33,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     public IndexLifecycleFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         if (input.readBoolean()) {
-            policyStats = input.readList(PolicyStats::new);
+            policyStats = input.readCollectionAsList(PolicyStats::new);
         }
     }
 

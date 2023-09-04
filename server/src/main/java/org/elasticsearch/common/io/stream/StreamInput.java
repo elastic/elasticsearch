@@ -663,7 +663,7 @@ public abstract class StreamInput extends InputStream {
      * @return Never {@code null}.
      */
     public <V> Map<String, List<V>> readMapOfLists(final Writeable.Reader<V> valueReader) throws IOException {
-        return readMap(i -> i.readList(valueReader));
+        return readMap(i -> i.readCollectionAsList(valueReader));
     }
 
     /**
@@ -1070,19 +1070,127 @@ public abstract class StreamInput extends InputStream {
      *
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
+     * @deprecated use {@link #readCollectionAsList}.
      */
+    @Deprecated(forRemoval = true)
     public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
+        return readCollectionAsList(reader);
+    }
+
+    /**
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
+     * The returned list is immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     * @deprecated use {@link #readCollectionAsImmutableList}.
+     */
+    @Deprecated(forRemoval = true)
+    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+        return readCollectionAsImmutableList(reader);
+    }
+
+    /**
+     * Same as {@link #readStringList()} but always returns an immutable list.
+     *
+     * @return immutable list of strings
+     * @throws IOException on failure
+     * @deprecated use {@link #readStringCollectionAsImmutableList}.
+     */
+    @Deprecated(forRemoval = true)
+    public List<String> readImmutableStringList() throws IOException {
+        return readStringCollectionAsImmutableList();
+    }
+
+    /**
+     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     * @deprecated use {@link #readStringCollectionAsList}.
+     */
+    @Deprecated(forRemoval = true)
+    public List<String> readStringList() throws IOException {
+        return readStringCollectionAsList();
+    }
+
+    /**
+     * Reads an optional list. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     * @deprecated use {@link #readOptionalCollectionAsList}.
+     */
+    @Deprecated(forRemoval = true)
+    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
+        return readOptionalCollectionAsList(reader);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     * @deprecated use {@link #readOptionalStringCollectionAsList}.
+     */
+    @Deprecated(forRemoval = true)
+    public List<String> readOptionalStringList() throws IOException {
+        return readOptionalStringCollectionAsList();
+    }
+
+    /**
+     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
+     * @deprecated use {@link #readCollectionAsSet}.
+     */
+    @Deprecated(forRemoval = true)
+    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
+        return readCollectionAsSet(reader);
+    }
+
+    /**
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}} with
+     * a collection that contains no duplicates. The returned set is immutable.
+     *
+     * @return the set of objects
+     * @throws IOException if an I/O exception occurs reading the set
+     * @deprecated use {@link #readCollectionAsImmutableSet}.
+     */
+    @Deprecated(forRemoval = true)
+    public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
+        return readCollectionAsImmutableSet(reader);
+    }
+
+    /**
+     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     * @deprecated use {@link #readNamedWriteableCollectionAsList}.
+     */
+    @Deprecated(forRemoval = true)
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        return readNamedWriteableCollectionAsList(categoryClass);
+    }
+
+    /**
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readCollectionAsList(final Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, ArrayList::new, Collections.emptyList());
     }
 
     /**
-     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
      * The returned list is immutable.
      *
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readCollectionAsImmutableList(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
         // special cases small arrays, just like in java.util.List.of(...)
         return switch (count) {
@@ -1102,13 +1210,13 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Same as {@link #readStringList()} but always returns an immutable list.
+     * Same as {@link #readStringCollectionAsList()} but always returns an immutable list.
      *
      * @return immutable list of strings
      * @throws IOException on failure
      */
-    public List<String> readImmutableStringList() throws IOException {
-        return readImmutableList(StreamInput::readString);
+    public List<String> readStringCollectionAsImmutableList() throws IOException {
+        return readCollectionAsImmutableList(StreamInput::readString);
     }
 
     /**
@@ -1118,8 +1226,8 @@ public abstract class StreamInput extends InputStream {
      * @return the list of strings
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public List<String> readStringList() throws IOException {
-        return readList(StreamInput::readString);
+    public List<String> readStringCollectionAsList() throws IOException {
+        return readCollectionAsList(StreamInput::readString);
     }
 
     /**
@@ -1127,9 +1235,9 @@ public abstract class StreamInput extends InputStream {
      * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
      * If it is empty it might be immutable.
      */
-    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readOptionalCollectionAsList(final Writeable.Reader<T> reader) throws IOException {
         final boolean isPresent = readBoolean();
-        return isPresent ? readList(reader) : null;
+        return isPresent ? readCollectionAsList(reader) : null;
     }
 
     /**
@@ -1140,25 +1248,26 @@ public abstract class StreamInput extends InputStream {
      * @return the list of strings
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public List<String> readOptionalStringList() throws IOException {
-        return readOptionalList(StreamInput::readString);
+    public List<String> readOptionalStringCollectionAsList() throws IOException {
+        return readOptionalCollectionAsList(StreamInput::readString);
     }
 
     /**
-     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}}. If the
+     * returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
-    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
+    public <T> Set<T> readCollectionAsSet(Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, Sets::newHashSetWithExpectedSize, Collections.emptySet());
     }
 
     /**
-     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}} with
-     * a collection that contains no duplicates. The returned set is immutable.
+     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}}. The
+     * returned set is immutable.
      *
      * @return the set of objects
      * @throws IOException if an I/O exception occurs reading the set
      */
-    public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
+    public <T> Set<T> readCollectionAsImmutableSet(final Writeable.Reader<T> reader) throws IOException {
         int count = readArraySize();
         // special cases small arrays, just like in java.util.Set.of(...)
         return switch (count) {
@@ -1178,10 +1287,10 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
-     * If it is empty it might be immutable.
+     * Reads a list of {@link NamedWriteable}s, as written by {@link StreamOutput#writeNamedWriteableCollection}. If the returned list
+     * contains any entries it will be mutable. If it is empty it might be immutable.
      */
-    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+    public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 

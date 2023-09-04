@@ -76,7 +76,7 @@ public class BwcSetupExtension {
                     loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
                     // the bwc related builds should not require es java runtime as we only build artifacts.
                     // This is to avoids breaking old builds that are incompatible with current `ES_JAVA_RUNTIME`.
-                    loggedExec.getEnvironment().remove("ES_JAVA_RUNTIME");
+                    loggedExec.getEnvironment().remove("RUNTIME_JAVA_HOME");
                 }
             });
 

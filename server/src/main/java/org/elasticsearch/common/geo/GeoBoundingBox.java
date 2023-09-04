@@ -91,6 +91,11 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
         out.writeGeoPoint(bottomRight);
     }
 
+    @Override
+    public String getWriteableName() {
+        return "GeoBoundingBox";
+    }
+
     protected static class GeoBoundsParser extends BoundsParser<GeoBoundingBox> {
         GeoBoundsParser(XContentParser parser) {
             super(parser);

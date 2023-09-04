@@ -10,6 +10,8 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -315,6 +317,9 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(NamedWriteable.class, GeoBoundingBox.class.getSimpleName(), GeoBoundingBox::new)
+        );
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

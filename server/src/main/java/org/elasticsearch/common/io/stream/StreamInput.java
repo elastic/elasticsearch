@@ -790,6 +790,7 @@ public abstract class StreamInput extends InputStream {
             case 27 -> readOffsetTime();
             case 28 -> readDuration();
             case 29 -> readPeriod();
+            case 30 -> readNamedWriteable(NamedWriteable.class);
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }

@@ -56,6 +56,11 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
         out.writeDouble(bottomRight.getY());
     }
 
+    @Override
+    public String getWriteableName() {
+        return "CartesianBoundingBox";
+    }
+
     protected static class CartesianBoundsParser extends BoundsParser<CartesianBoundingBox> {
         CartesianBoundsParser(XContentParser parser) {
             super(parser);

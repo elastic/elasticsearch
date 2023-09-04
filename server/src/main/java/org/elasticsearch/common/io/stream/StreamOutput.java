@@ -760,6 +760,11 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getYears());
             o.writeInt(period.getMonths());
             o.writeInt(period.getDays());
+        }),
+        entry(NamedWriteable.class, (o, v) -> {
+            o.writeByte((byte) 30);
+            NamedWriteable w = (NamedWriteable) v;
+            o.writeNamedWriteable(w);
         })
     );
 
@@ -790,6 +795,8 @@ public abstract class StreamOutput extends OutputStream {
             return Set.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
+        } else if (value instanceof NamedWriteable) {
+            return NamedWriteable.class;
         } else {
             return value.getClass();
         }

@@ -87,6 +87,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         long startTime = System.currentTimeMillis();
+        // Wrap the listener so that the query is logged if we encounter an exception during execution.
+        ActionListener<EsqlQueryResponse> errorLoggingListener = logQueryAndTimeOnError(listener, startTime, request.query());
 
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
@@ -146,5 +148,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public EnrichLookupService enrichLookupService() {
         return enrichLookupService;
+    }
+
+    private static ActionListener<EsqlQueryResponse> logQueryAndTimeOnError(
+        ActionListener<EsqlQueryResponse> listener,
+        long startTime,
+        String query
+    ) {
+        return ActionListener.wrap(listener::onResponse, ex -> {
+            long endTime = System.currentTimeMillis();
+            LOGGER.info("Failed executing ES|QL query in {}ms:\n{}", endTime - startTime, query);
+
+            listener.onFailure(ex);
+        });
     }
 }

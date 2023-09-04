@@ -144,6 +144,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
+        assert indices.isEmpty() == false;
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden

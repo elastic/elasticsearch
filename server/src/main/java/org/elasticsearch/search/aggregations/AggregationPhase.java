@@ -41,7 +41,7 @@ public class AggregationPhase {
                 new AggregatorCollectorManager(
                     collectorSupplier,
                     internalAggregations -> context.queryResult().aggregations(internalAggregations),
-                    () -> context.aggregations().getAggregationReduceContextBuilder().forFinalReduction()
+                    () -> context.aggregations().getAggregationReduceContextBuilder().forPartialReduction()
                 )
             );
     }

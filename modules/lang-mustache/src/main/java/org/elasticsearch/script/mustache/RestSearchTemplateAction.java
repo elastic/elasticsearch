@@ -13,9 +13,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -76,7 +77,16 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         if (searchRequest.source().explain() != null) {
             searchTemplateRequest.setExplain(searchRequest.source().explain());
         }
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            SearchTemplateAction.INSTANCE,
+            searchTemplateRequest,
+            new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(SearchTemplateResponse searchTemplateResponse) {
+                    return searchTemplateResponse.status();
+                }
+            }
+        );
     }
 
     @Override

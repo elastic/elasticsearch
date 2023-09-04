@@ -18,22 +18,26 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-public class MultiSearchTemplateResponse extends ActionResponse implements Iterable<MultiSearchTemplateResponse.Item>, ToXContentObject {
+public class MultiSearchTemplateResponse extends ActionResponse
+    implements
+        Iterable<MultiSearchTemplateResponse.Item>,
+        ChunkedToXContentObject {
 
     /**
      * A search template response item, holding the actual search template response, or an error message if it failed.
      */
-    public static class Item implements Writeable {
+    public static class Item implements Writeable, ChunkedToXContent {
         private final SearchTemplateResponse response;
         private final Exception exception;
 
@@ -83,6 +87,26 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
             } else {
                 out.writeBoolean(false);
                 out.writeException(exception);
+            }
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            if (isFailure()) {
+                return Iterators.single((b, p) -> {
+                    b.startObject();
+                    ElasticsearchException.generateFailureXContent(b, p, Item.this.getFailure(), true);
+                    b.field(Fields.STATUS, ExceptionsHelper.status(Item.this.getFailure()).getStatus());
+                    b.endObject();
+                    return b;
+                });
+            } else {
+                return Iterators.concat(
+                    ChunkedToXContentHelper.startObject(),
+                    Item.this.getResponse().innerToXContentChunked(params),
+                    Iterators.single((b, p) -> b.field(Fields.STATUS, Item.this.getResponse().status().getStatus())),
+                    ChunkedToXContentHelper.endObject()
+                );
             }
         }
 
@@ -142,24 +166,14 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field("took", tookInMillis);
-        builder.startArray(Fields.RESPONSES);
-        for (Item item : items) {
-            builder.startObject();
-            if (item.isFailure()) {
-                ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
-                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
-            } else {
-                item.getResponse().innerToXContent(builder, params);
-                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
-            }
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((b, p) -> b.field("took", tookInMillis).startArray(Fields.RESPONSES)),
+            Iterators.flatMap(Iterators.forArray(items), item -> item.toXContentChunked(params)),
+            Iterators.single((b, p) -> b.endArray()),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     static final class Fields {

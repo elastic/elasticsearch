@@ -11,12 +11,14 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,9 +26,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import java.util.Map;
 
-public class SearchTemplateResponse extends ActionResponse implements StatusToXContentObject {
+public class SearchTemplateResponse extends ActionResponse implements ChunkedToXContentObject {
     public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
 
     /** Contains the source of the rendered template **/
@@ -95,25 +98,23 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), innerToXContentChunked(params), ChunkedToXContentHelper.endObject());
     }
 
-    void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
         if (hasResponse()) {
-            ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
+            return response.innerToXContentChunked(params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
-            try (InputStream stream = source.streamInput()) {
-                builder.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
-            }
+            return ChunkedToXContentHelper.singleChunk((b, p) -> {
+                try (InputStream stream = source.streamInput()) {
+                    return b.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
+                }
+            });
         }
     }
 
-    @Override
     public RestStatus status() {
         if (hasResponse()) {
             return response.status();

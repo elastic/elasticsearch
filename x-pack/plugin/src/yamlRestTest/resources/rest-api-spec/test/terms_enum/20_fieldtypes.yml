@@ -35,7 +35,7 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               foo_kw:
@@ -68,6 +68,10 @@ setup:
         index: test
         wait_for_status: green
 
+  # terms_enum returns 0 results if the search fails, so perform a search here so that any failures are picked up early
+  - do:
+      count:
+        index:  test
 ---
 "Test terms enumeration keyword field":
 

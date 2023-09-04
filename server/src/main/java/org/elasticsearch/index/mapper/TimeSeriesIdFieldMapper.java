@@ -144,12 +144,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         final BytesReference timeSeriesId = timeSeriesIdBuilder.build();
-        final BytesReference timeSeriesIdHashOrPlain = timeSeriesId.toBytesRef().length > LIMIT ? hash(timeSeriesId) : timeSeriesId;
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdHashOrPlain.toBytesRef()));
+        context.doc().add(new SortedDocValuesField(fieldType().name(), hash128(timeSeriesId).toBytesRef()));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId.toBytesRef());
     }
 
-    public static BytesReference hash(final BytesReference timeSeriesId) throws IOException {
+    public static BytesReference hash128(final BytesReference timeSeriesId) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             final byte[] buffer = new byte[16];
             out.writeVInt(TSID_HASH_SENTINEL);

@@ -1227,6 +1227,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
     public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
+    public static final String INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY = "index.downsample.origin.name";
+    public static final String INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY = "index.downsample.origin.uuid";
 
     public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
@@ -1236,6 +1238,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_NAME = Setting.simpleString(
         INDEX_DOWNSAMPLE_SOURCE_NAME_KEY,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_ORIGIN_NAME = Setting.simpleString(
+        INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_ORIGIN_UUID = Setting.simpleString(
+        INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );

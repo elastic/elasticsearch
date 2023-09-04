@@ -79,12 +79,12 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.nodes = in.readList(DiscoveryNode::new);
+            this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public List<DiscoveryNode> getNodes() {

@@ -60,13 +60,13 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
     public MigrateToDataTiersResponse(StreamInput in) throws IOException {
         super(in);
         removedIndexTemplateName = in.readOptionalString();
-        migratedPolicies = in.readStringList();
-        migratedIndices = in.readStringList();
+        migratedPolicies = in.readStringCollectionAsList();
+        migratedIndices = in.readStringCollectionAsList();
         dryRun = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
-            migratedLegacyTemplates = in.readStringList();
-            migratedComposableTemplates = in.readStringList();
-            migratedComponentTemplates = in.readStringList();
+            migratedLegacyTemplates = in.readStringCollectionAsList();
+            migratedComposableTemplates = in.readStringCollectionAsList();
+            migratedComponentTemplates = in.readStringCollectionAsList();
         } else {
             migratedLegacyTemplates = List.of();
             migratedComposableTemplates = List.of();

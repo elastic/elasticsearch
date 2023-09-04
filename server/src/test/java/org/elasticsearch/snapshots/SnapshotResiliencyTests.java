@@ -430,7 +430,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (snapshotNeverStarted.get()) {
                 return true;
             }
-            return SnapshotsInProgress.get(master.clusterService.state()).isEmpty();
+            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
+            return snapshotsInProgress != null && snapshotsInProgress.isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();

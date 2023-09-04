@@ -119,7 +119,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_8_1 = registerTransportVersion(8_08_01_99, "291c71bb-5b0a-4b7e-a407-6e53bc128d0f");
 
     /*
-     * READ THE COMMENT BELOW THiS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
+     * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_010 = registerTransportVersion(8_500_010, "9818C628-1EEC-439B-B943-468F61460675");
@@ -179,6 +179,9 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_063 = registerTransportVersion(8_500_063, "31dedced-0055-4f34-b952-2f6919be7488");
     public static final TransportVersion V_8_500_064 = registerTransportVersion(8_500_064, "3a795175-5e6f-40ff-90fe-5571ea8ab04e");
     public static final TransportVersion V_8_500_065 = registerTransportVersion(8_500_065, "4e253c58-1b3d-11ee-be56-0242ac120002");
+    public static final TransportVersion V_8_500_066 = registerTransportVersion(8_500_066, "F398ECC6-5D2A-4BD8-A9E8-1101F030DF85");
+    public static final TransportVersion V_8_500_067 = registerTransportVersion(8_500_067, "a7c86604-a917-4aff-9a1b-a4d44c3dbe02");
+    public static final TransportVersion V_8_500_068 = registerTransportVersion(8_500_068, "2683c8b4-5372-4a6a-bb3a-d61aa679089a");
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -202,7 +205,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      */
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_065);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_068);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

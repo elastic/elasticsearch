@@ -48,7 +48,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         this.shardRouting = new ShardRouting(in);
         this.snapshotId = new SnapshotId(in);
         this.indexId = new IndexId(in);
-        this.inputStats = in.readList(CacheIndexInputStats::new);
+        this.inputStats = in.readCollectionAsList(CacheIndexInputStats::new);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         shardRouting.writeTo(out);
         snapshotId.writeTo(out);
         indexId.writeTo(out);
-        out.writeList(inputStats);
+        out.writeCollection(inputStats);
     }
 
     public ShardRouting getShardRouting() {

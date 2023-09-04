@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -143,6 +144,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
+        assert indices.isEmpty() == false;
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -618,6 +620,43 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Returns a list of downsampling rounds this index is eligible for (based on the rounds `after` configuration) or
+     * an empty list if this data streams' lifecycle doesn't have downsampling configured or the index's generation age
+     * doesn't yet match any `after` downsampling configuration.
+     *
+     * An empty list is returned for indices that are not time series.
+     */
+    public List<Round> getDownsamplingRoundsFor(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier
+    ) {
+        assert indices.contains(index) : "the provided index must be a backing index for this datastream";
+        if (lifecycle == null || lifecycle.getDownsamplingRounds() == null) {
+            return List.of();
+        }
+
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+            return List.of();
+        }
+        TimeValue indexGenerationTime = getGenerationLifecycleDate(indexMetadata);
+
+        if (indexGenerationTime != null) {
+            long nowMillis = nowSupplier.getAsLong();
+            long indexGenerationTimeMillis = indexGenerationTime.millis();
+            List<Round> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
+            for (Round round : lifecycle.getDownsamplingRounds()) {
+                if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
+                    orderedRoundsForIndex.add(round);
+                }
+            }
+            return orderedRoundsForIndex;
+        }
+        return List.of();
+    }
+
+    /**
      * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
      * The index age is calculated from the rollover or index creation date (or the origination date if present).
      * If an indices predicate is provided the returned list of indices will be filtered
@@ -756,7 +795,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     static List<Index> readIndices(StreamInput in) throws IOException {
         in.readString(); // timestamp field, which is always @timestamp
-        return in.readImmutableList(Index::new);
+        return in.readCollectionAsImmutableList(Index::new);
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -767,7 +806,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(TIMESTAMP_FIELD_NAME);
-        out.writeList(indices);
+        out.writeCollection(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
         out.writeBoolean(hidden);

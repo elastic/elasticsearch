@@ -90,12 +90,12 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
 
     public ErrorQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.indices = in.readList(IndexError::new);
+        this.indices = in.readCollectionAsList(IndexError::new);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override

@@ -45,14 +45,14 @@ public record NodesRemovalPrevalidation(boolean isSafe, String message, List<Nod
     }
 
     public static NodesRemovalPrevalidation readFrom(final StreamInput in) throws IOException {
-        return new NodesRemovalPrevalidation(in.readBoolean(), in.readString(), in.readList(NodeResult::readFrom));
+        return new NodesRemovalPrevalidation(in.readBoolean(), in.readString(), in.readCollectionAsList(NodeResult::readFrom));
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeBoolean(isSafe);
         out.writeString(message);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

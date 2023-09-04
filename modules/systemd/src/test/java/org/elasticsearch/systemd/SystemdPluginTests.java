@@ -9,6 +9,7 @@
 package org.elasticsearch.systemd;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,8 +49,13 @@ public class SystemdPluginTests extends ESTestCase {
 
     {
         when(extender.cancel()).thenReturn(true);
-        when(threadPool.scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueSeconds(15)), eq(ThreadPool.Names.SAME)))
-            .thenReturn(extender);
+        when(
+            threadPool.scheduleWithFixedDelay(
+                any(Runnable.class),
+                eq(TimeValue.timeValueSeconds(15)),
+                same(EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            )
+        ).thenReturn(extender);
     }
 
     public void testIsEnabled() {

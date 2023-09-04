@@ -95,7 +95,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         super.writeTo(out);
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     @Override
@@ -110,11 +110,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
             builder.startObject("acknowledge");
             builder.field(MESSAGE_FIELD.getPreferredName(), acknowledgeMessage);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-                builder.startArray(entry.getKey());
-                for (String message : entry.getValue()) {
-                    builder.value(message);
-                }
-                builder.endArray();
+                builder.array(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }

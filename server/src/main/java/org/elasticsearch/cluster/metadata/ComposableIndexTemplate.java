@@ -161,20 +161,20 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
-        this.indexPatterns = in.readStringList();
+        this.indexPatterns = in.readStringCollectionAsList();
         if (in.readBoolean()) {
             this.template = new Template(in);
         } else {
             this.template = null;
         }
-        this.componentTemplates = in.readOptionalStringList();
+        this.componentTemplates = in.readOptionalStringCollectionAsList();
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            this.ignoreMissingComponentTemplates = in.readOptionalStringList();
+            this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
         } else {
             this.ignoreMissingComponentTemplates = null;
         }

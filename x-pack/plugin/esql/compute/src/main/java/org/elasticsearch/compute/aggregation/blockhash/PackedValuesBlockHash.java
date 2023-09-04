@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,6 +22,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Arrays;
 import java.util.List;
@@ -85,7 +85,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         int position;
         int count;
-        long bufferedGroup;
+        int bufferedGroup;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
@@ -124,7 +124,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 switch (count) {
                     case 0 -> throw new IllegalStateException("didn't find any values");
                     case 1 -> {
-                        ords.appendLong(bufferedGroup);
+                        ords.appendInt(bufferedGroup);
                         addedValue(position);
                     }
                     default -> ords.endPositionEntry();
@@ -171,18 +171,18 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         private void addBytes() {
-            long group = hashOrdToGroup(bytesRefHash.add(bytes.get()));
+            int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
             switch (count) {
                 case 0 -> bufferedGroup = group;
                 case 1 -> {
                     ords.beginPositionEntry();
-                    ords.appendLong(bufferedGroup);
+                    ords.appendInt(bufferedGroup);
                     addedValueInMultivaluePosition(position);
-                    ords.appendLong(group);
+                    ords.appendInt(group);
                     addedValueInMultivaluePosition(position);
                 }
                 default -> {
-                    ords.appendLong(group);
+                    ords.appendInt(group);
                     addedValueInMultivaluePosition(position);
                 }
             }

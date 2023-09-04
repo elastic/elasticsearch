@@ -31,13 +31,13 @@ public class NodeSeekStats extends BaseNodeResponse implements ToXContentFragmen
 
     public NodeSeekStats(StreamInput in) throws IOException {
         super(in);
-        this.seeks = in.readMap(s -> s.readList(ShardSeekStats::new));
+        this.seeks = in.readMap(s -> s.readCollectionAsList(ShardSeekStats::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(seeks, StreamOutput::writeString, StreamOutput::writeList);
+        out.writeMap(seeks, StreamOutput::writeCollection);
     }
 
     @Override

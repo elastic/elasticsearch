@@ -36,12 +36,12 @@ public class SeekStatsResponse extends BaseNodesResponse<NodeSeekStats> implemen
 
     @Override
     protected List<NodeSeekStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeSeekStats::new);
+        return in.readCollectionAsList(NodeSeekStats::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeSeekStats> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

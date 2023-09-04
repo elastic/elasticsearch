@@ -18,6 +18,8 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.mockfile.HandleLimitFS;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
@@ -66,6 +68,13 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Tests for {@link ValuesSourceReaderOperator}. Turns off {@link HandleLimitFS}
+ * because it can make a large number of documents and doesn't want to allow
+ * lucene to merge. It intentionally tries to create many files to make sure
+ * that {@link ValuesSourceReaderOperator} works with it.
+ */
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
     private static final boolean[][] BOOLEANS = new boolean[][] {

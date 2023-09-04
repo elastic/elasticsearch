@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -65,7 +66,7 @@ public class IdLoaderTests extends ESTestCase {
             assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(1))));
             assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(2))));
         };
-        prepareIndexReader(indexAndForceMerge(routing, docs), verify);
+        prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
@@ -137,7 +138,7 @@ public class IdLoaderTests extends ESTestCase {
                 expectThrows(IllegalArgumentException.class, () -> leaf.getId(0));
             }
         };
-        prepareIndexReader(buildIndex, verify);
+        prepareIndexReader(buildIndex, verify, true);
     }
 
     public void testSynthesizeIdRandom() throws Exception {
@@ -179,7 +180,7 @@ public class IdLoaderTests extends ESTestCase {
                 assertTrue("docId=" + i + " id=" + actualId, expectedIDs.remove(actualId));
             }
         };
-        prepareIndexReader(indexAndForceMerge(routing, randomDocs), verify);
+        prepareIndexReader(indexAndForceMerge(routing, randomDocs), verify, false);
         assertThat(expectedIDs, empty());
     }
 
@@ -197,10 +198,14 @@ public class IdLoaderTests extends ESTestCase {
 
     private void prepareIndexReader(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        CheckedConsumer<IndexReader, IOException> verify
+        CheckedConsumer<IndexReader, IOException> verify,
+        boolean noMergePolicy
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (noMergePolicy) {
+                config.setMergePolicy(NoMergePolicy.INSTANCE);
+            }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
                 new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)

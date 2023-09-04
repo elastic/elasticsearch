@@ -99,7 +99,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override

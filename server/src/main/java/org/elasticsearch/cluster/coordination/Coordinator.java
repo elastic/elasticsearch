@@ -1904,7 +1904,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
-            }, publishTimeout, Names.CLUSTER_COORDINATION);
+            }, publishTimeout, clusterCoordinationExecutor);
 
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
@@ -1918,7 +1918,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishInfoTimeout, Names.CLUSTER_COORDINATION);
+            }, publishInfoTimeout, clusterCoordinationExecutor);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {

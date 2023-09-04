@@ -49,7 +49,7 @@ avg(salary):double | always_false:boolean
 
 in
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
-
+ignoreOrder:true
 emp_no:integer |is_rehired:boolean |still_hired:boolean
 10021          |true               |false
 10029          |true               |false
@@ -150,7 +150,7 @@ tf:boolean    |tt:boolean |ff:boolean |ttff:boolean
 ;
 
 convertFromString
-from employees | keep emp_no, is_rehired, first_name | eval rehired_str = to_string(is_rehired) | eval rehired_bool = to_boolean(rehired_str) | eval all_false = to_boolean(first_name) | drop first_name | limit 5;
+from employees | sort emp_no | keep emp_no, is_rehired, first_name | eval rehired_str = to_string(is_rehired) | eval rehired_bool = to_boolean(rehired_str) | eval all_false = to_boolean(first_name) | drop first_name | limit 5;
 emp_no:integer |is_rehired:boolean         |rehired_str:keyword        |rehired_bool:boolean        |all_false:boolean
 10001          |[false, true]              |[false, true]              |[false, true]               |false
 10002          |[false, false]             |[false, false]             |[false, false]              |false
@@ -174,7 +174,7 @@ str:keyword                                | bool:boolean
 
 convertFromDouble
 from employees | eval h_2 = height - 2.0, double2bool = to_boolean(h_2) | where emp_no in (10036, 10037, 10038) | keep emp_no, height, *2bool;
-
+ignoreOrder:true
 emp_no:integer |height:double |double2bool:boolean
 10036          |1.61          |true
 10037          |2.0           |false
@@ -189,7 +189,7 @@ row ul = [9223372036854775808, 9223372036854775807, 1, 0] | eval bool = to_bool(
 ;
 
 convertFromIntAndLong
-from employees | keep emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
+from employees | sort emp_no | keep emp_no, salary_change* | eval int2bool = to_boolean(salary_change.int), long2bool = to_boolean(salary_change.long) | limit 10;
 
 emp_no:integer |salary_change:double      |salary_change.int:integer | salary_change.keyword:keyword |salary_change.long:long |int2bool:boolean          |long2bool:boolean       
 10001          |1.19                      |1                |1.19                      |1                 |true                     |true                     
@@ -207,7 +207,7 @@ emp_no:integer |salary_change:double      |salary_change.int:integer | salary_ch
 // short and byte aren't actually tested, these are loaded as int blocks atm
 convertFromByteAndShort
 from employees | eval byte2bool = to_boolean(languages.byte), short2bool = to_boolean(languages.short) | where emp_no in (10019, 10020, 10030) | keep emp_no, languages, *2bool;
-
+ignoreOrder:true
 emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10019          |1                 |true              |true
 10020          |null              |null              |null

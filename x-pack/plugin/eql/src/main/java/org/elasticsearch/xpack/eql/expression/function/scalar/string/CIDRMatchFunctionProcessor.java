@@ -38,7 +38,7 @@ public class CIDRMatchFunctionProcessor implements Processor {
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(source);
-        out.writeNamedWriteableList(addresses);
+        out.writeNamedWriteableCollection(addresses);
     }
 
     @Override

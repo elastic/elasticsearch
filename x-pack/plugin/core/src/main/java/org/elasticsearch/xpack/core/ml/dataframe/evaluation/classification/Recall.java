@@ -226,7 +226,7 @@ public class Recall implements EvaluationMetric {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(classes);
+            out.writeCollection(classes);
             out.writeDouble(avgRecall);
         }
 

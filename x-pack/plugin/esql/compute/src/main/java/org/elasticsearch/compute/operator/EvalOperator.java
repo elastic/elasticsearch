@@ -51,5 +51,15 @@ public class EvalOperator extends AbstractPageMappingOperator {
         Block eval(Page page);
     }
 
-    public static final ExpressionEvaluator CONSTANT_NULL = page -> Block.constantNullBlock(page.getPositionCount());
+    public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
+        @Override
+        public Block eval(Page page) {
+            return Block.constantNullBlock(page.getPositionCount());
+        }
+
+        @Override
+        public String toString() {
+            return "ConstantNull";
+        }
+    };
 }

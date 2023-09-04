@@ -42,7 +42,7 @@ public class FieldStats extends IndexFeatureStats {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(scriptCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        out.writeStringCollection(scriptLangs);
         fieldScriptStats.writeTo(out);
     }
 

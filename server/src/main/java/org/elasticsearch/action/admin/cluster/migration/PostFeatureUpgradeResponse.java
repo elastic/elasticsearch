@@ -91,7 +91,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this.accepted);
-        out.writeList(this.features);
+        out.writeCollection(this.features);
         out.writeOptionalString(this.reason);
         out.writeOptionalWriteable(this.elasticsearchException);
     }

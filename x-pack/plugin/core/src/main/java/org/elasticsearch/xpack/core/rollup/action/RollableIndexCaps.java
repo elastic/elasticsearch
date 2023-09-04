@@ -52,7 +52,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
-        out.writeList(jobCaps);
+        out.writeCollection(jobCaps);
     }
 
     @Override

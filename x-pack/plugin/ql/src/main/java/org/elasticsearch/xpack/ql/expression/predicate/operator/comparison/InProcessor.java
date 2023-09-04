@@ -36,7 +36,7 @@ public class InProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processsors);
+        out.writeNamedWriteableCollection(processsors);
     }
 
     @Override

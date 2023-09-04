@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -25,17 +26,27 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.HashSet;
 import java.util.List;
@@ -43,9 +54,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
 
@@ -159,7 +172,8 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
-            indexResolver.resolveAsMergedMapping(table.index(), false, Map.of(), listener);
+            var fieldNames = fieldNames(parsed);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -168,6 +182,80 @@ public class EsqlSession {
                 listener.onFailure(ex);
             }
         }
+    }
+
+    static Set<String> fieldNames(LogicalPlan parsed) {
+        if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
+            // no explicit columns selection, for example "from employees"
+            return IndexResolver.ALL_FIELDS;
+        }
+
+        Holder<Boolean> projectAll = new Holder<>(false);
+        parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
+            if (projectAll.get()) {
+                return;
+            }
+            projectAll.set(true);
+        });
+        if (projectAll.get()) {
+            return IndexResolver.ALL_FIELDS;
+        }
+
+        AttributeSet references = new AttributeSet();
+        // "keep" attributes are special whenever a wildcard is used in their name
+        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        AttributeSet keepCommandReferences = new AttributeSet();
+
+        parsed.forEachDown(p -> {// go over each plan top-down
+            if (p instanceof RegexExtract re) { // for Grok and Dissect
+                AttributeSet dissectRefs = p.references();
+                // don't add to the list of fields the extracted ones (they are not real fields in mappings)
+                dissectRefs.removeAll(re.extractedFields());
+                references.addAll(dissectRefs);
+                // also remove other down-the-tree references to the extracted fields
+                for (Attribute extracted : re.extractedFields()) {
+                    references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
+                }
+            } else {
+                references.addAll(p.references());
+                if (p instanceof Keep) {
+                    keepCommandReferences.addAll(p.references());
+                }
+            }
+
+            // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
+            // for example "from test | eval x = salary | stats max = max(x) by gender"
+            // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+            p.forEachExpressionDown(Alias.class, alias -> {
+                // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
+                // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                if (p.references().names().contains(alias.qualifiedName())) {
+                    return;
+                }
+                references.removeIf(attr -> matchByName(attr, alias.qualifiedName(), keepCommandReferences.contains(attr)));
+            });
+        });
+
+        // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
+        // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
+        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
+        Set<String> fieldNames = references.names();
+        if (fieldNames.isEmpty()) {
+            return IndexResolver.ALL_FIELDS;
+        } else {
+            fieldNames.addAll(
+                fieldNames.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet())
+            );
+            return fieldNames;
+        }
+    }
+
+    private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
+        boolean isPattern = Regex.isSimpleMatchPattern(attr.qualifiedName());
+        if (skipIfPattern && isPattern) {
+            return false;
+        }
+        return isPattern ? Regex.simpleMatch(attr.qualifiedName(), other) : attr.qualifiedName().equals(other);
     }
 
     public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {

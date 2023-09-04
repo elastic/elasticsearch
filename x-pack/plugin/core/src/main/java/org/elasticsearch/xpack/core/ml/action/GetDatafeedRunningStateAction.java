@@ -180,7 +180,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(datafeedRunningState, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+            out.writeMap(datafeedRunningState, StreamOutput::writeWriteable);
         }
 
         @Override

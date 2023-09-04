@@ -2569,6 +2569,7 @@ beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_server
 :component:              Remote cluster server (API key based model)
+:enabled-by-default:
 :client-auth-default:    none
 :verifies!:
 :server:
@@ -2584,6 +2585,7 @@ beta::[]
 
 :ssl-prefix:             xpack.security.remote_cluster_client
 :component:              Remote cluster client (API key based model)
+:enabled-by-default:
 :client-auth-default:    none
 :verifies:
 :server!:
@@ -2636,13 +2638,14 @@ List of IP addresses to allow for this profile.
 (<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny for this profile.
 
-// TODO: fix the link to new page of API key based remote clusters
 `xpack.security.remote_cluster.filter.allow`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to allow just for the remote cluster server.
+beta:[] List of IP addresses to allow just for the
+<<remote-clusters-api-key,remote cluster server configured with the API key based model>>.
 
 `xpack.security.remote_cluster.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
-beta:[] List of IP addresses to deny just for the remote cluster server.
+beta:[] List of IP addresses to deny just for the remote cluster server configured with
+the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

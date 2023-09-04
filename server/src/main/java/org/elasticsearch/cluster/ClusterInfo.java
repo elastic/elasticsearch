@@ -106,14 +106,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
+        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
         if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
+            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         }
         if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }

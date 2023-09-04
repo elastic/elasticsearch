@@ -53,7 +53,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeInt(count);
         out.writeInt(indexCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        out.writeStringCollection(scriptLangs);
         out.writeLong(scriptLessCount);
         out.writeLong(shadowedCount);
         fieldScriptStats.writeTo(out);

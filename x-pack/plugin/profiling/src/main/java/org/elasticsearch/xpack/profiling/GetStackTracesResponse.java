@@ -81,10 +81,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public void writeTo(StreamOutput out) throws IOException {
         if (stackTraces != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraces, StreamOutput::writeString, (o, v) -> {
+            out.writeMap(stackTraces, (o, v) -> {
                 o.writeCollection(v.addressOrLines, StreamOutput::writeInt);
-                o.writeCollection(v.fileIds, StreamOutput::writeString);
-                o.writeCollection(v.frameIds, StreamOutput::writeString);
+                o.writeStringCollection(v.fileIds);
+                o.writeStringCollection(v.frameIds);
                 o.writeCollection(v.typeIds, StreamOutput::writeInt);
             });
         } else {
@@ -92,9 +92,9 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (stackFrames != null) {
             out.writeBoolean(true);
-            out.writeMap(stackFrames, StreamOutput::writeString, (o, v) -> {
-                o.writeCollection(v.fileName, StreamOutput::writeString);
-                o.writeCollection(v.functionName, StreamOutput::writeString);
+            out.writeMap(stackFrames, (o, v) -> {
+                o.writeStringCollection(v.fileName);
+                o.writeStringCollection(v.functionName);
                 o.writeCollection(v.functionOffset, StreamOutput::writeInt);
                 o.writeCollection(v.lineNumber, StreamOutput::writeInt);
             });
@@ -103,13 +103,13 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (executables != null) {
             out.writeBoolean(true);
-            out.writeMap(executables, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(executables, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
         if (stackTraceEvents != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraceEvents, StreamOutput::writeString, StreamOutput::writeInt);
+            out.writeMap(stackTraceEvents, StreamOutput::writeInt);
         } else {
             out.writeBoolean(false);
         }

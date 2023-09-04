@@ -118,7 +118,7 @@ public class FieldSelection implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(mappingTypes, StreamOutput::writeString);
+        out.writeStringCollection(mappingTypes);
         out.writeBoolean(isIncluded);
         out.writeBoolean(isRequired);
 

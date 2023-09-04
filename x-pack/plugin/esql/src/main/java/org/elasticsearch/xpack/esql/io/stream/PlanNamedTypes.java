@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.io.stream;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -887,7 +886,7 @@ public final class PlanNamedTypes {
     static void writeEsField(PlanStreamOutput out, EsField esField) throws IOException {
         out.writeString(esField.getName());
         out.writeString(esField.getDataType().typeName());
-        out.writeMap(esField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(esField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
         out.writeBoolean(esField.isAggregatable());
         out.writeBoolean(esField.isAlias());
     }
@@ -902,7 +901,7 @@ public final class PlanNamedTypes {
 
     static void writeDateEsField(PlanStreamOutput out, DateEsField dateEsField) throws IOException {
         out.writeString(dateEsField.getName());
-        out.writeMap(dateEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(dateEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
         out.writeBoolean(dateEsField.isAggregatable());
     }
 
@@ -928,7 +927,7 @@ public final class PlanNamedTypes {
 
     static void writeKeywordEsField(PlanStreamOutput out, KeywordEsField keywordEsField) throws IOException {
         out.writeString(keywordEsField.getName());
-        out.writeMap(keywordEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(keywordEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
         out.writeBoolean(keywordEsField.isAggregatable());
         out.writeInt(keywordEsField.getPrecision());
         out.writeBoolean(keywordEsField.getNormalized());
@@ -946,7 +945,7 @@ public final class PlanNamedTypes {
 
     static void writeTextEsField(PlanStreamOutput out, TextEsField textEsField) throws IOException {
         out.writeString(textEsField.getName());
-        out.writeMap(textEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(textEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
         out.writeBoolean(textEsField.isAggregatable());
         out.writeBoolean(textEsField.isAlias());
     }
@@ -964,7 +963,7 @@ public final class PlanNamedTypes {
         out.writeString(unsupportedEsField.getName());
         out.writeString(unsupportedEsField.getOriginalType());
         out.writeOptionalString(unsupportedEsField.getInherited());
-        out.writeMap(unsupportedEsField.getProperties(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(unsupportedEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
     }
 
     // -- BinaryComparison
@@ -1459,7 +1458,7 @@ public final class PlanNamedTypes {
 
     static void writeEsIndex(PlanStreamOutput out, EsIndex esIndex) throws IOException {
         out.writeString(esIndex.name());
-        out.writeMap(esIndex.mapping(), StreamOutput::writeString, (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(esIndex.mapping(), (o, v) -> out.writeNamed(EsField.class, v));
         out.writeGenericValue(esIndex.concreteIndices());
     }
 

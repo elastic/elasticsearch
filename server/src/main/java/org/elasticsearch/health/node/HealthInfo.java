@@ -28,6 +28,6 @@ public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode) implements 
 
     @Override
     public void writeTo(StreamOutput output) throws IOException {
-        output.writeMap(diskInfoByNode, StreamOutput::writeString, (out, diskHealthInfo) -> diskHealthInfo.writeTo(out));
+        output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
     }
 }

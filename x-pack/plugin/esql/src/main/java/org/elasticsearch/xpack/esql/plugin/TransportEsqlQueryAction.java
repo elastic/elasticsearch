@@ -106,7 +106,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 request,
                 sessionId,
                 configuration,
-                listener.delegateFailureAndWrap(
+                errorLoggingListener.delegateFailureAndWrap(
                     (delegate, plan) -> computeService.execute(
                         sessionId,
                         (CancellableTask) task,

@@ -72,7 +72,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         super(in);
         cause = in.readString();
         name = in.readString();
-        indexPatterns = in.readStringList();
+        indexPatterns = in.readStringCollectionAsList();
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);

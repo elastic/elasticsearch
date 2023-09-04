@@ -742,7 +742,7 @@ public final class Authentication implements ToXContentObject {
         CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,
         CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
-        in -> in.readList(RoleDescriptorsBytes::new)
+        in -> in.readCollectionAsList(RoleDescriptorsBytes::new)
     );
 
     private static Map<String, Object> readMetadata(StreamInput in) throws IOException {

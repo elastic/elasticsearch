@@ -94,7 +94,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
-            this.headers = in.readMap(StreamInput::readStringList);
+            this.headers = in.readMap(StreamInput::readStringCollectionAsList);
             this.clientAddress = in.readOptionalString();
         }
 

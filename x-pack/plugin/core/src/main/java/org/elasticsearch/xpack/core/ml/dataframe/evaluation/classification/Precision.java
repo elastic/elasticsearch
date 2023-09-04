@@ -232,7 +232,7 @@ public class Precision implements EvaluationMetric {
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = in.readImmutableList(PerClassSingleValue::new);
+            this.classes = in.readCollectionAsImmutableList(PerClassSingleValue::new);
             this.avgPrecision = in.readDouble();
         }
 

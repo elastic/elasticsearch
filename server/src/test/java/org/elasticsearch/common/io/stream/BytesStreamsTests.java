@@ -388,7 +388,7 @@ public class BytesStreamsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteableCollection(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
+                assertEquals(expected, in.readNamedWriteableCollectionAsList(BaseNamedWriteable.class));
                 assertEquals(0, in.available());
             }
         }
@@ -480,7 +480,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final List<TestWriteable> loaded = in.readList(TestWriteable::new);
+        final List<TestWriteable> loaded = in.readCollectionAsList(TestWriteable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 

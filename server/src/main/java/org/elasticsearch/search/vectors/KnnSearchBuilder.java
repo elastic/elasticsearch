@@ -206,7 +206,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.k = in.readVInt();
         this.numCands = in.readVInt();
         this.queryVector = in.readFloatArray();
-        this.filterQueries = in.readNamedWriteableList(QueryBuilder.class);
+        this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);

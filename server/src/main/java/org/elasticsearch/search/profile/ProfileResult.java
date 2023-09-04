@@ -80,7 +80,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         } else {
             debug = Map.of();
         }
-        children = in.readList(ProfileResult::new);
+        children = in.readCollectionAsList(ProfileResult::new);
     }
 
     @Override

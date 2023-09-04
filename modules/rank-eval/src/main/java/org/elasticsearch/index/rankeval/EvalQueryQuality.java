@@ -43,7 +43,7 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
     public EvalQueryQuality(StreamInput in) throws IOException {
         this.queryId = in.readString();
         this.metricScore = in.readDouble();
-        this.ratedHits = in.readList(RatedSearchHit::new);
+        this.ratedHits = in.readCollectionAsList(RatedSearchHit::new);
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetail.class);
     }
 

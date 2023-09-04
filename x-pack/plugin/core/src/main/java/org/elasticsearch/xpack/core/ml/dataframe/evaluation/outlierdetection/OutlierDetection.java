@@ -98,7 +98,7 @@ public class OutlierDetection implements Evaluation {
 
     public OutlierDetection(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString(), false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override

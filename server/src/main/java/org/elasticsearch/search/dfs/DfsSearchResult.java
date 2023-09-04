@@ -58,7 +58,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                knnResults = in.readOptionalList(DfsKnnResults::new);
+                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
             } else {
                 DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
                 knnResults = results != null ? List.of(results) : List.of();

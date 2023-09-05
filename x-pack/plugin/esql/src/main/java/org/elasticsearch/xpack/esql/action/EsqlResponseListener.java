@@ -26,18 +26,16 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
-
+    private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
+    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
     /**
      * Keep the initial query for logging purposes.
-      */
+     */
     private final String esqlQuery;
     private final long startNanos = System.nanoTime();
-    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
-
-    private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
 
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
         super(channel);

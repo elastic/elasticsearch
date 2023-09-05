@@ -4,8 +4,9 @@ GET /_remote/info
 ----
 // TEST[skip:TODO]
 
-The API should return `"connected" : true`. When using API key authentication,
-it should also return `"cluster_credentials": "::es_redacted::"`.
+The API should return `"connected" : true`. When using
+<<remote-clusters-api-key,API key authentication>>, it should also return
+`"cluster_credentials": "::es_redacted::"`.
 
 [source,console-result,subs=attributes+]
 ----
@@ -26,5 +27,6 @@ it should also return `"cluster_credentials": "::es_redacted::"`.
 ----
 // TEST[skip:TODO]
 <1> The remote cluster has connected successfully.
-<2> If present, indicates the remote cluster has connected using API key 
-authentication instead of certificate based authentication.
+<2> If present, indicates the remote cluster has connected using
+<<remote-clusters-api-key,API key authentication>> instead of
+<<remote-clusters-cert,certificate based authentication>>.

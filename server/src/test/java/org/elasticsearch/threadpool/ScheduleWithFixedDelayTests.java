@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -308,11 +309,15 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             barrier.await();
         }
+        expectThrows(TimeoutException.class, () -> barrier.await(2*interval.millis(), TimeUnit.MILLISECONDS));
 
         assertThat(counter.get(), equalTo(iterations));
 
         if (rarely()) {
-            assertBusy(() -> assertThat(counter.get(), equalTo(iterations)), 5 * interval.millis(), TimeUnit.MILLISECONDS);
+            assertBusy(() -> {
+                expectThrows(TimeoutException.class, () -> barrier.await(interval.millis(), TimeUnit.MILLISECONDS));
+                assertThat(counter.get(), equalTo(iterations));
+            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
         }
     }
 }

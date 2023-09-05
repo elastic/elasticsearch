@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -65,13 +65,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class ShardSizesCollectorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterSettings clusterSettings;
-    private ShardSizeStatsReader statsReader;
+    private ShardSizeStatsClient statsClient;
     private ShardSizesPublisher publisher;
 
     private ShardSizesCollector service;
@@ -94,10 +93,10 @@ public class ShardSizesCollectorTests extends ESTestCase {
             )
         );
 
-        statsReader = mock(ShardSizeStatsReader.class);
+        statsClient = mock(ShardSizeStatsClient.class);
         publisher = mock(ShardSizesPublisher.class);
 
-        service = new ShardSizesCollector(clusterSettings, threadPool, statsReader, publisher, true);
+        service = new ShardSizesCollector(clusterSettings, threadPool, statsClient, publisher, true);
         service.setNodeId("search_node_1");
         service.setMinTransportVersion(TransportVersion.V_8_500_027);
     }
@@ -114,7 +113,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
+        setUpShardSize(shardId, size);
         service.detectShardSize(shardId);
         service.doStart();
 
@@ -127,8 +126,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId2 = new ShardId("index-2", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(size);
-        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(size);
+        setUpShardSize(shardId1, size);
+        setUpShardSize(shardId2, size);
         service.detectShardSize(shardId1);
         service.detectShardSize(shardId2);
         service.doStart();
@@ -143,7 +142,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = new ShardSize(1024, 1024);
 
-        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
+        setUpShardSize(shardId, size);
         service.detectShardSize(shardId);
         service.doStart();
 
@@ -158,11 +157,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var shardId = new ShardId("index-1", "_na_", 0);
         var size = ShardSize.EMPTY;
 
-        when(statsReader.getShardSize(eq(shardId), any())).thenReturn(size);
+        setUpShardSize(shardId, size);
         service.detectShardSize(shardId);
         service.doStart();
 
-        assertBusy(() -> { verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()); });
+        assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
     }
 
     public void testPublicationIsRetried() throws Exception {
@@ -178,11 +177,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
         }).when(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any());
 
         service.doStart();
-        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(size);
+        setUpShardSize(shardId1, size);
         service.detectShardSize(shardId1);
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any()));
 
-        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(size);
+        setUpShardSize(shardId2, size);
         service.detectShardSize(shardId2);
         assertBusy(
             () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
@@ -197,8 +196,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var bigSize = new ShardSize(1024 * 1024, 1024);
 
         // scheduling is disabled to test immediate sending
-        when(statsReader.getShardSize(eq(shardId1), any())).thenReturn(smallSize);
-        when(statsReader.getShardSize(eq(shardId2), any())).thenReturn(bigSize);
+        setUpShardSize(shardId1, smallSize);
+        setUpShardSize(shardId2, bigSize);
 
         service.detectShardSize(shardId1);
         service.detectShardSize(shardId2);
@@ -218,7 +217,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = new ShardSize(1024, 1024);
 
         // scheduling is disabled to test immediate sending
-        when(statsReader.getAllShardSizes(any())).thenReturn(Map.of(shardId1, size, shardId2, size));
+        setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
 
         var state1 = ClusterState.EMPTY_STATE;
         var state2 = createClusterStateWithNodes(2).build();
@@ -236,7 +235,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = new ShardSize(1024, 1024);
 
         // scheduling is disabled to test immediate sending
-        when(statsReader.getAllShardSizes(any())).thenReturn(Map.of(shardId1, size, shardId2, size));
+        setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
 
         service.doStart();
         clusterSettings.applySettings(
@@ -263,7 +262,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata1, false).build()).build();
 
         var size = new ShardSize(1024, 1024);
-        when(statsReader.getAllShardSizes(any())).thenReturn(
+        setUpAllShardSizes(
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), size),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), size),
@@ -335,9 +334,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
             .build();
 
         var size = new ShardSize(1024, 1024);
-        when(statsReader.getAllShardSizes(any())).thenReturn(
-            Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size)
-        );
+        setUpAllShardSizes(Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size));
         var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -392,5 +389,23 @@ public class ShardSizesCollectorTests extends ESTestCase {
         return IndexRoutingTable.builder(index)
             .addShard(newShardRouting(new ShardId(index, 0), nodeId, true, ShardRoutingState.STARTED))
             .build();
+    }
+
+    private void setUpShardSize(ShardId shardId, ShardSize size) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<ShardSize>) invocation.getArgument(2, ActionListener.class);
+            listener.onResponse(size);
+            return null;
+        }).when(statsClient).getShardSize(eq(shardId), any(), any());
+    }
+
+    private void setUpAllShardSizes(Map<ShardId, ShardSize> sizes) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<Map<ShardId, ShardSize>>) invocation.getArgument(1, ActionListener.class);
+            listener.onResponse(sizes);
+            return null;
+        }).when(statsClient).getAllShardSizes(any(), any());
     }
 }

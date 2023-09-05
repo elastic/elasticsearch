@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -78,7 +78,7 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final Executor executor;
-    private final ShardSizeStatsReader shardSizeStatsReader;
+    private final ShardSizeStatsClient shardSizeStatsClient;
     private final ShardSizesPublisher shardSizesPublisher;
     private final boolean isSearchNode;
 
@@ -126,11 +126,11 @@ public class ShardSizesCollector implements ClusterStateListener {
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ShardSizeStatsReader shardSizeStatsReader,
+        ShardSizeStatsClient chardSizeStatsClient,
         ShardSizesPublisher shardSizesPublisher,
         boolean isSearchNode
     ) {
-        var collector = new ShardSizesCollector(clusterSettings, threadPool, shardSizeStatsReader, shardSizesPublisher, isSearchNode);
+        var collector = new ShardSizesCollector(clusterSettings, threadPool, chardSizeStatsClient, shardSizesPublisher, isSearchNode);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -149,13 +149,13 @@ public class ShardSizesCollector implements ClusterStateListener {
     public ShardSizesCollector(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        ShardSizeStatsReader shardSizeStatsReader,
+        ShardSizeStatsClient shardSizeStatsClient,
         ShardSizesPublisher shardSizesPublisher,
         boolean isSearchNode
     ) {
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
-        this.shardSizeStatsReader = shardSizeStatsReader;
+        this.shardSizeStatsClient = shardSizeStatsClient;
         this.shardSizesPublisher = shardSizesPublisher;
         this.isSearchNode = isSearchNode;
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> {
@@ -222,11 +222,20 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     public void detectShardSize(ShardId shardId) {
         assert isSearchNode : "Should be executed only on search nodes";
-        var shardSize = shardSizeStatsReader.getShardSize(shardId, boostWindowInterval);
-        logger.debug("Detected size {} for shard {}", shardSize, shardId);
-        if (shardSize != null && pendingPublication.add(shardId, shardSize)) {
-            publishDiffNow();
-        }
+        shardSizeStatsClient.getShardSize(shardId, boostWindowInterval, new ActionListener<>() {
+            @Override
+            public void onResponse(ShardSize shardSize) {
+                logger.debug("Detected size {} for shard {}", shardSize, shardId);
+                if (shardSize != null && pendingPublication.add(shardId, shardSize)) {
+                    publishDiffNow();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "Failed to detected size for shard " + shardId, e);
+            }
+        });
     }
 
     private void publishAllNow() {
@@ -242,27 +251,36 @@ public class ShardSizesCollector implements ClusterStateListener {
         pendingPublication.drain(); // all shards are going to be published from scratch
         pastPublications.clear();
 
-        var allShardSizes = shardSizeStatsReader.getAllShardSizes(boostWindowInterval);
-        logger.debug("Publishing all shard sized {}", allShardSizes);
-        shardSizesPublisher.publishSearchShardDiskUsage(nodeId, allShardSizes, new ActionListener<>() {
+        shardSizeStatsClient.getAllShardSizes(boostWindowInterval, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
-                pastPublications.putAll(allShardSizes);
+            public void onResponse(Map<ShardId, ShardSize> allShardSizes) {
+                logger.debug("Publishing all shard sized {}", allShardSizes);
+                shardSizesPublisher.publishSearchShardDiskUsage(nodeId, allShardSizes, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        pastPublications.putAll(allShardSizes);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(getExceptionLogLevel(e), () -> "Failed to publish all nodes shard sizes", e);
+                        pendingPublication.retry(allShardSizes);
+                    }
+                });
+                scheduleNextDiffPublication();
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.log(getExceptionLogLevel(e), () -> "Failed to publish all nodes shard sizes", e);
-                pendingPublication.retry(allShardSizes);
+                logger.debug(() -> "Failed to detect all shard sizes", e);
             }
         });
-        scheduleNextDiffPublication();
     }
 
     private void publishDiffNow() {
         PublishTask newPublishTask = new PublishTask();
         publishTask = newPublishTask;
-        threadPool.generic().submit(newPublishTask::run);
+        threadPool.generic().submit(newPublishTask);
     }
 
     private void scheduleNextDiffPublication() {

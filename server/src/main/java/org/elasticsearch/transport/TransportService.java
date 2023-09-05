@@ -79,14 +79,10 @@ public class TransportService extends AbstractLifecycleComponent
      * A feature flag enabling transport upgrades for serverless.
      */
     private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
-    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG;
-    static {
-        final boolean serverlessFlag = Booleans.parseBoolean(System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY), false);
-        if (serverlessFlag && Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("Enabling serverless transport is only supported in snapshot builds");
-        }
-        SERVERLESS_TRANSPORT_FEATURE_FLAG = serverlessFlag;
-    }
+    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
+        System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
+        false
+    );
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";

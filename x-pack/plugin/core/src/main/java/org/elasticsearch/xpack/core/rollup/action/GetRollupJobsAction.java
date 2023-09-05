@@ -143,7 +143,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            jobs = in.readList(JobWrapper::new);
+            jobs = in.readCollectionAsList(JobWrapper::new);
         }
 
         @Override

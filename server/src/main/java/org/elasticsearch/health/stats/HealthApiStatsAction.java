@@ -89,7 +89,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
         @Override
         protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(Node::new);
+            return in.readCollectionAsList(Node::new);
         }
 
         @Override

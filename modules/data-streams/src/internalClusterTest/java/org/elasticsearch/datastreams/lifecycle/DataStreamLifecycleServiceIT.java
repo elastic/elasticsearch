@@ -380,7 +380,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             null,
             lifecycle
         );
-        Iterable<DataStreamLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -463,7 +462,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             null,
             lifecycle
         );
-        Iterable<DataStreamLifecycleService> dataLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);

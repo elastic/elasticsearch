@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Create Cross-Cluster API key</titleabbrev>
 ++++
 
-Creates an API key of the `cross_cluster` type for the API key based remote cluster access.
+Creates an API key of the `cross_cluster` type for the <<remote-clusters-api-key,API key based remote cluster>> access.
 A `cross_cluster` API key cannot be used to authenticate through the REST interface.
 On the contrary, a <<security-api-create-api-key,REST API key>> is meant to be used through the REST interface
 and cannot be used for the API key based remote cluster access.

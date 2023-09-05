@@ -427,7 +427,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
-        params = in.readList(AbstractSqlQueryRequest::readSqlTypedParamValue);
+        params = in.readCollectionAsList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             catalog = in.readOptionalString();

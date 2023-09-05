@@ -101,7 +101,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
             if (in.readBoolean()) {
-                detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
+                detectorUpdates = in.readCollectionAsList(JobUpdate.DetectorUpdate::new);
             }
             filter = in.readOptionalWriteable(MlFilter::new);
             updateScheduledEvents = in.readBoolean();

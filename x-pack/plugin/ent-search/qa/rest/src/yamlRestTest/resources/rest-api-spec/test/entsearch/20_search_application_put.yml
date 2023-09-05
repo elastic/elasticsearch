@@ -125,6 +125,7 @@ teardown:
   - do:
       search_application.get:
         name: test-search-application
+  - match: { indices: [ "test-index1", "test-index2" ] }
   - match:
       template:
         script:

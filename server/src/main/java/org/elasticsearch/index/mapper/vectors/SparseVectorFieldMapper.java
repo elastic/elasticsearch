@@ -45,11 +45,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported from 8.0 to 8.10 versions.";
     static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_0_0;
 
-    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_500_000;
-
-    private static SparseVectorFieldType ft(FieldMapper in) {
-        return ((SparseVectorFieldMapper) in).fieldType();
-    }
+    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_500_001;
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -154,7 +150,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         // No support for indexing / searching 7.x sparse_vector field types
         if (context.indexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
-        } else if (context.indexSettings().getIndexVersionCreated().before(IndexVersion.V_8_11_0)) {
+        } else if (context.indexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_8X);
         }
 
@@ -183,8 +179,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
-                            "[sparse_vector] fields do not support indexing multiple values for the same "
-                                + "rank feature ["
+                            "[sparse_vector] fields do not support indexing multiple values for the same feature ["
                                 + key
                                 + "] in the same document"
                         );

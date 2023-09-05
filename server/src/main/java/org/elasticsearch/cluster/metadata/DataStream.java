@@ -795,7 +795,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     static List<Index> readIndices(StreamInput in) throws IOException {
         in.readString(); // timestamp field, which is always @timestamp
-        return in.readImmutableList(Index::new);
+        return in.readCollectionAsImmutableList(Index::new);
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {

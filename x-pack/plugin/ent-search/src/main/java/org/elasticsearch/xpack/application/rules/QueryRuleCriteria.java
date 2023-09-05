@@ -74,7 +74,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         this.criteriaType = in.readEnum(QueryRuleCriteriaType.class);
         if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             this.criteriaMetadata = in.readOptionalString();
-            this.criteriaValues = in.readOptionalList(StreamInput::readGenericValue);
+            this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
         } else {
             this.criteriaMetadata = in.readString();
             this.criteriaValues = List.of(in.readGenericValue());

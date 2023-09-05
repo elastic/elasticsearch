@@ -81,11 +81,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = in.readImmutableList(StreamInput::readString);
-        this.nodes = in.readImmutableList(TreeNode::new);
+        this.featureNames = in.readCollectionAsImmutableList(StreamInput::readString);
+        this.nodes = in.readCollectionAsImmutableList(TreeNode::new);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = in.readImmutableList(StreamInput::readString);
+            this.classificationLabels = in.readCollectionAsImmutableList(StreamInput::readString);
         } else {
             this.classificationLabels = null;
         }

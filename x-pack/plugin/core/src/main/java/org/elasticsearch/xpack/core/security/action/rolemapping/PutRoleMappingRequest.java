@@ -46,9 +46,9 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         super(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
+        this.roles = in.readStringCollectionAsList();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
+            this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();

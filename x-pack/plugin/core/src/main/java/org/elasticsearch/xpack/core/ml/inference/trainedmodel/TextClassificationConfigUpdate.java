@@ -82,7 +82,7 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
 
     public TextClassificationConfigUpdate(StreamInput in) throws IOException {
         super(in);
-        classificationLabels = in.readOptionalStringList();
+        classificationLabels = in.readOptionalStringCollectionAsList();
         numTopClasses = in.readOptionalVInt();
         resultsField = in.readOptionalString();
     }

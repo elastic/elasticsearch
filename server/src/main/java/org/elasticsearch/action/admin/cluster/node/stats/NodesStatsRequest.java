@@ -43,7 +43,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        requestedMetrics.addAll(in.readStringCollectionAsList());
     }
 
     /**

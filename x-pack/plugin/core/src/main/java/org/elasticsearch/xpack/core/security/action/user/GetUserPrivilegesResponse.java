@@ -43,13 +43,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        cluster = in.readImmutableSet(StreamInput::readString);
-        configurableClusterPrivileges = in.readImmutableSet(ConfigurableClusterPrivileges.READER);
-        index = in.readImmutableSet(Indices::new);
-        application = in.readImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
-        runAs = in.readImmutableSet(StreamInput::readString);
+        cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
+        configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
+        index = in.readCollectionAsImmutableSet(Indices::new);
+        application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
+        runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            remoteIndex = in.readImmutableSet(RemoteIndices::new);
+            remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         } else {
             remoteIndex = Set.of();
         }
@@ -144,7 +144,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
 
         public RemoteIndices(StreamInput in) throws IOException {
-            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString))));
+            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString))));
         }
 
         @Override
@@ -190,14 +190,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         public Indices(StreamInput in) throws IOException {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
-            indices = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            fieldSecurity = in.readImmutableSet(input -> {
+            indices = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            fieldSecurity = in.readCollectionAsImmutableSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
             });
-            queries = in.readImmutableSet(StreamInput::readBytesReference);
+            queries = in.readCollectionAsImmutableSet(StreamInput::readBytesReference);
             this.allowRestrictedIndices = in.readBoolean();
         }
 

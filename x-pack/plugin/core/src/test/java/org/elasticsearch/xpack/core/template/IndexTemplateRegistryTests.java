@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
@@ -22,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -31,6 +34,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -58,13 +62,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -269,6 +278,87 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         );
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(4)));
+    }
+
+    public void testAutomaticRolloverDisabled() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterState state = createClusterState(
+            Map.of("custom-plugin-settings", 2, "custom-plugin-template", 2),
+            Collections.emptyMap(),
+            Map.of("custom-plugin-default_pipeline", 2, "custom-plugin-final_pipeline", 2),
+            nodes
+        );
+        Map<String, ComposableIndexTemplate> composableTemplateConfigs = registry.getComposableTemplateConfigs();
+        for (Map.Entry<String, ComposableIndexTemplate> entry : composableTemplateConfigs.entrySet()) {
+            ComposableIndexTemplate template = entry.getValue();
+            state = ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder(Objects.requireNonNull(state).metadata())
+                        .put(
+                            entry.getKey(),
+                            new ComposableIndexTemplate(
+                                template.indexPatterns(),
+                                template.template(),
+                                template.composedOf(),
+                                template.priority(),
+                                2L,
+                                template.metadata(),
+                                template.getDataStreamTemplate()
+                            )
+                        )
+                )
+                .build();
+        }
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(Objects.requireNonNull(state).metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-my_app-1",
+                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-my_app-2",
+                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "traces-my_app-1",
+                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
+                        )
+                    )
+            )
+            .build();
+        ClusterChangedEvent event = createClusterChangedEvent(nodes, state);
+
+        AtomicInteger rolloverCounter = new AtomicInteger(0);
+        AtomicInteger putIndexTemplateCounter = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof RolloverAction) {
+                rolloverCounter.incrementAndGet();
+                RolloverRequest rolloverRequest = ((RolloverRequest) request);
+                assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                putIndexTemplateCounter.incrementAndGet();
+            }
+            return AcknowledgedResponse.TRUE;
+        });
+
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        // no rollover on upgrade because the test registry doesn't support automatic rollover by default
+        assertThat(rolloverCounter.get(), equalTo(0));
+
+        registry.setApplyRollover(true);
+        putIndexTemplateCounter.set(0);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
@@ -551,10 +641,22 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingIngestPipelines,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, existingIngestPipelines, nodes);
+        ClusterState clusterState = createClusterState(
+            existingTemplates,
+            existingPolicies,
+            existingIngestPipelines,
+            nodes
+        );
+        return createClusterChangedEvent(nodes, clusterState);
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(
+        DiscoveryNodes nodes,
+        ClusterState state
+    ) {
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
-            cs,
+            state,
             ClusterState.builder(new ClusterName("test")).build()
         );
         ClusterChangedEvent event = spy(realEvent);
@@ -564,7 +666,6 @@ public class IndexTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         Map<String, Integer> existingIngestPipelines,
@@ -600,7 +701,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .componentTemplates(componentTemplates)
-                    .transientSettings(nodeSettings)
+                    .transientSettings(Settings.EMPTY)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
                     .putCustom(IngestMetadata.TYPE, ingestMetadata)
                     .build()
@@ -608,6 +709,87 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
+    }
+
+    // ------------- functionality unit test --------
+
+    public void testFindRolloverTargetDataStreams() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "ds1",
+                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "ds2",
+                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "ds3",
+                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "ds4",
+                            Collections.singletonList(new Index(".ds-ds4-000001", "ds4i"))
+                        )
+                    )
+            )
+            .build();
+
+        ComposableIndexTemplate it1 = new ComposableIndexTemplate(
+            List.of("ds1*", "ds2*", "ds3*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        ComposableIndexTemplate it2 = new ComposableIndexTemplate(
+            List.of("ds2*"),
+            null,
+            null,
+            200L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        ComposableIndexTemplate it5 = new ComposableIndexTemplate(
+            List.of("ds5*"),
+            null,
+            null,
+            200L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put("it1", it1)
+                    .put("it2", it2)
+                    .put("it5", it5)
+            )
+            .build();
+
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it1", it1), containsInAnyOrder("ds1", "ds3"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it2", it2), contains("ds2"));
+        assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it5", it5), empty());
     }
 
     // -------------

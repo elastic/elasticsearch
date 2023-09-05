@@ -22,13 +22,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     public static final int REGISTRY_VERSION = 3;
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.custom_plugin.template.version";
 
-    private boolean policyUpgradeRequired = false;
+    private final AtomicBoolean policyUpgradeRequired = new AtomicBoolean(false);
+    private final AtomicBoolean applyRollover = new AtomicBoolean(false);
 
     TestRegistryWithCustomPlugin(
         Settings nodeSettings,
@@ -102,11 +104,20 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     @Override
     protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
-        return policyUpgradeRequired;
+        return policyUpgradeRequired.get();
     }
 
     public void setPolicyUpgradeRequired(boolean policyUpgradeRequired) {
-        this.policyUpgradeRequired = policyUpgradeRequired;
+        this.policyUpgradeRequired.set(policyUpgradeRequired);
+    }
+
+    @Override
+    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+        return applyRollover.get();
+    }
+
+    public void setApplyRollover(boolean shouldApplyRollover) {
+        applyRollover.set(shouldApplyRollover);
     }
 
     @Override

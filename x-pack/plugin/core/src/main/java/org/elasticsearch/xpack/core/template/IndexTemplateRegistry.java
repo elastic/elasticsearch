@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.core.template;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -22,10 +26,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +51,7 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -394,7 +403,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     );
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComposableTemplate(state, templateName, newTemplate.getValue(), creationCheck, false);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
@@ -405,7 +414,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         currentTemplate.version(),
                         newTemplate.getValue().version()
                     );
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
+                    putComposableTemplate(state, templateName, newTemplate.getValue(), creationCheck, true);
                 } else {
                     creationCheck.set(false);
                     logger.trace(
@@ -501,9 +510,11 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void putComposableTemplate(
+        ClusterState state,
         final String templateName,
         final ComposableIndexTemplate indexTemplate,
-        final AtomicBoolean creationCheck
+        final AtomicBoolean creationCheck,
+        final boolean isUpgrade
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
@@ -518,8 +529,14 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
-                        creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
+                        if (response.isAcknowledged()) {
+                            if (isUpgrade && applyRolloverAfterTemplateV2Upgrade()) {
+                                invokeRollover(state, templateName, indexTemplate, creationCheck);
+                            } else {
+                                creationCheck.set(false);
+                            }
+                        } else {
+                            creationCheck.set(false);
                             logger.error(
                                 "error adding composable template [{}] for [{}], request was not acknowledged",
                                 templateName,
@@ -690,7 +707,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private void putIngestPipeline(final IngestPipelineConfig pipelineConfig, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            // todo - use the xconent type from the pipeline config
             PutPipelineRequest request = new PutPipelineRequest(
                 pipelineConfig.getId(),
                 pipelineConfig.loadConfig(),
@@ -729,6 +745,17 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
+     * Allows registries to opt-in for automatic rollover of "relevant" data streams immediately after a composable index template gets
+     * upgraded. If set to {@code true}, then every time a composable index template is being upgraded, all data streams of which name
+     * matches this template's index patterns AND of all matching templates the upgraded one has the highest priority, will be rolled over.
+     *
+     * @return {@code true} if this registry wants to apply automatic rollovers after template V2 upgrades
+     */
+    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+        return false;
+    }
+
+    /**
      * Called when creation of an ingest pipeline fails.
      *
      * @param pipelineId the pipeline that failed to be created.
@@ -736,5 +763,83 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     protected void onPutPipelineFailure(String pipelineId, Exception e) {
         logger.error(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
+    }
+
+    private void invokeRollover(
+        final ClusterState state,
+        final String templateName,
+        final ComposableIndexTemplate indexTemplate,
+        final AtomicBoolean creationCheck
+    ) {
+        final Executor executor = threadPool.generic();
+        executor.execute(() -> {
+            List<String> rolloverTargets = findRolloverTargetDataStreams(state, templateName, indexTemplate);
+            if (rolloverTargets.isEmpty() == false) {
+                GroupedActionListener<RolloverResponse> groupedActionListener = new GroupedActionListener<>(
+                    rolloverTargets.size(),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Collection<RolloverResponse> rolloverResponses) {
+                            creationCheck.set(false);
+                            for (RolloverResponse rolloverResponse : rolloverResponses) {
+                                if (rolloverResponse.isRolledOver() == false) {
+                                    // todo - log warning for each non-rolled-over
+                                    logger.warn("");
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            creationCheck.set(false);
+                            // todo - log error for e
+                            logger.error("");
+                            for (Throwable throwable : e.getSuppressed()) {
+                                // todo - log the same
+                                logger.error("");
+                            }
+                        }
+                    }
+                );
+                for (String rolloverTarget : rolloverTargets) {
+                    // todo - log info that we apply a rollover
+                    logger.info("");
+                    RolloverRequest request = new RolloverRequest(rolloverTarget, null);
+                    request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        getOrigin(),
+                        request,
+                        groupedActionListener,
+                        (req, listener) -> client.execute(RolloverAction.INSTANCE, req, listener)
+                    );
+                }
+            }
+        });
+    }
+
+    /**
+     * Finds rollover target data streams based on the provided index template. A matching rollover target data stream is such that:
+     * <ol>
+     *     <li> matches the provided index template's index patterns
+     *     <li> of all index templates that have index patterns matching its name, the one with the highest priority is the one provided
+     *     as argument
+     * </ol>
+     *
+     * @param state         the cluster state
+     * @param templateName  the ID by which the provided index template is being registered
+     * @param indexTemplate the index template for which a data stream is looked up as rollover target
+     * @return the list of rollover targets matching the provided index template
+     */
+    static List<String> findRolloverTargetDataStreams(ClusterState state, String templateName, ComposableIndexTemplate indexTemplate) {
+        final Metadata metadata = state.metadata();
+        return metadata.dataStreams()
+            .values()
+            .stream()
+            // Limit to checking data streams that match any of the index template's index patterns
+            .filter(ds -> indexTemplate.indexPatterns().stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
+            .filter(ds -> templateName.equals(MetadataIndexTemplateService.findV2Template(metadata, ds.getName(), ds.isHidden())))
+            .map(DataStream::getName)
+            .collect(Collectors.toList());
     }
 }

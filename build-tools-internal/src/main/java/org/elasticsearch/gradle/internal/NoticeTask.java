@@ -167,6 +167,10 @@ public class NoticeTask extends DefaultTask {
         }
 
         FileUtils.write(outputFile, output.toString(), "UTF-8");
+        // i.e. 0644
+        outputFile.setReadable(true);
+        outputFile.setWritable(false, false);
+        outputFile.setWritable(true, true);
     }
 
     @InputFiles

@@ -186,7 +186,7 @@ public class TsdbIT extends AbstractRollingTestCase {
         }
     }
 
-    private void performUpgradedClusterOperations(String dataStreamName) throws IOException {
+    private void performUpgradedClusterOperations(String dataStreamName) throws Exception {
         ensureGreen(dataStreamName);
         var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
         assertOK(client().performRequest(rolloverRequest));
@@ -198,6 +198,19 @@ public class TsdbIT extends AbstractRollingTestCase {
         assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
         indexDoc(dataStreamName);
         assertSearch(dataStreamName, 10);
+
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+        closeIndex(firstBackingIndex);
+        closeIndex(secondBackingIndex);
+        openIndex(firstBackingIndex);
+        openIndex(secondBackingIndex);
+        assertBusy(() -> {
+            try {
+                assertSearch(dataStreamName, 10);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     private static void performMixedClusterOperations(String dataStreamName) throws IOException {

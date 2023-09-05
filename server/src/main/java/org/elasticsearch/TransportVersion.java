@@ -173,7 +173,6 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_058 = registerTransportVersion(8_500_058, "41d9c98a-1de2-4dc1-86f1-abd4cc1bef57");
     public static final TransportVersion V_8_500_059 = registerTransportVersion(8_500_059, "2f2090c0-7cd0-4a10-8f02-63d26073604f");
     public static final TransportVersion V_8_500_060 = registerTransportVersion(8_500_060, "ec065a44-b468-4f8a-aded-7b90ca8d792b");
-    // 8.10.0 release version is:
     public static final TransportVersion V_8_500_061 = registerTransportVersion(8_500_061, "4e07f830-8be4-448c-851e-62b3d2f0bf0a");
     public static final TransportVersion V_8_500_062 = registerTransportVersion(8_500_062, "09CD9C9B-3207-4B40-8756-B7A12001A885");
     public static final TransportVersion V_8_500_063 = registerTransportVersion(8_500_063, "31dedced-0055-4f34-b952-2f6919be7488");
@@ -182,7 +181,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     public static final TransportVersion V_8_500_066 = registerTransportVersion(8_500_066, "F398ECC6-5D2A-4BD8-A9E8-1101F030DF85");
     public static final TransportVersion V_8_500_067 = registerTransportVersion(8_500_067, "a7c86604-a917-4aff-9a1b-a4d44c3dbe02");
     public static final TransportVersion V_8_500_068 = registerTransportVersion(8_500_068, "2683c8b4-5372-4a6a-bb3a-d61aa679089a");
-
+    public static final TransportVersion V_8_500_069 = registerTransportVersion(8_500_069, "5b804027-d8a0-421b-9970-1f53d766854b");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -202,10 +201,25 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      *
      * If you revert a commit with a transport version change, you MUST ensure there is a NEW transport version representing the reverted
      * change. DO NOT let the transport version go backwards, it must ALWAYS be incremented.
+     *
+     * DETERMINING TRANSPORT VERSIONS FROM GIT HISTORY
+     *
+     * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
+     * transport versions known by a particular release ...
+     *
+     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
+     *
+     * ... or by a particular branch ...
+     *
+     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
+     *
+     * ... and you can see which versions were added in between two versions too ...
+     *
+     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersion.java
      */
 
     private static class CurrentHolder {
-        private static final TransportVersion CURRENT = findCurrent(V_8_500_068);
+        private static final TransportVersion CURRENT = findCurrent(V_8_500_069);
 
         // finds the pluggable current version, or uses the given fallback
         private static TransportVersion findCurrent(TransportVersion fallback) {

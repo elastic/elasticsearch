@@ -408,11 +408,12 @@ public class JoinHelper {
     }
 
     class LeaderJoinAccumulator implements JoinAccumulator {
+        // TODO[wrb]: transportVersion --> compatibility versions
         @Override
         public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
-                transportVersion,
+                new CompatibilityVersions(transportVersion),
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()

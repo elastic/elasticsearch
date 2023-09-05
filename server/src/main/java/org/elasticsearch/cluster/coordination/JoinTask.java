@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -26,18 +25,12 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
 
     public static JoinTask singleNode(
         DiscoveryNode node,
-        TransportVersion transportVersion,
+        CompatibilityVersions compatibilityVersions,
         JoinReason reason,
         ActionListener<Void> listener,
         long term
     ) {
-        // TODO[wrb]: pass compatibility versions
-        return new JoinTask(
-            List.of(new NodeJoinTask(node, new CompatibilityVersions(transportVersion), reason, listener)),
-            false,
-            term,
-            null
-        );
+        return new JoinTask(List.of(new NodeJoinTask(node, compatibilityVersions, reason, listener)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {

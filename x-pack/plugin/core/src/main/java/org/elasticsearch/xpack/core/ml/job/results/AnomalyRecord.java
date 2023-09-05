@@ -207,14 +207,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         isInterim = in.readBoolean();
         if (in.readBoolean()) {
-            causes = in.readList(AnomalyCause::new);
+            causes = in.readCollectionAsList(AnomalyCause::new);
         }
         recordScore = in.readDouble();
         initialRecordScore = in.readDouble();
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         if (in.readBoolean()) {
-            influences = in.readList(Influence::new);
+            influences = in.readCollectionAsList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {

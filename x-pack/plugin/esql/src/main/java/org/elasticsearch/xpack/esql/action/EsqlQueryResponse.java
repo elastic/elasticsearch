@@ -80,8 +80,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     public EsqlQueryResponse(StreamInput in) throws IOException {
         super(in);
-        this.columns = in.readList(ColumnInfo::new);
-        this.pages = in.readList(Page::new);
+        this.columns = in.readCollectionAsList(ColumnInfo::new);
+        this.pages = in.readCollectionAsList(Page::new);
         this.columnar = in.readBoolean();
     }
 

@@ -21,6 +21,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 docsEval
 // tag::eval[]
 FROM employees
+| SORT emp_no
 | KEEP first_name, last_name, height
 | EVAL height_feet = height * 3.281, height_cm = height * 100
 // end::eval[]
@@ -36,6 +37,7 @@ Georgi |Facello | 2.03 | 6.66043 | 202.99999999999997
 docsEvalReplace
 // tag::evalReplace[]
 FROM employees
+| SORT emp_no
 | KEEP first_name, last_name, height
 | EVAL height = height * 3.281
 // end::evalReplace[]
@@ -51,10 +53,10 @@ Georgi | Facello | 6.66043
 docsLimit
 // tag::limit[]
 FROM employees
+| SORT emp_no ASC
 | LIMIT 5
 // end::limit[]
 | KEEP emp_no
-| SORT emp_no ASC
 ;
 
 emp_no:integer

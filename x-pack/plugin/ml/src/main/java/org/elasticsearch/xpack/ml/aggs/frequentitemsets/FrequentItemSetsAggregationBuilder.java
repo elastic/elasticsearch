@@ -160,7 +160,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        this.fields = in.readList(MultiValuesSourceFieldConfig::new);
+        this.fields = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();

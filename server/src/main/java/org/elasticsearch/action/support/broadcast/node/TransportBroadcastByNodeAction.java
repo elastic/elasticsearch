@@ -469,7 +469,7 @@ public abstract class TransportBroadcastByNodeAction<
         NodeRequest(StreamInput in) throws IOException {
             super(in);
             indicesLevelRequest = readRequestFrom(in);
-            shards = in.readList(ShardRouting::new);
+            shards = in.readCollectionAsList(ShardRouting::new);
             nodeId = in.readString();
         }
 
@@ -552,9 +552,9 @@ public abstract class TransportBroadcastByNodeAction<
             super(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
-            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
+            results = in.readCollectionAsList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
             if (in.readBoolean()) {
-                exceptions = in.readList(BroadcastShardOperationFailedException::new);
+                exceptions = in.readCollectionAsList(BroadcastShardOperationFailedException::new);
             } else {
                 exceptions = null;
             }

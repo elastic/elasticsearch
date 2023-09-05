@@ -414,12 +414,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalList(Round::read));
+            return new Downsampling(in.readOptionalCollectionAsList(Round::read));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, (o, v) -> v.writeTo(o));
+            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
         }
 
         @Override

@@ -46,11 +46,11 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     private final String simpleReason;
 
     public MlScalingReason(StreamInput in) throws IOException {
-        this.waitingAnalyticsJobs = in.readStringList();
-        this.waitingAnomalyJobs = in.readStringList();
-        this.waitingSnapshotUpgrades = in.readStringList();
+        this.waitingAnalyticsJobs = in.readStringCollectionAsList();
+        this.waitingAnomalyJobs = in.readStringCollectionAsList();
+        this.waitingSnapshotUpgrades = in.readStringCollectionAsList();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-            this.waitingModels = in.readStringList();
+            this.waitingModels = in.readStringCollectionAsList();
         } else {
             this.waitingModels = List.of();
         }

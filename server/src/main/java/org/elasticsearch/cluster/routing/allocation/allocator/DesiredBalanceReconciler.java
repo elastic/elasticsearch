@@ -348,7 +348,7 @@ public class DesiredBalanceReconciler {
 
             @Override
             public boolean hasNext() {
-                if (nodeIds.hasNext() == false && Objects.equals(source, "desired") && shard.primary() && wasThrottled == false) {
+                if (nodeIds.hasNext() == false && Objects.equals(source, "fallback") == false && shard.primary() && wasThrottled == false) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
                     logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     nodeIds = allocationOrdering.sort(fallbackNodeIds).iterator();

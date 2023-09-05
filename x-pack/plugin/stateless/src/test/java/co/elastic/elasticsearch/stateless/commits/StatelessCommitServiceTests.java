@@ -93,7 +93,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
@@ -490,14 +489,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = generateIndexCommits(testHarness, 10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-                pendingNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()));
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                );
             }
 
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
-
-            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
@@ -505,7 +504,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            mergedCommitPendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
@@ -568,9 +568,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var firstCommit = initialCommits.get(0);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-
-                pendingNotification.respondWithUsedCommits(
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
                     new PrimaryTermAndGeneration(primaryTerm, firstCommit.getGeneration()),
                     new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
@@ -579,8 +578,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
-            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
-
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             // Commits 0-9 are reported to be used by the search node;
@@ -588,7 +585,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, empty());
 
             // Now the search shard, report that it uses commit 0 and commit 10; therefore we should delete commits [1, 8]
-            mergedCommitPendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
                 new PrimaryTermAndGeneration(primaryTerm, firstCommit.getGeneration()),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
@@ -725,21 +723,22 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = generateIndexCommits(testHarness, 10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-                pendingNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()));
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                );
             }
 
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
-
-            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
             // The search node is still using commit 9 and the merged commit; therefore we should keep all commits around
-            mergedCommitPendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
                 new PrimaryTermAndGeneration(
                     initialCommits.get(initialCommits.size() - 1).getPrimaryTerm(),
                     initialCommits.get(initialCommits.size() - 1).getGeneration()
@@ -828,24 +827,20 @@ public class StatelessCommitServiceTests extends ESTestCase {
             stateRef.set(state);
 
             var initialCommits = generateIndexCommits(testHarness, 2);
-            var pendingNotificationResponses = new ArrayList<PendingNewCommitNotification>();
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-                pendingNotificationResponses.add(pendingNotification);
             }
 
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
-
-            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
             assertThat(deletedCommits, empty());
 
             // The search shard is using the latest commit, but there are concurrent in-flight notifications
-            mergedCommitPendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
@@ -853,9 +848,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.markCommitDeleted(shardId, mergedCommit.getGeneration());
             }
 
-            for (PendingNewCommitNotification pendingNewCommitNotification : pendingNotificationResponses) {
-                pendingNewCommitNotification.respondWithUsedCommits(
-                    new PrimaryTermAndGeneration(primaryTerm, pendingNewCommitNotification.request().getGeneration())
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
                 );
             }
 
@@ -983,8 +979,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = generateIndexCommits(testHarness, 10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-                pendingNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()));
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                );
             }
 
             Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
@@ -1000,8 +998,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
-            var mergedCommitPendingNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
-
             StatelessCommitRef recoveryCommit = initialCommits.get(initialCommits.size() - 1);
             assert recoveryCommit.getGeneration() == indexingShardState.v1().generation();
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
@@ -1011,7 +1007,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // therefore we should retain all commits.
             assertThat(deletedCommits, empty());
 
-            mergedCommitPendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
@@ -1067,15 +1064,19 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var initialCommits = generateIndexCommits(testHarness, 10);
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
-                var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(initialCommit.getGeneration()).get();
-                pendingNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration()));
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                );
             }
 
             var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
             commitService.onCommitCreation(mergedCommit);
 
-            var mergedNotification = fakeSearchNode.getListenerForNewCommitNotification(mergedCommit.getGeneration()).get();
-            mergedNotification.respondWithUsedCommits(new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration()));
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
+                new PrimaryTermAndGeneration(primaryTerm, mergedCommit.getGeneration())
+            );
 
             testHarness.commitService.unregister(testHarness.shardId);
 
@@ -1097,8 +1098,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             StatelessCommitRef newCommit = generateIndexCommits(testHarness, 1, true).get(0);
             StatelessCommitRef retainedBySearch = initialCommits.get(1);
             commitService.onCommitCreation(newCommit);
-            var pendingNotification = fakeSearchNode.getListenerForNewCommitNotification(newCommit.getGeneration()).get();
-            pendingNotification.respondWithUsedCommits(
+            fakeSearchNode.respondWithUsedCommits(
+                newCommit.getGeneration(),
                 new PrimaryTermAndGeneration(primaryTerm, newCommit.getGeneration()),
                 new PrimaryTermAndGeneration(primaryTerm, retainedBySearch.getGeneration())
             );
@@ -1139,27 +1140,28 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     private static class FakeSearchNode extends NoOpNodeClient {
-        private final Map<Long, List<ActionListener<PendingNewCommitNotification>>> generationPendingListeners = new HashMap<>();
+        private final Map<Long, PlainActionFuture<ActionListener<NewCommitNotificationResponse>>> generationPendingListeners =
+            new HashMap<>();
 
         FakeSearchNode(String testName) {
             super(testName);
         }
 
-        synchronized Future<PendingNewCommitNotification> getListenerForNewCommitNotification(long generation) {
-            PlainActionFuture<PendingNewCommitNotification> future = new PlainActionFuture<>();
-            generationPendingListeners.computeIfAbsent(generation, unused -> new ArrayList<>()).add(future);
-            return future;
+        void respondWithUsedCommits(long generation, PrimaryTermAndGeneration... usedCommits) {
+            // allow duplicates in usedCommits for now.
+            getListenerForNewCommitNotification(generation).actionGet()
+                .onResponse(new NewCommitNotificationResponse(Arrays.stream(usedCommits).collect(Collectors.toSet())));
+        }
+
+        private synchronized PlainActionFuture<ActionListener<NewCommitNotificationResponse>> getListenerForNewCommitNotification(
+            long generation
+        ) {
+            PlainActionFuture<ActionListener<NewCommitNotificationResponse>> future = new PlainActionFuture<>();
+            return generationPendingListeners.computeIfAbsent(generation, unused -> future);
         }
 
         synchronized void onNewNotification(NewCommitNotificationRequest request, ActionListener<NewCommitNotificationResponse> listener) {
-            List<ActionListener<PendingNewCommitNotification>> pendingListeners = generationPendingListeners.remove(
-                request.getGeneration()
-            );
-            if (pendingListeners != null) {
-                for (var generationListener : pendingListeners) {
-                    generationListener.onResponse(new PendingNewCommitNotification(request, listener));
-                }
-            }
+            getListenerForNewCommitNotification(request.getGeneration()).onResponse(listener);
         }
 
         @Override

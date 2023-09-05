@@ -305,14 +305,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * work. For instance, it could check that the race is not lost by calling {@link #isDone} whenever appropriate, or it could subscribe
      * another listener which performs any necessary cleanup steps.
      */
-    public void addTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    public void addTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         if (isDone()) {
             return;
         }
         addListener(ActionListener.running(scheduleTimeout(timeout, threadPool, timeoutExecutor)));
     }
 
-    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         try {
             final var cancellable = threadPool.schedule(
                 () -> onFailure(new ElasticsearchTimeoutException(Strings.format("timed out after [%s/%dms]", timeout, timeout.millis()))),

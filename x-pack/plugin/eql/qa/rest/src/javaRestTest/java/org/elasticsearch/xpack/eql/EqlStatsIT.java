@@ -7,8 +7,18 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.stats.EqlUsageRestTestCase;
+import org.junit.ClassRule;
 
 public class EqlStatsIT extends EqlUsageRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
 }

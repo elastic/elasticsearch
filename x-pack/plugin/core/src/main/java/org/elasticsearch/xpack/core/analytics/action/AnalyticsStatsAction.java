@@ -107,7 +107,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override

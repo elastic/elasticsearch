@@ -119,16 +119,6 @@ public interface Scheduler {
     }
 
     /**
-     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
-        runnable.start();
-        return runnable;
-    }
-
-    /**
      * Utility method to wrap a <code>Future</code> as a <code>Cancellable</code>
      * @param future the future to wrap
      * @return a cancellable delegating to the future

@@ -71,7 +71,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         implements
             Writeable {
         GroupByMappingHash(StreamInput in) throws IOException {
-            this(in.readStringList(), in.readString(), in.readMap(IndexFieldCapabilities::new));
+            this(in.readStringCollectionAsList(), in.readString(), in.readMap(IndexFieldCapabilities::new));
         }
 
         @Override
@@ -88,10 +88,10 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
-            return input.readList(FieldCapabilitiesIndexResponse::new);
+            return input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
         }
-        final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readList(FieldCapabilitiesIndexResponse::new);
-        final List<GroupByMappingHash> groups = input.readList(GroupByMappingHash::new);
+        final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
+        final List<GroupByMappingHash> groups = input.readCollectionAsList(GroupByMappingHash::new);
         return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(GroupByMappingHash::getResponses)).toList();
     }
 

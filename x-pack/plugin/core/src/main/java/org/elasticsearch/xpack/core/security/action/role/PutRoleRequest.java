@@ -54,13 +54,13 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (int i = 0; i < indicesSize; i++) {
             indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
         }
-        applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
+        applicationPrivileges = in.readCollectionAsList(RoleDescriptor.ApplicationResourcePrivileges::new);
         configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            remoteIndicesPrivileges = in.readList(RoleDescriptor.RemoteIndicesPrivileges::new);
+            remoteIndicesPrivileges = in.readCollectionAsList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }
     }
 

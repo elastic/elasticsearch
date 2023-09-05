@@ -77,6 +77,54 @@ org.elasticsearch.transport.ConnectTransportException: [][192.168.0.42:9443] *co
 server is enabled>> on the remote cluster.
 * Ensure no firewall is blocking the communication.
 
+[[remote-clusters-troubleshooting-tls-trust]]
+===== TLS trust not established
+
+TLS can be misconfigured on the local or the remote cluster. The result is that
+the local cluster does not trust the certificate presented by the remote
+cluster.
+
+====== Symptom
+
+The local cluster logs `failed to establish trust with server`:
+
+[source,txt,subs=+quotes]
+----
+[2023-06-29T09:40:55,465][WARN ][o.e.c.s.DiagnosticTrustManager] [local-node] *failed to establish trust with server* at [127.0.0.1]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-08-16T23:40:55.464275Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4,IP:192.168.0.42]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([(shared) (with trust configuration: JDK-trusted-certs)]) is not configured to trust that issuer but trusts [97] other issuers
+sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+----
+
+The remote cluster logs `client did not trust this server's certificate`:
+
+[source,txt,subs=+quotes]
+----
+[2023-06-29T09:40:55,478][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [remote-node] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/192.168.0.42:9443, remoteAddress=/192.168.0.84:57305, profile=_remote_cluster}
+----
+
+====== Resolution
+
+Read the warn log message on the local cluster carefully to determine the exact
+cause of the failure. For example:
+
+* Is the remote cluster certificate not signed by a trusted CA? This is the most
+likely cause.
+* Is hostname verification failing? 
+* Is the certificate expired?
+
+Once you know the cause, you should be able to fix it by adjusting the remote
+cluster related SSL settings on either the local cluster or the remote cluster. 
+
+Often, the issue is on the local cluster. Fix it by either configuring necessary
+trusted CAs (`xpack.security.remote_cluster_client.ssl.certificate_authorities`)
+or adjusting the verification mode
+(`xpack.security.remote_cluster_client.ssl.verification_mode`).
+
+If you change the `elasticsearch.yml` file, the associated cluster needs to be
+restarted for the changes to take effect.
+
+[[remote-clusters-troubleshooting-api-key]]
+==== API key authentication issues
+
 [[remote-clusters-troubleshooting-transport-port-api-key]]
 ===== Connecting to transport port when using API key authentication
 
@@ -230,51 +278,6 @@ This does not show up in the logs of the remote cluster.
 
 Add the cross-cluster API key to {es} keystore on every node of the local
 cluster. Restart the local cluster to reload the keystore.
-
-[[remote-clusters-troubleshooting-tls-trust]]
-===== TLS trust not established
-
-TLS can be misconfigured on the local or the remote cluster. The result is that
-the local cluster does not trust the certificate presented by the remote
-cluster.
-
-====== Symptom
-
-The local cluster logs `failed to establish trust with server`:
-
-[source,txt,subs=+quotes]
-----
-[2023-06-29T09:40:55,465][WARN ][o.e.c.s.DiagnosticTrustManager] [local-node] *failed to establish trust with server* at [127.0.0.1]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-08-16T23:40:55.464275Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4,IP:192.168.0.42]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([(shared) (with trust configuration: JDK-trusted-certs)]) is not configured to trust that issuer but trusts [97] other issuers
-sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
-----
-
-The remote cluster logs `client did not trust this server's certificate`:
-
-[source,txt,subs=+quotes]
-----
-[2023-06-29T09:40:55,478][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [remote-node] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/192.168.0.42:9443, remoteAddress=/192.168.0.84:57305, profile=_remote_cluster}
-----
-
-====== Resolution
-
-Read the warn log message on the local cluster carefully to determine the exact
-cause of the failure. For example:
-
-* Is the remote cluster certificate not signed by a trusted CA? This is the most
-likely cause.
-* Is hostname verification failing? 
-* Is the certificate expired?
-
-Once you know the cause, you should be able to fix it by adjusting the remote
-cluster related SSL settings on either the local cluster or the remote cluster. 
-
-Often, the issue is on the local cluster. Fix it by either configuring necessary
-trusted CAs (`xpack.security.remote_cluster_client.ssl.certificate_authorities`)
-or adjusting the verification mode
-(`xpack.security.remote_cluster_client.ssl.verification_mode`).
-
-If you change the `elasticsearch.yml` file, the associated cluster needs to be
-restarted for the changes to take effect.
 
 [[remote-clusters-troubleshooting-wrong-api-key-type]]
 ===== Using the wrong API key type

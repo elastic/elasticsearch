@@ -402,18 +402,21 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener);
+        void handleJoinRequest(DiscoveryNode sender, CompatibilityVersions compatibilityVersions, ActionListener<Void> joinListener);
 
         default void close(Mode newMode) {}
     }
 
     class LeaderJoinAccumulator implements JoinAccumulator {
-        // TODO[wrb]: transportVersion --> compatibility versions
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
-                new CompatibilityVersions(transportVersion),
+                compatibilityVersions,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
@@ -429,7 +432,11 @@ public class JoinHelper {
 
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             assert false : "unexpected join from " + sender + " during initialisation";
             joinListener.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
         }
@@ -442,7 +449,11 @@ public class JoinHelper {
 
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         }
 
@@ -454,15 +465,17 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        // TODO[wrb]: accumulator should use compatibility versions?
-        private final Map<DiscoveryNode, Tuple<TransportVersion, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
+        private final Map<DiscoveryNode, Tuple<CompatibilityVersions, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
-        // TODO[wrb]: compatibility versions
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(transportVersion, joinListener));
+            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(compatibilityVersions, joinListener));
             if (prev != null) {
                 prev.v2().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }
@@ -477,10 +490,9 @@ public class JoinHelper {
                 final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
                     final var data = entry.getValue();
-                    // TODO[wrb]: pass compatibility versions
                     return new JoinTask.NodeJoinTask(
                         discoveryNode,
-                        new CompatibilityVersions(data.v1()), // TODO[wrb]: transport version -> compatibilityVersions
+                        data.v1(),
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         data.v2()
                     );

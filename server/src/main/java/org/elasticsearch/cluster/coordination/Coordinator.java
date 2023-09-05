@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -769,7 +770,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
-                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
+                // TODO[wrb]: transport version --> compatibility versions
+                joinAccumulator.handleJoinRequest(
+                    joinRequest.getSourceNode(),
+                    new CompatibilityVersions(joinRequest.getTransportVersion()),
+                    joinListener
+                );
 
                 if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();

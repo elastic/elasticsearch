@@ -470,6 +470,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 if (rangeToWrite.isEmpty()) {
                     return true;
                 }
+                // set read range == write range so the listener completes only once all the bytes have been downloaded
                 entry.chunk.populateAndRead(
                     rangeToWrite,
                     rangeToWrite,

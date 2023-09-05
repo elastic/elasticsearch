@@ -373,6 +373,10 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template,
         String failureStoreIndexName
     ) throws Exception {
+        if (DataStream.isFailureStoreEnabled() == false) {
+            return currentState;
+        }
+
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             "initialize_data_stream",
             failureStoreIndexName,

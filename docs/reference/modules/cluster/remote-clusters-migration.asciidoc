@@ -32,6 +32,8 @@ following these steps:
 . <<remote-clusters-migration-resume>>
 . <<remote-clusters-migration-disable-cert>>
 
+If you run into any issues, refer to <<remote-clusters-troubleshooting>>.
+
 [[remote-clusters-migration-prerequisites]]
 ==== Prerequisites
 
@@ -208,11 +210,10 @@ existing indices that were created from the auto-follow pattern.
 [[remote-clusters-migration-disable-cert]]
 ==== Disable certificate based authentication and authorization
 
-//TODO: Add link to troubleshooting docs when they're published
 NOTE: Only proceed with this step if the migration has been proved successful on
-the local cluster. If the migration is unsuccessful, either find out what the
-problem is and attempt to fix it or <<remote-clusters-migration-rollback,roll
-back>>.
+the local cluster. If the migration is unsuccessful, either
+<<remote-clusters-troubleshooting,find out what the problem is and attempt to
+fix it>> or <<remote-clusters-migration-rollback,roll back>>.
 
 Next, disable the certification based connection. Optionally, you can also
 revoke the authorization.

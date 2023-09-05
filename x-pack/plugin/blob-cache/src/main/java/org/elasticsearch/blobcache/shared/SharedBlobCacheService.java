@@ -472,8 +472,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
                 entry.chunk.populateAndRead(
                     rangeToWrite,
-                    ByteRange.EMPTY,
-                    (channel, pos, relativePos, len) -> 0,
+                    rangeToWrite,
+                    (channel, pos, relativePos, len) -> Math.toIntExact(len),
                     writer,
                     bulkIOExecutor,
                     refCountingListener.acquire(ignored -> {})

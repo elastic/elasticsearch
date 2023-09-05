@@ -9,20 +9,20 @@
 package org.elasticsearch.inference.registry;
 
 import org.elasticsearch.inference.services.InferenceService;
-import org.elasticsearch.inference.services.elser.ElserService;
+import org.elasticsearch.inference.services.elser.ElserMlNodeService;
 
 import java.util.Optional;
 
 public class ServiceRegistry {
 
-    ElserService elserService;
+    ElserMlNodeService elserService;
 
-    public ServiceRegistry(ElserService elserService) {
+    public ServiceRegistry(ElserMlNodeService elserService) {
         this.elserService = elserService;
     }
 
     public Optional<InferenceService> getService(String name) {
-        if (name.equals(ElserService.NAME)) {
+        if (name.equals(ElserMlNodeService.NAME)) {
             return Optional.of(elserService);
         }
 

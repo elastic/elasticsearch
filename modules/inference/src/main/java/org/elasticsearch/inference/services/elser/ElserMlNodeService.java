@@ -9,16 +9,21 @@
 package org.elasticsearch.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.inference.InferencePlugin;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.results.InferenceResult;
 import org.elasticsearch.inference.services.InferenceService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;
 
-public class ElserService implements InferenceService {
+public class ElserMlNodeService implements InferenceService {
 
     public static final String NAME = "elser";
 
@@ -29,9 +34,28 @@ public class ElserService implements InferenceService {
         return new Model(modelId, taskType, NAME, serviceSettingsFromMap(serviceSettings), taskSettingsFromMap(taskType, taskSettings));
     }
 
+    private final OriginSettingClient client;
+
+    public ElserMlNodeService(Client client) {
+        this.client = new OriginSettingClient(client, InferencePlugin.INFERENCE_ORIGIN);
+    }
+
     @Override
     public Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         return parseConfigLenient(modelId, taskType, config);
+    }
+
+    @Override
+    public void infer(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<InferenceResult> listener) {
+
+        if (taskType != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(new ElasticsearchStatusException("The Elser ML Node service does not support task type [{}]",
+                RestStatus.BAD_REQUEST, taskType));
+            return;
+        }
+
+        client.execute(InferTrainedModelDeploymentAction.I);
+
     }
 
     private static ServiceSettings serviceSettingsFromMap(Map<String, Object> config) {

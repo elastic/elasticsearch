@@ -39,7 +39,7 @@ public class ElserSparseEmbeddingTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current(); // TODO
+        return TransportVersion.V_8_500_070;
     }
 
     @Override

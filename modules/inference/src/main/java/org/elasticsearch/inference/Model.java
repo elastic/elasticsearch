@@ -101,7 +101,7 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current(); // TODO new version
+        return TransportVersion.V_8_500_070;
     }
 
     @Override

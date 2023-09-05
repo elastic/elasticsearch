@@ -8,7 +8,7 @@
 
 package org.elasticsearch.inference.registry;
 
-import org.elasticsearch.inference.services.elser.ElserService;
+import org.elasticsearch.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -16,13 +16,13 @@ import static org.mockito.Mockito.mock;
 public class ServiceRegistryTests extends ESTestCase {
 
     public void testGetService() {
-        ServiceRegistry registry = new ServiceRegistry(mock(ElserService.class));
-        var service = registry.getService(ElserService.NAME);
+        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class));
+        var service = registry.getService(ElserMlNodeService.NAME);
         assertTrue(service.isPresent());
     }
 
     public void testGetUnknownService() {
-        ServiceRegistry registry = new ServiceRegistry(mock(ElserService.class));
+        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class));
         var service = registry.getService("foo");
         assertFalse(service.isPresent());
     }

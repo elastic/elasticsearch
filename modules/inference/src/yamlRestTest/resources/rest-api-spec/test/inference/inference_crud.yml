@@ -57,3 +57,24 @@
         model_id: model_to_get
   - match: { error.type: "resource_not_found_exception" }
   - match: { error.reason: "Model not found [model_to_get]" }
+
+---
+"Test inference":
+  - do:
+      inference.inference:
+        task_type: sparse_embedding
+        model_id: model_to_get
+        body:
+          input: "foo"
+  - exists: sparse_embedding
+
+---
+"Test inference with bad task type":
+  - do:
+      catch: bad_request
+      inference.inference:
+        task_type: bad
+        model_id: model
+        body:
+          input: "foo"
+  - match: { error.reason: "Unknown task_type [bad]" }

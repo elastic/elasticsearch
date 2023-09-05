@@ -47,7 +47,7 @@ public class ModelRegistry {
         this.client = new OriginSettingClient(client, InferencePlugin.INFERENCE_ORIGIN);
     }
 
-    public void getUnparsedModel(String modelId, ActionListener<ModelConfigMap> listener) {
+    public void getUnparsedModelMap(String modelId, ActionListener<ModelConfigMap> listener) {
         ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));

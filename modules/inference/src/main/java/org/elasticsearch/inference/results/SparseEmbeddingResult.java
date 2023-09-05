@@ -55,7 +55,7 @@ public class SparseEmbeddingResult implements InferenceResult {
     }
 
     public SparseEmbeddingResult(StreamInput in) throws IOException {
-        this.weightedTokens = in.readList(WeightedToken::new);
+        this.weightedTokens = in.readCollectionAsImmutableList(WeightedToken::new);
     }
 
     public List<WeightedToken> getWeightedTokens() {
@@ -64,12 +64,10 @@ public class SparseEmbeddingResult implements InferenceResult {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.startObject("sparse_embedding");
         for (var weightedToken : weightedTokens) {
             weightedToken.toXContent(builder, params);
         }
-        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -81,7 +79,7 @@ public class SparseEmbeddingResult implements InferenceResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current(); // TODO
+        return TransportVersion.V_8_500_070;
     }
 
     @Override

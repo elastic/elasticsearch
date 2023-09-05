@@ -39,7 +39,7 @@ import org.elasticsearch.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.inference.rest.RestInferenceAction;
 import org.elasticsearch.inference.rest.RestPutInferenceModelAction;
-import org.elasticsearch.inference.services.elser.ElserService;
+import org.elasticsearch.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -118,7 +118,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         IndicesService indicesService
     ) {
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserService());
+        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService());
         return List.of(modelRegistry, serviceRegistry);
     }
 

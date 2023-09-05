@@ -9,6 +9,7 @@
 package org.elasticsearch.inference.results;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-public interface InferenceResult extends ToXContentObject, VersionedNamedWriteable {}
+public interface InferenceResult extends ToXContentFragment, VersionedNamedWriteable {}

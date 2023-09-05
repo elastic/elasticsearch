@@ -45,7 +45,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         GetInferenceModelAction.Request request,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        modelRegistry.getUnparsedModel(request.getModelId(), ActionListener.wrap(modelConfigMap -> {
+        modelRegistry.getUnparsedModelMap(request.getModelId(), ActionListener.wrap(modelConfigMap -> {
             var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config());
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {

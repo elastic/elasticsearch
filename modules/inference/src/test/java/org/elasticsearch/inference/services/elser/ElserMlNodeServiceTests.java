@@ -12,14 +12,14 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 
-public class ElserServiceTests extends ESTestCase {
+public class ElserMlNodeServiceTests extends ESTestCase {
 
     public static Model randomModelConfig(String modelId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new Model(
                 modelId,
                 taskType,
-                ElserService.NAME,
+                ElserMlNodeService.NAME,
                 new ElserServiceSettings(),
                 new ElserSparseEmbeddingTaskSettings()
             );

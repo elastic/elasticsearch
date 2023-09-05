@@ -11,6 +11,8 @@ package org.elasticsearch.inference;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -28,6 +30,7 @@ public class InferenceIndex {
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
 
+    // Increment this version number when the mappings change
     private static final int INDEX_MAPPING_VERSION = 1;
 
     public static Settings settings() {
@@ -46,8 +49,8 @@ public class InferenceIndex {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)   // TODO
-                .field("managed_index_mappings_version", INDEX_MAPPING_VERSION)
+                .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")

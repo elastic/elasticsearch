@@ -9,7 +9,6 @@
 package org.elasticsearch.inference.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.action.InferenceAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -36,10 +35,9 @@ public class RestInferenceAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        TaskType taskType = TaskType.fromString(restRequest.param("task_type")); // TODO better error message
+        String taskType = restRequest.param("task_type");
         String modelId = restRequest.param("model_id");
-
-        var request = new InferenceAction.Request(taskType, modelId);
+        var request = InferenceAction.Request.parseRequest(modelId, taskType, restRequest.contentParser());
 
         return channel -> client.execute(InferenceAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

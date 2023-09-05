@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
-import org.elasticsearch.inference.services.elser.ElserService;
-import org.elasticsearch.inference.services.elser.ElserServiceTests;
+import org.elasticsearch.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.inference.services.elser.ElserMlNodeServiceTests;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -38,7 +38,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testStoreModel() throws Exception {
         String modelId = "test-store-model";
-        Model model = buildModelConfig(modelId, ElserService.NAME, TaskType.SPARSE_EMBEDDING);
+        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -50,7 +50,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testGetModel() throws Exception {
         String modelId = "test-get-model";
-        Model model = buildModelConfig(modelId, ElserService.NAME, TaskType.SPARSE_EMBEDDING);
+        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -59,19 +59,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         // now get the model
         AtomicReference<ModelRegistry.ModelConfigMap> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getUnparsedModel(modelId, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getUnparsedModelMap(modelId, listener), modelHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
         UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config());
         assertEquals(model.getService(), unparsedModel.service());
-        Model roundTripModel = ElserService.parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+        Model roundTripModel = ElserMlNodeService.parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
         assertEquals(model, roundTripModel);
     }
 
     public void testStoreModelFailsWhenModelExists() throws Exception {
         String modelId = "test-put-trained-model-config-exists";
-        Model model = buildModelConfig(modelId, ElserService.NAME, TaskType.SPARSE_EMBEDDING);
+        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -93,7 +93,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testDeleteModel() throws Exception {
         // put models
         for (var id : new String[] { "model1", "model2", "model3" }) {
-            Model model = buildModelConfig(id, ElserService.NAME, TaskType.SPARSE_EMBEDDING);
+            Model model = buildModelConfig(id, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
             AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
             blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
@@ -109,7 +109,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         // get should fail
         deleteResponseHolder.set(false);
         AtomicReference<ModelRegistry.ModelConfigMap> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getUnparsedModel("model1", listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getUnparsedModelMap("model1", listener), modelHolder, exceptionHolder);
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
@@ -118,7 +118,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     private Model buildModelConfig(String modelId, String service, TaskType taskType) {
         return switch (service) {
-            case ElserService.NAME -> ElserServiceTests.randomModelConfig(modelId, taskType);
+            case ElserMlNodeService.NAME -> ElserMlNodeServiceTests.randomModelConfig(modelId, taskType);
             default -> throw new IllegalArgumentException("unknown service " + service);
         };
     }

@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
@@ -137,11 +138,10 @@ public class PlannerUtils {
             // detect filter inside the query
             fe.fragment().forEachUp(Filter.class, f -> {
                 // the only filter that can be pushed down is that on top of the relation
-                // similar to OptimizerRule#PushDownAndCombineFilters and
-                // LocalPhysicalPlanOptimizer#PushFiltersToSource
+                // reuses the logic from LocalPhysicalPlanOptimizer#PushFiltersToSource
                 // but get executed on the logical plan
                 List<Expression> matches = new ArrayList<>();
-                if (f.child() instanceof EsRelation relation) {
+                if (f.child() instanceof EsRelation) {
                     var conjunctions = Predicates.splitAnd(f.condition());
                     // look only at expressions that contain literals and the target field
                     for (var exp : conjunctions) {
@@ -149,7 +149,8 @@ public class PlannerUtils {
                         // remove literals or attributes that match by name
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
-                        if (matchesField && refs.isEmpty()) {
+                        // and the expression is pushable (functions can be fully translated)
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
                             matches.add(exp);
                         }
                     }

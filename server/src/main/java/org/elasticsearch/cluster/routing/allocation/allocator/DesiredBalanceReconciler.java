@@ -32,11 +32,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -347,7 +345,7 @@ public class DesiredBalanceReconciler {
 
             @Override
             public boolean hasNext() {
-                if (nodeIds.hasNext() == false && source != NodeIdSource.FALLBACK && shard.primary() && wasThrottled == false) {
+                if (nodeIds.hasNext() == false && source == NodeIdSource.DESIRED && shard.primary() && wasThrottled == false) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
                     logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     nodeIds = allocationOrdering.sort(fallbackNodeIds).iterator();
@@ -366,25 +364,6 @@ public class DesiredBalanceReconciler {
             DESIRED,
             FORCED_INITIAL_ALLOCATION,
             FALLBACK;
-        }
-
-        private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
-            return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
-                logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
-                return forced;
-            }).orElse(assignment.nodeIds()));
-        }
-
-        private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
-            return () -> {
-                if (shard.primary() && isThrottled.get() == false) {
-                    var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
-                    logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
-                    return allocationOrdering.sort(fallbackNodeIds).iterator();
-                } else {
-                    return Collections.emptyIterator();
-                }
-            };
         }
 
         private boolean isIgnored(RoutingNodes routingNodes, ShardRouting shard, ShardAssignment assignment) {

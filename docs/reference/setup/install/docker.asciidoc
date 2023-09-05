@@ -202,32 +202,28 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_c
 
 . Pull the {kib} Docker image.
 +
---
 ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {kib} has not yet been released, so no
 Docker image is currently available for this version.
 endif::[]
-
++
 [source,sh,subs="attributes"]
 ----
 docker pull {kib-docker-image}
 ----
---
 
 . Optional: Verify the {kib} image's signature.
 +
---
 ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {kib} has not yet been released, so no
 Docker image signature is currently available for this version.
 endif::[]
-
++
 [source,sh,subs="attributes"]
 ----
 wget https://artifacts.elastic.co/cosign.pub
 cosign verify --key cosign.pub {kib-docker-image}
 ----
---
 
 . Start a {kib} container.
 +

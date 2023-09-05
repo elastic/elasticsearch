@@ -27,8 +27,13 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * module.
      * @return Compatibility versions known at compile time.
      */
+    // TODO[wrb]: move to utility class
     public static CompatibilityVersions compileTimeCurrent() {
         return new CompatibilityVersions(TransportVersion.current());
+    }
+
+    public static CompatibilityVersions compileTimeRandom() {
+        return new CompatibilityVersions(TransportVersionUtils.randomVersion());
     }
 
     public void testMinimumVersions() {

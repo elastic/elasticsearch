@@ -449,33 +449,37 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * @param cacheKey  the key to fetch data for
      * @param length    the length of the blob to fetch
      * @param writer    a writer that handles writing of newly downloaded data to the shared cache
+     * @param listener  listener that is called once all downloading has finished
      *
      * @return {@code true} if there were enough free pages to start downloading
      */
-    public boolean maybeFetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer) {
+    public boolean maybeFetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer, ActionListener<Void> listener) {
         int finalRegion = getEndingRegion(length);
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
             return false;
         }
         long regionLength = regionSize;
-        for (int region = 0; region <= finalRegion; region++) {
-            var entry = get(cacheKey, length, region);
-            if (region == finalRegion) {
-                regionLength = length - getRegionStart(region);
+        try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
+            for (int region = 0; region <= finalRegion; region++) {
+                var entry = get(cacheKey, length, region);
+                if (region == finalRegion) {
+                    regionLength = length - getRegionStart(region);
+                }
+                ByteRange rangeToWrite = ByteRange.of(0, regionLength);
+                if (rangeToWrite.isEmpty()) {
+                    return true;
+                }
+                // set read range == write range so the listener completes only once all the bytes have been downloaded
+                entry.chunk.populateAndRead(
+                    rangeToWrite,
+                    rangeToWrite,
+                    (channel, pos, relativePos, len) -> Math.toIntExact(len),
+                    writer,
+                    bulkIOExecutor,
+                    refCountingListener.acquire(ignored -> {})
+                );
             }
-            ByteRange rangeToWrite = ByteRange.of(0, regionLength);
-            if (rangeToWrite.length() == 0) {
-                return true;
-            }
-            entry.chunk.populateAndRead(
-                rangeToWrite,
-                ByteRange.EMPTY,
-                (channel, pos, relativePos, len) -> 0,
-                writer,
-                bulkIOExecutor,
-                ActionListener.noop()
-            );
         }
         return true;
     }

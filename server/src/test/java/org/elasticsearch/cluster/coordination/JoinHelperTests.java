@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.cluster.version.CompatibilityVersionsTests;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -336,7 +336,7 @@ public class JoinHelperTests extends ESTestCase {
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsTests.compileTimeCurrent(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.compileTimeCurrent(), joinListener);
         assert joinListener.isDone() == false;
 
         final var mockAppender = new MockLogAppender();

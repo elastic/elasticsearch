@@ -71,7 +71,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsTests;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -407,7 +407,7 @@ public class ClusterStateChanges {
             List.of(
                 JoinTask.singleNode(
                     discoveryNode,
-                    CompatibilityVersionsTests.compileTimeCurrent(),
+                    CompatibilityVersionsUtils.compileTimeCurrent(),
                     DUMMY_REASON,
                     ActionListener.running(() -> {
                         throw new AssertionError("should not complete publication");

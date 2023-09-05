@@ -18,24 +18,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompatibilityVersionsTests extends ESTestCase {
 
-    /**
-     * Compatibility versions known at compile time
-     *
-     * <p>Some of our compatibility versions may be constructed at runtime, but in
-     * many tests those will not be needed. This utility method returns only the compatibility
-     * versions defined at runtime, which is generally just those defined in the server
-     * module.
-     * @return Compatibility versions known at compile time.
-     */
-    // TODO[wrb]: move to utility class
-    public static CompatibilityVersions compileTimeCurrent() {
-        return new CompatibilityVersions(TransportVersion.current());
-    }
-
-    public static CompatibilityVersions compileTimeRandom() {
-        return new CompatibilityVersions(TransportVersionUtils.randomVersion());
-    }
-
     public void testMinimumVersions() {
         assertThat(
             CompatibilityVersions.minimumVersions(Map.of()),

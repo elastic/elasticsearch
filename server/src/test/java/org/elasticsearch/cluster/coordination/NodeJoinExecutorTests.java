@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsTests;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
@@ -256,7 +256,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(actualNode, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L)
+                JoinTask.singleNode(actualNode, CompatibilityVersionsUtils.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L)
             )
         );
 
@@ -290,7 +290,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         ? List.of(
                             JoinTask.singleNode(
                                 masterNode,
-                                CompatibilityVersionsTests.compileTimeCurrent(),
+                                CompatibilityVersionsUtils.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
                                 executorTerm
@@ -301,7 +301,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 Stream.of(
                                     new JoinTask.NodeJoinTask(
                                         masterNode,
-                                        CompatibilityVersionsTests.compileTimeCurrent(),
+                                        CompatibilityVersionsUtils.compileTimeCurrent(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER
                                     )
@@ -352,7 +352,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         ? List.of(
                             JoinTask.singleNode(
                                 masterNode,
-                                CompatibilityVersionsTests.compileTimeCurrent(),
+                                CompatibilityVersionsUtils.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER,
                                 executorTerm
@@ -363,7 +363,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 Stream.of(
                                     new JoinTask.NodeJoinTask(
                                         masterNode,
-                                        CompatibilityVersionsTests.compileTimeCurrent(),
+                                        CompatibilityVersionsUtils.compileTimeCurrent(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER
                                     )
@@ -405,7 +405,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     List.of(
                         JoinTask.singleNode(
                             masterNode,
-                            CompatibilityVersionsTests.compileTimeCurrent(),
+                            CompatibilityVersionsUtils.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER,
                             executorTerm
@@ -456,13 +456,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     Stream.of(
                         new JoinTask.NodeJoinTask(
                             masterNode,
-                            CompatibilityVersionsTests.compileTimeCurrent(),
+                            CompatibilityVersionsUtils.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         ),
                         new JoinTask.NodeJoinTask(
                             otherNodeNew,
-                            CompatibilityVersionsTests.compileTimeCurrent(),
+                            CompatibilityVersionsUtils.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         )
@@ -488,14 +488,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 List.of(
                     JoinTask.singleNode(
                         masterNode,
-                        CompatibilityVersionsTests.compileTimeCurrent(),
+                        CompatibilityVersionsUtils.compileTimeCurrent(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm
                     ),
                     JoinTask.singleNode(
                         otherNodeOld,
-                        CompatibilityVersionsTests.compileTimeCurrent(),
+                        CompatibilityVersionsUtils.compileTimeCurrent(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm
@@ -551,13 +551,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         Stream.of(
                             new JoinTask.NodeJoinTask(
                                 masterNode,
-                                CompatibilityVersionsTests.compileTimeCurrent(),
+                                CompatibilityVersionsUtils.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             ),
                             new JoinTask.NodeJoinTask(
                                 otherNode,
-                                CompatibilityVersionsTests.compileTimeCurrent(),
+                                CompatibilityVersionsUtils.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             )
@@ -575,7 +575,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         Stream.of(
                             new JoinTask.NodeJoinTask(
                                 masterNode,
-                                CompatibilityVersionsTests.compileTimeCurrent(),
+                                CompatibilityVersionsUtils.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             )
@@ -590,7 +590,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 List.of(
                     JoinTask.singleNode(
                         otherNode,
-                        CompatibilityVersionsTests.compileTimeCurrent(),
+                        CompatibilityVersionsUtils.compileTimeCurrent(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER,
                         executorTerm
@@ -661,7 +661,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         var tasks = joiningNodes.stream()
             .map(
-                node -> JoinTask.singleNode(node, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L)
+                node -> JoinTask.singleNode(node, CompatibilityVersionsUtils.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, 0L)
             )
             .toList();
 
@@ -701,7 +701,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 .map(
                     node -> new JoinTask.NodeJoinTask(
                         node,
-                        CompatibilityVersionsTests.compileTimeCurrent(),
+                        CompatibilityVersionsUtils.compileTimeCurrent(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER
                     )
@@ -759,7 +759,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(node1, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, future, 0L),
+                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.compileTimeCurrent(), TEST_REASON, future, 0L),
                             null
                         ),
                     10,
@@ -788,7 +788,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(node2, CompatibilityVersionsTests.compileTimeCurrent(), testReasonWithLink, future, 0L),
+                            JoinTask.singleNode(node2, CompatibilityVersionsUtils.compileTimeCurrent(), testReasonWithLink, future, 0L),
                             null
                         ),
                     10,
@@ -827,7 +827,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     Stream.of(
                         new JoinTask.NodeJoinTask(
                             otherNode,
-                            CompatibilityVersionsTests.compileTimeCurrent(),
+                            CompatibilityVersionsUtils.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         )
@@ -851,10 +851,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
             : JoinTask.completingElection(
                 Stream.of(
-                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER)
+                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsUtils.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER)
                 ),
                 term
             );

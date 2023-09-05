@@ -206,18 +206,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         if (in.readBoolean()) {
-            docValueFields = in.readList(FieldAndFormat::new);
+            docValueFields = in.readCollectionAsList(FieldAndFormat::new);
         } else {
             docValueFields = null;
         }
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        indexBoosts = in.readList(IndexBoost::new);
+        indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_013)) {
-            subSearchSourceBuilders = in.readList(SubSearchSourceBuilder::new);
+            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         } else {
             QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
             if (queryBuilder != null) {
@@ -225,10 +225,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.readBoolean()) {
-            rescoreBuilders = in.readNamedWriteableList(RescorerBuilder.class);
+            rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }
         if (in.readBoolean()) {
-            scriptFields = in.readList(ScriptField::new);
+            scriptFields = in.readCollectionAsList(ScriptField::new);
         }
         size = in.readVInt();
         if (in.readBoolean()) {
@@ -239,7 +239,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.readBoolean()) {
-            stats = in.readStringList();
+            stats = in.readStringCollectionAsList();
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
@@ -247,7 +247,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
-        extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
+        extBuilders = in.readNamedWriteableCollectionAsList(SearchExtBuilder.class);
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
@@ -255,7 +255,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         trackTotalHitsUpTo = in.readOptionalInt();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
@@ -267,7 +267,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
                 knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
             } else {
-                knnSearch = in.readList(KnnSearchBuilder::new);
+                knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
             }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {

@@ -216,7 +216,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> Bucket.createFromStream(stream, format, keyed));
+        buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format, keyed));
     }
 
     @Override

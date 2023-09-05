@@ -46,7 +46,7 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
     public SearchProfileDfsPhaseResult(StreamInput in) throws IOException {
         dfsShardResult = in.readOptionalWriteable(ProfileResult::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            queryProfileShardResult = in.readOptionalList(QueryProfileShardResult::new);
+            queryProfileShardResult = in.readOptionalCollectionAsList(QueryProfileShardResult::new);
         } else {
             QueryProfileShardResult singleResult = in.readOptionalWriteable(QueryProfileShardResult::new);
             queryProfileShardResult = singleResult != null ? List.of(singleResult) : null;

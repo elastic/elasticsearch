@@ -75,7 +75,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             id = in.readString();
             allowNoMatch = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            expandedIds = in.readStringList();
+            expandedIds = in.readStringCollectionAsList();
         }
 
         public void setExpandedIds(List<String> expandedIds) {
@@ -207,7 +207,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                progress = in.readList(PhaseProgress::new);
+                progress = in.readCollectionAsList(PhaseProgress::new);
                 dataCounts = new DataCounts(in);
                 memoryUsage = new MemoryUsage(in);
                 analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);

@@ -39,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,6 +72,7 @@ class S3BlobStore implements BlobStore {
     private final RepositoryMetadata repositoryMetadata;
 
     private final ThreadPool threadPool;
+    private final Executor snapshotExecutor;
 
     private final Stats stats = new Stats();
 
@@ -101,6 +103,7 @@ class S3BlobStore implements BlobStore {
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
+        this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
@@ -143,6 +146,10 @@ class S3BlobStore implements BlobStore {
                 stats.abortCount.addAndGet(getRequestCount(request));
             }
         };
+    }
+
+    public Executor getSnapshotExecutor() {
+        return snapshotExecutor;
     }
 
     public TimeValue getCompareAndExchangeTimeToLive() {

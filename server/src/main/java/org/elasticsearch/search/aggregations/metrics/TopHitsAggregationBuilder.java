@@ -131,7 +131,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         seqNoAndPrimaryTerm = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
     }

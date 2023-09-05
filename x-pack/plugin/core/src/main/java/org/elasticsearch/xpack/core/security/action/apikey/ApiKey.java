@@ -184,7 +184,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.metadata = Map.of();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
         } else {

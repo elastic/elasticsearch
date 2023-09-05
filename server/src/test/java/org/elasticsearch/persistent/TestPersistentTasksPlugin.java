@@ -513,7 +513,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public TestTasksResponse(StreamInput in) throws IOException {
             super(in);
-            tasks = in.readList(TestTaskResponse::new);
+            tasks = in.readCollectionAsList(TestTaskResponse::new);
         }
 
         @Override

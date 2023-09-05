@@ -35,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -327,7 +326,7 @@ public class DesiredBalanceReconciler {
              * * fallback - when assigning the primary shard is temporarily not possible on desired nodes,
              *              and it is assigned elsewhere in the cluster
              */
-            private String source;
+            private NodeIdSource source;
             private Iterator<String> nodeIds;
 
             private boolean wasThrottled = false;
@@ -339,20 +338,20 @@ public class DesiredBalanceReconciler {
                 if (forcedInitialAllocation.isPresent()) {
                     logger.debug("Shard [{}] initial allocation is forced to {}", shard.shardId(), forcedInitialAllocation.get());
                     nodeIds = allocationOrdering.sort(forcedInitialAllocation.get()).iterator();
-                    source = "forced initial allocation";
+                    source = NodeIdSource.FORCED_INITIAL_ALLOCATION;
                 } else {
                     nodeIds = allocationOrdering.sort(assignment.nodeIds()).iterator();
-                    source = "desired";
+                    source = NodeIdSource.DESIRED;
                 }
             }
 
             @Override
             public boolean hasNext() {
-                if (nodeIds.hasNext() == false && Objects.equals(source, "fallback") == false && shard.primary() && wasThrottled == false) {
+                if (nodeIds.hasNext() == false && source != NodeIdSource.FALLBACK == false && shard.primary() && wasThrottled == false) {
                     var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
                     logger.debug("Shard [{}] assignment is temporarily not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                     nodeIds = allocationOrdering.sort(fallbackNodeIds).iterator();
-                    source = "fallback";
+                    source = NodeIdSource.FALLBACK;
                 }
                 return nodeIds.hasNext();
             }
@@ -361,6 +360,12 @@ public class DesiredBalanceReconciler {
             public String next() {
                 return nodeIds.next();
             }
+        }
+
+        private enum NodeIdSource {
+            DESIRED,
+            FORCED_INITIAL_ALLOCATION,
+            FALLBACK;
         }
 
         private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {

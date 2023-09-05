@@ -153,7 +153,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "[sparse_vector] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in "
+            "[sparse_vector] fields do not support indexing multiple values for the same feature [foo.field.bar] in "
                 + "the same document",
             e.getCause().getMessage()
         );

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -452,9 +453,11 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
+        // TODO[wrb]: accumulator should use compatibility versions?
         private final Map<DiscoveryNode, Tuple<TransportVersion, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
+        // TODO[wrb]: compatibility versions
         @Override
         public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
             assert closed == false : "CandidateJoinAccumulator closed";
@@ -473,9 +476,10 @@ public class JoinHelper {
                 final JoinTask joinTask = JoinTask.completingElection(joinRequestAccumulator.entrySet().stream().map(entry -> {
                     final DiscoveryNode discoveryNode = entry.getKey();
                     final var data = entry.getValue();
+                    // TODO[wrb]: pass compatibility versions
                     return new JoinTask.NodeJoinTask(
                         discoveryNode,
-                        data.v1(),
+                        new CompatibilityVersions(data.v1()), // TODO[wrb]: transport version -> compatibilityVersions
                         joinReasonService.getJoinReason(discoveryNode, Mode.CANDIDATE),
                         data.v2()
                     );

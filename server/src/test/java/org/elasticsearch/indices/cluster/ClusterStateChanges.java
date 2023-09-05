@@ -70,6 +70,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -415,9 +416,16 @@ public class ClusterStateChanges {
             List.of(
                 JoinTask.completingElection(
                     nodes.stream()
-                        .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
-                            throw new AssertionError("should not complete publication");
-                        }))),
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                new CompatibilityVersions(transportVersion),
+                                DUMMY_REASON,
+                                ActionListener.running(() -> {
+                                    throw new AssertionError("should not complete publication");
+                                })
+                            )
+                        ),
                     clusterState.term() + between(1, 10)
                 )
             )

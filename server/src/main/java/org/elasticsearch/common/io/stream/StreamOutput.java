@@ -763,23 +763,18 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getDays());
         }),
         entry(GenericNamedWriteable.class, (o, v) -> {
+            // Note that we do not rely on the checks in VersionCheckingStreamOutput because that only applies to CCS
             final var genericNamedWriteable = (GenericNamedWriteable) v;
-            final var minSupportedVersion = TransportVersion.max(
-                TransportVersion.V_8_500_069,
-                genericNamedWriteable.getMinimalSupportedVersion()
-            );
-
-            if (o.getTransportVersion().before(minSupportedVersion)) {
+            if (o.getTransportVersion().before(genericNamedWriteable.getMinimalSupportedVersion())) {
                 final var message = Strings.format(
                     "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",
-                    genericNamedWriteable,
-                    minSupportedVersion,
+                    genericNamedWriteable.getWriteableName(),
+                    genericNamedWriteable.getMinimalSupportedVersion(),
                     o.getTransportVersion()
                 );
                 assert false : message;
                 throw new IllegalStateException(message);
             }
-
             o.writeByte((byte) 30);
             o.writeNamedWriteable(genericNamedWriteable);
         })

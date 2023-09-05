@@ -59,15 +59,15 @@ is not reachable, check the logs of the local cluster for a `connect_exception`.
 When the remote cluster is configured using proxy mode:
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T16:36:47,264][WARN ][o.e.t.ProxyConnectionStrategy] [node] failed to open any proxy connections to cluster [my]
-org.elasticsearch.transport.ConnectTransportException: [][127.0.0.1:9400] *connect_exception*
+[2023-06-28T16:36:47,264][WARN ][o.e.t.ProxyConnectionStrategy] [local-node] failed to open any proxy connections to cluster [my]
+org.elasticsearch.transport.ConnectTransportException: [][192.168.0.42:9443] *connect_exception*
 ----
 
 When the remote cluster is configured using sniff mode:
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T16:38:37,731][WARN ][o.e.t.SniffConnectionStrategy] [node] fetching nodes from external cluster [my] failed
-org.elasticsearch.transport.ConnectTransportException: [][127.0.0.1:9400] *connect_exception*
+[2023-06-28T16:38:37,731][WARN ][o.e.t.SniffConnectionStrategy] [local-node] fetching nodes from external cluster [my] failed
+org.elasticsearch.transport.ConnectTransportException: [][192.168.0.42:9443] *connect_exception*
 ----
 
 ====== Resolution
@@ -96,14 +96,14 @@ The local cluster logs `failed to establish trust with server`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:48:46,575][WARN ][o.e.c.s.DiagnosticTrustManager] [node] *failed to establish trust with server* at [127.0.0.1]; the server provided a certificate with subject name [CN=transport], fingerprint [c43e628be2a8aaaa4092b82d78f2bc206c492322], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:05:53Z] and [2032-08-29T12:05:53Z] (current time is [2023-06-28T02:48:46.574738Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4]; the certificate is issued by [CN=Elastic Auto Transport CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([xpack.security.remote_cluster_client.ssl (with trust configuration: PEM-trust{/rcs2/ssl/remote-cluster-ca.crt})]) is not configured to trust that issuer, it only trusts the issuer [CN=Elastic Auto RemoteCluster CA] with fingerprint [ba2350661f66e46c746c1629f0c4b645a2587ff4]
+[2023-06-28T12:48:46,575][WARN ][o.e.c.s.DiagnosticTrustManager] [local-node] *failed to establish trust with server* at [1192.168.0.42]; the server provided a certificate with subject name [CN=transport], fingerprint [c43e628be2a8aaaa4092b82d78f2bc206c492322], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:05:53Z] and [2032-08-29T12:05:53Z] (current time is [2023-06-28T02:48:46.574738Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4,IP:192.168.0.42]; the certificate is issued by [CN=Elastic Auto Transport CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([xpack.security.remote_cluster_client.ssl (with trust configuration: PEM-trust{/rcs2/ssl/remote-cluster-ca.crt})]) is not configured to trust that issuer, it only trusts the issuer [CN=Elastic Auto RemoteCluster CA] with fingerprint [ba2350661f66e46c746c1629f0c4b645a2587ff4]
 sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
 ----
 
 The remote cluster logs `client did not trust this server's certificate`:
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:48:46,584][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [node-9] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/127.0.0.1:9309, remoteAddress=/127.0.0.1:60810, profile=default}
+[2023-06-28T12:48:46,584][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [remote-node] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/192.168.0.42:9309, remoteAddress=/192.168.0.84:60810, profile=default}
 ----
 
 ====== Symptom 2
@@ -116,7 +116,7 @@ The local cluster logs `Received fatal alert: bad_certificate`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:43:30,705][WARN ][o.e.t.TcpTransport       ] [node] exception caught on transport layer [Netty4TcpChannel{localAddress=/127.0.0.1:60738, remoteAddress=/127.0.0.1:9309, profile=_remote_cluster}], closing connection
+[2023-06-28T12:43:30,705][WARN ][o.e.t.TcpTransport       ] [local-node] exception caught on transport layer [Netty4TcpChannel{localAddress=/192.168.0.84:60738, remoteAddress=/192.168.0.42:9309, profile=_remote_cluster}], closing connection
 io.netty.handler.codec.DecoderException: javax.net.ssl.SSLHandshakeException: *Received fatal alert: bad_certificate*
 ----
 
@@ -124,7 +124,7 @@ The remote cluster logs `Empty client certificate chain`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:43:30,772][WARN ][o.e.t.TcpTransport       ] [node-9] exception caught on transport layer [Netty4TcpChannel{localAddress=/127.0.0.1:9309, remoteAddress=/127.0.0.1:60783, profile=default}], closing connection
+[2023-06-28T12:43:30,772][WARN ][o.e.t.TcpTransport       ] [remote-node] exception caught on transport layer [Netty4TcpChannel{localAddress=/192.168.0.42:9309, remoteAddress=/192.168.0.84:60783, profile=default}], closing connection
 io.netty.handler.codec.DecoderException: javax.net.ssl.SSLHandshakeException: *Empty client certificate chain*
 ----
 
@@ -138,8 +138,8 @@ The local cluster logs `missing authentication`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T13:04:52,710][WARN ][o.e.t.ProxyConnectionStrategy] [node] failed to open any proxy connections to cluster [my]
-org.elasticsearch.transport.RemoteTransportException: [node-9][127.0.0.1:9309][cluster:internal/remote_cluster/handshake]
+[2023-06-28T13:04:52,710][WARN ][o.e.t.ProxyConnectionStrategy] [local-node] failed to open any proxy connections to cluster [my]
+org.elasticsearch.transport.RemoteTransportException: [remote-node][192.168.0.42:9309][cluster:internal/remote_cluster/handshake]
 Caused by: org.elasticsearch.ElasticsearchSecurityException: *missing authentication* credentials for action [cluster:internal/remote_cluster/handshake]
 ----
 
@@ -156,7 +156,7 @@ connection, the local cluster logs `unauthorized`:
 
 [source,txt,subs=+quotes]
 ----
-org.elasticsearch.transport.RemoteTransportException: [node-9][127.0.0.1:9309][cluster:internal/remote_cluster/handshake]
+org.elasticsearch.transport.RemoteTransportException: [remote-node][192.168.0.42:9309][cluster:internal/remote_cluster/handshake]
 Caused by: org.elasticsearch.ElasticsearchSecurityException: action [cluster:internal/remote_cluster/handshake] is *unauthorized* for user [anonymous_foo] with effective roles [reporting_user], this action is granted by the cluster privileges [cross_cluster_search,cross_cluster_replication,manage,all]
 ----
 
@@ -166,8 +166,8 @@ but got [default]`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T13:09:52,031][WARN ][o.e.t.ProxyConnectionStrategy] [node] failed to open any proxy connections to cluster [my]
-org.elasticsearch.transport.RemoteTransportException: [node-9][127.0.0.1:9309][cluster:internal/remote_cluster/handshake]
+[2023-06-28T13:09:52,031][WARN ][o.e.t.ProxyConnectionStrategy] [local-node] failed to open any proxy connections to cluster [my]
+org.elasticsearch.transport.RemoteTransportException: [remote-node][192.168.0.42:9309][cluster:internal/remote_cluster/handshake]
 Caused by: java.lang.IllegalArgumentException: remote cluster handshake action *requires channel profile to be [_remote_cluster], but got [default]*
 ----
 
@@ -201,7 +201,7 @@ The local cluster logs `failed to establish trust with server`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:51:06,452][WARN ][o.e.c.s.DiagnosticTrustManager] [node] *failed to establish trust with server* at [<unknown host>]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-06-28T02:51:06.451581Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([xpack.security.transport.ssl (with trust configuration: PEM-trust{/rcs2/ssl/transport-ca.crt})]) is not configured to trust that issuer, it only trusts the issuer [CN=Elastic Auto Transport CA] with fingerprint [bbe49e3f986506008a70ab651b188c70df104812]
+[2023-06-28T12:51:06,452][WARN ][o.e.c.s.DiagnosticTrustManager] [local-node] *failed to establish trust with server* at [<unknown host>]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-06-28T02:51:06.451581Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4,IP:192.168.0.42]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([xpack.security.transport.ssl (with trust configuration: PEM-trust{/rcs2/ssl/transport-ca.crt})]) is not configured to trust that issuer, it only trusts the issuer [CN=Elastic Auto Transport CA] with fingerprint [bbe49e3f986506008a70ab651b188c70df104812]
 sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
 ----
 
@@ -209,7 +209,7 @@ The remote cluster logs `client did not trust this server's certificate`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T12:52:16,914][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [node-9] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/127.0.0.1:9400, remoteAddress=/127.0.0.1:60981, profile=_remote_cluster}
+[2023-06-28T12:52:16,914][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [remote-node] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/192.168.0.42:9443, remoteAddress=/192.168.0.84:60981, profile=_remote_cluster}
 ----
 
 ====== Symptom 2
@@ -244,7 +244,7 @@ The local cluster logs `failed to establish trust with server`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-29T09:40:55,465][WARN ][o.e.c.s.DiagnosticTrustManager] [node] *failed to establish trust with server* at [127.0.0.1]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-08-16T23:40:55.464275Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([(shared) (with trust configuration: JDK-trusted-certs)]) is not configured to trust that issuer but trusts [97] other issuers
+[2023-06-29T09:40:55,465][WARN ][o.e.c.s.DiagnosticTrustManager] [local-node] *failed to establish trust with server* at [127.0.0.1]; the server provided a certificate with subject name [CN=remote_cluster], fingerprint [529de35e15666ffaa26afa50876a2a48119db03a], no keyUsage and no extendedKeyUsage; the certificate is valid between [2023-01-29T12:08:37Z] and [2032-08-29T12:08:37Z] (current time is [2023-08-16T23:40:55.464275Z], certificate dates are valid); the session uses cipher suite [TLS_AES_256_GCM_SHA384] and protocol [TLSv1.3]; the certificate has subject alternative names [DNS:localhost,DNS:localhost6.localdomain6,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1,DNS:localhost4,DNS:localhost6,DNS:localhost.localdomain,DNS:localhost4.localdomain4,IP:192.168.0.42]; the certificate is issued by [CN=Elastic Auto RemoteCluster CA] but the server did not provide a copy of the issuing certificate in the certificate chain; this ssl context ([(shared) (with trust configuration: JDK-trusted-certs)]) is not configured to trust that issuer but trusts [97] other issuers
 sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
 ----
 
@@ -252,7 +252,7 @@ The remote cluster logs `client did not trust this server's certificate`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-29T09:40:55,478][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [node-9] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/127.0.0.1:9400, remoteAddress=/127.0.0.1:57305, profile=_remote_cluster}
+[2023-06-29T09:40:55,478][WARN ][o.e.x.c.s.t.n.SecurityNetty4Transport] [remote-node] *client did not trust this server's certificate*, closing connection Netty4TcpChannel{localAddress=/192.168.0.42:9443, remoteAddress=/192.168.0.84:57305, profile=_remote_cluster}
 ----
 
 ====== Resolution
@@ -289,8 +289,8 @@ The local cluster logs `authentication expected API key type of [cross_cluster]`
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T13:26:53,962][WARN ][o.e.t.ProxyConnectionStrategy] [node] failed to open any proxy connections to cluster [my]
-org.elasticsearch.transport.RemoteTransportException: [node-9][127.0.0.1:9400][cluster:internal/remote_cluster/handshake]
+[2023-06-28T13:26:53,962][WARN ][o.e.t.ProxyConnectionStrategy] [local-node] failed to open any proxy connections to cluster [my]
+org.elasticsearch.transport.RemoteTransportException: [remote-node][192.168.0.42:9443][cluster:internal/remote_cluster/handshake]
 Caused by: org.elasticsearch.ElasticsearchSecurityException: *authentication expected API key type of [cross_cluster]*, but API key [agZXJocBmA2beJfq2yKu] has type [rest]
 ----
 
@@ -316,8 +316,8 @@ The local cluster logs `unable to authenticate`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T13:22:58,264][WARN ][o.e.t.ProxyConnectionStrategy] [node] failed to open any proxy connections to cluster [my]
-org.elasticsearch.transport.RemoteTransportException: [node-9][127.0.0.1:9400][cluster:internal/remote_cluster/handshake]
+[2023-06-28T13:22:58,264][WARN ][o.e.t.ProxyConnectionStrategy] [local-node] failed to open any proxy connections to cluster [my]
+org.elasticsearch.transport.RemoteTransportException: [remote-node][192.168.0.42:9443][cluster:internal/remote_cluster/handshake]
 Caused by: org.elasticsearch.ElasticsearchSecurityException: *unable to authenticate* user [agZXJocBmA2beJfq2yKu] for action [cluster:internal/remote_cluster/handshake]
 ----
 
@@ -325,7 +325,7 @@ The remote cluster logs `Authentication using apikey failed`:
 
 [source,txt,subs=+quotes]
 ----
-[2023-06-28T13:24:38,744][WARN ][o.e.x.s.a.ApiKeyAuthenticator] [node-9] *Authentication using apikey failed* - invalid credentials for API key [agZXJocBmA2beJfq2yKu]
+[2023-06-28T13:24:38,744][WARN ][o.e.x.s.a.ApiKeyAuthenticator] [remote-node] *Authentication using apikey failed* - invalid credentials for API key [agZXJocBmA2beJfq2yKu]
 ----
 
 ====== Resolution

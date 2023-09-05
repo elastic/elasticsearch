@@ -14,15 +14,18 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompatibilityVersionsTests extends ESTestCase {
 
-    public void testEmptyVersionsMap() {
+    public void testEmptyVersionsList() {
         assertThat(
-            CompatibilityVersions.minimumVersions(Map.of()),
+            CompatibilityVersions.minimumVersions(List.of()),
             equalTo(new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()))
         );
     }
@@ -38,9 +41,9 @@ public class CompatibilityVersionsTests extends ESTestCase {
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, Map.of());
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, Map.of());
 
-        Map<String, CompatibilityVersions> versionsMap = Map.of("node1", compatibilityVersions1, "node2", compatibilityVersions2);
+        List<CompatibilityVersions> versions = List.of(compatibilityVersions1, compatibilityVersions2);
 
-        assertThat(CompatibilityVersions.minimumVersions(versionsMap), equalTo(compatibilityVersions1));
+        assertThat(CompatibilityVersions.minimumVersions(versions), equalTo(compatibilityVersions1));
     }
 
     public void testMinimumMappingsVersions() {
@@ -55,17 +58,10 @@ public class CompatibilityVersionsTests extends ESTestCase {
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(TransportVersion.current(), mappings2);
         CompatibilityVersions compatibilityVersions3 = new CompatibilityVersions(TransportVersion.current(), mappings3);
 
-        Map<String, CompatibilityVersions> versionsMap = Map.of(
-            "node1",
-            compatibilityVersions1,
-            "node2",
-            compatibilityVersions2,
-            "node3",
-            compatibilityVersions3
-        );
+        List<CompatibilityVersions> versions = List.of(compatibilityVersions1, compatibilityVersions2, compatibilityVersions3);
 
         assertThat(
-            CompatibilityVersions.minimumVersions(versionsMap),
+            CompatibilityVersions.minimumVersions(versions),
             equalTo(
                 new CompatibilityVersions(
                     TransportVersion.current(),
@@ -97,8 +93,69 @@ public class CompatibilityVersionsTests extends ESTestCase {
         CompatibilityVersions compatibilityVersions1 = new CompatibilityVersions(version1, mappings1);
         CompatibilityVersions compatibilityVersions2 = new CompatibilityVersions(version2, mappings2);
 
-        Map<String, CompatibilityVersions> versionsMap = Map.of("node1", compatibilityVersions1, "node2", compatibilityVersions2);
+        List<CompatibilityVersions> versions = List.of(compatibilityVersions1, compatibilityVersions2);
 
-        assertThat(CompatibilityVersions.minimumVersions(versionsMap), equalTo(new CompatibilityVersions(version1, mappings2)));
+        assertThat(CompatibilityVersions.minimumVersions(versions), equalTo(new CompatibilityVersions(version1, mappings2)));
+    }
+
+    public void testPreventJoinClusterWithUnsupportedTransportVersion() {
+        List<TransportVersion> transportVersions = IntStream.range(0, randomIntBetween(2, 10))
+            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
+            .toList();
+        TransportVersion min = Collections.min(transportVersions);
+        List<CompatibilityVersions> compatibilityVersions = transportVersions.stream()
+            .map(transportVersion -> new CompatibilityVersions(transportVersion, Map.of()))
+            .toList();
+
+        // should not throw
+        CompatibilityVersions.ensureVersionsCompatibility(
+            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
+            compatibilityVersions
+        );
+        expectThrows(
+            IllegalStateException.class,
+            () -> CompatibilityVersions.ensureVersionsCompatibility(
+                new CompatibilityVersions(
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        TransportVersionUtils.getFirstVersion(),
+                        TransportVersionUtils.getPreviousVersion(min)
+                    ),
+                    Map.of()
+                ),
+                compatibilityVersions
+            )
+        );
+    }
+
+    public void testPreventJoinClusterWithUnsupportedMappingsVersion() {
+        List<CompatibilityVersions> compatibilityVersions = IntStream.range(0, randomIntBetween(2, 10))
+            .mapToObj(
+                i -> new CompatibilityVersions(
+                    TransportVersion.current(),
+                    Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(randomIntBetween(2, 10), -1))
+                )
+            )
+            .toList();
+        int min = compatibilityVersions.stream().mapToInt(v -> v.systemIndexMappingsVersion().get(".system-index").version()).min().orElse(2);
+
+        // should not throw
+        CompatibilityVersions.ensureVersionsCompatibility(
+            new CompatibilityVersions(
+                TransportVersion.current(),
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(min, -1))
+            ),
+            compatibilityVersions
+        );
+        expectThrows(
+            IllegalStateException.class,
+            () -> CompatibilityVersions.ensureVersionsCompatibility(
+                new CompatibilityVersions(
+                    TransportVersion.current(),
+                    Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(randomIntBetween(1, min - 1), -1))
+                ),
+                compatibilityVersions
+            )
+        );
     }
 }

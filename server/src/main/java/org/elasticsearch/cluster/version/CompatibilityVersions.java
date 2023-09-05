@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,23 +45,55 @@ public record CompatibilityVersions(
      * @param compatibilityVersions A map of strings (typically node identifiers) and versions wrappers
      * @return Minimum versions for the cluster
      */
-    public static CompatibilityVersions minimumVersions(Map<String, CompatibilityVersions> compatibilityVersions) {
-        TransportVersion minimumTransport = compatibilityVersions.values()
-            .stream()
+    public static CompatibilityVersions minimumVersions(Collection<CompatibilityVersions> compatibilityVersions) {
+        TransportVersion minimumTransport = compatibilityVersions.stream()
             .map(CompatibilityVersions::transportVersion)
             .min(Comparator.naturalOrder())
             // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
             .orElse(TransportVersions.MINIMUM_COMPATIBLE);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> minimumMappingsVersions = new HashMap<>();
-        compatibilityVersions.values()
-            .stream()
+        compatibilityVersions.stream()
             .flatMap(mv -> mv.systemIndexMappingsVersion().entrySet().stream())
             .forEach(
                 entry -> minimumMappingsVersions.merge(entry.getKey(), entry.getValue(), (v1, v2) -> v1.version() < v2.version() ? v1 : v2)
             );
 
         return new CompatibilityVersions(minimumTransport, minimumMappingsVersions);
+    }
+
+    public static void ensureVersionsCompatibility(CompatibilityVersions candidate, Collection<CompatibilityVersions> existing) {
+        CompatibilityVersions minimumClusterVersions = minimumVersions(existing);
+
+        if (candidate.transportVersion().before(minimumClusterVersions.transportVersion())) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + candidate.transportVersion()
+                    + "] may not join a cluster with minimum transport version ["
+                    + minimumClusterVersions.transportVersion()
+                    + "]"
+            );
+        }
+
+        Map<String, SystemIndexDescriptor.MappingsVersion> candidateInvalid = new HashMap<>();
+        Map<String, SystemIndexDescriptor.MappingsVersion> existingInvalid = new HashMap<>();
+        for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> candidates : candidate.systemIndexMappingsVersion().entrySet()) {
+            if (minimumClusterVersions.systemIndexMappingsVersion().containsKey(candidates.getKey())
+                && minimumClusterVersions.systemIndexMappingsVersion().get(candidates.getKey()).version() > candidates.getValue()
+                    .version()) {
+                candidateInvalid.put(candidates.getKey(), candidates.getValue());
+                existingInvalid.put(candidates.getKey(), minimumClusterVersions.systemIndexMappingsVersion().get(candidates.getKey()));
+            }
+        }
+        if (candidateInvalid.isEmpty() == false) {
+            throw new IllegalStateException(
+                "node with system index mappings versions ["
+                    + candidateInvalid
+                    + "] may not join a cluster with minimum system index mappings versions ["
+                    + existingInvalid
+                    + "]"
+            );
+        }
     }
 
     public static CompatibilityVersions readVersion(StreamInput in) throws IOException {

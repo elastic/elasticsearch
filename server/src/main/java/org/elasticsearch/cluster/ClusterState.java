@@ -223,7 +223,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of())
-            : CompatibilityVersions.minimumVersions(compatibilityVersions);
+            : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
     }
 
     private static boolean assertConsistentRoutingNodes(

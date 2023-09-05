@@ -143,8 +143,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                            // TODO[wrb]: add system indices version barrier and refactor this logic into CompatibilityVersions
-                            ensureTransportVersionBarrier(compatibilityVersions, compatibilityVersionsMap.values());
+                            CompatibilityVersions.ensureVersionsCompatibility(compatibilityVersions, compatibilityVersionsMap.values());
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);

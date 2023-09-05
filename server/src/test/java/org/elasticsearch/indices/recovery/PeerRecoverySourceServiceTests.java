@@ -41,6 +41,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
             mock(TransportService.class),
             indicesService,
+            clusterService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(RecoveryPlannerService.class)
         );
@@ -49,6 +50,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
             randomAlphaOfLength(10),
             getFakeDiscoNode("source"),
             getFakeDiscoNode("target"),
+            0L,
             Store.MetadataSnapshot.EMPTY,
             randomBoolean(),
             randomLong(),

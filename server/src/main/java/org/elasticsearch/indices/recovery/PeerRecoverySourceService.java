@@ -15,13 +15,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
@@ -59,20 +59,22 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private final TransportService transportService;
     private final IndicesService indicesService;
+    private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
-    @Inject
     public PeerRecoverySourceService(
         TransportService transportService,
         IndicesService indicesService,
+        ClusterService clusterService,
         RecoverySettings recoverySettings,
         RecoveryPlannerService recoveryPlannerService
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
@@ -132,6 +134,45 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
+        if (request.clusterStateVersion() <= clusterService.state().version()) {
+            // either our locally-applied cluster state is already fresh enough, or request.clusterStateVersion() == 0 for bwc
+            recoverWithFreshClusterState(request, task, listener);
+        } else {
+            logger.debug(
+                "delaying recovery of {} until application of cluster state version {}",
+                request.shardId(),
+                request.clusterStateVersion()
+            );
+            final var waitListener = new SubscribableListener<Void>();
+            final var clusterStateVersionListener = new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (request.clusterStateVersion() <= event.state().version()) {
+                        waitListener.onResponse(null);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "wait for cluster state for [" + request + "]";
+                }
+            };
+            clusterService.addListener(clusterStateVersionListener);
+            waitListener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateVersionListener)));
+            if (request.clusterStateVersion() <= clusterService.state().version()) {
+                waitListener.onResponse(null);
+            }
+            waitListener.addListener(
+                listener.delegateFailureAndWrap((l, ignored) -> recoverWithFreshClusterState(request, task, l)),
+                transportService.getThreadPool().generic(),
+                transportService.getThreadPool().getThreadContext()
+            );
+            // NB no timeout. If we never apply the fresh cluster state then eventually we leave the cluster which removes the recovery
+            // from the routing table so the target shard will fail.
+        }
+    }
+
+    private void recoverWithFreshClusterState(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 

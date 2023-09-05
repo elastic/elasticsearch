@@ -262,7 +262,6 @@ public class MessagesTests extends ESTestCase {
                 } else if (randomBoolean()) {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
-                        // TODO[wrb]: will a utility method be useful?
                         new CompatibilityVersions(
                             TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion()))
                         ),

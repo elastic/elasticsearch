@@ -90,11 +90,6 @@ public class JoinRequest extends TransportRequest {
         return compatibilityVersions;
     }
 
-    // TODO[wrb]: Should we return compatibility versions?
-    public TransportVersion getTransportVersion() {
-        return compatibilityVersions.transportVersion();
-    }
-
     public long getMinimumTerm() {
         return minimumTerm;
     }

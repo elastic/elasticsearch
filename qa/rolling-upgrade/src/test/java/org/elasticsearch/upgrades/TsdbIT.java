@@ -21,6 +21,8 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbIT extends AbstractRollingTestCase {
 
@@ -183,6 +185,32 @@ public class TsdbIT extends AbstractRollingTestCase {
             performMixedClusterOperations(dataStreamName);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             performUpgradedClusterOperations(dataStreamName);
+
+            var dataStreams = getDataStream(dataStreamName);
+            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
+            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
+            String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+            {
+                var indices = getIndex(firstBackingIndex);
+                var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), nullValue());
+                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+                assertThat(startTime, nullValue());
+                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+                assertThat(endTime, nullValue());
+            }
+            String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
+            {
+                var indices = getIndex(secondBackingIndex);
+                var escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
+                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
+                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+                assertThat(startTime, notNullValue());
+                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+                assertThat(endTime, notNullValue());
+            }
         }
     }
 
@@ -194,12 +222,11 @@ public class TsdbIT extends AbstractRollingTestCase {
         var dataStreams = getDataStream(dataStreamName);
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
         String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
         assertThat(secondBackingIndex, backingIndexEqualTo(dataStreamName, 2));
         indexDoc(dataStreamName);
         assertSearch(dataStreamName, 10);
-
-        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
         closeIndex(firstBackingIndex);
         closeIndex(secondBackingIndex);
         openIndex(firstBackingIndex);
@@ -264,6 +291,13 @@ public class TsdbIT extends AbstractRollingTestCase {
     private static Map<String, Object> getDataStream(String dataStreamName) throws IOException {
         var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
         var response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        return entityAsMap(response);
+    }
+
+    private static Map<?, ?> getIndex(String indexName) throws IOException {
+        var getIndexRequest = new Request("GET", "/" + indexName + "?human");
+        var response = client().performRequest(getIndexRequest);
         assertOK(response);
         return entityAsMap(response);
     }

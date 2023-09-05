@@ -1858,8 +1858,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
                   "properties": {
                     "field2": {
-                                  "type": "object",
-                                  "subobjects": true
+                              "type": "object",
+                              "properties": {
+                                "bar": {
+                                  "type": "object"
+                                }
+                              }
                     }
                   }
                 }"""), null), randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null, null);
@@ -1879,7 +1883,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString("invalid composite mappings for [my-template]"));
 
         assertNotNull(e.getCause().getCause());
-        assertThat(e.getCause().getCause().getMessage(), containsString("contradicting subobjects settings provided for field: field2"));
+        assertThat(
+            e.getCause().getCause().getMessage(),
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
+        );
     }
 
     /**
@@ -1965,7 +1972,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
               "properties": {
                 "field2": {
                                   "type": "object",
-                                  "subobjects": true
+                                  "properties": {
+                                    "bar": {
+                                      "type": "object"
+                                    }
+                                  }
                 }
               }
             }
@@ -1991,7 +2002,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("contradicting subobjects settings provided for field: field2")
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
         );
     }
 

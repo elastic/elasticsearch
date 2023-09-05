@@ -469,16 +469,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // field mapping entries of Map type (like "fields" and "meta") are handled above and should never reach here
                 return null;
             } else {
-                switch (key) {
-                    case "subobjects" -> {
-                        if (oldValue.equals(newValue) == false) {
-                            throw new MapperParsingException("contradicting subobjects settings provided for field: " + parent);
-                        }
-                    }
-                    case "required" -> {
-                        if ("_routing".equals(parent) && oldValue != newValue) {
-                            throw new MapperParsingException("contradicting `_routing.required` settings");
-                        }
+                if (key.equals("required")) {
+                    if ("_routing".equals(parent) && oldValue != newValue) {
+                        throw new MapperParsingException("contradicting `_routing.required` settings");
                     }
                 }
                 return newValue;

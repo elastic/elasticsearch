@@ -437,35 +437,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
     }
 
-    public void testMergeContradictingSubobjectsInRoot() throws IOException {
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
-        CompressedXContent mapping1 = createTestMapping1();
-        CompressedXContent mapping2 = createTestMapping2();
-        CompressedXContent subobjectsTrueExplicitly;
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            subobjectsTrueExplicitly = new CompressedXContent(
-                BytesReference.bytes(
-                    xContentBuilder.startObject()
-                        .startObject("_doc")
-                        .field("subobjects", true)
-                        .startObject("properties")
-                        .startObject("parent.other_subfield")
-                        .field("type", "text")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                )
-            );
-        }
-
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapperService.merge("_doc", List.of(mapping2, mapping1, subobjectsTrueExplicitly), MergeReason.INDEX_TEMPLATE)
-        );
-        assertEquals("contradicting subobjects settings provided for field: _doc", e.getMessage());
-    }
-
     private static CompressedXContent createTestMapping1() throws IOException {
         CompressedXContent mapping1;
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
@@ -998,15 +969,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
     }
 
-    public void testSubobjectsMergeNotInRoot() throws IOException {
+    public void testContradictingSubobjects() throws IOException {
         CompressedXContent mapping1 = new CompressedXContent("""
             {
               "properties": {
-                "field": {
+                "parent": {
                   "type": "object",
                   "subobjects": false,
                   "properties": {
-                    "subfield1": {
+                    "child.grandchild": {
                       "type": "text"
                     }
                   }
@@ -1017,25 +988,59 @@ public class MapperServiceTests extends MapperServiceTestCase {
         CompressedXContent mapping2 = new CompressedXContent("""
             {
               "properties": {
-                "field": {
+                "parent": {
                   "type": "object",
                   "subobjects": true,
                   "properties": {
-                    "subfield2": {
-                      "type": "text"
+                    "child.grandchild": {
+                      "type": "long"
                     }
                   }
                 }
               }
             }""");
 
-        final MapperService mapperService = createMapperService(mapping(b -> {}));
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE)
-        );
-        assertEquals("contradicting subobjects settings provided for field: field", e.getMessage());
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "subobjects" : true,
+                    "properties" : {
+                      "child" : {
+                        "properties" : {
+                          "grandchild" : {
+                            "type" : "long"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        mapperService = createMapperService(mapping(b -> {}));
+        mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
+
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "subobjects" : false,
+                    "properties" : {
+                      "child.grandchild" : {
+                        "type" : "text"
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
     }
 
     public void testSubobjectsImplicitObjectsMerge() throws IOException {

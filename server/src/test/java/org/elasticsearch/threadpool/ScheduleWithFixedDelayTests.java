@@ -309,7 +309,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             barrier.await();
         }
-        expectThrows(TimeoutException.class, () -> barrier.await(2*interval.millis(), TimeUnit.MILLISECONDS));
+        expectThrows(TimeoutException.class, () -> barrier.await(2 * interval.millis(), TimeUnit.MILLISECONDS));
 
         assertThat(counter.get(), equalTo(iterations));
 

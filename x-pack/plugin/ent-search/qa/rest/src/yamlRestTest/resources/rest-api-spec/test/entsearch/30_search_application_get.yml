@@ -64,6 +64,7 @@ teardown:
         name: test-search-application-1
 
   - match: { name: "test-search-application-1" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
   - match: { analytics_collection_name: "test-analytics" }
   - match: {
     template: {
@@ -101,6 +102,7 @@ teardown:
         name: test-search-application-2
 
   - match: { name: "test-search-application-2" }
+  - match: { indices: [ "test-index1", "test-index2" ] }
   - match: { analytics_collection_name: "test-analytics" }
   - match: {
     template: {

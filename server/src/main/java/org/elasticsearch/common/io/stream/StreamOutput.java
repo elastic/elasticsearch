@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -762,9 +763,25 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getDays());
         }),
         entry(GenericNamedWriteable.class, (o, v) -> {
+            final var genericNamedWriteable = (GenericNamedWriteable) v;
+            final var minSupportedVersion = TransportVersion.max(
+                TransportVersion.V_8_500_069,
+                genericNamedWriteable.getMinimalSupportedVersion()
+            );
+
+            if (o.getTransportVersion().before(minSupportedVersion)) {
+                final var message = Strings.format(
+                    "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",
+                    genericNamedWriteable,
+                    minSupportedVersion,
+                    o.getTransportVersion()
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             o.writeByte((byte) 30);
-            GenericNamedWriteable w = (GenericNamedWriteable) v;
-            o.writeNamedWriteable(w);
+            o.writeNamedWriteable(genericNamedWriteable);
         })
     );
 

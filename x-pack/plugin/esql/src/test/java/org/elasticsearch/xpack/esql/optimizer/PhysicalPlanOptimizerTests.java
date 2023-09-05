@@ -1785,12 +1785,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(eval.child());
     }
 
+    /**
+     * ProjectExec[[a{r}#5]]
+     * \_EvalExec[[__a_SUM@81823521{r}#15 / __a_COUNT@31645621{r}#16 AS a]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],FINAL,24]
+     *       \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],PARTIAL,16]
+     *         \_LimitExec[10[INTEGER]]
+     *           \_ExchangeExec[[],false]
+     *             \_ProjectExec[[salary{f}#11]]
+     *               \_FieldExtractExec[salary{f}#11]
+     *                 \_EsQueryExec[test], query[][_doc{f}#17], limit[10], sort[] estimatedRowSize[8]
+     */
     public void testAvgSurrogateFunctionAfterRenameAndLimit() {
         var plan = optimizedPlan(physicalPlan("""
             from test
             | limit 10
             | rename first_name as FN
-            | stats average_salary = avg(salary)
+            | stats a = avg(salary)
             """));
 
         var project = as(plan, ProjectExec.class);

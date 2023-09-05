@@ -104,7 +104,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
   name: buildkite-pipeline-elasticsearch-periodic-trigger
-  description: Triggers periodic pipeline for all required branches
+  description: Triggers periodic pipelines for all required branches
   links:
     - title: Pipeline
       url: https://buildkite.com/elastic/elasticsearch-periodic-trigger
@@ -116,11 +116,11 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ":elasticsearch: Triggers periodic pipeline for all required branches"
+      description: ":elasticsearch: Triggers periodic pipelines for all required branches"
       name: elasticsearch / periodic / trigger
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/pipelines/periodic.trigger.yml
+      pipeline_file: .buildkite/scripts/periodic.trigger.sh
       branch_configuration: main
       teams:
         elasticsearch-team: {}

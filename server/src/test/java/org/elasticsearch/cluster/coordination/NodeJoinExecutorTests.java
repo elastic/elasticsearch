@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsTests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
@@ -292,7 +293,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 Stream.of(
                                     new JoinTask.NodeJoinTask(
                                         masterNode,
-                                        new CompatibilityVersions(TransportVersion.current()),
+                                        CompatibilityVersionsTests.compileTimeCurrent(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER
                                     )
@@ -348,7 +349,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 Stream.of(
                                     new JoinTask.NodeJoinTask(
                                         masterNode,
-                                        new CompatibilityVersions(TransportVersion.current()),
+                                        CompatibilityVersionsTests.compileTimeCurrent(),
                                         TEST_REASON,
                                         NOT_COMPLETED_LISTENER
                                     )
@@ -433,13 +434,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     Stream.of(
                         new JoinTask.NodeJoinTask(
                             masterNode,
-                            new CompatibilityVersions(TransportVersion.current()),
+                            CompatibilityVersionsTests.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         ),
                         new JoinTask.NodeJoinTask(
                             otherNodeNew,
-                            new CompatibilityVersions(TransportVersion.current()),
+                            CompatibilityVersionsTests.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         )
@@ -516,13 +517,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         Stream.of(
                             new JoinTask.NodeJoinTask(
                                 masterNode,
-                                new CompatibilityVersions(TransportVersion.current()),
+                                CompatibilityVersionsTests.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             ),
                             new JoinTask.NodeJoinTask(
                                 otherNode,
-                                new CompatibilityVersions(TransportVersion.current()),
+                                CompatibilityVersionsTests.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             )
@@ -540,7 +541,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         Stream.of(
                             new JoinTask.NodeJoinTask(
                                 masterNode,
-                                new CompatibilityVersions(TransportVersion.current()),
+                                CompatibilityVersionsTests.compileTimeCurrent(),
                                 TEST_REASON,
                                 NOT_COMPLETED_LISTENER
                             )
@@ -656,7 +657,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 .map(
                     node -> new JoinTask.NodeJoinTask(
                         node,
-                        new CompatibilityVersions(TransportVersion.current()),
+                        CompatibilityVersionsTests.compileTimeCurrent(),
                         TEST_REASON,
                         NOT_COMPLETED_LISTENER
                     )
@@ -774,7 +775,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     Stream.of(
                         new JoinTask.NodeJoinTask(
                             otherNode,
-                            new CompatibilityVersions(TransportVersion.current()),
+                            CompatibilityVersionsTests.compileTimeCurrent(),
                             TEST_REASON,
                             NOT_COMPLETED_LISTENER
                         )
@@ -801,12 +802,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             ? JoinTask.singleNode(node, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
             : JoinTask.completingElection(
                 Stream.of(
-                    new JoinTask.NodeJoinTask(
-                        node,
-                        new CompatibilityVersions(TransportVersion.current()),
-                        TEST_REASON,
-                        NOT_COMPLETED_LISTENER
-                    )
+                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsTests.compileTimeCurrent(), TEST_REASON, NOT_COMPLETED_LISTENER)
                 ),
                 term
             );

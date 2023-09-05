@@ -318,6 +318,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             // query but no filter queries.
             final boolean useCompetitiveIterator = (parent == null
                 && otherBucketKey == null
+                && filterIterators.size() > 0
                 && totalCost < aggCtx.getLeafReaderContext().reader().maxDoc());
 
             return new LeafBucketCollectorBase(sub, null) {

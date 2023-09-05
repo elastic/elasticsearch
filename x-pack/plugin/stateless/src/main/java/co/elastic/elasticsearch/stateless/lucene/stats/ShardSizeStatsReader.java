@@ -20,10 +20,8 @@ package co.elastic.elasticsearch.stateless.lucene.stats;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -58,11 +56,11 @@ public class ShardSizeStatsReader {
         this(threadPool::absoluteTimeInMillis, indicesService);
     }
 
-    public Map<ShardId, ShardSize> getAllShardSizes(TimeValue interactiveDataAge) {
+    public Map<ShardId, ShardSize> getAllShardSizes(TimeValue boostWindowInterval) {
         var sizes = new HashMap<ShardId, ShardSize>();
         for (var indexService : indicesService) {
             for (var indexShard : indexService) {
-                var shardSize = getShardSize(indexShard, interactiveDataAge);
+                var shardSize = getShardSize(indexShard, boostWindowInterval);
                 if (shardSize != null) {
                     sizes.put(indexShard.shardId(), shardSize);
                 }
@@ -75,12 +73,12 @@ public class ShardSizeStatsReader {
      * @return the ShardSize of the shard or {@code null} if operation could not be performed
      */
     @Nullable
-    public ShardSize getShardSize(ShardId shardId, TimeValue interactiveDataAge) {
-        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()), interactiveDataAge);
+    public ShardSize getShardSize(ShardId shardId, TimeValue boostWindowInterval) {
+        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()), boostWindowInterval);
     }
 
     @Nullable
-    public ShardSize getShardSize(IndexShard indexShard, TimeValue interactiveDataAge) {
+    public ShardSize getShardSize(IndexShard indexShard, TimeValue boostWindowInterval) {
         if (isSizeAvailable(indexShard.state()) == false) {
             return null;
         }
@@ -94,7 +92,7 @@ public class ShardSizeStatsReader {
                 final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
                 for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                     var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
-                    if (isInteractive(ctx.reader(), fieldType, currentTimeMillis, interactiveDataAge)) {
+                    if (isInteractive(ctx.reader(), fieldType, currentTimeMillis, boostWindowInterval)) {
                         interactiveSize += segmentSize;
                     } else {
                         nonInteractiveSize += segmentSize;
@@ -105,10 +103,6 @@ public class ShardSizeStatsReader {
                 logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
                 return null;
             }
-        } catch (ElasticsearchSecurityException e) {
-            // it is currently impossible to obtain a searcher for the system indices such as .security or .kibana
-            // this temporarily assigns 10Mb weight for such indices until the issue is fixed
-            return new ShardSize(ByteSizeValue.ofMb(10).getBytes(), 0);
         } catch (Exception e) {
             logger.warn("Failed to acquire searcher for {}", indexShard.shardId(), e);
             return null;

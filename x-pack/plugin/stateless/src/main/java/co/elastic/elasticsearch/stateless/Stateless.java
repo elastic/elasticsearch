@@ -59,7 +59,9 @@ import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
-import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsReader;
+import co.elastic.elasticsearch.stateless.lucene.stats.GetAllShardSizesAction;
+import co.elastic.elasticsearch.stateless.lucene.stats.GetShardSizeAction;
+import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
@@ -234,7 +236,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ESQL, DummyESQLInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ESQL, DummyEsqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
@@ -250,12 +251,18 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             new ActionHandler<>(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
+
+            // autoscaling
             new ActionHandler<>(PublishNodeIngestLoadAction.INSTANCE, TransportPublishNodeIngestLoadMetric.class),
-            new ActionHandler<>(ClearBlobCacheAction.INSTANCE, TransportClearBlobCacheAction.class),
             new ActionHandler<>(PublishShardSizesAction.INSTANCE, TransportPublishShardSizes.class),
-            new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
-            new ActionHandler<>(GetBlobStoreStatsAction.INSTANCE, TransportGetBlobStoreStatsAction.class),
             new ActionHandler<>(PublishHeapMemoryMetricsAction.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+            new ActionHandler<>(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
+            new ActionHandler<>(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
+
+            new ActionHandler<>(ClearBlobCacheAction.INSTANCE, TransportClearBlobCacheAction.class),
+            new ActionHandler<>(GetBlobStoreStatsAction.INSTANCE, TransportGetBlobStoreStatsAction.class),
+            new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+            new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class)
         );
@@ -408,7 +415,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         clusterService.addListener(ingestMetricService);
         components.add(ingestMetricService);
         // search
-        var shardSizeStatsReader = new ShardSizeStatsReader(threadPool, indicesService);
+        var shardSizeStatsClient = new ShardSizeStatsClient(client);
         var shardSizesPublisher = new ShardSizesPublisher(client);
         var shardSizesCollector = setAndGet(
             this.shardSizesCollector,
@@ -416,7 +423,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 clusterService.getClusterSettings(),
                 threadPool,
                 clusterService,
-                shardSizeStatsReader,
+                shardSizeStatsClient,
                 shardSizesPublisher,
                 hasSearchRole
             )

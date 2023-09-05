@@ -107,6 +107,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
@@ -152,6 +153,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
 
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
@@ -207,6 +209,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(jobBuilder.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
             assertThat(dataCounts.getMissingFieldCount(), equalTo(0L));
 
@@ -241,6 +244,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
             assertBusy(() -> {
+                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
                 // Datafeed processed numDocs documents so search_count must be greater than 0.
                 assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
             }, 60, TimeUnit.SECONDS);
@@ -271,6 +275,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
         startDatafeed(datafeedId, 0L, now.toEpochMilli());
         assertBusy(() -> {
+            assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
             // Datafeed processed numDocs documents so search_count must be greater than 0.
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
         }, 60, TimeUnit.SECONDS);
@@ -328,6 +333,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, null);
 
         // Wait until we have processed data
+        assertBusy(() -> assertThat(getDataCounts(scrollJobId).getProcessedRecordCount(), greaterThan(0L)));
         stopDatafeed(datafeedConfig.getId());
         assertBusy(() -> assertThat(getJobStats(scrollJobId).get(0).getState(), is(oneOf(JobState.CLOSED, JobState.OPENED))));
         // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
@@ -343,6 +349,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(scrollJobId);
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 60, TimeUnit.SECONDS);
 
@@ -372,6 +379,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(compositeDatafeedConfig.getId(), 0L, null);
 
         // Wait until we have processed data
+        assertBusy(() -> assertThat(getDataCounts(compositeJobId).getProcessedRecordCount(), greaterThan(0L)));
         stopDatafeed(compositeDatafeedConfig.getId());
         assertBusy(() -> assertThat(getJobStats(compositeJobId).get(0).getState(), is(oneOf(JobState.CLOSED, JobState.OPENED))));
         // If we are not OPENED, then we are closed and shouldn't restart as the datafeed finished running through the data
@@ -761,6 +769,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
 
@@ -775,6 +784,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         }, 30, TimeUnit.SECONDS);
     }

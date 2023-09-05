@@ -297,45 +297,59 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
 
-            final boolean useCompetitiveIterator = (parent == null && otherBucketKey == null);
             final int numFilters = filters().size();
 
             // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
             final DisiPriorityQueue filterIterators = new DisiPriorityQueue(numFilters);
 
+            long totalCost = 0;
             for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
                 Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
+                if (randomAccessScorer == null) {
+                    continue;
+                }
                 FilterMatchingDisiWrapper w = new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd);
+                totalCost += randomAccessScorer.iterator().cost();
                 filterIterators.add(w);
             }
+
+            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
+            // and the total cost of per-filter doc iterators is smaller than maxDoc, indicating that there are docs matching the main
+            // query but no filter queries.
+            final boolean useCompetitiveIterator = (parent == null
+                && otherBucketKey == null
+                && totalCost < aggCtx.getLeafReaderContext().reader().maxDoc());
+
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
-                    DisiWrapper top = filterIterators.top();
-                    while (top.doc < doc) {
-                        top.doc = top.approximation.advance(doc);
-                        top = filterIterators.updateTop();
-                    }
-
                     boolean matched = false;
-                    if (top.doc == doc) {
-                        for (DisiWrapper w = filterIterators.topList(); w != null; w = w.next) {
-                            // It would be nice if DisiPriorityQueue supported generics to avoid unchecked casts.
-                            FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+                    if (filterIterators.size() > 0) {
+                        // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
+                        DisiWrapper top = filterIterators.top();
+                        while (top.doc < doc) {
+                            top.doc = top.approximation.advance(doc);
+                            top = filterIterators.updateTop();
+                        }
 
-                            // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
-                            // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
-                            // buckets.
-                            if (topMatch.lastCheckedDoc < doc) {
-                                topMatch.lastCheckedDoc = doc;
-                                if (topMatch.twoPhaseView == null || topMatch.twoPhaseView.matches()) {
-                                    topMatch.lastMatchingDoc = doc;
+                        if (top.doc == doc) {
+                            for (DisiWrapper w = filterIterators.topList(); w != null; w = w.next) {
+                                // It would be nice if DisiPriorityQueue supported generics to avoid unchecked casts.
+                                FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+
+                                // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
+                                // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
+                                // buckets.
+                                if (topMatch.lastCheckedDoc < doc) {
+                                    topMatch.lastCheckedDoc = doc;
+                                    if (topMatch.twoPhaseView == null || topMatch.twoPhaseView.matches()) {
+                                        topMatch.lastMatchingDoc = doc;
+                                    }
                                 }
-                            }
-                            if (topMatch.lastMatchingDoc == doc) {
-                                collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
-                                matched = true;
+                                if (topMatch.lastMatchingDoc == doc) {
+                                    collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                                    matched = true;
+                                }
                             }
                         }
                     }

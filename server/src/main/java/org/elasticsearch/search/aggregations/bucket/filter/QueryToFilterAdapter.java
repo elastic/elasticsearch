@@ -13,7 +13,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -181,27 +180,7 @@ public class QueryToFilterAdapter {
         Weight weight = weight();
         ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
         if (scorerSupplier == null) {
-            return new Scorer(weight) {
-                @Override
-                public DocIdSetIterator iterator() {
-                    return DocIdSetIterator.empty();
-                }
-
-                @Override
-                public float getMaxScore(int upTo) throws IOException {
-                    return 0;
-                }
-
-                @Override
-                public float score() throws IOException {
-                    return 0;
-                }
-
-                @Override
-                public int docID() {
-                    return DocIdSetIterator.NO_MORE_DOCS;
-                }
-            };
+            return null;
         }
 
         // A leading cost of 0 instructs the scorer to optimize for random access as opposed to sequential access

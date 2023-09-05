@@ -111,7 +111,12 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
 
     public void testSettingNameNormalization() throws Exception {
         Settings prevSettings = Settings.builder().put("dummy.setting1", "a-value").build();
-        var clusterState = new SettingsUpdater(clusterSettings).updateSettings(ClusterState.EMPTY_STATE, Settings.EMPTY, prevSettings, logger);
+        var clusterState = new SettingsUpdater(clusterSettings).updateSettings(
+            ClusterState.EMPTY_STATE,
+            Settings.EMPTY,
+            prevSettings,
+            logger
+        );
         TransformState prevState = new TransformState(clusterState, Set.of("dummy.setting1"));
 
         String json = """

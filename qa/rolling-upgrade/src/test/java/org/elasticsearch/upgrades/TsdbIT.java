@@ -154,7 +154,7 @@ public class TsdbIT extends AbstractRollingTestCase {
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
         assumeTrue(
             "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0) && UPGRADE_FROM_VERSION.before(Version.V_8_11_0)
         );
         String dataStreamName = "template-with-component-template";
         if (CLUSTER_TYPE == ClusterType.OLD) {

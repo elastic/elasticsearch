@@ -90,7 +90,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.compileTimeCurrent()
         );
         transportService.start();
 
@@ -256,7 +257,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.compileTimeCurrent()
         );
         transportService.start();
 
@@ -331,7 +333,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated"))
+            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
+            CompatibilityVersionsUtils.compileTimeCurrent()
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();

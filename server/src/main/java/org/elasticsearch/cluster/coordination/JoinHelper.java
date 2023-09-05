@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -77,6 +76,7 @@ public class JoinHelper {
     private final JoinReasonService joinReasonService;
     private final CircuitBreakerService circuitBreakerService;
     private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
+    private final CompatibilityVersions compatibilityVersions;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -95,7 +95,8 @@ public class JoinHelper {
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
-        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier
+        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
+        CompatibilityVersions compatibilityVersions
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
@@ -109,6 +110,7 @@ public class JoinHelper {
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
+        this.compatibilityVersions = compatibilityVersions;
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
@@ -236,7 +238,6 @@ public class JoinHelper {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), compatibilityVersions, term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());

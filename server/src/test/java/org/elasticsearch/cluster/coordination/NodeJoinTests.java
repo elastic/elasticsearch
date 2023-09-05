@@ -229,7 +229,8 @@ public class NodeJoinTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new Reconfigurator(Settings.EMPTY, clusterSettings),
             LeaderHeartbeatService.NO_OP,
-            StatefulPreVoteCollector::new
+            StatefulPreVoteCollector::new,
+            CompatibilityVersionsUtils.compileTimeCurrent()
         );
         transportService.start();
         transportService.acceptIncomingRequests();

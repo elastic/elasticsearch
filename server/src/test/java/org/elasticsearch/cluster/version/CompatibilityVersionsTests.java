@@ -82,7 +82,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
      * complaint.
      */
     public void testMinimumsAreMerged() {
-        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_COMPATIBLE, true);
+        TransportVersion version1 = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_COMPATIBLE, true);
         TransportVersion version2 = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getNextVersion(version1, true),

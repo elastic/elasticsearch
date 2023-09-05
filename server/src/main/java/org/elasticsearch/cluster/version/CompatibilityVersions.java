@@ -64,14 +64,23 @@ public record CompatibilityVersions(
     }
 
     public static CompatibilityVersions readVersion(StreamInput in) throws IOException {
-        // TODO[wrb]: transport version change
-        return new CompatibilityVersions(TransportVersion.readVersion(in), Map.of());
+        TransportVersion transportVersion = TransportVersion.readVersion(in);
+
+        Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = Map.of();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
+            mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
+        }
+
+        return new CompatibilityVersions(transportVersion, mappingsVersions);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO[wrb]: transport version change
         TransportVersion.writeVersion(this.transportVersion(), out);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
+            out.writeMap(this.systemIndexMappingsVersion(), (o, v) -> v.writeTo(o));
+        }
     }
 
     /**
@@ -84,8 +93,8 @@ public record CompatibilityVersions(
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO[wrb]: transport version change
         builder.field("transport_version", this.transportVersion().toString());
+        builder.field("mappings_versions", this.systemIndexMappingsVersion);
         return builder;
     }
 }

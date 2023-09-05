@@ -8,7 +8,6 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -194,10 +193,5 @@ public abstract class BoundingBox<T extends SpatialPoint> implements ToXContentF
     @Override
     public String toString() {
         return "BBOX (" + left() + ", " + right() + ", " + top() + ", " + bottom() + ")";
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_070;
     }
 }

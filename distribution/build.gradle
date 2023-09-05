@@ -431,9 +431,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from buildServerNoticeTaskProvider
         } else {
          if (jdk) {
-            from buildDefaultNoticeTaskProvider
+            from(buildDefaultNoticeTaskProvider)  {
+              fileMode = 0644
+            }
           } else {
-            from buildDefaultNoJdkNoticeTaskProvider
+            from(buildDefaultNoJdkNoticeTaskProvider) {
+             fileMode = 0644
+            }
           }
         }
       }

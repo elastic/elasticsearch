@@ -25,7 +25,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -330,74 +329,41 @@ public class LuceneTests extends ESTestCase {
     }
 
     public void testAsSequentialAccessBits() throws Exception {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
-            Document doc = new Document();
-            doc.add(new StringField("foo", "bar", Store.NO));
-            w.addDocument(doc);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()));
 
-            doc = new Document();
-            w.addDocument(doc);
+        Document doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
 
-            doc = new Document();
-            doc.add(new StringField("foo", "bar", Store.NO));
-            w.addDocument(doc);
+        doc = new Document();
+        w.addDocument(doc);
 
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = newSearcher(reader);
-                Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                assertEquals(1, reader.leaves().size());
-                LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
-                Bits bits = Lucene.asSequentialAccessBits(
-                    leafReaderContext.reader().maxDoc(),
-                    termWeight.scorerSupplier(leafReaderContext)
-                );
+        doc = new Document();
+        doc.add(new StringField("foo", "bar", Store.NO));
+        w.addDocument(doc);
 
-                expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));
-                expectThrows(IndexOutOfBoundsException.class, () -> bits.get(leafReaderContext.reader().maxDoc()));
-                assertTrue(bits.get(0));
-                assertTrue(bits.get(0));
-                assertFalse(bits.get(1));
-                assertFalse(bits.get(1));
-                expectThrows(IllegalArgumentException.class, () -> bits.get(0));
-                assertTrue(bits.get(2));
-                assertTrue(bits.get(2));
-                expectThrows(IllegalArgumentException.class, () -> bits.get(1));
-            }
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            IndexSearcher searcher = newSearcher(reader);
+            Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
+            assertEquals(1, reader.leaves().size());
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
+            Bits bits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), termWeight.scorerSupplier(leafReaderContext));
+
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(-1));
+            expectThrows(IndexOutOfBoundsException.class, () -> bits.get(leafReaderContext.reader().maxDoc()));
+            assertTrue(bits.get(0));
+            assertTrue(bits.get(0));
+            assertFalse(bits.get(1));
+            assertFalse(bits.get(1));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(0));
+            assertTrue(bits.get(2));
+            assertTrue(bits.get(2));
+            expectThrows(IllegalArgumentException.class, () -> bits.get(1));
         }
-    }
 
-    public void testAsDocIdSetIterator() throws Exception {
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
-            Document doc = new Document();
-            doc.add(new StringField("foo", "bar", Store.NO));
-            w.addDocument(doc);
-
-            doc = new Document();
-            w.addDocument(doc);
-
-            doc = new Document();
-            doc.add(new StringField("foo", "bar", Store.NO));
-            w.addDocument(doc);
-
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                IndexSearcher searcher = newSearcher(reader);
-                Weight termWeight = new TermQuery(new Term("foo", "bar")).createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                assertEquals(1, reader.leaves().size());
-                LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(0);
-                DocIdSetIterator iterator = Lucene.asDocIdSetIterator(
-                    leafReaderContext.reader().maxDoc(),
-                    termWeight.scorerSupplier(leafReaderContext)
-                );
-
-                assertEquals(-1, iterator.docID());
-                assertEquals(0, iterator.nextDoc());
-                assertEquals(0, iterator.docID());
-                assertEquals(2, iterator.advance(1));
-                assertEquals(2, iterator.docID());
-                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
-                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.docID());
-            }
-        }
+        w.close();
+        dir.close();
     }
 
     private static class UnsupportedQuery extends Query {

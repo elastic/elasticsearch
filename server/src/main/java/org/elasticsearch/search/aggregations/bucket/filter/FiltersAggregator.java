@@ -9,11 +9,13 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DisiPriorityQueue;
+import org.apache.lucene.search.DisiWrapper;
+import org.apache.lucene.search.DisjunctionDISIApproximation;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,12 +38,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.function.BiConsumer;
 import java.util.function.LongPredicate;
 
@@ -297,203 +297,82 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
 
-            /*
-             * Track both the scorer and the doc iterator per filter since the scorer may use a two-phase iterator that requires
-             * further match checking, after retrieving approximate matches. The extra match only applies to docs matching the main query.
-             */
-            final Scorer[] filteredScorers = new Scorer[filters().size()];
-            final DocIdSetIterator[] filteredDocIdSetIterators = new DocIdSetIterator[filters().size()];
-            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                filteredScorers[filterOrd] = filters().get(filterOrd).matchingScorer(aggCtx.getLeafReaderContext());
-                filteredDocIdSetIterators[filterOrd] = QueryToFilterAdapter.matchingDocIdSetIterator(filteredScorers[filterOrd]);
-            }
-
             final boolean useCompetitiveIterator = (parent == null && otherBucketKey == null);
-            final int maxDocId = aggCtx.getLeafReaderContext().reader().maxDoc();
+            final int numFilters = filters().size();
 
-            // Tracks the last matched doc per filter.
-            final int[] lastMatches = new int[filteredDocIdSetIterators.length];
-            Arrays.fill(lastMatches, -1);
+            // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
+            final DisiPriorityQueue filterIterators = new DisiPriorityQueue(numFilters);
 
-            /*
-             * Even if the competitive iterator is applicable, it may not be used immediately.
-             * We track the last doc id we've processed to effectively switch between the iterator and the direct use
-             * of the filteredDocIdSetIterators in the leaf collector.
-             */
-            final DocId currentDocID = new DocId();
-            currentDocID.set(-1);
+            for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
+                Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
+                FilterMatchingDisiWrapper w = new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd);
+                filterIterators.add(w);
+            }
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
+                    DisiWrapper top = filterIterators.top();
+                    while (top.doc < doc) {
+                        top.doc = top.approximation.advance(doc);
+                        top = filterIterators.updateTop();
+                    }
 
-            if (useCompetitiveIterator) {
-                return new LeafBucketCollectorBase(sub, null) {
+                    boolean matched = false;
+                    if (top.doc == doc) {
+                        for (DisiWrapper w = filterIterators.topList(); w != null; w = w.next) {
+                            // It would be nice if DisiPriorityQueue supported generics to avoid unchecked casts.
+                            FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
 
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        // Check if the competitive iterator has matched the current doc.
-                        if (doc == currentDocID.get()) {
-                            for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
-                                if (lastMatches[i] == doc) {
-                                    TwoPhaseIterator twoPhase = filteredScorers[i].twoPhaseIterator();
-                                    if (twoPhase == null || twoPhase.matches()) {
-                                        collectBucket(sub, doc, bucketOrd(bucket, i));
-                                    }
+                            // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
+                            // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
+                            // buckets.
+                            if (topMatch.lastCheckedDoc < doc) {
+                                topMatch.lastCheckedDoc = doc;
+                                if (topMatch.twoPhaseView == null || topMatch.twoPhaseView.matches()) {
+                                    topMatch.lastMatchingDoc = doc;
                                 }
                             }
-                        } else {
-                            currentDocID.set(doc);
-                            advanceAndCollectBuckets(doc, bucket, filteredScorers, filteredDocIdSetIterators, lastMatches, sub);
+                            if (topMatch.lastMatchingDoc == doc) {
+                                collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                                matched = true;
+                            }
                         }
                     }
 
-                    @Override
-                    public DocIdSetIterator competitiveIterator() {
-                        return new CompetitiveIterator(filteredDocIdSetIterators, lastMatches, currentDocID, maxDocId);
+                    if (otherBucketKey != null && false == matched) {
+                        collectBucket(sub, doc, bucketOrd(bucket, numFilters));
                     }
-
-                };
-            }
-            return new LeafBucketCollectorBase(sub, null) {
+                }
 
                 @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    boolean matched = advanceAndCollectBuckets(doc, bucket, filteredScorers, filteredDocIdSetIterators, lastMatches, sub);
-                    if (otherBucketKey != null && matched == false) {
-                        collectBucket(sub, doc, bucketOrd(bucket, filteredDocIdSetIterators.length));
+                public DocIdSetIterator competitiveIterator() throws IOException {
+                    if (useCompetitiveIterator) {
+                        // A DocIdSetIterator view of the filterIterators heap
+                        return new DisjunctionDISIApproximation(filterIterators);
+                    } else {
+                        return null;
                     }
                 }
             };
-        }
-
-        private boolean advanceAndCollectBuckets(
-            int doc,
-            long bucket,
-            Scorer[] filteredScorers,
-            DocIdSetIterator[] filteredDocIdSetIterators,
-            int[] lastMatches,
-            LeafBucketCollector sub
-        ) throws IOException {
-            boolean matched = false;
-            for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
-                if (lastMatches[i] < doc) {
-                    lastMatches[i] = filteredDocIdSetIterators[i].advance(doc);
-                }
-                if (lastMatches[i] == doc) {
-                    TwoPhaseIterator twoPhase = filteredScorers[i].twoPhaseIterator();
-                    if (twoPhase == null || twoPhase.matches()) {
-                        collectBucket(sub, doc, bucketOrd(bucket, i));
-                        matched = true;
-                    }
-                }
-            }
-            return matched;
         }
 
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
             return owningBucketOrdinal * totalNumKeys + filterOrd;
         }
-    }
 
-    /**
-     * The competitive iterator wraps the per-filter iterators, skipping rangers with no filter matches during iteration.
-     * This is achieved by storing the doc matches that each iterator returns in a priority queue that's
-     * then used to provide the next possible matches during advancing.
-     */
-    private static class CompetitiveIterator extends DocIdSetIterator {
+        private static class FilterMatchingDisiWrapper extends DisiWrapper {
+            final int filterOrd;
 
-        final DocIdSetIterator[] filteredDocIdSetIterators;
-        final int[] lastMatches;
-        final DocId currentDocID;
-        final int maxDocId;
+            // Tracks the last doc that matches the filter.
+            int lastMatchingDoc = -1;
+            // Tracks the last doc that was checked for filter matching.
+            int lastCheckedDoc = -1;
 
-        // Tracks next doc matches as they get returned from the per-filter iterators.
-        final PriorityQueue<Integer> nextDocs;
-
-        CompetitiveIterator(DocIdSetIterator[] filteredDocIdSetIterators, int[] lastMatches, DocId currentDocID, int maxDocId) {
-            this.filteredDocIdSetIterators = filteredDocIdSetIterators;
-            this.lastMatches = lastMatches;
-            this.currentDocID = currentDocID;
-            this.maxDocId = maxDocId;
-
-            nextDocs = new PriorityQueue<>(filteredDocIdSetIterators.length) {
-                @Override
-                public boolean offer(Integer e) {
-                    // Skip inserting duplicate values.
-                    if (contains(e)) {
-                        return false;
-                    }
-                    return super.offer(e);
-                }
-            };
-        }
-
-        /**
-         * Returns the next possible filter match, starting from the passed target doc.
-         * It uses the priority queue to determine if it can skip ranges with no matches.
-         */
-        private int getNextDoc(int target) {
-            if (nextDocs.isEmpty()) {
-                return target;
+            FilterMatchingDisiWrapper(Scorer scorer, int ord) {
+                super(scorer);
+                this.filterOrd = ord;
             }
-
-            // If the next doc in the priority queue is further ahead, skip the rest.
-            int nextDoc = nextDocs.poll();
-            if (nextDoc > target) {
-                return nextDoc;
-            }
-
-            // There's at least one doc in the priority queue that's not further ahead so we can't skip
-            // any docs. Remove any past docs from the priority queue, not needed any more.
-            while (nextDocs.isEmpty() == false && nextDocs.peek() <= target) {
-                nextDocs.poll();
-            }
-            return target;
-        }
-
-        @Override
-        public int docID() {
-            return currentDocID.get();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return advance(currentDocID.get() + 1);
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            target = getNextDoc(target);
-            if (target >= maxDocId) {
-                target = DocIdSetIterator.NO_MORE_DOCS;
-                currentDocID.set(target);
-                return target;
-            }
-            for (int i = 0; i < filteredDocIdSetIterators.length; i++) {
-                if (lastMatches[i] < target) {
-                    lastMatches[i] = filteredDocIdSetIterators[i].advance(target);
-                    nextDocs.add(lastMatches[i]);
-                }
-            }
-            currentDocID.set(target);
-            return target;
-        }
-
-        @Override
-        public long cost() {
-            return maxDocId;
-        }
-    }
-
-    /**
-     * Wrapper for doc value (integer), so that it can be updated by different classes.
-     */
-    private static class DocId {
-        private int doc;
-
-        void set(int value) {
-            this.doc = value;
-        }
-
-        int get() {
-            return doc;
         }
     }
 

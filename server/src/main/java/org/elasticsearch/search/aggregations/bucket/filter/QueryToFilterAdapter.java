@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -173,29 +172,40 @@ public class QueryToFilterAdapter {
     }
 
     /**
-     * Builds a {@link Scorer} that the "compatible" implementation of the
-     * {@link FiltersAggregator} will use to get an iterator over the docs matching the filter.
+     * Returns the {@link Scorer} that the "compatible" implementation of the {@link FiltersAggregator} will use
+     * to get an iterator over the docs matching the filter. The scorer is optimized for random access, since
+     * it will be skipping documents that don't match the main query or other filters.
+     * If the passed context contains no scorer, it returns a dummy scorer that matches no docs.
      */
-    @SuppressWarnings("resource")  // Closing the reader is someone else's problem
-    Scorer matchingScorer(LeafReaderContext ctx) throws IOException {
-        ScorerSupplier scorerSupplier = weight().scorerSupplier(ctx);
+    Scorer randomAccessScorer(LeafReaderContext ctx) throws IOException {
+        Weight weight = weight();
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
         if (scorerSupplier == null) {
-            return null;
-        }
-        return scorerSupplier.get(ctx.reader().maxDoc()); // this never returns null
-    }
+            return new Scorer(weight) {
+                @Override
+                public DocIdSetIterator iterator() {
+                    return DocIdSetIterator.empty();
+                }
 
-    /**
-     * Retrieves a {@link DocIdSetIterator} from the passed Scorer object. If the Scorer points to
-     * a two-phase iterator, the returned DocIdSetIterator is approximate - requiring calling {TwoPhaseIterator#matches}
-     * to verify a (filtering) query match.
-     */
-    static DocIdSetIterator matchingDocIdSetIterator(Scorer scorer) {
-        if (scorer == null) {
-            return DocIdSetIterator.empty();
+                @Override
+                public float getMaxScore(int upTo) throws IOException {
+                    return 0;
+                }
+
+                @Override
+                public float score() throws IOException {
+                    return 0;
+                }
+
+                @Override
+                public int docID() {
+                    return DocIdSetIterator.NO_MORE_DOCS;
+                }
+            };
         }
-        final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
-        return (twoPhase != null) ? twoPhase.approximation() : scorer.iterator();
+
+        // A leading cost of 0 instructs the scorer to optimize for random access as opposed to sequential access
+        return scorerSupplier.get(0L);
     }
 
     /**

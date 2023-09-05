@@ -238,7 +238,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 versions.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
-                    versions.put(nodeId, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+                    versions.put(nodeId, new CompatibilityVersions(TransportVersionUtils.randomVersion(random()), Map.of()));
                 }
             }
         }
@@ -246,7 +246,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < additionalNodeCount; i++) {
             String id = "node-" + randomAlphaOfLength(10);
             nodes.add(randomNode(id));
-            versions.put(id, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+            versions.put(id, new CompatibilityVersions(TransportVersionUtils.randomVersion(random()), Map.of()));
         }
 
         return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersions(versions);

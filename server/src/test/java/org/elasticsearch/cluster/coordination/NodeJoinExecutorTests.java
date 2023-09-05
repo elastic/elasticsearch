@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -162,11 +163,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
             .toList();
         TransportVersion min = Collections.min(versions);
-        List<CompatibilityVersions> compatibilityVersions = versions.stream().map(CompatibilityVersions::new).toList();
+        List<CompatibilityVersions> compatibilityVersions = versions.stream()
+            .map(transportVersion -> new CompatibilityVersions(transportVersion, Map.of()))
+            .toList();
 
         // should not throw
         NodeJoinExecutor.ensureTransportVersionBarrier(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
+            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
             compatibilityVersions
         );
         expectThrows(
@@ -177,7 +180,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         random(),
                         TransportVersionUtils.getFirstVersion(),
                         TransportVersionUtils.getPreviousVersion(min)
-                    )
+                    ),
+                    Map.of()
                 ),
                 compatibilityVersions
             )

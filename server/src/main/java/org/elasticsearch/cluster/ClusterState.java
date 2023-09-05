@@ -138,7 +138,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             @Override
             public CompatibilityVersions read(StreamInput in, String key) throws IOException {
-                return new CompatibilityVersions(TransportVersion.readVersion(in));
+                return new CompatibilityVersions(TransportVersion.readVersion(in), Map.of());
             }
         };
 
@@ -222,7 +222,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE)
+            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of())
             : CompatibilityVersions.minimumVersions(compatibilityVersions);
     }
 
@@ -788,7 +788,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
-            compatibilityVersions.put(nodeId, new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId)));
+            compatibilityVersions.put(nodeId, new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), Map.of()));
             return this;
         }
 

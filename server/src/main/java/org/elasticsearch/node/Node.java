@@ -927,7 +927,10 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.current(),
+                systemIndices.getMappingsVersions()
+            );
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,

@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.version;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Map;
+
 public class CompatibilityVersionsUtils {
 
     /**
@@ -23,7 +25,7 @@ public class CompatibilityVersionsUtils {
      * @return Compatibility versions known at compile time.
      */
     public static CompatibilityVersions staticCurrent() {
-        return new CompatibilityVersions(TransportVersion.current());
+        return new CompatibilityVersions(TransportVersion.current(), Map.of());
     }
 
     /**
@@ -34,6 +36,6 @@ public class CompatibilityVersionsUtils {
      * @return Random valid compatibility versions
      */
     public static CompatibilityVersions staticRandom() {
-        return new CompatibilityVersions(TransportVersionUtils.randomVersion());
+        return new CompatibilityVersions(TransportVersionUtils.randomVersion(), Map.of());
     }
 }

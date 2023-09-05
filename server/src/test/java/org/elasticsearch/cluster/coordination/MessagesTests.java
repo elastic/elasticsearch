@@ -17,6 +17,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -243,7 +244,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
-            new CompatibilityVersions(TransportVersionUtils.randomVersion()),
+            new CompatibilityVersions(TransportVersionUtils.randomVersion(), Map.of()),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -263,7 +264,8 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
                         new CompatibilityVersions(
-                            TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion()))
+                            TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion())),
+                            Map.of()
                         ),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()

@@ -91,7 +91,7 @@ from ul_logs | where bytes_in == bytes_out;
 ;
 
 filterOnFieldsInequality
-from ul_logs | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.,15)), b_out = bytes_out / to_ul(pow(10.,15)) | limit 5;
+from ul_logs | sort id | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.,15)), b_out = bytes_out / to_ul(pow(10.,15)) | limit 5;
 
        @timestamp:date  |      bytes_in:ul   |     bytes_out:ul   |      id:i     |    status:k   |     b_in:ul   | b_out:ul
 2017-11-10T21:15:54.000Z|4348801185987554667 |12749081495402663265|1              |OK             |4348           |12749

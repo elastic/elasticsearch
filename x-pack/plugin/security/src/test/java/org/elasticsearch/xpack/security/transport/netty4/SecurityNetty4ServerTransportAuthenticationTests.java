@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -140,7 +141,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 @Override
                 public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                     String action,
-                    String executor,
+                    Executor executor,
                     boolean forceExecution,
                     TransportRequestHandler<T> actualHandler
                 ) {

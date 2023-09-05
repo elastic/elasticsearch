@@ -124,7 +124,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         } else {
             this.moduleName = null;
         }
-        extendedPlugins = in.readStringList();
+        extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
         if (in.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {

@@ -47,17 +47,20 @@ public class CertGenCliTests extends PackagingTestCase {
         FileUtils.rm(instancesFile, certificatesFile);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test10Install() throws Exception {
         install();
         // Disable security auto-configuration as we want to generate keys/certificates manually here
         ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test20Help() {
         Shell.Result result = installation.executables().certgenTool.run("--help");
         assertThat(result.stdout(), containsString("Simplifies certificate creation"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test30Generate() throws Exception {
         final List<String> lines = new ArrayList<>();
         lines.add("instances:");
@@ -72,6 +75,7 @@ public class CertGenCliTests extends PackagingTestCase {
         assertThat(certificatesFile, file(File, owner, owner, p600));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test31ExtractCerts() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
@@ -90,6 +94,7 @@ public class CertGenCliTests extends PackagingTestCase {
         FileUtils.cp(certsDir, installation.config("certs"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));

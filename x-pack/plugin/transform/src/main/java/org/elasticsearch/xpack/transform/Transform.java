@@ -137,6 +137,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
+    private final TransformExtension transformExtension = new DefaultTransformExtension();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
@@ -250,7 +251,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             xContentRegistry
         );
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService, includeNodeInfo());
+        TransformAuditor auditor = new TransformAuditor(
+            client,
+            clusterService.getNodeName(),
+            clusterService,
+            getTransformExtension().includeNodeInfo()
+        );
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -264,7 +270,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
-        return Arrays.asList(transformServices.get(), new TransformClusterStateListener(clusterService, client));
+        return Arrays.asList(
+            transformServices.get(),
+            new TransformClusterStateListener(clusterService, client),
+            new TransformExtensionHolder(getTransformExtension())
+        );
     }
 
     @Override
@@ -285,7 +295,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
-                getTransformInternalIndexAdditionalSettings(),
+                getTransformExtension().getTransformInternalIndexAdditionalSettings(),
                 expressionResolver
             )
         );
@@ -354,7 +364,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         try {
-            return List.of(TransformInternalIndex.getSystemIndexDescriptor(getTransformInternalIndexAdditionalSettings()));
+            return List.of(
+                TransformInternalIndex.getSystemIndexDescriptor(getTransformExtension().getTransformInternalIndexAdditionalSettings())
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -467,11 +479,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         return "Manages configuration and state for transforms";
     }
 
-    public boolean includeNodeInfo() {
-        return true;
+    public TransformExtension getTransformExtension() {
+        return transformExtension;
     }
 
+    @Deprecated
+    public boolean includeNodeInfo() {
+        return getTransformExtension().includeNodeInfo();
+    }
+
+    @Deprecated
     public Settings getTransformInternalIndexAdditionalSettings() {
-        return Settings.EMPTY;
+        return getTransformExtension().getTransformInternalIndexAdditionalSettings();
     }
 }

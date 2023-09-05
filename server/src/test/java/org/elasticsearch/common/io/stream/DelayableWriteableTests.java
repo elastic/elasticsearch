@@ -169,7 +169,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> delayed = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.delayed(reader, in),
             version
         );
@@ -178,7 +178,7 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<T> referencing = copyInstance(
             original,
             writableRegistry(),
-            (out, d) -> d.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> DelayableWriteable.referencing(reader, in),
             version
         );

@@ -8,15 +8,24 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.DateTimeException;
+import java.time.temporal.TemporalAmount;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongSubtractExact;
 
-public class Sub extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
 
     public Sub(Source source, Expression left, Expression right) {
         super(
@@ -27,8 +36,28 @@ public class Sub extends EsqlArithmeticOperation implements BinaryComparisonInve
             SubIntsEvaluator::new,
             SubLongsEvaluator::new,
             SubUnsignedLongsEvaluator::new,
-            (s, l, r) -> new SubDoublesEvaluator(l, r)
+            (s, l, r) -> new SubDoublesEvaluator(l, r),
+            SubDatetimesEvaluator::new
         );
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = super.resolveType();
+        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(left().dataType()) == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "[{}] arguments are in unsupported order: cannot subtract a [{}] value [{}] from a [{}] amount [{}]",
+                    symbol(),
+                    right().dataType(),
+                    right().sourceText(),
+                    left().dataType(),
+                    left().sourceText()
+                )
+            );
+        }
+        return resolution;
     }
 
     @Override
@@ -64,5 +93,11 @@ public class Sub extends EsqlArithmeticOperation implements BinaryComparisonInve
     @Evaluator(extraName = "Doubles")
     static double processDoubles(double lhs, double rhs) {
         return lhs - rhs;
+    }
+
+    @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
+        // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
+        return asMillis(asDateTime(datetime).minus(temporalAmount));
     }
 }

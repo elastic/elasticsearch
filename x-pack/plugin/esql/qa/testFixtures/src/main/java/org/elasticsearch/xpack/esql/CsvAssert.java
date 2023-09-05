@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -36,9 +38,9 @@ import static org.junit.Assert.fail;
 public final class CsvAssert {
     private CsvAssert() {}
 
-    static void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
+    static void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
         assertMetadata(expected, actual, logger);
-        assertData(expected, actual, logger);
+        assertData(expected, actual, ignoreOrder, logger);
     }
 
     static void assertMetadata(ExpectedResults expected, ActualResults actual, Logger logger) {
@@ -146,16 +148,31 @@ public final class CsvAssert {
         }
     }
 
-    static void assertData(ExpectedResults expected, ActualResults actual, Logger logger) {
-        assertData(expected, actual.values(), logger, Function.identity());
+    static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+        assertData(expected, actual.values(), ignoreOrder, logger, Function.identity());
+    }
+
+    public static void assertData(
+        ExpectedResults expected,
+        Iterator<Iterator<Object>> actualValuesIterator,
+        boolean ignoreOrder,
+        Logger logger,
+        Function<Object, Object> valueTransformer
+    ) {
+        assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
     }
 
     public static void assertData(
         ExpectedResults expected,
         List<List<Object>> actualValues,
+        boolean ignoreOrder,
         Logger logger,
         Function<Object, Object> valueTransformer
     ) {
+        if (ignoreOrder) {
+            expected.values().sort(resultRowComparator(expected.columnTypes()));
+            actualValues.sort(resultRowComparator(expected.columnTypes()));
+        }
         var expectedValues = expected.values();
 
         for (int row = 0; row < expectedValues.size(); row++) {
@@ -208,6 +225,35 @@ public final class CsvAssert {
                 "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
             );
         }
+    }
+
+    private static Comparator<List<Object>> resultRowComparator(List<Type> types) {
+        return (x, y) -> {
+            for (int i = 0; i < x.size(); i++) {
+                Object left = x.get(i);
+                if (left instanceof List<?> l) {
+                    left = l.isEmpty() ? null : l.get(0);
+                }
+                Object right = y.get(i);
+                if (right instanceof List<?> r) {
+                    right = r.isEmpty() ? null : r.get(0);
+                }
+                if (left == null && right == null) {
+                    continue;
+                }
+                if (left == null) {
+                    return 1;
+                }
+                if (right == null) {
+                    return -1;
+                }
+                int result = types.get(i).comparator().compare(left, right);
+                if (result != 0) {
+                    return result;
+                }
+            }
+            return 0;
+        };
     }
 
     private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {

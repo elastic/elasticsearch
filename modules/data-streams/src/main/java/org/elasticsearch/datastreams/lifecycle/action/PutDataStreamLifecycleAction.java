@@ -15,10 +15,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +32,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
@@ -48,7 +51,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((TimeValue) args[0]), (Boolean) args[1])
+            args -> new Request(null, ((TimeValue) args[0]), (Boolean) args[1], (Downsampling) args[2])
         );
 
         static {
@@ -59,6 +62,13 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
                 ObjectParser.ValueType.STRING_OR_NULL
             );
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    return Downsampling.NULL;
+                } else {
+                    return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
+                }
+            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -85,7 +95,7 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
         }
 
         public Request(String[] names, @Nullable TimeValue dataRetention) {
-            this(names, dataRetention, null);
+            this(names, dataRetention, null, null);
         }
 
         public Request(String[] names, DataStreamLifecycle lifecycle) {
@@ -94,8 +104,16 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
         }
 
         public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled) {
+            this(names, dataRetention, enabled, null);
+        }
+
+        public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling) {
             this.names = names;
-            this.lifecycle = DataStreamLifecycle.newBuilder().dataRetention(dataRetention).enabled(enabled == null || enabled).build();
+            this.lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(dataRetention)
+                .enabled(enabled == null || enabled)
+                .downsampling(downsampling)
+                .build();
         }
 
         public String[] getNames() {

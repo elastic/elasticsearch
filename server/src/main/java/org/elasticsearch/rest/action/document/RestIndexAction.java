@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,7 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -146,7 +147,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         return channel -> client.index(
             indexRequest,
-            new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+            new RestToXContentListener<>(channel, IndexResponse::status, r -> r.getLocation(indexRequest.routing()))
         );
     }
 

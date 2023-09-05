@@ -47,11 +47,6 @@ public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHand
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutSearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(PutSearchApplicationAction.Response response) {
-                return response.status();
-            }
-        });
+        return channel -> client.execute(PutSearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel, PutSearchApplicationAction.Response::status));
     }
 }

@@ -37,15 +37,12 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
         return channel -> client.execute(
             DeleteRollupJobAction.INSTANCE,
             request,
-            new RestToXContentListener<DeleteRollupJobAction.Response>(channel) {
-                @Override
-                protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
-                    if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
-                        return RestStatus.INTERNAL_SERVER_ERROR;
-                    }
-                    return RestStatus.OK;
+            new RestToXContentListener<>(channel, r -> {
+                if (r.getNodeFailures().size() > 0 || r.getTaskFailures().size() > 0) {
+                    return RestStatus.INTERNAL_SERVER_ERROR;
                 }
-            }
+                return RestStatus.OK;
+            })
         );
     }
 

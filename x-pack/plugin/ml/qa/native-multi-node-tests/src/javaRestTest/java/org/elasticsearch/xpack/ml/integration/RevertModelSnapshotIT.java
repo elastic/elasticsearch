@@ -200,10 +200,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
 
-        assertThat(
-            revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK)
-        );
+        revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults);
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 

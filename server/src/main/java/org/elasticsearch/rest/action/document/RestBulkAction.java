@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -19,7 +20,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -93,7 +94,7 @@ public class RestBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel, BulkResponse::status));
     }
 
     @Override

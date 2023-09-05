@@ -124,10 +124,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         request.timeout(TimeValue.timeValueSeconds(20));
 
-        final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request)
             .actionGet(30L, TimeUnit.SECONDS);
 
-        assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(blobStore.currentPath, nullValue());
     }
 

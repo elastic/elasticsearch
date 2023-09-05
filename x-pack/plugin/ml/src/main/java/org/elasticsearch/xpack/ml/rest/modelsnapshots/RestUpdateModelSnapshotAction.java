@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -58,7 +58,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
         return channel -> client.execute(
             UpdateModelSnapshotAction.INSTANCE,
             updateModelSnapshot,
-            new RestStatusToXContentListener<>(channel)
+            new RestToXContentListener<>(channel)
         );
     }
 }

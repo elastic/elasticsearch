@@ -97,8 +97,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.blobCount(1);
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
 
-        final RepositoryAnalyzeAction.Response response = analyseRepository(request);
-        assertThat(response.status(), equalTo(RestStatus.OK));
+        analyseRepository(request);
     }
 
     public void testFailsOnReadError() {

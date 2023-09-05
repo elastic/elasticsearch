@@ -43,11 +43,6 @@ public class RestPutSynonymsAction extends BaseRestHandler {
             restRequest.content(),
             restRequest.getXContentType()
         );
-        return channel -> client.execute(PutSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(SynonymUpdateResponse response) {
-                return response.status();
-            }
-        });
+        return channel -> client.execute(PutSynonymsAction.INSTANCE, request, new RestToXContentListener<>(channel, SynonymUpdateResponse::status));
     }
 }

@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
  * failure message).
  */
-public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, StatusToXContentObject {
+public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, ToXContentObject {
 
     private static final String ITEMS = "items";
     private static final String ERRORS = "errors";
@@ -134,7 +134,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeZLong(ingestTookInMillis);
     }
 
-    @Override
     public RestStatus status() {
         return RestStatus.OK;
     }

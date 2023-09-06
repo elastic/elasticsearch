@@ -78,7 +78,8 @@ public abstract class LuceneOperator extends SourceOperator {
             final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext;
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
-                currentScorer = new LuceneScorer(currentSlice.shardIndex(), currentSlice.searchContext(), currentSlice.weight(), leaf);
+                final Weight weight = currentSlice.weight().get();
+                currentScorer = new LuceneScorer(currentSlice.shardIndex(), currentSlice.searchContext(), weight, leaf);
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc : currentScorer.maxPosition + ">" + partialLeaf.maxDoc;
             currentScorer.maxPosition = partialLeaf.maxDoc;

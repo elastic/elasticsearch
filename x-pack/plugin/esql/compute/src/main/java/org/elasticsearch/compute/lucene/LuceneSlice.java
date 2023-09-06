@@ -16,18 +16,7 @@ import java.util.function.Supplier;
 /**
  * Holds a list of multiple partial Lucene segments
  */
-public final class LuceneSlice {
-    private final int shardIndex;
-    private final SearchContext searchContext;
-    private final List<PartialLeafReaderContext> leaves;
-    private final Supplier<Weight> weight;
-
-    public LuceneSlice(int shardIndex, SearchContext searchContext, Supplier<Weight> weight, List<PartialLeafReaderContext> leaves) {
-        this.shardIndex = shardIndex;
-        this.searchContext = searchContext;
-        this.leaves = leaves;
-        this.weight = weight;
-    }
+public record LuceneSlice(int shardIndex, SearchContext searchContext, List<PartialLeafReaderContext> leaves, Supplier<Weight> weight) {
 
     int numLeaves() {
         return leaves.size();
@@ -35,17 +24,5 @@ public final class LuceneSlice {
 
     PartialLeafReaderContext getLeaf(int index) {
         return leaves.get(index);
-    }
-
-    SearchContext searchContext() {
-        return searchContext;
-    }
-
-    int shardIndex() {
-        return shardIndex;
-    }
-
-    Weight weight() {
-        return weight.get();
     }
 }

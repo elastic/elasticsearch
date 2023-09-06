@@ -68,7 +68,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
             for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
-                overlappingTemplates.put(templateName, in.readStringList());
+                overlappingTemplates.put(templateName, in.readStringCollectionAsList());
             }
         } else {
             this.overlappingTemplates = null;

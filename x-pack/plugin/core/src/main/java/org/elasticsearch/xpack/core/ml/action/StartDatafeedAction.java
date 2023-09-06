@@ -202,7 +202,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
-            datafeedIndices = in.readStringList();
+            datafeedIndices = in.readStringCollectionAsList();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 

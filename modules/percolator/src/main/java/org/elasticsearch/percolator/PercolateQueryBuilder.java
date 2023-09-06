@@ -233,7 +233,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        documents = in.readImmutableList(StreamInput::readBytesReference);
+        documents = in.readCollectionAsImmutableList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {

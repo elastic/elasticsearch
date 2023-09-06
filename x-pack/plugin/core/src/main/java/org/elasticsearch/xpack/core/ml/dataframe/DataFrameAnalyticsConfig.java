@@ -309,7 +309,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalInstant(createTime);
         if (version != null) {
             out.writeBoolean(true);

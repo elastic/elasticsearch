@@ -185,7 +185,7 @@ public class BasicPageTests extends SerializationTestCase {
         out.writeCollection(origPages);
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
 
-        List<Page> deserPages = in.readList(new Page.PageReader());
+        List<Page> deserPages = in.readCollectionAsList(new Page.PageReader());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, unused -> deserPages);
     }
 

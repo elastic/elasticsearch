@@ -36,11 +36,11 @@ public final class ExpressionParser {
     }
 
     static List<RoleMapperExpression> readExpressionList(StreamInput in) throws IOException {
-        return in.readNamedWriteableList(RoleMapperExpression.class);
+        return in.readNamedWriteableCollectionAsList(RoleMapperExpression.class);
     }
 
     static void writeExpressionList(List<RoleMapperExpression> list, StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(list);
+        out.writeNamedWriteableCollection(list);
     }
 
     /**

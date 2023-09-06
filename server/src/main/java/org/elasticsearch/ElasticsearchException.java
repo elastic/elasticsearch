@@ -298,8 +298,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {

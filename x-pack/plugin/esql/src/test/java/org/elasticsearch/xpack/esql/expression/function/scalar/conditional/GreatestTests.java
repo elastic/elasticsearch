@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,7 +27,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GreatestTests extends AbstractFunctionTestCase {
-    public GreatestTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public GreatestTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -43,10 +44,10 @@ public class GreatestTests extends AbstractFunctionTestCase {
             new TestCaseSupplier(
                 "(a, b)",
                 List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
-                () -> new TestCase(
+                () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                        new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+                        new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
                     ),
                     "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
                     DataTypes.KEYWORD,

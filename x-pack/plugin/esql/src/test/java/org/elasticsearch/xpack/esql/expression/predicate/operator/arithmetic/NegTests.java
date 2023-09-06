@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NegTests extends AbstractScalarFunctionTestCase {
 
-    public NegTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public NegTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -39,8 +40,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Integer", () -> {
             // Ensure we don't have an overflow
             int arg = randomIntBetween((Integer.MIN_VALUE + 1), Integer.MAX_VALUE);
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
                 "NegIntsEvaluator[v=Attribute[channel=0]]",
                 DataTypes.INTEGER,
                 equalTo(Math.negateExact(arg))
@@ -48,32 +49,32 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         }), new TestCaseSupplier("Long", () -> {
             // Ensure we don't have an overflow
             long arg = randomLongBetween((Long.MIN_VALUE + 1), Long.MAX_VALUE);
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.LONG, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
                 "NegLongsEvaluator[v=Attribute[channel=0]]",
                 DataTypes.LONG,
                 equalTo(Math.negateExact(arg))
             );
         }), new TestCaseSupplier("Double", () -> {
             double arg = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "NegDoublesEvaluator[v=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
                 equalTo(-arg)
             );
         }), new TestCaseSupplier("Duration", () -> {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            return new TestCase(
-                List.of(new TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
                 "NegDurationEvaluator[v=Attribute[channel=0]]",
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
         }), new TestCaseSupplier("Period", () -> {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            return new TestCase(
-                List.of(new TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
                 "NegPeriodEvaluator[v=Attribute[channel=0]]",
                 EsqlDataTypes.DATE_PERIOD,
                 equalTo(arg.negated())

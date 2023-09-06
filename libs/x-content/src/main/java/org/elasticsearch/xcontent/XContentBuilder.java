@@ -880,6 +880,14 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value);
     }
 
+    public XContentBuilder field(String name, Collection<String> value) throws IOException {
+        return stringListField(name, value);
+    }
+
+    public XContentBuilder field(String name, String[] value) throws IOException {
+        return array(name, value);
+    }
+
     public XContentBuilder field(String name, Number value) throws IOException {
         field(name);
         if (value instanceof Short) {
@@ -960,8 +968,12 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).value(value, params);
     }
 
-    private XContentBuilder value(ToXContent value) throws IOException {
+    public XContentBuilder value(ToXContent value) throws IOException {
         return value(value, ToXContent.EMPTY_PARAMS);
+    }
+
+    public XContentBuilder value(Map<String, ?> map) throws IOException {
+        return map(map);
     }
 
     private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
@@ -1032,7 +1044,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
+    public XContentBuilder field(String name, Map<String, ?> values) throws IOException {
         return field(name).map(values);
     }
 

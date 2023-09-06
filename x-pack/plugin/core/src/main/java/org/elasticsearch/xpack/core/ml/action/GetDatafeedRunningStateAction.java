@@ -54,7 +54,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.datafeedTaskIds = in.readSet(StreamInput::readString);
+            this.datafeedTaskIds = in.readCollectionAsSet(StreamInput::readString);
         }
 
         @Override
@@ -180,7 +180,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(datafeedRunningState, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+            out.writeMap(datafeedRunningState, StreamOutput::writeWriteable);
         }
 
         @Override

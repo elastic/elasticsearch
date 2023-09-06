@@ -250,8 +250,7 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        context.getDynamicMappers()
-            .forEach((name, mappers) -> mappers.forEach(mapper -> rootBuilder.addDynamic(name, null, mapper, context)));
+        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.name(), null, mapper, context));
 
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
@@ -604,7 +603,7 @@ public final class DocumentParser {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             final String fullFieldName = builderContext.buildFullName(fieldName);
-            final List<Mapper> mappers = context.getDynamicMappers().get(fullFieldName);
+            final List<Mapper> mappers = context.getDynamicMappers(fullFieldName);
             if (mappers == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
                 || context.isCopyToField(fullFieldName)

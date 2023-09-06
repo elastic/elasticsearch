@@ -345,8 +345,8 @@ public abstract class DocumentParserContext {
      * Consists of a all {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
-    public final Map<String, List<Mapper>> getDynamicMappers() {
-        return dynamicMappers;
+    public final List<Mapper> getDynamicMappers() {
+        return dynamicMappers.values().stream().flatMap(List::stream).toList();
     }
 
     /**

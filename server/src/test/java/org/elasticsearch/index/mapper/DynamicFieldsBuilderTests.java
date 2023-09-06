@@ -54,7 +54,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers().values().iterator().next();
+        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
         assertEquals(fieldname, dynamicMappers.get(0).name());
         assertEquals(expectedType, dynamicMappers.get(0).typeName());

@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 public class SimulateBulkAction extends ActionType<BulkResponse> {
 
     public static final SimulateBulkAction INSTANCE = new SimulateBulkAction();
-    public static final String NAME = "indices:data/simulate/bulk";
+    public static final String NAME = "indices:admin/simulate/bulk";
 
     private static final TransportRequestOptions TRANSPORT_REQUEST_OPTIONS = TransportRequestOptions.of(
         null,

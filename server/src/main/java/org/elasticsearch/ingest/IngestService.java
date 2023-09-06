@@ -183,6 +183,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
+        this.totalMetrics = new IngestMetric();
+        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.documentParsingObserverSupplier = documentParsingObserverSupplier;
@@ -203,8 +205,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
-        this.totalMetrics = new IngestMetric();
-        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     }
 
     /**
@@ -213,6 +213,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param ingestService
      */
     IngestService(IngestService ingestService) {
+        this.totalMetrics = new IngestMetric();
+        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
         this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
@@ -220,8 +222,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = ingestService.threadPool;
         this.taskQueue = ingestService.taskQueue;
         this.pipelines = ingestService.pipelines;
-        this.totalMetrics = ingestService.totalMetrics;
-        this.ingestClusterStateListeners = ingestService.ingestClusterStateListeners;
         this.state = ingestService.state;
     }
 

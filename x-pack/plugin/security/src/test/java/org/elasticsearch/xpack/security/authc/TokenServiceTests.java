@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -240,10 +241,10 @@ public class TokenServiceTests extends ESTestCase {
         TransportVersion transportVersion;
         if (randomBoolean()) {
             version = Version.V_7_0_0;
-            transportVersion = TransportVersion.V_7_0_0;
+            transportVersion = TransportVersions.V_7_0_0;
         } else {
             version = Version.V_7_1_0;
-            transportVersion = TransportVersion.V_7_1_0;
+            transportVersion = TransportVersions.V_7_1_0;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -253,10 +254,10 @@ public class TokenServiceTests extends ESTestCase {
         TransportVersion transportVersion;
         if (randomBoolean()) {
             version = Version.V_8_8_1;
-            transportVersion = TransportVersion.V_8_8_1;
+            transportVersion = TransportVersions.V_8_8_1;
         } else {
             version = Version.V_8_9_0;
-            transportVersion = TransportVersion.V_8_500_015;
+            transportVersion = TransportVersions.V_8_500_020;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -824,8 +825,8 @@ public class TokenServiceTests extends ESTestCase {
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(
-                TransportVersion.V_7_1_0,
-                tokenService.getRandomTokenBytes(TransportVersion.V_7_1_0, randomBoolean()).v1()
+                TransportVersions.V_7_1_0,
+                tokenService.getRandomTokenBytes(TransportVersions.V_7_1_0, randomBoolean()).v1()
             )
         );
 
@@ -846,7 +847,7 @@ public class TokenServiceTests extends ESTestCase {
             .build(false);
         mockGetTokenFromAccessTokenBytes(tokenService, tokenService.getRandomTokenBytes(randomBoolean()).v1(), authentication, false, null);
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
-        TransportVersion uuidTokenVersion = randomFrom(TransportVersion.V_7_2_0, TransportVersion.V_7_3_2);
+        TransportVersion uuidTokenVersion = randomFrom(TransportVersions.V_7_2_0, TransportVersions.V_7_3_2);
         storeTokenHeader(
             requestContext,
             tokenService.prependVersionAndEncodeAccessToken(

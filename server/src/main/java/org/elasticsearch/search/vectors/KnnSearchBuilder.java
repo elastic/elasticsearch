@@ -9,7 +9,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -208,13 +208,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.queryVector = in.readFloatArray();
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.queryVectorBuilder = in.readOptionalNamedWriteable(QueryVectorBuilder.class);
         } else {
             this.queryVectorBuilder = null;
         }
         this.querySupplier = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             this.similarity = in.readOptionalFloat();
         } else {
             this.similarity = null;
@@ -377,7 +377,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeFloatArray(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
-        if (out.getTransportVersion().before(TransportVersion.V_8_7_0) && queryVectorBuilder != null) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
             throw new IllegalArgumentException(
                 format(
                     "cannot serialize [%s] to older node of version [%s]",
@@ -386,10 +386,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 )
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);
         }
     }

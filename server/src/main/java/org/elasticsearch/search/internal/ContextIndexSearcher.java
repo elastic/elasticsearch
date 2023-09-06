@@ -372,7 +372,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
-            if (-1 < 0) throw new IllegalStateException("Expected, concurrent search path hit.");
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
             final ScoreMode scoreMode = firstCollector.scoreMode();

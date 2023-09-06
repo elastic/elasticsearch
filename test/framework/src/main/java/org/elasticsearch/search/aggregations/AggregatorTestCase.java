@@ -453,9 +453,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     searchExecutionContext.searcher().getSimilarity(),
                     DisabledQueryCache.INSTANCE,
                     TrivialQueryCachingPolicy.NEVER,
-                    1,
                     false,
-                    null
+                    null,
+                    -1,
+                    -1
                 )
             );
         } catch (IOException e) {

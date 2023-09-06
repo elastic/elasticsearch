@@ -38,6 +38,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -70,16 +71,13 @@ public class QueryProfilerTests extends ESTestCase {
         }
         reader = w.getReader();
         w.close();
-        // TODO randomly set executor for parallel collection here
-        searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            TrivialQueryCachingPolicy.ALWAYS,
-            1,
-            true,
-            null
-        );
+    }
+
+    @Before
+    public void initSearcher() throws IOException {
+        if (searcher == null) {
+            searcher = newContextSearcher(reader, TrivialQueryCachingPolicy.ALWAYS);
+        }
     }
 
     @After

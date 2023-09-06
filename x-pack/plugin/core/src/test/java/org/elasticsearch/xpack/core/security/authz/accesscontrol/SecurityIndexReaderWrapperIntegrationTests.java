@@ -41,7 +41,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -180,16 +179,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             when(searchExecutionContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-            // TODO randomly set executor for parallel collection here
-            IndexSearcher indexSearcher = new ContextIndexSearcher(
-                wrappedDirectoryReader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                1,
-                true,
-                null
-            );
+            IndexSearcher indexSearcher = newContextSearcher(wrappedDirectoryReader);
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -313,16 +303,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-        // TODO randomly set executor for parallel collection here
-        IndexSearcher indexSearcher = new ContextIndexSearcher(
-            wrappedDirectoryReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            1,
-            true,
-            null
-        );
+        IndexSearcher indexSearcher = newContextSearcher(wrappedDirectoryReader);
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

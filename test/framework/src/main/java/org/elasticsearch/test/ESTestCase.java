@@ -32,6 +32,9 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -99,6 +102,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -156,6 +160,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -218,6 +224,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
     private HeaderWarningAppender headerWarningAppender;
+    private List<ThreadPoolExecutor> threadPoolExecutors = new ArrayList<>();
 
     @AfterClass
     public static void resetPortCounter() {
@@ -1290,6 +1297,56 @@ public abstract class ESTestCase extends LuceneTestCase {
     public Environment newEnvironment(Settings settings) {
         Settings build = buildEnvSettings(settings);
         return TestEnvironment.newEnvironment(build);
+    }
+
+    /**
+     * Create a new {@link ContextIndexSearcher} from the given reader, randomizing if an executor for
+     * multi-threaded collection will be used or not
+     */
+    public ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        return newContextSearcher(reader, IndexSearcher.getDefaultQueryCachingPolicy());
+    }
+
+    /**
+     * Create a new {@link ContextIndexSearcher} from the given reader, and a given
+     * {@link QueryCachingPolicy}, but randomizing if an executor for multi-threaded collection will be used or not
+     */
+    public ContextIndexSearcher newContextSearcher(IndexReader reader, QueryCachingPolicy cachingPolicy) throws IOException {
+        ThreadPoolExecutor executor = randomBoolean() ? null : (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+        if (executor != null) {
+            this.threadPoolExecutors.add(executor);
+        }
+        return newContextSearcher(reader, executor, cachingPolicy, true);
+    }
+
+    /**
+     * This cleans up potential {@link ThreadPoolExecutor} instances that might have been created via
+     * {@link #newContextSearcher(IndexReader, QueryCachingPolicy)}
+     */
+    @After
+    public void cleanupThreadPoolExecutors() {
+        for (ThreadPoolExecutor executor : this.threadPoolExecutors) {
+            executor.shutdown();
+        }
+        this.threadPoolExecutors.clear();
+    }
+
+    public ContextIndexSearcher newContextSearcher(
+        IndexReader reader,
+        ThreadPoolExecutor executor,
+        QueryCachingPolicy cachingPolicy,
+        boolean wrapWithExitableDirectoryReader
+    ) throws IOException {
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            cachingPolicy,
+            wrapWithExitableDirectoryReader,
+            executor,
+            executor != null ? executor.getMaximumPoolSize() : -1,
+            1
+        );
     }
 
     /** Return consistent index settings for the provided index version. */

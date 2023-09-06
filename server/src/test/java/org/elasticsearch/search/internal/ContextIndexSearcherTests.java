@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
@@ -103,7 +101,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@Repeat(iterations = 100)
 public class ContextIndexSearcherTests extends ESTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
         final Directory directory = newDirectory();
@@ -343,55 +340,37 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ThreadPoolExecutor executor = null;
-        try {
-            if (randomBoolean()) {
-                executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
-            }
-            ContextIndexSearcher searcher = new ContextIndexSearcher(
-                filteredReader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                1,
-                true,
-                executor
-            );
-
-            for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-                assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
-                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                assertNotNull(lf.getSequentialStoredFieldsReader());
-            }
-            // Assert wrapping
-            assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
-            for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
-                assertEquals(ExitableLeafReader.class, lrc.reader().getClass());
-                assertNotEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
-                assertNotEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
-            }
-            searcher.addQueryCancellation(() -> {
-            });
-            for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
-                assertEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
-                assertEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
-            }
-
-            // Searching a non-existing term will trigger a null scorer
-            assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));
-
-            assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
-
-            // make sure scorers are created only once, see #1725
-            assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
-
-            TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
-            assertEquals(1, topDocs.totalHits.value);
-            assertEquals(1, topDocs.scoreDocs.length);
-            assertEquals(3f, topDocs.scoreDocs[0].score, 0);
-        } finally {
-            executor.shutdown();
+        ContextIndexSearcher searcher = newContextSearcher(filteredReader);
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
         }
+        // Assert wrapping
+        assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableLeafReader.class, lrc.reader().getClass());
+            assertNotEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertNotEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
+        searcher.addQueryCancellation(() -> {});
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
+
+        // Searching a non-existing term will trigger a null scorer
+        assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));
+
+        assertEquals(1, searcher.count(new TermQuery(new Term("foo", "bar"))));
+
+        // make sure scorers are created only once, see #1725
+        assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
+
+        TopDocs topDocs = searcher.search(new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("foo", "bar"))), 3f), 1);
+        assertEquals(1, topDocs.totalHits.value);
+        assertEquals(1, topDocs.scoreDocs.length);
+        assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
         IOUtils.close(reader, w, dir);
 

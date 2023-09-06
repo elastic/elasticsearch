@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.TaskType;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -34,6 +37,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void createComponents() throws Exception {
         modelRegistry = new ModelRegistry(client());
         // TODO wait for inference index template??
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(ReindexPlugin.class);
     }
 
     public void testStoreModel() throws Exception {
@@ -117,7 +125,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("foo"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
     }
 
     private Model buildModelConfig(String modelId, String service, TaskType taskType) {

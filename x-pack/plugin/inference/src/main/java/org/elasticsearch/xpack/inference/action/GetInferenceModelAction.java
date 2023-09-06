@@ -20,7 +20,7 @@ import java.util.Objects;
 public class GetInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 
     public static final GetInferenceModelAction INSTANCE = new GetInferenceModelAction();
-    public static final String NAME = "cluster:admin/inference/get";
+    public static final String NAME = "cluster:admin/xpack/inference/get";
 
     public GetInferenceModelAction() {
         super(NAME, PutInferenceModelAction.Response::new);

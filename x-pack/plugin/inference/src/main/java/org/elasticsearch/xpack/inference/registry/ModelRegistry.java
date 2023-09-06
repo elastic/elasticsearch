@@ -30,8 +30,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.InferenceIndex;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.Model;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class ModelRegistry {
     private final OriginSettingClient client;
 
     public ModelRegistry(Client client) {
-        this.client = new OriginSettingClient(client, InferencePlugin.INFERENCE_ORIGIN);
+        this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
     }
 
     public void getUnparsedModelMap(String modelId, ActionListener<ModelConfigMap> listener) {

@@ -21,7 +21,7 @@ import java.util.Objects;
 public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteInferenceModelAction INSTANCE = new DeleteInferenceModelAction();
-    public static final String NAME = "cluster:admin/inference/delete";
+    public static final String NAME = "cluster:admin/xpack/inference/delete";
 
     public DeleteInferenceModelAction() {
         super(NAME, AcknowledgedResponse::readFrom);

@@ -30,7 +30,7 @@ import java.util.Objects;
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
-    public static final String NAME = "cluster:monitor/inference";
+    public static final String NAME = "cluster:monitor/xpack/inference";
 
     public InferenceAction() {
         super(NAME, Response::new);

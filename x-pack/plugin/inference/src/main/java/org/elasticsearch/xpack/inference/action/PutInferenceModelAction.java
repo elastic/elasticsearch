@@ -27,7 +27,7 @@ import java.util.Objects;
 public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 
     public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
-    public static final String NAME = "cluster:admin/inference/put";
+    public static final String NAME = "cluster:admin/xpack/inference/put";
 
     public PutInferenceModelAction() {
         super(NAME, PutInferenceModelAction.Response::new);

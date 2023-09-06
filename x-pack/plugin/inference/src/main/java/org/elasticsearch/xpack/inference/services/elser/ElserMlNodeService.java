@@ -13,10 +13,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.TaskSettings;
@@ -42,7 +42,7 @@ public class ElserMlNodeService implements InferenceService {
     private final OriginSettingClient client;
 
     public ElserMlNodeService(Client client) {
-        this.client = new OriginSettingClient(client, InferencePlugin.INFERENCE_ORIGIN);
+        this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
     }
 
     @Override
@@ -81,11 +81,10 @@ public class ElserMlNodeService implements InferenceService {
             var sparseEmbeddingResult = new SparseEmbeddingResult(textExpansionResult.getWeightedTokens());
             listener.onResponse(sparseEmbeddingResult);
         }, listener::onFailure));
-
     }
 
     private static ServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
-        // no config yet
+        // no config options yet
         if (config.isEmpty() == false) {
             throw unknownSettingsError(config);
         }
@@ -102,7 +101,7 @@ public class ElserMlNodeService implements InferenceService {
             );
         }
 
-        // no config yet
+        // no config options yet
         if (config.isEmpty() == false) {
             throw unknownSettingsError(config);
         }

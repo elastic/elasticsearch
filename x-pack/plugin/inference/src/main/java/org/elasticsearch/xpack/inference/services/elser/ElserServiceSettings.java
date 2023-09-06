@@ -54,6 +54,7 @@ public class ElserServiceSettings implements ServiceSettings {
     @Override
     public int hashCode() {
         // TODO Class has no members all instances are equivalent
+        // Return the hash of NAME to make the serialization tests poss
         return Objects.hashCode(NAME);
     }
 

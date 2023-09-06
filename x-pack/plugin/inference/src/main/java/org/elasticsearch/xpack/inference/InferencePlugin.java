@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.InferenceAction;
@@ -59,7 +60,6 @@ import java.util.function.Supplier;
 public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
-    public static final String INFERENCE_ORIGIN = "inference";
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -137,7 +137,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
-                .setOrigin(INFERENCE_ORIGIN)
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .build()
         );
     }

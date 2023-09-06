@@ -51,22 +51,11 @@ public class GeoBoundsGenericWriteableTests extends AbstractNamedWriteableTestCa
 
     @Override
     protected GenericNamedWriteable copyInstance(GenericNamedWriteable original, TransportVersion version) throws IOException {
-        return copyInstance(original, version, version);
-    }
-
-    /**
-     * Read and write with different serialization versions
-     */
-    protected GenericNamedWriteable copyInstance(
-        GenericNamedWriteable original,
-        TransportVersion writeVersion,
-        TransportVersion readVersion
-    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(writeVersion);
+            output.setTransportVersion(version);
             output.writeGenericValue(original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(readVersion);
+                in.setTransportVersion(version);
                 return readGenericValue(in);
             }
         }

@@ -405,15 +405,9 @@ public class ClusterStateChanges {
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
-                JoinTask.singleNode(
-                    discoveryNode,
-                    CompatibilityVersionsUtils.compileTimeCurrent(),
-                    DUMMY_REASON,
-                    ActionListener.running(() -> {
-                        throw new AssertionError("should not complete publication");
-                    }),
-                    clusterState.term()
-                )
+                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
+                    throw new AssertionError("should not complete publication");
+                }), clusterState.term())
             )
         );
     }

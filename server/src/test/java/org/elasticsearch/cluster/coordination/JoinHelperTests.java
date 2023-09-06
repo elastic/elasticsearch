@@ -91,7 +91,7 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            CompatibilityVersionsUtils.compileTimeCurrent()
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
@@ -258,7 +258,7 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
-            CompatibilityVersionsUtils.compileTimeCurrent()
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
@@ -334,12 +334,12 @@ public class JoinHelperTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
-            CompatibilityVersionsUtils.compileTimeCurrent()
+            CompatibilityVersionsUtils.staticCurrent()
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.compileTimeCurrent(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), joinListener);
         assert joinListener.isDone() == false;
 
         final var mockAppender = new MockLogAppender();

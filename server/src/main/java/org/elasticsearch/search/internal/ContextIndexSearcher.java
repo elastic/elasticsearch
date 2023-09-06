@@ -63,7 +63,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -139,11 +138,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
-        super(
-            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
-            wrapExecutor(executor)
-        );
+        // we need to pass the executor up so it can potentially be used by query rewrite, which does not rely on slicing
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -156,18 +152,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
-    }
-
-    /*
-     * This is a hack to work around QueueSizeBasedExecutor conditionally executing on the caller thread based on queue size.
-     * We'd rather simply offload all the tasks to the executor when provided. See https://github.com/apache/lucene/issues/12498 .
-     * We override all of that already for the collection part, but we can't do that for the query rewrite part that affects knn.
-     */
-    private static Executor wrapExecutor(Executor executor) {
-        if (executor instanceof ThreadPoolExecutor) {
-            return executor::execute;
-        }
-        return executor;
     }
 
     // package private for testing
@@ -247,17 +231,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
-    }
-
-    /**
-     * Overwrite superclass to force one slice per segment for knn search.
-     * This is only needed temporarily by knn query rewrite, for the main
-     * search collection we forked the search method and inject our own slicing logic
-     * until this is available in Lucene itself
-     */
-    @Override
-    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return IndexSearcher.slices(leaves, Math.max(1, leaves.size()), 1);
     }
 
     /**

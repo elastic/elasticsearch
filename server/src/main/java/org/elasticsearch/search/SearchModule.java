@@ -317,8 +317,8 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, GeoBoundingBox.class.getSimpleName(), GeoBoundingBox::new)
+        registerGenericNamedWriteable(
+            new SearchPlugin.GenericNamedWriteableSpec(GeoBoundingBox.class.getSimpleName(), GeoBoundingBox::new)
         );
     }
 
@@ -657,6 +657,9 @@ public class SearchModule {
             }
         });
 
+        // Register GenericNamedWriteable classes for use in StreamOutput/StreamInput as generic types in query hits
+        registerFromPlugin(plugins, SearchPlugin::getGenericNamedWriteables, this::registerGenericNamedWriteable);
+
         return builder.build();
     }
 
@@ -681,6 +684,10 @@ public class SearchModule {
             // have to register usage explicitly here.
             builder.registerUsage(spec.getName().getPreferredName());
         }
+    }
+
+    private void registerGenericNamedWriteable(SearchPlugin.GenericNamedWriteableSpec spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, spec.name(), spec.reader()));
     }
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {

@@ -107,7 +107,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                             aliases.put(attr, as.child());
                             attributes.remove(attr);
                         } else {
-                            if (aliases.containsKey(attr) == false) {
+                            // skip synthetically added attributes (the ones from AVG), see LogicalPlanOptimizer.SubstituteSurrogates
+                            if (attr.synthetic() == false && aliases.containsKey(attr) == false) {
                                 attributes.add(attr);
                             }
                         }

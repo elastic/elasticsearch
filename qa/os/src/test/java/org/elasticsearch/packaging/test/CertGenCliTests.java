@@ -47,7 +47,6 @@ public class CertGenCliTests extends PackagingTestCase {
         FileUtils.rm(instancesFile, certificatesFile);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test10Install() throws Exception {
         install();
         // Disable security auto-configuration as we want to generate keys/certificates manually here

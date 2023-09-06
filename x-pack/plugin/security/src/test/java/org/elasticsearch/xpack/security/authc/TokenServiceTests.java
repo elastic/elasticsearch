@@ -256,7 +256,7 @@ public class TokenServiceTests extends ESTestCase {
             transportVersion = TransportVersion.V_8_8_1;
         } else {
             version = Version.V_8_9_0;
-            transportVersion = TransportVersion.V_8_500_015;
+            transportVersion = TransportVersion.V_8_500_020;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -35,7 +36,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -336,6 +336,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99217")
     public void testFetchFullCacheEntry() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -370,15 +371,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final var cacheKey = generateCacheKey();
                 assertEquals(5, cacheService.freeRegionCount());
                 AtomicLong bytesRead = new AtomicLong(size(250));
-                CountDownLatch latch = new CountDownLatch(1);
+                final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                 cacheService.maybeFetchFullEntry(cacheKey, size(250), (channel, channelPos, relativePos, length, progressUpdater) -> {
                     progressUpdater.accept(length);
-                    if (bytesRead.addAndGet(-length) == 0) {
-                        latch.countDown();
-                    }
-                });
+                    bytesRead.addAndGet(-length);
+                }, future);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                future.get(10, TimeUnit.SECONDS);
+                assertEquals(0L, bytesRead.get());
                 assertEquals(2, cacheService.freeRegionCount());
                 assertEquals(3, bulkTaskCount.get());
             }
@@ -388,7 +388,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(2, cacheService.freeRegionCount());
                 var configured = cacheService.maybeFetchFullEntry(cacheKey, size(500), (ch, chPos, relPos, len, update) -> {
                     throw new AssertionError("Should never reach here");
-                });
+                }, ActionListener.noop());
                 assertFalse(configured);
                 assertEquals(2, cacheService.freeRegionCount());
             }

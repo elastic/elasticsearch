@@ -69,7 +69,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
         } else {
             merges = List.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             scores = in.readCollectionAsList(StreamInput::readDouble);
         } else {
             scores = List.of();
@@ -95,7 +95,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringCollection(merges);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeCollection(scores, StreamOutput::writeDouble);
         }
     }

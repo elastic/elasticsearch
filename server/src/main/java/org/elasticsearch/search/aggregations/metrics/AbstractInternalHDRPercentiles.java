@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -58,7 +58,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             if (in.readBoolean()) {
                 state = decode(in);
             } else {
@@ -87,7 +87,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 encode(this.state, out);
@@ -96,7 +96,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
         } else {
             DoubleHistogram state = this.state != null ? this.state
-                : out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
+                : out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0) ? EMPTY_HISTOGRAM_ZERO_DIGITS
                 : EMPTY_HISTOGRAM_THREE_DIGITS;
             encode(state, out);
         }

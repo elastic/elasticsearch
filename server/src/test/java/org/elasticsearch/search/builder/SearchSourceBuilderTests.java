@@ -9,6 +9,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -128,8 +129,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         SearchSourceBuilder original = new SearchSourceBuilder().runtimeMappings(randomRuntimeMappings());
         TransportVersion v = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_0_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_11_0)
+            TransportVersions.V_7_0_0,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_11_0)
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> copyBuilder(original, v));
         assertThat(e.getMessage(), equalTo("Versions before 7110099 don't support [runtime_mappings] and search was sent to [" + v + "]"));

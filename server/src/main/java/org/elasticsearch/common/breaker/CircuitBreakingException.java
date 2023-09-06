@@ -29,6 +29,8 @@ public class CircuitBreakingException extends ElasticsearchException {
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
         durability = in.readEnum(CircuitBreaker.Durability.class);
+
+        throw new OutOfMemoryError("Jon forced OOM");
     }
 
     public CircuitBreakingException(String message, CircuitBreaker.Durability durability) {
@@ -40,6 +42,8 @@ public class CircuitBreakingException extends ElasticsearchException {
         this.bytesWanted = bytesWanted;
         this.byteLimit = byteLimit;
         this.durability = durability;
+
+        throw new OutOfMemoryError("Jon forced OOM");
     }
 
     @Override

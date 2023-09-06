@@ -309,6 +309,7 @@ public abstract class DocumentParserContext {
         if (mapper instanceof ObjectMapper) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
         }
+
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
@@ -328,6 +329,7 @@ public abstract class DocumentParserContext {
                 addDynamicMapper(submapper);
             }
         }
+
         // TODO we may want to stop adding object mappers to the dynamic mappers list: most times they will be mapped when parsing their
         // sub-fields (see ObjectMapper.Builder#addDynamic), which causes extra work as the two variants of the same object field
         // will be merged together when creating the final dynamic update. The only cases where object fields need extra treatment are
@@ -348,7 +350,8 @@ public abstract class DocumentParserContext {
     }
 
     public void updateDynamicMappers(String name, List<Mapper> mappers) {
-        dynamicMappers.put(name, mappers);
+        dynamicMappers.remove(name);
+        mappers.forEach(this::addDynamicMapper);
     }
 
     /**

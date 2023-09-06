@@ -75,7 +75,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion DOT_PRODUCT_AUTO_NORMALIZED = IndexVersion.V_8_11_0;
-    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -97,6 +96,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return elementType;
         }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
+
         // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
         // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
         private final Parameter<Integer> dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
@@ -106,17 +106,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int dims = XContentMapValues.nodeIntegerValue(o);
             if (dims < 1 || dims > MAX_DIMS_COUNT) {
                 throw new MapperParsingException(
-                    "The number of dimensions for field ["
-                        + n
-                        + "] should be in the range [1, "
-                        + MAX_DIMS_COUNT
-                        + "] but was ["
-                        + dims
-                        + "]"
-                );
+                    "The number of dimensions for field [" + n + "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims
+                        + "]");
             }
             return dims;
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
+        }, m -> toType(m).dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
@@ -157,13 +151,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 } else {
                     if (similarity.isConfigured() && similarity.getValue() != null) {
                         throw new IllegalArgumentException(
-                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
-                        );
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed");
                     }
                     if (indexOptions.isConfigured() && indexOptions.getValue() != null) {
                         throw new IllegalArgumentException(
-                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
-                        );
+                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed");
                     }
                 }
             });
@@ -178,8 +170,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(
-                    context.buildFullName(name),
+                new DenseVectorFieldType(context.buildFullName(name),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),
@@ -1044,8 +1035,61 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = elementType.parseDimensionCount(context);
+
+            if (context.parent().fullPath().equals("_doc") == false) {
+                DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
+                    simpleName(),
+                    indexCreatedVersion,
+                    elementType,
+                    dims,
+                    indexed,
+                    similarity,
+                    fieldType().meta()
+                );
+                Mapper update = new DenseVectorFieldMapper(
+                    name(),
+                    updatedDenseVectorFieldType,
+                    elementType,
+                    dims,
+                    indexed,
+                    similarity,
+                    indexOptions,
+                    indexCreatedVersion,
+                    multiFields(),
+                    copyTo
+                );
+
+                context.addDynamicMapper(update);
+            } else {
+                DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
+                    name(),
+                    indexCreatedVersion,
+                    elementType,
+                    dims,
+                    indexed,
+                    similarity,
+                    fieldType().meta()
+                );
+                Mapper update = new DenseVectorFieldMapper(
+                    name(),
+                    updatedDenseVectorFieldType,
+                    elementType,
+                    dims,
+                    indexed,
+                    similarity,
+                    indexOptions,
+                    indexCreatedVersion,
+                    multiFields(),
+                    copyTo
+                );
+
+                context.addDynamicMapper(update);
+            }
+
+            String fieldTypeName = (context.parent().fullPath().equals("_doc") == false) ? simpleName() : name();
+
             DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
-                name(),
+                fieldTypeName,
                 indexCreatedVersion,
                 elementType,
                 dims,
@@ -1066,6 +1110,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 copyTo
             );
             context.addDynamicMapper(update);
+
             return;
         }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);

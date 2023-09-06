@@ -1044,9 +1044,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = elementType.parseDimensionCount(context);
-            String fieldTypeName = (context.parent().fullPath().equals("_doc") == false) ? simpleName() : name();
             DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
-                fieldTypeName,
+                fieldType().name(),
                 indexCreatedVersion,
                 elementType,
                 dims,
@@ -1055,7 +1054,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().meta()
             );
             Mapper update = new DenseVectorFieldMapper(
-                name(),
+                simpleName(),
                 updatedDenseVectorFieldType,
                 elementType,
                 dims,

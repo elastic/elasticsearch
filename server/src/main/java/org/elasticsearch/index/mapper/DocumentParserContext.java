@@ -342,11 +342,21 @@ public abstract class DocumentParserContext {
     /**
      * Get dynamic mappers created as a result of parsing an incoming document. Responsible for exposing all the newly created
      * fields that need to be merged into the existing mappings. Used to create the required mapping update at the end of document parsing.
-     * Consists of a flat set of {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
+     * Consists of a all {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
     public final Map<String, List<Mapper>> getDynamicMappers() {
         return dynamicMappers;
+    }
+
+    /**
+     * Returns the dynamic Consists of a flat set of {@link Mapper}s associated with a field name that will need to be added to their
+     * respective parent {@link ObjectMapper}s in order to become part of the resulting dynamic mapping update.
+     * @param fieldName Full field name with dot-notation.
+     * @return List of Mappers or null
+     */
+    public final List<Mapper> getDynamicMappers(String fieldName) {
+        return dynamicMappers.get(fieldName);
     }
 
     public void updateDynamicMappers(String name, List<Mapper> mappers) {

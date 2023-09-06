@@ -9,8 +9,13 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DisiPriorityQueue;
+import org.apache.lucene.search.DisiWrapper;
+import org.apache.lucene.search.DisjunctionDISIApproximation;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.IntPredicate;
 import java.util.function.LongPredicate;
 
 /**
@@ -289,26 +293,80 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         @Override
         protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-            if (QueryToFilterAdapter.MatchesNoDocs(filters()) && otherBucketKey == null) {
+            if (QueryToFilterAdapter.matchesNoDocs(filters()) && otherBucketKey == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
 
-            IntPredicate[] docFilters = new IntPredicate[filters().size()];
-            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(aggCtx.getLeafReaderContext());
+            final int numFilters = filters().size();
+
+            // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
+            final DisiPriorityQueue filterIterators = new DisiPriorityQueue(numFilters);
+
+            long totalCost = 0;
+            for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
+                Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
+                if (randomAccessScorer == null) {
+                    continue;
+                }
+                FilterMatchingDisiWrapper w = new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd);
+                totalCost += randomAccessScorer.iterator().cost();
+                filterIterators.add(w);
             }
+
+            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
+            // and the total cost of per-filter doc iterators is smaller than maxDoc, indicating that there are docs matching the main
+            // query but no filter queries.
+            final boolean useCompetitiveIterator = (parent == null
+                && otherBucketKey == null
+                && filterIterators.size() > 0
+                && totalCost < aggCtx.getLeafReaderContext().reader().maxDoc());
+
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     boolean matched = false;
-                    for (int i = 0; i < docFilters.length; i++) {
-                        if (docFilters[i].test(doc)) {
-                            collectBucket(sub, doc, bucketOrd(bucket, i));
-                            matched = true;
+                    if (filterIterators.size() > 0) {
+                        // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
+                        DisiWrapper top = filterIterators.top();
+                        while (top.doc < doc) {
+                            top.doc = top.approximation.advance(doc);
+                            top = filterIterators.updateTop();
+                        }
+
+                        if (top.doc == doc) {
+                            for (DisiWrapper w = filterIterators.topList(); w != null; w = w.next) {
+                                // It would be nice if DisiPriorityQueue supported generics to avoid unchecked casts.
+                                FilterMatchingDisiWrapper topMatch = (FilterMatchingDisiWrapper) w;
+
+                                // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
+                                // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
+                                // buckets.
+                                if (topMatch.lastCheckedDoc < doc) {
+                                    topMatch.lastCheckedDoc = doc;
+                                    if (topMatch.twoPhaseView == null || topMatch.twoPhaseView.matches()) {
+                                        topMatch.lastMatchingDoc = doc;
+                                    }
+                                }
+                                if (topMatch.lastMatchingDoc == doc) {
+                                    collectBucket(sub, doc, bucketOrd(bucket, topMatch.filterOrd));
+                                    matched = true;
+                                }
+                            }
                         }
                     }
+
                     if (otherBucketKey != null && false == matched) {
-                        collectBucket(sub, doc, bucketOrd(bucket, docFilters.length));
+                        collectBucket(sub, doc, bucketOrd(bucket, numFilters));
+                    }
+                }
+
+                @Override
+                public DocIdSetIterator competitiveIterator() throws IOException {
+                    if (useCompetitiveIterator) {
+                        // A DocIdSetIterator view of the filterIterators heap
+                        return new DisjunctionDISIApproximation(filterIterators);
+                    } else {
+                        return null;
                     }
                 }
             };
@@ -316,6 +374,20 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
             return owningBucketOrdinal * totalNumKeys + filterOrd;
+        }
+
+        private static class FilterMatchingDisiWrapper extends DisiWrapper {
+            final int filterOrd;
+
+            // Tracks the last doc that matches the filter.
+            int lastMatchingDoc = -1;
+            // Tracks the last doc that was checked for filter matching.
+            int lastCheckedDoc = -1;
+
+            FilterMatchingDisiWrapper(Scorer scorer, int ord) {
+                super(scorer);
+                this.filterOrd = ord;
+            }
         }
     }
 

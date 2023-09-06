@@ -43,10 +43,6 @@ public class NameId {
         COUNTER.accumulateAndGet(other, Math::max);
     }
 
-    public long getId() {
-        return id;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(id);

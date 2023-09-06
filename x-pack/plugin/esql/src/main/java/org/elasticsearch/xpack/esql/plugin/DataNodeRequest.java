@@ -73,7 +73,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
         // TODO: remove this shared local counter
-        out.writeVLong(new NameId().getId());
+        out.writeVLong(Long.parseLong(new NameId().toString()));
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
     }
 

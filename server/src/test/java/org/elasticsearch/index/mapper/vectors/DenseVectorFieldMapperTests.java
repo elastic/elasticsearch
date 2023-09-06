@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -532,7 +531,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultParamsBeforeDotProductNormalization() throws Exception {
-        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_INDEX_VERSION, fieldMapping(b -> { b.field("type", "dense_vector").field("dims", 3); }));
+        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_INDEX_VERSION, fieldMapping(b -> {
+            b.field("type", "dense_vector").field("dims", 3);
+        }));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 

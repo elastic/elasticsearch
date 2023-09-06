@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -73,6 +74,10 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         return null;
     }
 
+    public void setupLogging() {
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.common.file", "DEBUG"));
+    }
+
     private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
@@ -115,6 +120,8 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         internalCluster().startMasterOnlyNode();
+        setupLogging();
+
         logger.info("--> write some role mappings, no other file settings");
         writeJSONFile(internalCluster().getMasterName(), testJSONForFailedCase);
         var savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());

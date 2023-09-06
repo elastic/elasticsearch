@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.support.RotatableSecret;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -448,7 +448,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE));
     }
 
-    //package private for testing
+    // package private for testing
     RotatableSecret getClientAuthenticationSharedSecret() {
         return clientAuthenticationSharedSecret;
     }

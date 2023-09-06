@@ -198,26 +198,32 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         String jwt0SharedSecret = "jwt0_shared_secret";
         String jwt1SharedSecret = "jwt1_shared_secret";
         String jwt2SharedSecret = "jwt2_shared_secret";
-        //sanity check
+        // sanity check
         assertThat(getCurrentSecret(realm0), equalTo(jwt0SharedSecret));
         assertThat(getCurrentSecret(realm1), equalTo(jwt1SharedSecret));
         assertThat(getCurrentSecret(realm2), equalTo(jwt2SharedSecret));
 
         final String update1suffix = "_update1";
         final MockSecureSettings newSecureSettings = new MockSecureSettings();
-        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret", jwt0SharedSecret + update1suffix);
-        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret", jwt1SharedSecret + update1suffix);
-        newSecureSettings.setString("xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret", jwt2SharedSecret + update1suffix);
-
-
+        newSecureSettings.setString(
+            "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
+            jwt0SharedSecret + update1suffix
+        );
+        newSecureSettings.setString(
+            "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
+            jwt1SharedSecret + update1suffix
+        );
+        newSecureSettings.setString(
+            "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
+            jwt2SharedSecret + update1suffix
+        );
 
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
         final LocalStateSecurity notTheDroids = plugins.filterPlugins(LocalStateSecurity.class).get(0);
         for (Plugin p : notTheDroids.plugins()) {
             if (p instanceof Security securityPlugin) {
 
-                Settings.Builder newSettingsBuilder = Settings.builder()
-                    .setSecureSettings(newSecureSettings);
+                Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
                 securityPlugin.reload(newSettingsBuilder.build());
             }
         }
@@ -227,36 +233,36 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
         assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret)));
         assertTrue(realm0.getClientAuthenticationSharedSecret().matches(new SecureString(jwt0SharedSecret + update1suffix)));
-        assertTrue("possible timing issue with test", Instant.now().isBefore(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill()));
-        assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret))); //TODO: safegaurd this against slow executions assert above this
+        assertTrue(
+            "possible timing issue with test",
+            Instant.now().isBefore(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill())
+        );
+        assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret))); // TODO: safegaurd this
+                                                                                                              // against slow executions
+                                                                                                              // assert above this
         assertTrue(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt1SharedSecret + update1suffix)));
-        assertFalse(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //disabled old
+        assertFalse(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); // disabled old
         assertTrue(realm2.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret + update1suffix)));
 
-        Thread.sleep(1000);
-        assertTrue("possible timing issue with test", Instant.now().isAfter(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill()));
-        assertFalse(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); //old expired
-
-
-
-
-
-
+        Thread.sleep(1000); //TODO: convert this to busy wait
+        assertTrue(
+            "possible timing issue with test",
+            Instant.now().isAfter(realm1.getClientAuthenticationSharedSecret().getSecrets().priorValidTill())
+        );
+        assertFalse(realm1.getClientAuthenticationSharedSecret().matches(new SecureString(jwt2SharedSecret))); // old expired
 
     }
 
-    private SecureString getPriorSecret(JwtRealm realm){
+    private SecureString getPriorSecret(JwtRealm realm) {
         return realm.getClientAuthenticationSharedSecret().getSecrets().prior();
     }
 
-    private SecureString getCurrentSecret(JwtRealm realm){
+    private SecureString getCurrentSecret(JwtRealm realm) {
         return realm.getClientAuthenticationSharedSecret().getSecrets().current();
     }
 
-    private TimeValue getGracePeriod(JwtRealm realm){
-       return realm.getConfig()
-            .getConcreteSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE)
-            .get(realm.getConfig().settings());
+    private TimeValue getGracePeriod(JwtRealm realm) {
+        return realm.getConfig().getConcreteSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE).get(realm.getConfig().settings());
     }
 
     private void assertJwtToken(JwtAuthenticationToken token, String tokenPrincipal, String sharedSecret, SignedJWT signedJWT)

@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
-package org.elasticsearch.xpack.security.support;
+package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -16,9 +15,9 @@ import java.time.Instant;
 import java.util.concurrent.locks.StampedLock;
 
 /**
- * Helper class to provide a secret that can be rotated. Once rotated the prior secret is available for a configured amount of time before
- * it is invalidated. This allows for secrete rotation without temporary failures or the need to tightly orchestrate multiple parties.
- * This class is threadsafe, however it is also assumes that matching secrets are frequent but rotation is a rare.
+ * Helper class to provide {@link SecureString} that can be rotated. Once rotated the prior secret is available for a configured amount
+ * of time before it is invalidated. This allows for secrete rotation without temporary failures or the need to tightly orchestrate
+ * multiple parties. This class is threadsafe, however it is also assumes that matching secrets are frequent but rotation is a rare.
  */
 public class RotatableSecret {
     private Secrets secrets;
@@ -28,7 +27,7 @@ public class RotatableSecret {
      * @param secret The secret to rotate. {@code null} if the secret is not configured.
      */
     public RotatableSecret(@Nullable SecureString secret) {
-        this.secrets = new Secrets(Strings.hasText(secret) ? secret : null, null, Instant.EPOCH);
+        this.secrets = new Secrets(Strings.hasText(secret) ? secret.clone() : null, null, Instant.EPOCH);
     }
 
     /**
@@ -42,7 +41,7 @@ public class RotatableSecret {
         try {
             if (this.secrets.current.equals(newSecret) == false) {
                 secrets = new Secrets(
-                    Strings.hasText(newSecret) ? newSecret : null,
+                    Strings.hasText(newSecret) ? newSecret.clone() : null,
                     secrets.current,
                     Instant.now().plusMillis(gracePeriod.getMillis())
                 );
@@ -74,11 +73,20 @@ public class RotatableSecret {
         return secrets.current.equals(secret) || (secrets.prior != null && secrets.prior.equals(secret));
     }
 
-    // for testing purpose only
+    // for testing only
+    //TODO: adjust test so that i don't need to make this public
     public Secrets getSecrets() {
         return secrets;
     }
 
+    // for testing only
+    boolean isWriteLocked() {
+        return stampedLock.isWriteLocked();
+    }
+
+    /**
+     * Checks to see if the prior secret TTL has expired. If expired, evict from the backing data structure.
+     */
     private void checkExpired() {
         boolean needToUnlock = false;
         long stamp = stampedLock.tryOptimisticRead();
@@ -91,7 +99,7 @@ public class RotatableSecret {
         }
         try {
             if (expired) {
-                stamp = stampedLock.tryConvertToWriteLock(stamp);// upgrade the read lock
+                stamp = stampedLock.tryConvertToWriteLock(stamp);
                 if (stamp == 0) {
                     // block until we can acquire the write lock
                     stamp = stampedLock.writeLock();

@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
@@ -285,6 +286,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingVersions() {
+        return this.minVersions.systemIndexMappingsVersion();
     }
 
     public Metadata metadata() {

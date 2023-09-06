@@ -137,7 +137,10 @@ public class CompatibilityVersionsTests extends ESTestCase {
                 )
             )
             .toList();
-        int min = compatibilityVersions.stream().mapToInt(v -> v.systemIndexMappingsVersion().get(".system-index").version()).min().orElse(2);
+        int min = compatibilityVersions.stream()
+            .mapToInt(v -> v.systemIndexMappingsVersion().get(".system-index").version())
+            .min()
+            .orElse(2);
 
         // should not throw
         CompatibilityVersions.ensureVersionsCompatibility(

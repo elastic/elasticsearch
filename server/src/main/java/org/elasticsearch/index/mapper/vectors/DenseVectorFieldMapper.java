@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -19,6 +21,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -198,40 +202,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private static FieldType getDenseVectorFieldType(
-        int dimension,
-        VectorEncoding vectorEncoding,
-        VectorSimilarityFunction similarityFunction
-    ) {
-        if (dimension == 0) {
-            throw new IllegalArgumentException("cannot index an empty vector");
-        }
-        if (dimension > DenseVectorFieldMapper.MAX_DIMS_COUNT) {
-            throw new IllegalArgumentException("cannot index vectors with dimension greater than " + DenseVectorFieldMapper.MAX_DIMS_COUNT);
-        }
-        if (similarityFunction == null) {
-            throw new IllegalArgumentException("similarity function must not be null");
-        }
-        FieldType fieldType = new FieldType() {
-            @Override
-            public int vectorDimension() {
-                return dimension;
-            }
-
-            @Override
-            public VectorEncoding vectorEncoding() {
-                return vectorEncoding;
-            }
-
-            @Override
-            public VectorSimilarityFunction vectorSimilarityFunction() {
-                return similarityFunction;
-            }
-        };
-        fieldType.freeze();
-        return fieldType;
-    }
-
     public enum ElementType {
 
         BYTE(1) {
@@ -256,7 +226,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
-                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.BYTE, function);
+                FieldType denseVectorFieldType = new FieldType();
+                denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.BYTE, function);
+                denseVectorFieldType.freeze();
                 return new KnnByteVectorField(name, vector, denseVectorFieldType);
             }
 
@@ -456,7 +428,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
-                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.FLOAT32, function);
+                FieldType denseVectorFieldType = new FieldType();
+                denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.FLOAT32, function);
+                denseVectorFieldType.freeze();
                 return new KnnFloatVectorField(name, vector, denseVectorFieldType);
             }
 
@@ -1135,13 +1109,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
      */
-    public KnnVectorsFormat getKnnVectorsFormatForField() {
+    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
+        KnnVectorsFormat format;
         if (indexOptions == null) {
-            return null; // use default format
+            format = defaultFormat;
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene95HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            format = new Lucene95HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
+        // It's legal to reuse the same format name as this is the same on-disk format.
+        return new KnnVectorsFormat(format.getName()) {
+            @Override
+            public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                return format.fieldsWriter(state);
+            }
+
+            @Override
+            public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+                return format.fieldsReader(state);
+            }
+
+            @Override
+            public int getMaxDimensions(String fieldName) {
+                return MAX_DIMS_COUNT;
+            }
+
+            @Override
+            public String toString() {
+                return format.toString();
+            }
+        };
     }
 
     @Override

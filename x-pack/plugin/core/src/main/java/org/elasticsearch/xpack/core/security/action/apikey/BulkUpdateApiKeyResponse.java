@@ -35,8 +35,8 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
 
     public BulkUpdateApiKeyResponse(StreamInput in) throws IOException {
         super(in);
-        this.updated = in.readStringList();
-        this.noops = in.readStringList();
+        this.updated = in.readStringCollectionAsList();
+        this.noops = in.readStringCollectionAsList();
         this.errorDetails = in.readMap(StreamInput::readException);
     }
 

@@ -312,7 +312,7 @@ public abstract class PeerFinder {
             }
         });
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.CLUSTER_COORDINATION, new Runnable() {
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, clusterCoordinationExecutor, new Runnable() {
             @Override
             public void run() {
                 synchronized (mutex) {

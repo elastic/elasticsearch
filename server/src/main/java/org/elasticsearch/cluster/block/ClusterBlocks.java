@@ -294,7 +294,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        return in.readImmutableSet(ClusterBlock::new);
+        return in.readCollectionAsImmutableSet(ClusterBlock::new);
     }
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {

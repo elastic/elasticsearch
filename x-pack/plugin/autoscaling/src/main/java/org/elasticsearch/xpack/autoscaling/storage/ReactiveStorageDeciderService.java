@@ -1008,8 +1008,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
             if (in.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
-                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
-                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
+                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
             } else {
                 unassignedShardIds = Collections.emptySortedSet();
                 assignedShardIds = Collections.emptySortedSet();

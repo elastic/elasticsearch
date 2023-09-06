@@ -322,6 +322,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
+        filters.put("persian_stem", PersianStemTokenFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
         filters.put(
             "predicate_token_filter",

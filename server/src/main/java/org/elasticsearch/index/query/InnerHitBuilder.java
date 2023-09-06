@@ -170,7 +170,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         seqNoAndPrimaryTerm = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
+        docValueFields = in.readBoolean() ? in.readCollectionAsList(FieldAndFormat::new) : null;
         if (in.readBoolean()) {
             int size = in.readVInt();
             scriptFields = Sets.newHashSetWithExpectedSize(size);
@@ -191,7 +191,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
     }

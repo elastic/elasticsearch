@@ -54,7 +54,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.datafeedTaskIds = in.readSet(StreamInput::readString);
+            this.datafeedTaskIds = in.readCollectionAsSet(StreamInput::readString);
         }
 
         @Override

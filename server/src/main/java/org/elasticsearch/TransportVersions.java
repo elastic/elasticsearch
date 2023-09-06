@@ -191,7 +191,7 @@ public class TransportVersions {
      */
     public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_061;
 
-    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersion.class);
+    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 
     // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
     static final TransportVersion LATEST_DEFINED;

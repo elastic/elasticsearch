@@ -1035,59 +1035,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = elementType.parseDimensionCount(context);
-
-            if (context.parent().fullPath().equals("_doc") == false) {
-                DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
-                    simpleName(),
-                    indexCreatedVersion,
-                    elementType,
-                    dims,
-                    indexed,
-                    similarity,
-                    fieldType().meta()
-                );
-                Mapper update = new DenseVectorFieldMapper(
-                    name(),
-                    updatedDenseVectorFieldType,
-                    elementType,
-                    dims,
-                    indexed,
-                    similarity,
-                    indexOptions,
-                    indexCreatedVersion,
-                    multiFields(),
-                    copyTo
-                );
-
-                context.addDynamicMapper(update);
-            } else {
-                DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
-                    name(),
-                    indexCreatedVersion,
-                    elementType,
-                    dims,
-                    indexed,
-                    similarity,
-                    fieldType().meta()
-                );
-                Mapper update = new DenseVectorFieldMapper(
-                    name(),
-                    updatedDenseVectorFieldType,
-                    elementType,
-                    dims,
-                    indexed,
-                    similarity,
-                    indexOptions,
-                    indexCreatedVersion,
-                    multiFields(),
-                    copyTo
-                );
-
-                context.addDynamicMapper(update);
-            }
-
             String fieldTypeName = (context.parent().fullPath().equals("_doc") == false) ? simpleName() : name();
-
             DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
                 fieldTypeName,
                 indexCreatedVersion,

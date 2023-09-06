@@ -346,7 +346,7 @@ setup:
                 type: object
                 properties:
                   my_child_dense_vector_field:
-                  type: dense_vector
+                    type: dense_vector
 
   - do:
       indices.get_mapping:
@@ -355,7 +355,7 @@ setup:
   - match: { test-mapped-index.mappings.properties.my_parent_object.properties.my_child_dense_vector_field.type: dense_vector }
   - match: { test-mapped-index.mappings.properties.my_parent_object.properties.my_child_dense_vector_field.index: true }
   - match: { test-mapped-index.mappings.properties.my_parent_object.properties.my_child_dense_vector_field.similarity: cosine }
-  - match: { test-mapped-index.mappings.properties.my_parent_object.properties.my_child_dense_vector_field.dims: null }
+  - is_false: test-mapped-index.mappings.properties.my_parent_object.properties.my_child_dense_vector_field.dims
 
   - do:
       index:
@@ -364,7 +364,7 @@ setup:
         refresh: true
         body:
           my_parent_object:
-            my_dense_vector_field: [ 159.1, 289.56, -128.7424 ]
+            my_child_dense_vector_field: [ 159.1, 289.56, -128.7424 ]
 
   - do:
       indices.get_mapping:

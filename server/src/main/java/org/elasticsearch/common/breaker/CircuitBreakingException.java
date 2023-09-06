@@ -10,10 +10,12 @@ package org.elasticsearch.common.breaker;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * Exception thrown when the circuit breaker trips
@@ -30,7 +32,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         bytesWanted = in.readLong();
         durability = in.readEnum(CircuitBreaker.Durability.class);
 
-        throw new OutOfMemoryError("Jon forced OOM");
+        genOOM();
     }
 
     public CircuitBreakingException(String message, CircuitBreaker.Durability durability) {
@@ -43,7 +45,14 @@ public class CircuitBreakingException extends ElasticsearchException {
         this.byteLimit = byteLimit;
         this.durability = durability;
 
-        throw new OutOfMemoryError("Jon forced OOM");
+        genOOM();
+    }
+
+    private void genOOM() {
+        var boom = new ArrayList<byte[]>();
+        while (true) {
+            boom.add(new byte[ByteSizeUnit.MB.toIntBytes(1L)]);
+        }
     }
 
     @Override

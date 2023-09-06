@@ -83,10 +83,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_018)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_014)) {
-            executionHint = TDigestExecutionHint.readFrom(in);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
         }
@@ -100,10 +98,8 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_018)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(executionHint);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_014)) {
-            (executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint).writeTo(out);
         }
     }
 

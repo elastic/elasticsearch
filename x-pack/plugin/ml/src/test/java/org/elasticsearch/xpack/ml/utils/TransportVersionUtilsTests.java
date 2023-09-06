@@ -26,7 +26,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
         "Bertram",
         TransportVersions.V_7_0_1,
         "Charles",
-        TransportVersions.V_8_500_010,
+        TransportVersions.V_8_500_020,
         "Dominic",
         TransportVersions.V_8_0_0
     );
@@ -73,6 +73,6 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     public void testIsMinTransportVersionOnOrAfter() {
         assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_7_0_0), equalTo(true));
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_500_010), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_500_020), equalTo(false));
     }
 }

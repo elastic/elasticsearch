@@ -173,7 +173,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(dataRetention);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_026)) {
@@ -185,7 +185,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
             dataRetention = null;

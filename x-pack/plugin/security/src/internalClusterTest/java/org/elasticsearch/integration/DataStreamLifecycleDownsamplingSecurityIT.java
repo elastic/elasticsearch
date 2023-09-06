@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -108,6 +109,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         return settings.build();
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
@@ -132,6 +134,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         waitAndAssertDownsamplingCompleted(dataStreamName);
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDownsamplingAuthorizedSystemDataStream() throws Exception {
         String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
         indexDocuments(client(), dataStreamName, 10_000);

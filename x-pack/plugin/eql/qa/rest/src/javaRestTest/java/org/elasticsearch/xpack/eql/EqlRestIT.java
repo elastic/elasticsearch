@@ -10,9 +10,19 @@ package org.elasticsearch.xpack.eql;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestTestCase;
+import org.junit.ClassRule;
 
 public class EqlRestIT extends EqlRestTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -1697,7 +1696,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build();
                 indexMetadataBuilder.settings(settings);
                 indexMetadataList.add(indexMetadataBuilder.build());

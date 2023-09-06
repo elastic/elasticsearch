@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -34,7 +35,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SplitTests extends AbstractScalarFunctionTestCase {
-    public SplitTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public SplitTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -47,10 +48,10 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
                 .map(BytesRef::new)
                 .collect(Collectors.toList());
             String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
                 ),
                 "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
@@ -64,7 +65,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String delim = ((BytesRef) typedData.get(1).data()).utf8ToString();
         List<BytesRef> split = Arrays.stream(str.split(Pattern.quote(delim))).map(BytesRef::new).toList();

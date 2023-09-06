@@ -9,6 +9,7 @@ emp_no:integer |avg_worked_seconds:long
 
 inShortAndByte
 from employees | keep emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+ignoreOrder:true
 
 emp_no:integer |languages.short:short|languages.byte:byte
 10003          |4                    |4
@@ -17,6 +18,7 @@ emp_no:integer |languages.short:short|languages.byte:byte
 
 inCast
 from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+ignoreOrder:true
 
 emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 10003          |4                   |200296405               |1.83
@@ -26,6 +28,7 @@ emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 // `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
 inOverNulls
 from employees | keep emp_no, languages | where languages is null or emp_no <= 10030 | where languages in (2, 3, emp_no);
+ignoreOrder:true
 
 emp_no:integer |languages:integer
 10001          |2

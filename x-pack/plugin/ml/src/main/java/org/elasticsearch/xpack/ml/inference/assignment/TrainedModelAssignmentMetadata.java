@@ -160,7 +160,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(deploymentRoutingEntries, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+        out.writeMap(deploymentRoutingEntries, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -231,6 +231,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
             if (deploymentRoutingEntries.containsKey(deploymentId) == false) {
                 throw new ResourceNotFoundException("[{}] assignment does not exist", deploymentId);
             }
+            deploymentRoutingEntries.put(deploymentId, assignment);
+            return this;
+        }
+
+        /**
+         * Adds the assignment regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {
             deploymentRoutingEntries.put(deploymentId, assignment);
             return this;
         }

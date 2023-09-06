@@ -35,7 +35,7 @@ endif::[]
 
 [source,sh,subs="attributes"]
 ----
-docker pull {docker-repo}:{version}
+docker pull {docker-image}
 ----
 
 [[docker-verify-signature]]
@@ -61,7 +61,7 @@ The container image signature for {es} v{version} can be verified as follows:
 ["source","sh",subs="attributes"]
 --------------------------------------------
 wget https://artifacts.elastic.co/cosign.pub <1>
-cosign verify --key cosign.pub {docker-repo}:{version} <2>
+cosign verify --key cosign.pub {docker-image} <2>
 --------------------------------------------
 <1> Download the Elastic public key to verify container signature
 <2> Verify the container against the Elastic public key
@@ -70,7 +70,7 @@ The command prints the check results and the signature payload in JSON format:
 
 [source,sh,subs="attributes"]
 --------------------------------------------
-Verification for docker.elastic.co/elasticsearch/elasticsearch:{version} --
+Verification for {docker-image} --
 The following checks were performed on each of these signatures:
   - The cosign claims were validated
   - Existence of the claims in the transparency log was verified offline
@@ -120,7 +120,8 @@ endif::[]
 docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
 ----
 
-TIP: Use the `-m` flag to set a memory limit for the container.
+TIP: Use the `-m` flag to set a memory limit for the container. This removes the
+need to <<docker-set-heap-size,manually set the JVM size>>.
 
 The command prints the `elastic` user password and an enrollment token for {kib}.
 --
@@ -184,7 +185,7 @@ endif::[]
 
 [source,sh,subs="attributes"]
 ----
-docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-image}
+docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it -m 1GB {docker-image}
 ----
 --
 
@@ -195,19 +196,6 @@ docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-i
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cat/nodes
 ----
 // NOTCONSOLE
-
-===== Setting JVM heap size
-If you experience issues where the container where your first node is running
-exits when your second node starts, explicitly set values for the JVM heap size.
-To <<set-jvm-heap-size,manually configure the heap size>>, include the
-`ES_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
-node. For example, the following command starts node `es02` and sets the
-minimum and maximum JVM heap size to 1 GB:
-
-[source,sh,subs="attributes"]
-----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it {docker-image}
-----
 
 ===== Next steps
 
@@ -408,12 +396,12 @@ sudo sysctl -w vm.max_map_count=262144
 ====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
 
 The `vm.max_map_count` setting must be set in the "docker-desktop" WSL instance before the
-ElasticSearch container will properly start. There are several ways to do this, depending
+{es} container will properly start. There are several ways to do this, depending
 on your version of Windows and your version of WSL.
 
 If you are on Windows 10 before version 22H2, or if you are on Windows 10 version 22H2 using the
 built-in version of WSL, you must either manually set it every time you restart Docker before starting
-your ElasticSearch container, or (if you do not wish to do so on every restart) you must globally set
+your {es} container, or (if you do not wish to do so on every restart) you must globally set
 every WSL2 instance to have the `vm.max_map_count` changed. This is because these versions of WSL
 do not properly process the /etc/sysctl.conf file.
 
@@ -498,9 +486,9 @@ for the Docker daemon sets them to acceptable values.
 
 To check the Docker daemon defaults for ulimits, run:
 
-[source,sh]
+[source,sh,subs="attributes"]
 --------------------------------------------
-docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm {docker-image} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -547,16 +535,20 @@ options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
 includes your desired <<set-jvm-heap-size,heap size>> settings.
 
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
-environment variable. For example, to use 16GB, specify `-e
-ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
-production. The `docker-compose.yml` file above sets the heap size to 512MB.
+environment variable. For example, to use 1GB, use the following command. 
 
+[source,sh,subs="attributes"]
+----
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es01 -p 9200:9200 --net elastic -it {docker-image}
+----
+
+The `ES_JAVA_OPTS` variable overrides all other JVM options. 
+We do not recommend using `ES_JAVA_OPTS` in production.
 
 ===== Pin deployments to a specific image version
 
 Pin your deployments to a specific version of the {es} Docker image. For
-example +docker.elastic.co/elasticsearch/elasticsearch:{version}+.
+example +{docker-image}+.
 
 ===== Always bind data volumes
 
@@ -675,7 +667,7 @@ For example:
 ----
 docker run -it --rm \
 -v full_path_to/config:/usr/share/elasticsearch/config \
-docker.elastic.co/elasticsearch/elasticsearch:{version} \
+{docker-image} \
 bin/elasticsearch-keystore create -p
 ----
 
@@ -687,7 +679,7 @@ encrypted, you'll also be prompted to enter the keystore password.
 ----
 docker run -it --rm \
 -v full_path_to/config:/usr/share/elasticsearch/config \
-docker.elastic.co/elasticsearch/elasticsearch:{version} \
+{docker-image} \
 bin/elasticsearch-keystore \
 add my.secure.setting \
 my.other.secure.setting
@@ -712,7 +704,7 @@ your configuration. A `Dockerfile` to achieve this might be as simple as:
 
 [source,sh,subs="attributes"]
 --------------------------------------------
-FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
+FROM {docker-image}
 COPY --chown=elasticsearch:elasticsearch elasticsearch.yml /usr/share/elasticsearch/config/
 --------------------------------------------
 

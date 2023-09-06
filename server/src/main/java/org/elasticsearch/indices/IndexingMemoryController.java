@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -25,7 +26,6 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -147,7 +147,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
     protected Cancellable scheduleTask(ThreadPool threadPool) {
         // it's fine to run it on the scheduler thread, no busy work
-        return threadPool.scheduleWithFixedDelay(statusChecker, interval, Names.SAME);
+        return threadPool.scheduleWithFixedDelay(statusChecker, interval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

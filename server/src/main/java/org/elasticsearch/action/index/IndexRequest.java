@@ -717,7 +717,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireAlias);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-            out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
                 throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");

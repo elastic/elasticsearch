@@ -58,7 +58,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super(in);
         this.historyID = in.readString();
         this.version = in.readLong();
-        this.nodes = in.readList(DesiredNode::readFrom);
+        this.nodes = in.readCollectionAsList(DesiredNode::readFrom);
         if (in.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             this.dryRun = in.readBoolean();
         } else {

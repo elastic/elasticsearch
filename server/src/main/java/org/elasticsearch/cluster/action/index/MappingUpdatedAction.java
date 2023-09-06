@@ -79,7 +79,7 @@ public class MappingUpdatedAction {
      * potentially waiting for a master node to be available.
      */
     public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
-        final RunOnce release = new RunOnce(() -> semaphore.release());
+        final RunOnce release = new RunOnce(semaphore::release);
         try {
             semaphore.acquire();
         } catch (InterruptedException e) {

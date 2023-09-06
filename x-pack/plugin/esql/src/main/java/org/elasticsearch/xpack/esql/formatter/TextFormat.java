@@ -11,7 +11,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -56,13 +55,13 @@ public enum TextFormat implements MediaType {
         @Override
         protected Character delimiter() {
             assert false;
-            throw new EsqlUnsupportedOperationException("plain text does not specify a delimiter character");
+            throw new UnsupportedOperationException("plain text does not specify a delimiter character");
         }
 
         @Override
         protected String eol() {
             assert false;
-            throw new EsqlUnsupportedOperationException("plain text does not specify an end of line character");
+            throw new UnsupportedOperationException("plain text does not specify an end of line character");
         }
 
         @Override
@@ -79,7 +78,7 @@ public enum TextFormat implements MediaType {
         @Override
         void writeEscaped(String value, Character delimiter, Writer writer) {
             assert false;
-            throw new EsqlUnsupportedOperationException("plain text does not use writeEscaped()");
+            throw new UnsupportedOperationException("plain text does not use writeEscaped()");
         }
     },
 

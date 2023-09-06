@@ -151,7 +151,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readList(ExplainIndexDataStreamLifecycle::new);
+            this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
 

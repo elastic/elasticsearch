@@ -1082,7 +1082,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
             summary = new RepositoryPerformanceSummary(in);
-            blobResponses = in.readList(BlobAnalyzeAction.Response::new);
+            blobResponses = in.readCollectionAsList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
         }

@@ -42,7 +42,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_011)) {
-            out.writeMap(repositoryThrottlingStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(repositoryThrottlingStats, StreamOutput::writeWriteable);
         }
     }
 

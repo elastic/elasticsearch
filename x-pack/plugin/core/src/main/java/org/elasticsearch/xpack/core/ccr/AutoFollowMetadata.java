@@ -142,13 +142,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(patterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-        out.writeMapOfLists(followedLeaderIndexUUIDs, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMap(
-            headers,
-            StreamOutput::writeString,
-            (valOut, header) -> valOut.writeMap(header, StreamOutput::writeString, StreamOutput::writeString)
-        );
+        out.writeMap(patterns, StreamOutput::writeWriteable);
+        out.writeMap(followedLeaderIndexUUIDs, StreamOutput::writeStringCollection);
+        out.writeMap(headers, (valOut, header) -> valOut.writeMap(header, StreamOutput::writeString));
     }
 
     @Override
@@ -264,7 +260,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
         public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
             final String remoteCluster = in.readString();
-            final List<String> leaderIndexPatterns = in.readStringList();
+            final List<String> leaderIndexPatterns = in.readStringCollectionAsList();
             final String followIndexPattern = in.readOptionalString();
             final Settings settings;
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_9_0)) {
@@ -293,7 +289,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
                 this.active = true;
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
-                this.leaderIndexExclusionPatterns = in.readStringList();
+                this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             } else {
                 this.leaderIndexExclusionPatterns = Collections.emptyList();
             }

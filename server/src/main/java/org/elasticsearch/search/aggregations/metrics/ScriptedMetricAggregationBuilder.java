@@ -320,4 +320,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             && Objects.equals(params, other.params);
     }
 
+    @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
 }

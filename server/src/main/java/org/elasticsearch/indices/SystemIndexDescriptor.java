@@ -572,12 +572,33 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
      * or the appropriate descriptor if the supplied version is acceptable.
      */
+    @Deprecated
     public SystemIndexDescriptor getDescriptorCompatibleWith(Version version) {
         if (minimumNodeVersion.onOrBefore(version)) {
             return this;
         }
         for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
             if (version.onOrAfter(prior.minimumNodeVersion)) {
+                return prior;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds the descriptor that can be used within this cluster, by comparing the supplied minimum
+     * node version to this descriptor's minimum version and the prior descriptors minimum version.
+     *
+     * @param version the lower node version in the cluster
+     * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
+     * or the appropriate descriptor if the supplied version is acceptable.
+     */
+    public SystemIndexDescriptor getDescriptorCompatibleWith(MappingsVersion version) {
+        if (version.version() >= mappingsVersion.version()) {
+            return this;
+        }
+        for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
+            if (version.version() >= prior.mappingsVersion.version()) {
                 return prior;
             }
         }

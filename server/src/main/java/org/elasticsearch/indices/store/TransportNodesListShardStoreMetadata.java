@@ -207,7 +207,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 new ShardId(in);
             }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
-            final var peerRecoveryRetentionLeases = in.readImmutableList(RetentionLease::new);
+            final var peerRecoveryRetentionLeases = in.readCollectionAsImmutableList(RetentionLease::new);
             if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
                 return EMPTY;
             } else {
@@ -225,7 +225,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 assert out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
+            out.writeCollection(peerRecoveryRetentionLeases);
         }
 
         public boolean isEmpty() {
@@ -329,12 +329,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected List<NodeStoreFilesMetadata> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
+            return in.readCollectionAsList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,6 +66,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::name)).forEach(realValidTypes::add);
         realValidTypes.add(DataTypes.NULL);
         return realValidTypes;
+    }
+
+    public Set<DataType> sortedTypesSet(DataType[] validTypes, DataType... additionalTypes) {
+        Set<DataType> mergedSet = new LinkedHashSet<>();
+        Stream.concat(Stream.of(validTypes), Stream.of(additionalTypes))
+            .sorted(Comparator.comparing(DataType::name))
+            .forEach(mergedSet::add);
+        return mergedSet;
     }
 
     /**
@@ -178,6 +187,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
         if (withoutNull.equals(List.of(DataTypes.DATETIME))) {
             return "datetime";
+        }
+        List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION))
+            .sorted(Comparator.comparing(DataType::name))
+            .toList();
+        if (withoutNull.equals(negations)) {
+            return "numeric, date_period or time_duration";
         }
         if (validTypes.equals(Set.copyOf(Arrays.asList(representable())))) {
             return "representable";

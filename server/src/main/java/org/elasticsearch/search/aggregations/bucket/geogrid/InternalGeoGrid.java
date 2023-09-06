@@ -55,13 +55,13 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     public InternalGeoGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
-        buckets = (List<InternalGeoGridBucket>) in.readList(getBucketReader());
+        buckets = (List<InternalGeoGridBucket>) in.readCollectionAsList(getBucketReader());
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         writeSize(requiredSize, out);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     protected abstract InternalGeoGrid<B> create(

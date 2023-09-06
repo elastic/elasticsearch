@@ -118,9 +118,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
-        this.featureImportance = in.readList(ClassificationFeatureImportance::new);
+        this.featureImportance = in.readCollectionAsList(ClassificationFeatureImportance::new);
         this.classificationLabel = in.readOptionalString();
-        this.topClasses = in.readImmutableList(TopClassEntry::new);
+        this.topClasses = in.readCollectionAsImmutableList(TopClassEntry::new);
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
         this.predictionFieldType = in.readEnum(PredictionFieldType.class);
@@ -147,7 +147,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(featureImportance);
+        out.writeCollection(featureImportance);
         out.writeOptionalString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);

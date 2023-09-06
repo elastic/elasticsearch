@@ -29,7 +29,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -80,15 +80,15 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     public EsqlQueryResponse(StreamInput in) throws IOException {
         super(in);
-        this.columns = in.readList(ColumnInfo::new);
-        this.pages = in.readList(Page::new);
+        this.columns = in.readCollectionAsList(ColumnInfo::new);
+        this.pages = in.readCollectionAsList(Page::new);
         this.columnar = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(columns);
-        out.writeList(pages);
+        out.writeCollection(columns);
+        out.writeCollection(pages);
         out.writeBoolean(columnar);
     }
 
@@ -100,7 +100,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return pages;
     }
 
-    public List<List<Object>> values() {
+    public Iterator<Iterator<Object>> values() {
         return pagesToValues(columns.stream().map(ColumnInfo::type).toList(), pages);
     }
 
@@ -175,12 +175,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlQueryResponse that = (EsqlQueryResponse) o;
-        return Objects.equals(columns, that.columns) && Objects.equals(values(), that.values()) && columnar == that.columnar;
+        return Objects.equals(columns, that.columns)
+            && columnar == that.columnar
+            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(columns, values(), columnar);
+        return Objects.hash(columns, Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)), columnar);
     }
 
     @Override
@@ -188,40 +190,33 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return Strings.toString(ChunkedToXContent.wrapAsToXContent(this));
     }
 
-    public static List<List<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {
         BytesRef scratch = new BytesRef();
-        List<List<Object>> result = new ArrayList<>();
-        for (Page page : pages) {
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                List<Object> row = new ArrayList<>(page.getBlockCount());
-                for (int b = 0; b < page.getBlockCount(); b++) {
-                    Block block = page.getBlock(b);
-                    if (block.isNull(p)) {
-                        row.add(null);
-                        continue;
-                    }
-                    /*
-                     * Use the ESQL data type to map to the output to make sure compute engine
-                     * respects its types. See the INTEGER clause where is doesn't always
-                     * respect it.
-                     */
-                    int count = block.getValueCount(p);
-                    int start = block.getFirstValueIndex(p);
-                    if (count == 1) {
-                        row.add(valueAt(dataTypes.get(b), block, start, scratch));
-                        continue;
-                    }
-                    List<Object> thisResult = new ArrayList<>(count);
-                    int end = count + start;
-                    for (int i = start; i < end; i++) {
-                        thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
-                    }
-                    row.add(thisResult);
+        return Iterators.flatMap(
+            pages.iterator(),
+            page -> Iterators.forRange(0, page.getPositionCount(), p -> Iterators.forRange(0, page.getBlockCount(), b -> {
+                Block block = page.getBlock(b);
+                if (block.isNull(p)) {
+                    return null;
                 }
-                result.add(row);
-            }
-        }
-        return result;
+                /*
+                 * Use the ESQL data type to map to the output to make sure compute engine
+                 * respects its types. See the INTEGER clause where is doesn't always
+                 * respect it.
+                 */
+                int count = block.getValueCount(p);
+                int start = block.getFirstValueIndex(p);
+                if (count == 1) {
+                    return valueAt(dataTypes.get(b), block, start, scratch);
+                }
+                List<Object> thisResult = new ArrayList<>(count);
+                int end = count + start;
+                for (int i = start; i < end; i++) {
+                    thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
+                }
+                return thisResult;
+            }))
+        );
     }
 
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
@@ -242,7 +237,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 
@@ -275,7 +270,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataTypes.get(c));
+                    default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }
             }
         }

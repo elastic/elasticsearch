@@ -94,7 +94,7 @@ public class TextClassificationConfig implements NlpConfig {
     public TextClassificationConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        classificationLabels = in.readStringList();
+        classificationLabels = in.readStringCollectionAsList();
         numTopClasses = in.readInt();
         resultsField = in.readOptionalString();
     }

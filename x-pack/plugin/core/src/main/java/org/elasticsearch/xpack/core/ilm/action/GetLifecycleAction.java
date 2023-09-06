@@ -45,7 +45,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.policies = in.readList(LifecyclePolicyResponseItem::new);
+            this.policies = in.readCollectionAsList(LifecyclePolicyResponseItem::new);
         }
 
         public Response(List<LifecyclePolicyResponseItem> policies) {
@@ -58,7 +58,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override

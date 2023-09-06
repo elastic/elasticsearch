@@ -72,14 +72,14 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     InternalMappedRareTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readList(stream -> bucketReader.read(stream, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format));
         filter = new SetBackedScalingCuckooFilter(in, Randomness.get());
     }
 
     @Override
     protected void writeTermTypeInfoTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         filter.writeTo(out);
     }
 

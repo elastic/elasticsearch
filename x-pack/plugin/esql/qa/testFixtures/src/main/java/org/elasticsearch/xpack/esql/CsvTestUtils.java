@@ -32,7 +32,9 @@ import java.math.BigDecimal;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -308,10 +310,20 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
-        IP(StringUtils::parseIP, BytesRef.class),
+        IP(
+            StringUtils::parseIP,
+            (l, r) -> l instanceof String maybeIP
+                ? StringUtils.parseIP(maybeIP).compareTo(StringUtils.parseIP(String.valueOf(r)))
+                : ((BytesRef) l).compareTo((BytesRef) r),
+            BytesRef.class
+        ),
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
-        DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(), Long.class),
+        DATETIME(
+            x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
+            (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
+            Long.class
+        ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
@@ -341,9 +353,20 @@ public final class CsvTestUtils {
 
         private final Function<String, Object> converter;
         private final Class<?> clazz;
+        private final Comparator<Object> comparator;
 
+        @SuppressWarnings("unchecked")
         Type(Function<String, Object> converter, Class<?> clazz) {
+            this(
+                converter,
+                Comparable.class.isAssignableFrom(clazz) ? (a, b) -> ((Comparable) a).compareTo(b) : Comparator.comparing(Object::toString),
+                clazz
+            );
+        }
+
+        Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz) {
             this.converter = converter;
+            this.comparator = comparator;
             this.clazz = clazz;
         }
 
@@ -374,6 +397,10 @@ public final class CsvTestUtils {
         Class<?> clazz() {
             return clazz;
         }
+
+        public Comparator<Object> comparator() {
+            return comparator;
+        }
     }
 
     record ActualResults(
@@ -383,7 +410,7 @@ public final class CsvTestUtils {
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        List<List<Object>> values() {
+        Iterator<Iterator<Object>> values() {
             return EsqlQueryResponse.pagesToValues(dataTypes(), pages);
         }
     }

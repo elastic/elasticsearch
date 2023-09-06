@@ -104,7 +104,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
     }
 
     public GetFeatureUsageResponse(StreamInput in) throws IOException {
-        this.features = in.readList(FeatureUsageInfo::new);
+        this.features = in.readCollectionAsList(FeatureUsageInfo::new);
     }
 
     public List<FeatureUsageInfo> getFeatures() {
@@ -113,7 +113,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(features);
+        out.writeCollection(features);
     }
 
     @Override

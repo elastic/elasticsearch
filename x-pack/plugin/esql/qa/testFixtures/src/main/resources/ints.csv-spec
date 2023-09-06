@@ -363,7 +363,7 @@ autoBucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL bs = auto_bucket(salary, 20, 25324, 74999)
-| SORT hire_date
+| SORT hire_date, salary
 | KEEP hire_date, salary, bs
 // end::auto_bucket[]
 ;
@@ -378,8 +378,8 @@ hire_date:date           | salary:integer | bs:double
 1985-10-14T00:00:00.000Z | 54329          | 50000.0
 1985-10-20T00:00:00.000Z | 48735          | 45000.0
 1985-11-19T00:00:00.000Z | 52833          | 50000.0
-1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-20T00:00:00.000Z | 33956          | 30000.0
+1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-21T00:00:00.000Z | 56371          | 55000.0
 // end::auto_bucket-result[]
 ;

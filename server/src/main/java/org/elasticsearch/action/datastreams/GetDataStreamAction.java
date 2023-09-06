@@ -71,7 +71,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 this.includeDefaults = in.readBoolean();
             } else {
                 this.includeDefaults = false;
@@ -83,7 +83,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -342,7 +342,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public Response(StreamInput in) throws IOException {
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)
+                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)
                     ? in.readOptionalWriteable(RolloverConfiguration::new)
                     : null
             );
@@ -360,7 +360,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

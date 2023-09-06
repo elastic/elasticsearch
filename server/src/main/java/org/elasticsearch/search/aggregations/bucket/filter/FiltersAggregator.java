@@ -296,36 +296,65 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             if (QueryToFilterAdapter.matchesNoDocs(filters()) && otherBucketKey == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
-            if (filters().size() == 1) {
-                return new SingleFilterLeafCollector(
-                    sub,
-                    aggCtx.getLeafReaderContext(),
-                    filters().get(0),
-                    totalNumKeys,
-                    parent != null,
-                    otherBucketKey != null
+
+            final int numFilters = filters().size();
+            List<FilterMatchingDisiWrapper> filterWrappers = new ArrayList<>();
+            long totalCost = 0;
+            for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
+                Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
+                if (randomAccessScorer == null) {
+                    continue;
+                }
+                totalCost += randomAccessScorer.iterator().cost();
+                filterWrappers.add(
+                    randomAccessScorer.twoPhaseIterator() == null
+                        ? new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd)
+                        : new TwoPhaseFilterMatchingDisiWrapper(randomAccessScorer, filterOrd)
                 );
             }
-            return new MultiFilterLeafCollector(
-                sub,
-                aggCtx.getLeafReaderContext(),
-                filters(),
-                totalNumKeys,
-                parent != null,
-                otherBucketKey != null
-            );
+
+            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
+            // and the cost of per-filter doc iterator is smaller than maxDoc, indicating that there are docs matching the main
+            // query but not the filter query.
+            final boolean hasOtherBucket = otherBucketKey != null;
+            final boolean usesCompetitiveIterator = (parent == null
+                && hasOtherBucket == false
+                && filterWrappers.isEmpty() == false
+                && totalCost < aggCtx.getLeafReaderContext().reader().maxDoc());
+
+            if (filterWrappers.size() == 1) {
+                return new SingleFilterLeafCollector(
+                    sub,
+                    filterWrappers.get(0),
+                    numFilters,
+                    totalNumKeys,
+                    usesCompetitiveIterator,
+                    hasOtherBucket
+                );
+            }
+            return new MultiFilterLeafCollector(sub, filterWrappers, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
         }
     }
 
     private abstract static class AbstractLeafCollector extends LeafBucketCollectorBase {
         final LeafBucketCollector sub;
+        final int numFilters;
         final int totalNumKeys;
+        final boolean usesCompetitiveIterator;
         final boolean hasOtherBucket;
 
-        AbstractLeafCollector(LeafBucketCollector sub, int totalNumKeys, boolean hasOtherBucket) {
+        AbstractLeafCollector(
+            LeafBucketCollector sub,
+            int numFilters,
+            int totalNumKeys,
+            boolean usesCompetitiveIterator,
+            boolean hasOtherBucket
+        ) {
             super(sub, null);
             this.sub = sub;
+            this.numFilters = numFilters;
             this.totalNumKeys = totalNumKeys;
+            this.usesCompetitiveIterator = usesCompetitiveIterator;
             this.hasOtherBucket = hasOtherBucket;
         }
 
@@ -336,60 +365,40 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
     private class SingleFilterLeafCollector extends AbstractLeafCollector {
 
-        final FilterMatchingDisiWrapper filterIterator;
-        final QueryToFilterAdapter filter;
-        final boolean usesCompetitiveIterator;
+        final FilterMatchingDisiWrapper filterWrapper;
 
         SingleFilterLeafCollector(
             LeafBucketCollector sub,
-            LeafReaderContext leafReaderContext,
-            QueryToFilterAdapter filter,
+            FilterMatchingDisiWrapper filterWrapper,
+            int numFilters,
             int totalNumKeys,
-            boolean hasParent,
+            boolean usesCompetitiveIterator,
             boolean hasOtherBucket
-        ) throws IOException {
-            super(sub, totalNumKeys, hasOtherBucket);
-            this.filter = filter;
-
-            Scorer randomAccessScorer = filter.randomAccessScorer(leafReaderContext);
-            if (randomAccessScorer != null) {
-                filterIterator = new FilterMatchingDisiWrapper(randomAccessScorer, 0);
-            } else {
-                filterIterator = null;
-            }
-
-            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
-            // and the cost of per-filter doc iterator is smaller than maxDoc, indicating that there are docs matching the main
-            // query but not the filter query.
-            usesCompetitiveIterator = (hasParent == false
-                && hasOtherBucket == false
-                && filterIterator != null
-                && filterIterator.iterator.cost() < leafReaderContext.reader().maxDoc());
+        ) {
+            super(sub, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            this.filterWrapper = filterWrapper;
         }
 
         public void collect(int doc, long bucket) throws IOException {
+            if (filterWrapper.approximation.docID() < doc) {
+                filterWrapper.approximation.advance(doc);
+            }
             boolean matched = false;
-            if (filterIterator != null) {
-                if (filterIterator.approximation.docID() < doc) {
-                    filterIterator.approximation.advance(doc);
-                }
-                if (filterIterator.approximation.docID() == doc) {
-                    if (filterIterator.checkDocForMatch(doc)) {
-                        collectBucket(sub, doc, bucketOrd(bucket, filterIterator.filterOrd));
-                        matched = true;
-                    }
+            if (filterWrapper.approximation.docID() == doc) {
+                if (filterWrapper.checkDocForMatch(doc)) {
+                    collectBucket(sub, doc, bucketOrd(bucket, filterWrapper.filterOrd));
+                    matched = true;
                 }
             }
-
             if (hasOtherBucket && false == matched) {
-                collectBucket(sub, doc, bucketOrd(bucket, 1));
+                collectBucket(sub, doc, bucketOrd(bucket, numFilters));
             }
         }
 
         @Override
         public DocIdSetIterator competitiveIterator() throws IOException {
             if (usesCompetitiveIterator) {
-                return filterIterator.approximation;
+                return filterWrapper.approximation;
             }
             return null;
         }
@@ -399,46 +408,25 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         // A DocIdSetIterator heap with one entry for each filter, ordered by doc ID
         final DisiPriorityQueue filterIterators;
-        final List<QueryToFilterAdapter> filters;
-        final int numFilters;
-        final boolean usesCompetitiveIterator;
 
         MultiFilterLeafCollector(
             LeafBucketCollector sub,
-            LeafReaderContext leafReaderContext,
-            List<QueryToFilterAdapter> filters,
+            List<FilterMatchingDisiWrapper> filterWrappers,
+            int numFilters,
             int totalNumKeys,
-            boolean hasParent,
+            boolean usesCompetitiveIterator,
             boolean hasOtherBucket
-        ) throws IOException {
-            super(sub, totalNumKeys, hasOtherBucket);
-            this.filters = filters;
-            this.numFilters = filters.size();
-            this.filterIterators = new DisiPriorityQueue(numFilters);
-
-            long totalCost = 0;
-            for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
-                Scorer randomAccessScorer = filters.get(filterOrd).randomAccessScorer(leafReaderContext);
-                if (randomAccessScorer == null) {
-                    continue;
-                }
-                FilterMatchingDisiWrapper w = new FilterMatchingDisiWrapper(randomAccessScorer, filterOrd);
-                totalCost += randomAccessScorer.iterator().cost();
-                filterIterators.add(w);
+        ) {
+            super(sub, numFilters, totalNumKeys, usesCompetitiveIterator, hasOtherBucket);
+            filterIterators = filterWrappers.isEmpty() ? null : new DisiPriorityQueue(filterWrappers.size());
+            for (FilterMatchingDisiWrapper wrapper : filterWrappers) {
+                filterIterators.add(wrapper);
             }
-
-            // Restrict the use of competitive iterator when there's no parent agg, no 'other' bucket (all values are accessed then)
-            // and the total cost of per-filter doc iterators is smaller than maxDoc, indicating that there are docs matching the main
-            // query but no filter queries.
-            usesCompetitiveIterator = (hasParent == false
-                && hasOtherBucket == false
-                && filterIterators.size() > 0
-                && totalCost < leafReaderContext.reader().maxDoc());
         }
 
         public void collect(int doc, long bucket) throws IOException {
             boolean matched = false;
-            if (filterIterators.size() > 0) {
+            if (filterIterators != null) {
                 // Advance filters if necessary. Filters will already be advanced if used as a competitive iterator.
                 DisiWrapper top = filterIterators.top();
                 while (top.doc < doc) {
@@ -467,6 +455,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public DocIdSetIterator competitiveIterator() throws IOException {
             if (usesCompetitiveIterator) {
                 // A DocIdSetIterator view of the filterIterators heap
+                assert filterIterators != null;
                 return new DisjunctionDISIApproximation(filterIterators);
             }
             return null;
@@ -476,23 +465,34 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     private static class FilterMatchingDisiWrapper extends DisiWrapper {
         final int filterOrd;
 
-        // Tracks the last doc that matches the filter.
-        int lastMatchingDoc = -1;
-        // Tracks the last doc that was checked for filter matching.
-        int lastCheckedDoc = -1;
-
         FilterMatchingDisiWrapper(Scorer scorer, int ord) {
             super(scorer);
             this.filterOrd = ord;
         }
 
         boolean checkDocForMatch(int doc) throws IOException {
+            return true;
+        }
+    }
+
+    private static class TwoPhaseFilterMatchingDisiWrapper extends FilterMatchingDisiWrapper {
+        // Tracks the last doc that matches the filter.
+        int lastMatchingDoc = -1;
+        // Tracks the last doc that was checked for filter matching.
+        int lastCheckedDoc = -1;
+
+        TwoPhaseFilterMatchingDisiWrapper(Scorer scorer, int ord) {
+            super(scorer, ord);
+        }
+
+        @Override
+        boolean checkDocForMatch(int doc) throws IOException {
             // We need to cache the result of twoPhaseView.matches() since it's illegal to call it multiple times on the
             // same doc, yet LeafBucketCollector#collect may be called multiple times with the same doc and multiple
             // buckets.
             if (lastCheckedDoc < doc) {
                 lastCheckedDoc = doc;
-                if (twoPhaseView == null || twoPhaseView.matches()) {
+                if (twoPhaseView.matches()) {
                     lastMatchingDoc = doc;
                 }
             }

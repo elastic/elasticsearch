@@ -27,6 +27,7 @@ import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.elasticsearch.test.ESTestCase;
 
@@ -64,6 +65,7 @@ public class VectorHighlighterTests extends ESTestCase {
         );
         assertThat(fragment, notNullValue());
         assertThat(fragment, equalTo("the big <b>bad</b> dog"));
+        IOUtils.close(reader, indexWriter, dir);
     }
 
     public void testVectorHighlighterPrefixQuery() throws Exception {
@@ -120,6 +122,7 @@ public class VectorHighlighterTests extends ESTestCase {
             30
         );
         assertThat(fragment, notNullValue());
+        IOUtils.close(indexReader, indexWriter, dir);
     }
 
     public void testVectorHighlighterNoStore() throws Exception {
@@ -150,6 +153,7 @@ public class VectorHighlighterTests extends ESTestCase {
             30
         );
         assertThat(fragment, nullValue());
+        IOUtils.close(reader, indexWriter, dir);
     }
 
     public void testVectorHighlighterNoTermVector() throws Exception {
@@ -176,5 +180,6 @@ public class VectorHighlighterTests extends ESTestCase {
             30
         );
         assertThat(fragment, nullValue());
+        IOUtils.close(reader, indexWriter, dir);
     }
 }

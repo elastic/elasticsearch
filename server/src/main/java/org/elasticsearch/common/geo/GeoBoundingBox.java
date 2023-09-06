@@ -8,6 +8,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -89,6 +90,16 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGeoPoint(topLeft);
         out.writeGeoPoint(bottomRight);
+    }
+
+    @Override
+    public final String getWriteableName() {
+        return "GeoBoundingBox";
+    }
+
+    @Override
+    public final TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_500_070;
     }
 
     protected static class GeoBoundsParser extends BoundsParser<GeoBoundingBox> {

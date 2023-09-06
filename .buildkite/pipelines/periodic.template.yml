@@ -74,7 +74,6 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
-          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 300

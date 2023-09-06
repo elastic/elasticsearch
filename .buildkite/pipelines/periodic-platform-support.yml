@@ -28,7 +28,6 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: custom-32-98304
-        env: {}
   - group: platform-support-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
@@ -70,5 +69,3 @@ steps:
           diskSizeGb: 350
           diskType: gp3
           diskName: /dev/sda1
-        env:
-          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"

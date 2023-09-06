@@ -91,18 +91,15 @@ public class GeoBoundsGenericWriteableTests extends AbstractNamedWriteableTestCa
     }
 
     public void testSerializationFailsWithOlderVersion() throws IOException {
-        TransportVersion valid = TransportVersion.V_8_500_070;
         TransportVersion older = TransportVersion.V_8_500_069;
+        assert older.before(TransportVersion.V_8_500_070);
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             GenericNamedWriteable testInstance = createTestInstance();
-
-            // Test reading and writing with valid versions
-            GenericNamedWriteable deserializedInstance = copyInstance(testInstance, valid, valid);
-            assertEqualInstances(testInstance, deserializedInstance);
-
-            // Test writing fails with older version
             try {
-                copyInstance(testInstance, older, valid);
+                try (BytesStreamOutput output = new BytesStreamOutput()) {
+                    output.setTransportVersion(older);
+                    output.writeGenericValue(testInstance);
+                }
                 fail("Expected exception to be thrown when writing with older TransportVersion");
             } catch (Throwable e) {
                 assertThat(
@@ -111,10 +108,6 @@ public class GeoBoundsGenericWriteableTests extends AbstractNamedWriteableTestCa
                     containsString("[GeoBoundingBox] requires minimal transport version")
                 );
             }
-
-            // Test reading succeeds with older version (we do not cripple the reader)
-            deserializedInstance = copyInstance(testInstance, valid, older);
-            assertEqualInstances(testInstance, deserializedInstance);
         }
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -255,7 +256,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                         )
                         .version(latestClusterState.version())
                         .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
-                        .transportVersions(getTransportVersions(latestAcceptedState))
+                        .compatibilityVersions(getCompatibilityVersions(latestAcceptedState))
                         .build()
                 )
             );
@@ -266,9 +267,9 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         getLatestStoredClusterStateMetadataForTerm(term - 1, getLatestTermAndVersionStep);
     }
 
-    @SuppressForbidden(reason = "copying ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+    @SuppressForbidden(reason = "copying ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     private boolean isLatestAcceptedStateStale(PersistedClusterStateMetadata latestStoredClusterState) {

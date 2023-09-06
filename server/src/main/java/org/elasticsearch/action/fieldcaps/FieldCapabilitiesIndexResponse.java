@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class FieldCapabilitiesIndexResponse implements Writeable {
-    private static final TransportVersion MAPPING_HASH_VERSION = TransportVersion.V_8_2_0;
+    private static final TransportVersion MAPPING_HASH_VERSION = TransportVersions.V_8_2_0;
 
     private final String indexName;
     @Nullable

@@ -28,6 +28,7 @@ import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -167,7 +168,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 

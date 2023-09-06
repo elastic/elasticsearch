@@ -11,6 +11,7 @@ package org.elasticsearch.search.geo;
 import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -76,8 +77,8 @@ public class GeoBoundsGenericWriteableTests extends AbstractWireTestCase<Generic
     }
 
     public void testSerializationFailsWithOlderVersion() {
-        TransportVersion older = TransportVersion.V_8_500_069;
-        assert older.before(TransportVersion.V_8_500_070);
+        TransportVersion older = TransportVersions.V_8_500_069;
+        assert older.before(TransportVersions.V_8_500_070);
         final var testInstance = createTestInstance().geoBoundingBox();
         try (var output = new BytesStreamOutput()) {
             output.setTransportVersion(older);

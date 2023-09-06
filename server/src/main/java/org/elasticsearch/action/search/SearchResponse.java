@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
@@ -95,7 +95,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             pointInTimeId = in.readOptionalString();
         } else {
             pointInTimeId = null;
@@ -440,7 +440,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeOptionalString(pointInTimeId);
         }
     }
@@ -537,7 +537,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             this.successful = in.readVInt();
             this.skipped = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
@@ -569,7 +569,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_053)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
                     out.writeCollection(clusterList);
@@ -885,7 +885,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_066)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -990,7 +990,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_067)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_067)) {
                 out.writeBoolean(skipUnavailable);
             }
         }

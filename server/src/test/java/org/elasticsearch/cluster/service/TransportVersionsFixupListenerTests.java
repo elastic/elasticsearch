@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -109,7 +110,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_8_0))
-            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersion.V_8_8_0)))
+            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0)))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
@@ -140,7 +141,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
             .compatibilityVersions(
-                Maps.transformValues(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0), CompatibilityVersions::new)
+                Maps.transformValues(versions(TransportVersions.V_8_7_0, TransportVersions.V_8_8_0), CompatibilityVersions::new)
             )
             .build();
 
@@ -159,7 +160,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -188,7 +189,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -203,7 +204,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -223,7 +224,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )

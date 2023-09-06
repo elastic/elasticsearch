@@ -143,17 +143,25 @@ public class SearchEngine extends Engine {
                             first.get()
                         );
                         if (next != null) {
-                            ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> openReaders.remove(next));
-                            openReaders.put(
-                                next,
-                                new OpenReaderInfo(
-                                    new PrimaryTermAndGeneration(
-                                        directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
-                                        segmentInfosCopy.getGeneration()
-                                    ),
-                                    first.get().getFileNames()
-                                )
-                            );
+                            boolean added = false;
+                            try {
+                                ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> openReaders.remove(next));
+                                openReaders.put(
+                                    next,
+                                    new OpenReaderInfo(
+                                        new PrimaryTermAndGeneration(
+                                            directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
+                                            segmentInfosCopy.getGeneration()
+                                        ),
+                                        first.get().getFileNames()
+                                    )
+                                );
+                                added = true;
+                            } finally {
+                                if (added == false) {
+                                    IOUtils.closeWhileHandlingException(next);
+                                }
+                            }
                         }
                         previousSegmentInfos = segmentInfosCopy;
                         return next;

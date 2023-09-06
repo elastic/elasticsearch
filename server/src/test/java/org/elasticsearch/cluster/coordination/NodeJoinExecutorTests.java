@@ -161,12 +161,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
             .toList();
         TransportVersion min = Collections.min(versions);
-        List<CompatibilityVersions> wrappers = versions.stream().map(CompatibilityVersions::new).toList();
+        List<CompatibilityVersions> compatibilityVersions = versions.stream().map(CompatibilityVersions::new).toList();
 
         // should not throw
         NodeJoinExecutor.ensureTransportVersionBarrier(
             new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
-            wrappers
+            compatibilityVersions
         );
         expectThrows(
             IllegalStateException.class,
@@ -178,7 +178,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         TransportVersionUtils.getPreviousVersion(min)
                     )
                 ),
-                wrappers
+                compatibilityVersions
             )
         );
     }

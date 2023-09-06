@@ -101,7 +101,8 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    TransportVersion recordedTv = Optional.ofNullable(builder.compatibilityVersions().get(e.getKey()))
+                    var cvMap = builder.compatibilityVersions();
+                    TransportVersion recordedTv = Optional.ofNullable(cvMap.get(e.getKey()))
                         .map(CompatibilityVersions::transportVersion)
                         .orElse(null);
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)

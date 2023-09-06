@@ -561,7 +561,11 @@ public class StatelessCommitService implements ClusterStateListener {
 
                 } else {
                     logger.warn(
-                        "Found object store file which does not match compound commit file naming pattern: " + nonRecoveredBlobFile
+                        () -> format(
+                            "%s found object store file which does not match compound commit file naming pattern [%s]",
+                            shardId,
+                            nonRecoveredBlobFile
+                        )
                     );
                 }
             }
@@ -598,7 +602,7 @@ public class StatelessCommitService implements ClusterStateListener {
                 unpromotableShardCommitReferences.trackReferencedCommits(new HashSet<>(compoundCommitBlobs.values()));
             }
 
-            // Decrement all of the non-recovered commits since we do not referenced them locally
+            // Decrement all of the non-recovered commits since we do not reference them locally
             compoundCommitBlobs.values()
                 .stream()
                 .filter(b -> b.getPrimaryTermAndGeneration().equals(recoveryCommitBlob.getPrimaryTermAndGeneration()) == false)
@@ -636,9 +640,7 @@ public class StatelessCommitService implements ClusterStateListener {
             // create a compound commit blob instance for the new commit
             var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, additionalFiles);
             if (compoundCommitBlobs.putIfAbsent(compoundCommitBlob.getPrimaryTermAndGeneration(), compoundCommitBlob) != null) {
-                throw new IllegalArgumentException(
-                    "Compound commit blob [primaryTerm=" + primaryTerm + ", generation=" + generation + " already exists"
-                );
+                throw new IllegalArgumentException(compoundCommitBlob + " already exists");
             }
 
             // add pending blob locations for new files

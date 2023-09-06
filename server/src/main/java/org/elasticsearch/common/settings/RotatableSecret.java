@@ -13,10 +13,12 @@ import org.elasticsearch.core.TimeValue;
 
 import java.time.Instant;
 import java.util.concurrent.locks.StampedLock;
+import java.util.function.Consumer;
 
 /**
- * Helper class to provide {@link SecureString} that can be rotated. Once rotated the prior secret is available for a configured amount
- * of time before it is invalidated. This allows for secrete rotation without temporary failures or the need to tightly orchestrate
+ * A {@link SecureString} that can be rotated with a grace period for the secret that has been rotated out.
+ * Once rotated the prior secret is available for a configured amount of time before it is invalidated.
+ * This allows for secrete rotation without temporary failures or the need to tightly orchestrate
  * multiple parties. This class is threadsafe, however it is also assumes that matching secrets are frequent but rotation is a rare.
  */
 public class RotatableSecret {
@@ -85,7 +87,8 @@ public class RotatableSecret {
     }
 
     /**
-     * Checks to see if the prior secret TTL has expired. If expired, evict from the backing data structure.
+     * Checks to see if the prior secret TTL has expired. If expired, evict from the backing data structure. Always call this before
+     * reading the secret(s).
      */
     private void checkExpired() {
         boolean needToUnlock = false;

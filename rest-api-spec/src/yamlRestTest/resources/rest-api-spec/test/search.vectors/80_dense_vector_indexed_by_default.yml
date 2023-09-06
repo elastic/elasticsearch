@@ -29,7 +29,7 @@ setup:
               type: dense_vector
               dims: 5
               index: true
-              similarity: cosine
+              similarity: dot_product
 
 ---
 "Indexed by default with specified similarity and index options":
@@ -42,7 +42,7 @@ setup:
               vector:
                 type: dense_vector
                 dims: 5
-                similarity: dot_product
+                similarity: l2_norm
                 index_options:
                   type: hnsw
                   m: 32
@@ -62,7 +62,7 @@ setup:
               type: dense_vector
               dims: 5
               index: true
-              similarity: dot_product
+              similarity: l2_norm
               index_options:
                 type: hnsw
                 m: 32

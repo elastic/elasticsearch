@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -53,6 +54,7 @@ import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -79,7 +81,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
-        indexMapping(b, indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION));
+        indexMapping(b, indexVersion.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION));
     }
 
     private void indexMapping(XContentBuilder b, boolean indexedByDefault) throws IOException {
@@ -92,7 +94,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", indexed);
         }
         if (indexed) {
-            b.field("similarity", "dot_product");
+            if (indexedByDefault == false) {
+                // Add similarity when it's required
+                b.field("similarity", "dot_product");
+            }
             if (indexOptionsSet) {
                 b.startObject("index_options");
                 b.field("type", "hnsw");
@@ -242,7 +247,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        testIndexedVector(VectorSimilarity.COSINE, mapper);
+        testIndexedVector(VectorSimilarity.DOT_PRODUCT, mapper);
     }
 
     public void testIndexedVector() throws Exception {
@@ -517,8 +522,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(VectorSimilarity.DOT_PRODUCT, denseVectorFieldType.getSimilarity());
     }
 
-    public void testDefaultParamsIndexByDefault() throws Exception {
+    public void testDefaultParamsIndexedByDefault() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "dense_vector").field("dims", 3); }));
+        DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
+        DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
+
+        assertTrue(denseVectorFieldType.isIndexed());
+        assertEquals(VectorSimilarity.DOT_PRODUCT, denseVectorFieldType.getSimilarity());
+    }
+
+    public void testDefaultParamsBeforeDotProductNormalization() throws Exception {
+        DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_INDEX_VERSION, fieldMapping(b -> { b.field("type", "dense_vector").field("dims", 3); }));
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) documentMapper.mappers().getMapper("field");
         DenseVectorFieldType denseVectorFieldType = denseVectorFieldMapper.fieldType();
 

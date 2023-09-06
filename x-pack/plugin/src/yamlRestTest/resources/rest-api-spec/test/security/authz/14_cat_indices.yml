@@ -164,7 +164,7 @@ teardown:
 
   - match:
       $body: |
-        /^(yellow  \s+
+        /^((yellow|green)  \s+
            close   \s+
            index_to_monitor \s+
            ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+

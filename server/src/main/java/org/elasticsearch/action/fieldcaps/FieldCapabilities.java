@@ -243,7 +243,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.nonDimensionIndices = null;
             this.metricConflictsIndices = null;
         }
-        meta = in.readMap(i -> i.readSet(StreamInput::readString));
+        meta = in.readMap(i -> i.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override
@@ -264,7 +264,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             out.writeOptionalStringArray(nonDimensionIndices);
             out.writeOptionalStringArray(metricConflictsIndices);
         }
-        out.writeMap(meta, StreamOutput::writeString, (o, set) -> o.writeCollection(set, StreamOutput::writeString));
+        out.writeMap(meta, StreamOutput::writeStringCollection);
     }
 
     @Override
@@ -300,9 +300,9 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             List<Map.Entry<String, Set<String>>> entries = new ArrayList<>(meta.entrySet());
             entries.sort(Map.Entry.comparingByKey()); // provide predictable order
             for (Map.Entry<String, Set<String>> entry : entries) {
-                List<String> values = new ArrayList<>(entry.getValue());
-                values.sort(String::compareTo); // provide predictable order
-                builder.stringListField(entry.getKey(), values);
+                String[] values = entry.getValue().toArray(Strings.EMPTY_ARRAY);
+                Arrays.sort(values, String::compareTo); // provide predictable order
+                builder.array(entry.getKey(), values);
             }
             builder.endObject();
         }

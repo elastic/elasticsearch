@@ -1242,13 +1242,9 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach((k, v) -> {
-                    ors.add(
-                        v.size() == 1
-                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                            : createIn(k, new ArrayList<>(v), finalZoneId)
-                    );
-                });
+                found.forEach(
+                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                );
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order
@@ -1260,6 +1256,10 @@ public final class OptimizerRules {
             }
 
             return e;
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {

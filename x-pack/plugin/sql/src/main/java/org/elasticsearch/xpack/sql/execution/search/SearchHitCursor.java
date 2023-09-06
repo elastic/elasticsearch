@@ -66,7 +66,7 @@ public class SearchHitCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(HitExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
         allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) && in.readBoolean();
@@ -77,7 +77,7 @@ public class SearchHitCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {

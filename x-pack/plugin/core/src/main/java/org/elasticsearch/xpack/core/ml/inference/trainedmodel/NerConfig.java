@@ -119,7 +119,7 @@ public class NerConfig implements NlpConfig {
     public NerConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        classificationLabels = in.readStringList();
+        classificationLabels = in.readStringCollectionAsList();
         resultsField = in.readOptionalString();
     }
 

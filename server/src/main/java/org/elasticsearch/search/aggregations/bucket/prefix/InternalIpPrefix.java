@@ -203,7 +203,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
-        buckets = in.readList(stream -> new Bucket(stream, format, keyed));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format, keyed));
     }
 
     @Override

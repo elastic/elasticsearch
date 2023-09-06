@@ -11,7 +11,6 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -112,7 +111,7 @@ public class AggregateMapper {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {
-            throw new EsqlUnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
+            throw new EsqlIllegalArgumentException("unknown agg: " + aggregate.getClass() + ": " + aggregate);
         }
     }
 
@@ -202,7 +201,7 @@ public class AggregateMapper {
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw new EsqlUnsupportedOperationException("unsupported agg type: " + elementType);
+            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
@@ -222,7 +221,7 @@ public class AggregateMapper {
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
         } else {
-            throw new EsqlUnsupportedOperationException("unsupported agg type: " + type);
+            throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
         }
     }
 

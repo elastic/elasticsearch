@@ -92,7 +92,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.componentTemplates, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.componentTemplates, StreamOutput::writeWriteable);
     }
 
     public static ComponentTemplateMetadata fromXContent(XContentParser parser) throws IOException {

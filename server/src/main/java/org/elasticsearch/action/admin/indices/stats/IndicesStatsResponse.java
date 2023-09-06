@@ -172,8 +172,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         super.writeTo(out);
         out.writeArray(shards);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
-            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
     }
 

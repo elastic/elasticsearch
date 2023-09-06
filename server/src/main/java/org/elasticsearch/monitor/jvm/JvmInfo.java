@@ -313,7 +313,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         out.writeString(bootClassPath);
         out.writeString(classPath);
-        out.writeMap(this.systemProperties, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(this.systemProperties, StreamOutput::writeString);
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);

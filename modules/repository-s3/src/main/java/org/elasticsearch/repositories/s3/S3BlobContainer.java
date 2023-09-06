@@ -749,7 +749,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             for (MultipartUpload currentUpload : currentUploads) {
                                 final var currentUploadId = currentUpload.getUploadId();
                                 if (uploadId.equals(currentUploadId) == false) {
-                                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                                    blobStore.getSnapshotExecutor()
                                         .execute(ActionRunnable.run(listeners.acquire(), () -> safeAbortMultipartUpload(currentUploadId)));
                                 }
                             }
@@ -761,7 +761,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     if (uploadIndex > 0) {
                         threadPool.scheduleUnlessShuttingDown(
                             TimeValue.timeValueMillis(TimeValue.timeValueSeconds(uploadIndex).millis() + Randomness.get().nextInt(50)),
-                            ThreadPool.Names.SNAPSHOT,
+                            blobStore.getSnapshotExecutor(),
                             cancelConcurrentUpdates
                         );
                     } else {

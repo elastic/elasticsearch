@@ -467,6 +467,16 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                 default -> throw new IllegalArgumentException("unknown shutdown type: " + type);
             };
         }
+
+        /**
+         * @return True if this shutdown type indicates that the node will be permanently removed from the cluster, false otherwise.
+         */
+        public boolean isRemovalType() {
+            return switch (this) {
+                case REMOVE, SIGTERM, REPLACE -> true;
+                case RESTART -> false;
+            };
+        }
     }
 
     /**

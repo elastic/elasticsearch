@@ -41,12 +41,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -402,7 +402,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // * Anything else is a concrete query that should be run on the ngram index.
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
-            switch (r.kind()) {
+            switch (r.kind) {
                 case REGEXP_UNION:
                     result = createUnionQuery(r);
                     break;
@@ -425,8 +425,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
-                    if (r.min() > 0) {
-                        result = toApproximationQuery(r.exp1());
+                    if (r.min > 0) {
+                        result = toApproximationQuery(r.exp1);
                         if (result instanceof TermQuery) {
                             // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
                             // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
@@ -520,9 +520,9 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         private static void findLeaves(RegExp exp, org.apache.lucene.util.automaton.RegExp.Kind kind, List<Query> queries) {
-            if (exp.kind() == kind) {
-                findLeaves(exp.exp1(), kind, queries);
-                findLeaves(exp.exp2(), kind, queries);
+            if (exp.kind == kind) {
+                findLeaves(exp.exp1, kind, queries);
+                findLeaves(exp.exp2, kind, queries);
             } else {
                 queries.add(toApproximationQuery(exp));
             }

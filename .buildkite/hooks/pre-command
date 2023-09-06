@@ -43,8 +43,6 @@ export GRADLE_BUILD_CACHE_USERNAME
 
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
-<<<<<<< HEAD
-=======
 
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
@@ -71,4 +69,3 @@ if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   DRA_VAULT_ADDR=https://secrets.elastic.co:8200
   export DRA_VAULT_ADDR
 fi
->>>>>>> 9aa17a5dab0 ([buildkite] Migrate DRA workflows (#99132))

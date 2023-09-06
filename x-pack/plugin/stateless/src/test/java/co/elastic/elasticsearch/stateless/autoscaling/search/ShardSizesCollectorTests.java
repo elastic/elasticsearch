@@ -34,9 +34,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -376,7 +378,9 @@ public class ShardSizesCollectorTests extends ESTestCase {
             transportVersions.put("search_node_" + i, TransportVersion.V_8_500_027);
         }
         builder.masterNodeId("master").localNodeId("search_node_1");
-        return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(builder).transportVersions(transportVersions);
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(builder)
+            .compatibilityVersions(Maps.transformValues(transportVersions, CompatibilityVersions::new));
     }
 
     private static IndexMetadata createIndex(int shards, int replicas) {

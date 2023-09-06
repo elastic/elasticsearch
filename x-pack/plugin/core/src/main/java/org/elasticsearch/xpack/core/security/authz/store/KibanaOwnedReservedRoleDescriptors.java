@@ -288,6 +288,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "delete",
+                        "manage",
                         IndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )

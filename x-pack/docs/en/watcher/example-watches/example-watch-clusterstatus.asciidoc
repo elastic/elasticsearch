@@ -38,8 +38,8 @@ PUT _watcher/watch/cluster_health_watch
     Since this watch runs so frequently, don't forget to <<health-delete, delete the watch>>
     when you're done experimenting.
 
-To get the status of your cluster, you can call the Elasticsearch
-{ref}//cluster-health.html[cluster health] API:
+To get the status of your cluster, you can call the <<cluster-health,cluster
+health API>>:
 
 [source,console]
 --------------------------------------------------

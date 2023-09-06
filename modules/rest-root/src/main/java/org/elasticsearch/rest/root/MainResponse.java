@@ -54,7 +54,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
                 wireLuceneVersion = IndexVersion.readVersion(in).luceneVersion().toString();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 TransportVersion.readVersion(in);
             }
         }
@@ -114,7 +114,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_031)) {
                 IndexVersion.writeVersion(IndexVersion.current(), out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_019)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 TransportVersion.writeVersion(TransportVersion.current(), out);
             }
         }

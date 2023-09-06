@@ -18,14 +18,11 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,7 +35,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,7 +53,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -595,73 +590,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     /**
-     * {@link FileUploadTask} uploads a blob to the object store
-     */
-    private class FileUploadTask extends ObjectStoreTask {
-
-        private final long primaryTerm;
-        private final String name;
-        private final Directory directory;
-        private final BlobContainer blobContainer;
-        private final ActionListener<BlobLocation> listener;
-
-        FileUploadTask(
-            ShardId shardId,
-            long primaryTerm,
-            long generation,
-            long timeInNanos,
-            String name,
-            Directory directory,
-            BlobContainer blobContainer,
-            ActionListener<BlobLocation> listener
-        ) {
-            super(shardId, generation, timeInNanos);
-            this.primaryTerm = primaryTerm;
-            this.name = Objects.requireNonNull(name);
-            this.directory = Objects.requireNonNull(directory);
-            this.blobContainer = Objects.requireNonNull(blobContainer);
-            this.listener = Objects.requireNonNull(listener);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            // TODO Rate limit or some type of throttling?
-            BlobLocation blobLocation = null;
-            try (IndexInput input = directory.openInput(name, IOContext.READONCE)) {
-                final long length = input.length();
-                var before = threadPool.relativeTimeInMillis();
-                final InputStream inputStream = new InputStreamIndexInput(input, length);
-                blobContainer.writeBlob(name, inputStream, length, false);
-                var after = threadPool.relativeTimeInMillis();
-                logger.debug(
-                    () -> format(
-                        "%s file %s of size [%s] bytes from commit [%s] uploaded in [%s] ms",
-                        shardId,
-                        blobContainer.path().add(name),
-                        length,
-                        generation,
-                        TimeValue.timeValueNanos(after - before).millis()
-                    )
-                );
-                blobLocation = new BlobLocation(primaryTerm, name, length, 0, length);
-            } catch (IOException e) {
-                // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
-                onFailure(e);
-            } finally {
-                if (blobLocation != null) {
-                    listener.onResponse(blobLocation);
-                }
-            }
-        }
-    }
-
-    /**
-     * {@link FileUploadTask} uploads a blob to the object store
+     * {@link CommitFileUploadTask} uploads a blob to the object store
      */
     private class CommitFileUploadTask extends ObjectStoreTask {
 

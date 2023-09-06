@@ -327,7 +327,7 @@ public class MetadataRolloverService {
         for (Index indexName : dataStream.getIndices()) {
             var index = builder.getSafe(indexName);
             final Settings originalSettings = index.getSettings();
-            if (IndexVersion.V_8_11_0.after(index.getCreationVersion())
+            if (IndexVersion.V_8_10_0.after(index.getCreationVersion())
                 && index.getIndexMode() == IndexMode.TIME_SERIES
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {

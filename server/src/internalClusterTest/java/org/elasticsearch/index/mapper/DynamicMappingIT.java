@@ -684,11 +684,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
               }
             }""").get());
 
-        client().index(
-            new IndexRequest("test").source(
-                "mapped_obj.vector", Randomness.get().doubles(3, 0.0, 5.0).toArray()
-            )
-        ).get();
+        client().index(new IndexRequest("test").source("mapped_obj.vector", Randomness.get().doubles(3, 0.0, 5.0).toArray())).get();
 
         client().index(
             new IndexRequest("test").source("obj.vector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())

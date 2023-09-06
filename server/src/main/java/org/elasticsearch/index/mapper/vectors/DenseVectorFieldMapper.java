@@ -106,8 +106,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int dims = XContentMapValues.nodeIntegerValue(o);
             if (dims < 1 || dims > MAX_DIMS_COUNT) {
                 throw new MapperParsingException(
-                    "The number of dimensions for field [" + n + "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims
-                        + "]");
+                    "The number of dimensions for field ["
+                        + n
+                        + "] should be in the range [1, "
+                        + MAX_DIMS_COUNT
+                        + "] but was ["
+                        + dims
+                        + "]"
+                );
             }
             return dims;
         }, m -> toType(m).dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
@@ -151,11 +157,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 } else {
                     if (similarity.isConfigured() && similarity.getValue() != null) {
                         throw new IllegalArgumentException(
-                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed");
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
                     }
                     if (indexOptions.isConfigured() && indexOptions.getValue() != null) {
                         throw new IllegalArgumentException(
-                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed");
+                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
                     }
                 }
             });
@@ -170,7 +178,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(context.buildFullName(name),
+                new DenseVectorFieldType(
+                    context.buildFullName(name),
                     indexVersionCreated,
                     elementType.getValue(),
                     dims.getValue(),

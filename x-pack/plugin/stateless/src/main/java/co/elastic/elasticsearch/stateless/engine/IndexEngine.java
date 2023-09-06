@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -104,10 +105,18 @@ public class IndexEngine extends InternalEngine {
                 if (next == null) {
                     return null;
                 }
-                assert openReadersPerGeneration.isEmpty() || openReadersPerGeneration.firstKey() <= generation
-                    : "generation must be monotonically increasing " + openReadersPerGeneration.firstKey() + " > " + generation;
-                openReadersPerGeneration.compute(generation, (k, v) -> v == null ? 1 : v + 1);
-                ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> closedReader(generation));
+                boolean success = false;
+                try {
+                    assert openReadersPerGeneration.isEmpty() || openReadersPerGeneration.firstKey() <= generation
+                        : "generation must be monotonically increasing " + openReadersPerGeneration.firstKey() + " > " + generation;
+                    ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> closedReader(generation));
+                    openReadersPerGeneration.compute(generation, (k, v) -> v == null ? 1 : v + 1);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        IOUtils.closeWhileHandlingException(next);
+                    }
+                }
                 return next;
             }
         };

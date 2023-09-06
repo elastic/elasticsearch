@@ -8,6 +8,8 @@ To add a remote cluster using TLS certificate authentication:
 . <<remote-clusters-connect-cert>>
 . <<remote-clusters-privileges-cert>>
 
+If you run into any issues, refer to <<remote-clusters-troubleshooting>>.
+
 [[remote-clusters-prerequisites-cert]]
 ==== Prerequisites
 

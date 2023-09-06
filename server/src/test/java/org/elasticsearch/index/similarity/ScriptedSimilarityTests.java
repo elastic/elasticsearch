@@ -146,6 +146,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         assertEquals(1, topDocs.totalHits.value);
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
+        r.close();
         w.close();
         dir.close();
     }
@@ -238,6 +239,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         assertTrue(initCalled.get());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
+        r.close();
         w.close();
         dir.close();
     }

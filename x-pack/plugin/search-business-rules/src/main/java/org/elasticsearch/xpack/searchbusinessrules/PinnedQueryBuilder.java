@@ -220,11 +220,11 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
-            ids = in.readStringList();
+            ids = in.readStringCollectionAsList();
             docs = null;
         } else {
-            ids = in.readOptionalStringList();
-            docs = in.readBoolean() ? in.readList(Item::new) : null;
+            ids = in.readOptionalStringCollectionAsList();
+            docs = in.readBoolean() ? in.readCollectionAsList(Item::new) : null;
         }
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
     }

@@ -38,20 +38,20 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraces = in.readBoolean()
             ? in.readMap(
                 i -> new StackTrace(
-                    i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readInt)
                 )
             )
             : null;
         this.stackFrames = in.readBoolean()
             ? in.readMap(
                 i -> new StackFrame(
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readCollectionAsList(StreamInput::readInt)
                 )
             )
             : null;

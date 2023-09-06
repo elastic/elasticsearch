@@ -72,7 +72,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public Suggest(StreamInput in) throws IOException {
-        suggestions = (List) in.readNamedWriteableList(Suggestion.class);
+        suggestions = (List) in.readNamedWriteableCollectionAsList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 

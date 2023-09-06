@@ -60,9 +60,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            executingPolicies = in.readList(ExecutingPolicy::new);
-            coordinatorStats = in.readList(CoordinatorStats::new);
-            cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0) ? in.readList(CacheStats::new) : null;
+            executingPolicies = in.readCollectionAsList(ExecutingPolicy::new);
+            coordinatorStats = in.readCollectionAsList(CoordinatorStats::new);
+            cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0) ? in.readCollectionAsList(CacheStats::new) : null;
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {

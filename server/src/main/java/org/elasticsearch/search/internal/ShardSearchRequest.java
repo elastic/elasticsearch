@@ -281,7 +281,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             // to deserialize between the 8.8 and 8.500.013 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
             // we deserialize the empty list and do nothing
-            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
+            List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
             // if we are in the dfs phase in 8.8, we can have no rank queries
             // and if we are in the query/fetch phase we can have either no rank queries
             // for a standard query or hybrid search or 2+ rank queries, but we cannot have

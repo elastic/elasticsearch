@@ -98,7 +98,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
@@ -164,10 +164,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            databases = in.readImmutableSet(StreamInput::readString);
-            filesInTemp = in.readImmutableSet(StreamInput::readString);
+            databases = in.readCollectionAsImmutableSet(StreamInput::readString);
+            filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
-                ? in.readImmutableSet(StreamInput::readString)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
                 : null;
         }
 

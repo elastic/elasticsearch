@@ -59,7 +59,7 @@ public class ConditionalProcessor implements Processor {
     }
 
     public ConditionalProcessor(StreamInput in) throws IOException {
-        processors = in.readNamedWriteableList(Processor.class);
+        processors = in.readNamedWriteableCollectionAsList(Processor.class);
         operation = in.readEnum(ConditionalOperation.class);
     }
 

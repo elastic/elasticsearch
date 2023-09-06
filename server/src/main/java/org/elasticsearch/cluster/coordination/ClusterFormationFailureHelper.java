@@ -207,19 +207,19 @@ public class ClusterFormationFailureHelper {
 
         public ClusterFormationState(StreamInput in) throws IOException {
             this(
-                in.readStringList(),
+                in.readStringCollectionAsList(),
                 new DiscoveryNode(in),
                 in.readMap(DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),
                 new VotingConfiguration(in),
-                in.readImmutableList(TransportAddress::new),
-                in.readImmutableList(DiscoveryNode::new),
+                in.readCollectionAsImmutableList(TransportAddress::new),
+                in.readCollectionAsImmutableList(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
-                in.readList(JoinStatus::new)
+                in.readCollectionAsList(JoinStatus::new)
             );
         }
 

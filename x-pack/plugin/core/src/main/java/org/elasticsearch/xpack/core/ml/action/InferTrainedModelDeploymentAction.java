@@ -145,14 +145,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            docs = in.readImmutableList(StreamInput::readMap);
+            docs = in.readCollectionAsImmutableList(StreamInput::readMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 highPriority = in.readBoolean();
             }
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
@@ -321,7 +321,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
             // Multiple results added in 8.6.1
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
-                results = in.readNamedWriteableList(InferenceResults.class);
+                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
             } else {
                 results = List.of(in.readNamedWriteable(InferenceResults.class));
             }

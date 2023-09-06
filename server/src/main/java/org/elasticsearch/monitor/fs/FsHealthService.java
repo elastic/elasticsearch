@@ -95,7 +95,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, threadPool.generic());
     }
 
     @Override

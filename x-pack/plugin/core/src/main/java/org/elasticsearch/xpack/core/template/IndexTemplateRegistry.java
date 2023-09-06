@@ -781,23 +781,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         @Override
                         public void onResponse(Collection<RolloverResponse> rolloverResponses) {
                             creationCheck.set(false);
-                            for (RolloverResponse rolloverResponse : rolloverResponses) {
-                                if (rolloverResponse.isRolledOver() == false) {
-                                    // todo - log warning for each non-rolled-over
-                                    logger.warn("");
-                                }
-                            }
+                            onRolloversBulkResponse(rolloverResponses);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             creationCheck.set(false);
-                            // todo - log error for e
-                            logger.error("");
-                            for (Throwable throwable : e.getSuppressed()) {
-                                // todo - log the same
-                                logger.error("");
-                            }
+                            onRolloverFailure(e);
                         }
                     }
                 );
@@ -816,6 +806,24 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 }
             }
         });
+    }
+
+    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
+        for (RolloverResponse rolloverResponse : rolloverResponses) {
+            if (rolloverResponse.isRolledOver() == false) {
+                // todo - log warning for each non-rolled-over
+                logger.warn("");
+            }
+        }
+    }
+
+    void onRolloverFailure(Exception e) {
+        // todo - log error for e
+        logger.error("");
+        for (Throwable throwable : e.getSuppressed()) {
+            // todo - log the same
+            logger.error("");
+        }
     }
 
     /**

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
@@ -58,12 +59,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -280,7 +283,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(4)));
     }
 
-    public void testAutomaticRolloverDisabled() throws Exception {
+    public void testAutomaticRollover() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -352,13 +355,98 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // no rollover on upgrade because the test registry doesn't support automatic rollover by default
-        assertThat(rolloverCounter.get(), equalTo(0));
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(0)));
 
+        // test successful rollovers
         registry.setApplyRollover(true);
         putIndexTemplateCounter.set(0);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
+        AtomicReference<Collection<RolloverResponse>> rolloverResponsesRef = registry.getRolloverResponses();
+        assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
+        Collection<RolloverResponse> rolloverResponses = rolloverResponsesRef.get();
+        assertThat(rolloverResponses, hasSize(2));
+
+        // test rollover failures
+        putIndexTemplateCounter.set(0);
+        rolloverCounter.set(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof RolloverAction) {
+                rolloverCounter.incrementAndGet();
+                RolloverRequest rolloverRequest = ((RolloverRequest) request);
+                assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
+                throw new RuntimeException("Failed to rollover " + rolloverRequest.getRolloverTarget());
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                putIndexTemplateCounter.incrementAndGet();
+            }
+            return AcknowledgedResponse.TRUE;
+        });
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
+        AtomicReference<Exception> rolloverFailureRef = registry.getRolloverFailure();
+        assertBusy(() -> assertNotNull(rolloverFailureRef.get()));
+        Exception rolloverFailure = rolloverFailureRef.get();
+        assertThat(rolloverFailure.getMessage(), startsWith("Failed to rollover logs-my_app-"));
+        Throwable[] suppressed = rolloverFailure.getSuppressed();
+        assertThat(suppressed.length, equalTo(1));
+        assertThat(suppressed[0].getMessage(), startsWith("Failed to rollover logs-my_app-"));
+    }
+
+    public void testNoRolloverForFreshInstalledIndexTemplate() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterState state = createClusterState(
+            Map.of("custom-plugin-settings", 2, "custom-plugin-template", 2),
+            Collections.emptyMap(),
+            Map.of("custom-plugin-default_pipeline", 2, "custom-plugin-final_pipeline", 2),
+            nodes
+        );
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(Objects.requireNonNull(state).metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-my_app-1",
+                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-my_app-2",
+                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
+                        )
+                    )
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "traces-my_app-1",
+                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
+                        )
+                    )
+            )
+            .build();
+        ClusterChangedEvent event = createClusterChangedEvent(nodes, state);
+
+        AtomicInteger rolloverCounter = new AtomicInteger(0);
+        AtomicInteger putIndexTemplateCounter = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof RolloverAction) {
+                rolloverCounter.incrementAndGet();
+                RolloverRequest rolloverRequest = ((RolloverRequest) request);
+                assertThat(rolloverRequest.getRolloverTarget(), startsWith("logs-my_app-"));
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                putIndexTemplateCounter.incrementAndGet();
+            }
+            return AcknowledgedResponse.TRUE;
+        });
+
+        registry.setApplyRollover(true);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        // the index component is first installed, not upgraded, therefore rollover should not be triggered
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(0)));
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {

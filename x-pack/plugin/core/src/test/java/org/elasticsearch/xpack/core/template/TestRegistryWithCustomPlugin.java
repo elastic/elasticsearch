@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -19,10 +20,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
@@ -31,6 +34,9 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     private final AtomicBoolean policyUpgradeRequired = new AtomicBoolean(false);
     private final AtomicBoolean applyRollover = new AtomicBoolean(false);
+
+    private final AtomicReference<Collection<RolloverResponse>> rolloverResponses = new AtomicReference<>();
+    private final AtomicReference<Exception> rolloverFailure = new AtomicReference<>();
 
     TestRegistryWithCustomPlugin(
         Settings nodeSettings,
@@ -118,6 +124,24 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     public void setApplyRollover(boolean shouldApplyRollover) {
         applyRollover.set(shouldApplyRollover);
+    }
+
+    @Override
+    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
+        this.rolloverResponses.set(rolloverResponses);
+    }
+
+    public AtomicReference<Collection<RolloverResponse>> getRolloverResponses() {
+        return rolloverResponses;
+    }
+
+    @Override
+    void onRolloverFailure(Exception e) {
+        rolloverFailure.set(e);
+    }
+
+    public AtomicReference<Exception> getRolloverFailure() {
+        return rolloverFailure;
     }
 
     @Override

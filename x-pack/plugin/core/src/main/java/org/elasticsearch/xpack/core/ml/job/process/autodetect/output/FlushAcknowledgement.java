@@ -66,7 +66,7 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
         lastFinalizedBucketEnd = in.readOptionalInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             refreshRequired = in.readBoolean();
         } else {
             refreshRequired = true;
@@ -77,7 +77,7 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalInstant(lastFinalizedBucketEnd);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_012)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeBoolean(refreshRequired);
         }
     }

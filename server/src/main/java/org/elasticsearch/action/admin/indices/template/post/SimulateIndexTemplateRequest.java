@@ -40,7 +40,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super(in);
         indexName = in.readString();
         indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             includeDefaults = in.readBoolean();
         }
     }
@@ -50,7 +50,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super.writeTo(out);
         out.writeString(indexName);
         out.writeOptionalWriteable(indexTemplateRequest);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeBoolean(includeDefaults);
         }
     }

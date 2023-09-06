@@ -17,7 +17,7 @@ import java.util.Map;
 public class SimulateIngestService extends IngestService {
     private final Map<String, Pipeline> pipelineSubstitutions;
 
-    public SimulateIngestService(IngestService ingestService, BulkRequest request) { // TODO: take in the bulk request here
+    public SimulateIngestService(IngestService ingestService, BulkRequest request) {
         super(ingestService);
         if (request instanceof SimulateBulkRequest simulateBulkRequest) {
             try {

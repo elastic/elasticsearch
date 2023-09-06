@@ -113,8 +113,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
-    private final IngestMetric totalMetrics = new IngestMetric();
-    private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final IngestMetric totalMetrics;
+    private final List<Consumer<ClusterState>> ingestClusterStateListeners;
     private volatile ClusterState state;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -203,8 +203,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+        this.totalMetrics = new IngestMetric();
+        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     }
 
+    /**
+     * This copy constructor returns a copy of the given ingestService, using all of the same internal state. The returned copy is not
+     * registered to listen to any cluster state changes
+     * @param ingestService
+     */
     IngestService(IngestService ingestService) {
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
@@ -213,6 +220,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.threadPool = ingestService.threadPool;
         this.taskQueue = ingestService.taskQueue;
         this.pipelines = ingestService.pipelines;
+        this.totalMetrics = ingestService.totalMetrics;
+        this.ingestClusterStateListeners = ingestService.ingestClusterStateListeners;
         this.state = ingestService.state;
     }
 

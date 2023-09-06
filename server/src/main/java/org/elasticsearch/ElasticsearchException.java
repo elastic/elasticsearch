@@ -298,8 +298,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -1838,13 +1838,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersion.V_8_500_010
+            TransportVersion.V_8_500_020
         ),
         ROLE_RESTRICTION_EXCEPTION(
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersion.V_8_500_016
+            TransportVersion.V_8_500_020
         ),
         API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersion.V_8_500_065);
 

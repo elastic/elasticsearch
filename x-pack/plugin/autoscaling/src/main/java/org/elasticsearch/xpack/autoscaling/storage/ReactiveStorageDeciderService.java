@@ -971,7 +971,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
         private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersion.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersion.V_8_500_010;
+        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersion.V_8_500_020;
 
         private final String reason;
         private final long unassigned;
@@ -1008,8 +1008,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
             if (in.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
-                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
-                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
+                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
             } else {
                 unassignedShardIds = Collections.emptySortedSet();
                 assignedShardIds = Collections.emptySortedSet();

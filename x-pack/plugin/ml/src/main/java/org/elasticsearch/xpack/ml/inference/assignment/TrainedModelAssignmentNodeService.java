@@ -156,7 +156,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         scheduledFuture = threadPool.scheduleWithFixedDelay(
             this::loadQueuedModels,
             MODEL_LOADING_CHECK_INTERVAL,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 

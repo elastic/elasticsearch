@@ -221,8 +221,8 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.dataStreams, (stream, val) -> val.writeTo(stream));
-        out.writeMap(this.dataStreamAliases, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.dataStreams, StreamOutput::writeWriteable);
+        out.writeMap(this.dataStreamAliases, StreamOutput::writeWriteable);
     }
 
     public static DataStreamMetadata fromXContent(XContentParser parser) throws IOException {

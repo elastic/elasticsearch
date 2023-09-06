@@ -30,7 +30,7 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
 
     public RepositoriesNodeMeteringResponse(StreamInput in) throws IOException {
         super(in);
-        this.repositoryStatsSnapshots = in.readList(RepositoryStatsSnapshot::new);
+        this.repositoryStatsSnapshots = in.readCollectionAsList(RepositoryStatsSnapshot::new);
     }
 
     @Override

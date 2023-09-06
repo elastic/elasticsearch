@@ -67,7 +67,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
         this.from = in.readOptionalVInt();
         this.size = in.readOptionalVInt();
         if (in.readBoolean()) {
-            this.fieldSortBuilders = in.readList(FieldSortBuilder::new);
+            this.fieldSortBuilders = in.readCollectionAsList(FieldSortBuilder::new);
         } else {
             this.fieldSortBuilders = null;
         }

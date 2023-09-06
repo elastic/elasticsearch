@@ -140,7 +140,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(TextStructure.Format.class) : null;
-            columnNames = in.readBoolean() ? in.readStringList() : null;
+            columnNames = in.readBoolean() ? in.readStringCollectionAsList() : null;
             hasHeaderRow = in.readOptionalBoolean();
             delimiter = in.readBoolean() ? (char) in.readVInt() : null;
             quote = in.readBoolean() ? (char) in.readVInt() : null;

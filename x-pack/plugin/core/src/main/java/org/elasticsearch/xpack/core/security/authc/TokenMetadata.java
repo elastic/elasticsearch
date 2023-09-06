@@ -46,7 +46,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
-        keys = input.readImmutableList(KeyAndTimestamp::new);
+        keys = input.readCollectionAsImmutableList(KeyAndTimestamp::new);
     }
 
     @Override

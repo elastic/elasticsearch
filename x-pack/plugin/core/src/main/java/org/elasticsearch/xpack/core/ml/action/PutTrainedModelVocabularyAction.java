@@ -80,14 +80,14 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.vocabulary = in.readStringList();
+            this.vocabulary = in.readStringCollectionAsList();
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
-                this.merges = in.readStringList();
+                this.merges = in.readStringCollectionAsList();
             } else {
                 this.merges = List.of();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
-                this.scores = in.readList(StreamInput::readDouble);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
+                this.scores = in.readCollectionAsList(StreamInput::readDouble);
             } else {
                 this.scores = List.of();
             }
@@ -136,7 +136,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeStringCollection(merges);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 out.writeCollection(scores, StreamOutput::writeDouble);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_043)) {

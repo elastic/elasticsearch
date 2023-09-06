@@ -94,7 +94,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.shards = in.readImmutableSet(ShardId::new);
+            this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
         }
 

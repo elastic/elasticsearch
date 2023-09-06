@@ -220,7 +220,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        columnNames = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
@@ -231,14 +231,14 @@ public class TextStructure implements ToXContentObject, Writeable {
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
         }
-        jodaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
-        javaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        jodaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
+        javaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
         ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
-        explanation = in.readImmutableList(StreamInput::readString);
+        explanation = in.readCollectionAsImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -296,7 +296,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             out.writeBoolean(true);
             out.writeGenericMap(ingestPipeline);
         }
-        out.writeMap(fieldStats, (out1, value) -> value.writeTo(out1));
+        out.writeMap(fieldStats, StreamOutput::writeWriteable);
         out.writeStringCollection(explanation);
     }
 

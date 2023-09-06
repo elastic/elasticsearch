@@ -373,7 +373,8 @@ public class DownsampleActionIT extends ESRestTestCase {
                 assertThat(indexExists(downsampleIndexName), is(false));
 
                 Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleOfDownsampleIndexName);
-                assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+                assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
+                assertEquals(downsampleIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
                 assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
                 assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             }, 60, TimeUnit.SECONDS);

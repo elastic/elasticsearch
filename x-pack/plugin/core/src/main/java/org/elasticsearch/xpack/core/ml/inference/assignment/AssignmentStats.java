@@ -460,7 +460,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         numberOfAllocations = in.readOptionalVInt();
         queueCapacity = in.readOptionalVInt();
         startTime = in.readInstant();
-        nodeStats = in.readList(AssignmentStats.NodeStats::new);
+        nodeStats = in.readCollectionAsList(AssignmentStats.NodeStats::new);
         state = in.readOptionalEnum(AssignmentState.class);
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);

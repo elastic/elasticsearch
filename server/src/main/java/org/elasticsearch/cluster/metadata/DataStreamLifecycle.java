@@ -172,7 +172,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeOptionalWriteable(dataRetention);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
@@ -184,7 +184,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
             dataRetention = null;
@@ -414,12 +414,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalList(Round::read));
+            return new Downsampling(in.readOptionalCollectionAsList(Round::read));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, (o, v) -> v.writeTo(o));
+            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
         }
 
         @Override

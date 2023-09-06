@@ -210,8 +210,14 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         var request = new UpdateSettingsRequest(sourceIndex).settings(
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, POLICY_NAME)
         );
+        // Updating index.lifecycle.name setting may fail due to the rolling restart itself,
+        // we need to attempt it in a assertBusy(...)
         assertBusy(() -> {
             try {
+                if (indexExists(sourceIndex) == false) {
+                    logger.info("The source index [{}] no longer exists, downsampling likely completed", sourceIndex);
+                    return;
+                }
                 client().admin().indices().updateSettings(request).actionGet(TimeValue.timeValueSeconds(10));
             } catch (Exception e) {
                 logger.warn(() -> format("encountered failure while updating [%s] index's ilm policy", sourceIndex), e);

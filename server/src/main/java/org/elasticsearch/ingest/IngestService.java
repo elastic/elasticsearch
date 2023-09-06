@@ -205,6 +205,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }
 
+    IngestService(IngestService ingestService) {
+        this.clusterService = ingestService.clusterService;
+        this.scriptService = ingestService.scriptService;
+        this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
+        this.processorFactories = ingestService.processorFactories;
+        this.threadPool = ingestService.threadPool;
+        this.taskQueue = ingestService.taskQueue;
+        this.pipelines = ingestService.pipelines;
+        this.state = ingestService.state;
+    }
+
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
         Map<String, Processor.Factory> processorFactories = new TreeMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
@@ -817,6 +828,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
+        recordPipelineExecution(indexRequest, pipelineId);
 
         try {
             if (pipeline == null) {
@@ -938,6 +950,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             );
             listener.onFailure(e); // document failed!
         }
+    }
+
+    void recordPipelineExecution(IndexRequest indexRequest, String pipelineId) {
+        // no-op here, but subclasses might use this
     }
 
     private void executePipeline(

@@ -410,11 +410,11 @@ public class WildcardFieldMapper extends FieldMapper {
                     result = createConcatenationQuery(r);
                     break;
                 case REGEXP_STRING:
-                    String normalizedString = toLowerCase(r.s());
+                    String normalizedString = toLowerCase(r.s);
                     result = new TermQuery(new Term("", normalizedString));
                     break;
                 case REGEXP_CHAR:
-                    String cs = Character.toString(r.c());
+                    String cs = Character.toString(r.c);
                     String normalizedChar = toLowerCase(cs);
                     result = new TermQuery(new Term("", normalizedChar));
                     break;
@@ -465,8 +465,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private static Query createConcatenationQuery(RegExp r) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
-            findLeaves(r.exp2(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
             BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
             StringBuilder sequence = new StringBuilder();
             for (Query query : queries) {
@@ -495,8 +495,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
-            findLeaves(r.exp2(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
             BooleanQuery.Builder bOr = new BooleanQuery.Builder();
             HashSet<Query> uniqueClauses = new HashSet<>();
             for (Query query : queries) {

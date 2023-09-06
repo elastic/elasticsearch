@@ -1233,8 +1233,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
-        var template = indexTemplate.template();
-        if (indexTemplate.getDataStreamTemplate() == null || template == null) {
+        if (indexTemplate.getDataStreamTemplate() == null) {
             return false;
         }
 

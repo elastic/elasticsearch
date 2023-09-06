@@ -231,9 +231,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
-                // Note: we expect one execute call less than segments since the last is executed on the caller thread, but no additional
-                // exceptions to the offloading of operations. For details see QueueSizeBasedExecutor#processTask.
-                assertBusy(() -> assertEquals(numSegments - 1, executor.getCompletedTaskCount()));
+                assertBusy(() -> assertEquals(numSegments, executor.getCompletedTaskCount()));
             }
         } finally {
             terminate(executor);

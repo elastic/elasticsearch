@@ -30,7 +30,7 @@ public class SimulateIndexResponse extends IndexResponse {
         super(in);
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
-        this.pipelines = in.readList(StreamInput::readString);
+        this.pipelines = in.readCollectionAsList(StreamInput::readString);
     }
 
     public SimulateIndexResponse(String index, BytesReference source, XContentType sourceXContentType, List<String> pipelines) {

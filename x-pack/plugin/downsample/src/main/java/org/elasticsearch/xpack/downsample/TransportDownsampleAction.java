@@ -680,17 +680,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         /*
-         * Add the source index name and UUID to the downsample index metadata.
-         * If the source index is a downsample index, we will add the name and UUID
+         * Add the origin index name and UUID to the downsample index metadata.
+         * If the origin index is a downsample index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
-        if (IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
-            || IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
-            Index sourceIndex = sourceIndexMetadata.getIndex();
-            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), sourceIndex.getName())
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), sourceIndex.getUUID());
+        Index sourceIndex = sourceIndexMetadata.getIndex();
+        if (IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.exists(sourceIndexMetadata.getSettings()) == false
+            || IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
+            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), sourceIndex.getName())
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.getKey(), sourceIndex.getUUID());
         }
 
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, sourceIndex.getName());
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, sourceIndex.getUUID());
         return IndexMetadata.builder(downsampleIndexMetadata).settings(targetSettings);
     }
 

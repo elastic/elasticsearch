@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -21,7 +22,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener.NodeTransportVersionTask;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.mockito.ArgumentCaptor;
@@ -107,7 +110,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_8_0))
-            .transportVersions(versions(TransportVersion.V_8_8_0))
+            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0)))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
@@ -122,7 +125,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION))
-            .transportVersions(versions(NEXT_TRANSPORT_VERSION))
+            .compatibilityVersions(versions(new CompatibilityVersions(NEXT_TRANSPORT_VERSION)))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
@@ -137,7 +140,9 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
-            .transportVersions(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0))
+            .compatibilityVersions(
+                Maps.transformValues(versions(TransportVersions.V_8_7_0, TransportVersions.V_8_8_0), CompatibilityVersions::new)
+            )
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
@@ -153,7 +158,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .compatibilityVersions(
+                Maps.transformValues(
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
+                    CompatibilityVersions::new
+                )
+            )
             .build();
 
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);
@@ -177,7 +187,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .compatibilityVersions(
+                Maps.transformValues(
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
+                    CompatibilityVersions::new
+                )
+            )
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
@@ -187,7 +202,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .transportVersions(versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0))
+            .compatibilityVersions(
+                Maps.transformValues(
+                    versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0),
+                    CompatibilityVersions::new
+                )
+            )
             .build();
         // should not send any requests
         listeners.clusterChanged(new ClusterChangedEvent("test", testState2, testState1));
@@ -202,7 +222,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .compatibilityVersions(
+                Maps.transformValues(
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
+                    CompatibilityVersions::new
+                )
+            )
             .build();
 
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);

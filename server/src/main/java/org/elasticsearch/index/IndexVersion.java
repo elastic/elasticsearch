@@ -122,7 +122,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * Detached index versions added below here.
      */
     public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
-
+    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -142,10 +142,15 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      *
      * If you revert a commit with an index version change, you MUST ensure there is a NEW index version representing the reverted
      * change. DO NOT let the index version go backwards, it must ALWAYS be incremented.
+     *
+     * DETERMINING TRANSPORT VERSIONS FROM GIT HISTORY
+     *
+     * TODO after the release of v8.11.0, copy the instructions about using git to track the history of versions from TransportVersion.java
+     * (the example commands won't make sense until at least 8.11.0 is released)
      */
 
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_500_000);
+        private static final IndexVersion CURRENT = findCurrent(V_8_500_001);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

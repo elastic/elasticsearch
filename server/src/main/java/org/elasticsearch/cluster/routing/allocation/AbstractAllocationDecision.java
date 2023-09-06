@@ -40,7 +40,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        nodeDecisions = in.readBoolean() ? in.readImmutableList(NodeAllocationResult::new) : null;
+        nodeDecisions = in.readBoolean() ? in.readCollectionAsImmutableList(NodeAllocationResult::new) : null;
     }
 
     /**

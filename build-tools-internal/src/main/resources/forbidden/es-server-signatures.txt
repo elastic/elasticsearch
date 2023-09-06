@@ -156,5 +156,5 @@ org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer)
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer, org.elasticsearch.cluster.ClusterStateAckListener)
 
-@defaultMessage ClusterState#transportVersions are for internal use only. Use ClusterState#getMinTransportVersion or a different version. See TransportVersion javadocs for more info.
-org.elasticsearch.cluster.ClusterState#transportVersions()
+@defaultMessage ClusterState#compatibilityVersions are for internal use only. Use ClusterState#getMinVersions or a different version. See TransportVersion javadocs for more info.
+org.elasticsearch.cluster.ClusterState#compatibilityVersions()

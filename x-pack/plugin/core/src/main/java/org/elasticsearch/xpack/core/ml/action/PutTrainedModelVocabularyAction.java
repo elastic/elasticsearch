@@ -86,7 +86,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             } else {
                 this.merges = List.of();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 this.scores = in.readCollectionAsList(StreamInput::readDouble);
             } else {
                 this.scores = List.of();
@@ -136,7 +136,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeStringCollection(merges);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
                 out.writeCollection(scores, StreamOutput::writeDouble);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_043)) {

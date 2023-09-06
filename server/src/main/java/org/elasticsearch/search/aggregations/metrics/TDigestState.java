@@ -111,7 +111,7 @@ public class TDigestState {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             out.writeString(state.type.toString());
             out.writeVLong(state.tdigest.size());
         }
@@ -127,7 +127,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {

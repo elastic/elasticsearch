@@ -84,7 +84,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * Generate positive test cases for unary functions that operate on an {@code numeric}
      * fields by casting them to {@link DataTypes#DOUBLE}s.
      */
-    public static List<TestCaseSupplier> forUnaryCastingToDouble(String name, String argName, DoubleUnaryOperator expected) {
+    public static List<TestCaseSupplier> forUnaryCastingToDouble(
+        String name,
+        String argName,
+        DoubleUnaryOperator expected,
+        Double min,
+        Double max
+    ) {
         String read = "Attribute[channel=0]";
         String eval = name + "[" + argName + "=";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -93,33 +99,26 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
             DataTypes.DOUBLE,
             i -> expected.applyAsDouble(i),
-            Integer.MIN_VALUE,
-            Integer.MAX_VALUE
+            min.intValue(),
+            max.intValue()
         );
         forUnaryLong(
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
             DataTypes.DOUBLE,
             l -> expected.applyAsDouble(l),
-            Long.MIN_VALUE,
-            Long.MAX_VALUE
+            min.longValue(),
+            max.longValue()
         );
         forUnaryUnsignedLong(
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
             DataTypes.DOUBLE,
             ul -> expected.applyAsDouble(ul.doubleValue()),
-            BigInteger.ZERO,
-            MAX_UNSIGNED_LONG
+            BigInteger.valueOf((int) Math.ceil(min)),
+            BigInteger.valueOf((int) Math.floor(max))
         );
-        forUnaryDouble(
-            suppliers,
-            eval + read + "]",
-            DataTypes.DOUBLE,
-            i -> expected.applyAsDouble(i),
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
-        );
+        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max);
         return suppliers;
     }
 

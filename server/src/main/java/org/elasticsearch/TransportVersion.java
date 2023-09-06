@@ -31,13 +31,13 @@ import java.io.IOException;
  * those two merged commits.
  *
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link TransportVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated from
- * the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers. So the
- * minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous major version. {@link
- * TransportVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
+ * The earliest compatible version is hardcoded in the {@link TransportVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
+ * calculated from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version
+ * numbers. So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous
+ * major version. {@link TransportVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <p>
- * The earliest CCS compatible version is hardcoded at {@link TransportVersions#MINIMUM_CCS_VERSION}, as the transport version used by the previous minor
- * release. This should be updated appropriately whenever a minor release happens.
+ * The earliest CCS compatible version is hardcoded at {@link TransportVersions#MINIMUM_CCS_VERSION}, as the transport version used by the
+ * previous minor release. This should be updated appropriately whenever a minor release happens.
  *
  * <h2>Scope of usefulness of {@link TransportVersion}</h2>
  * {@link TransportVersion} is a property of the transport connection between a pair of nodes, and should not be used as an indication of

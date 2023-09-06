@@ -119,7 +119,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
     private static void assertTransportVersionConsistency() {
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         assertEquals(TransportVersion.current(), clusterService.state().getMinTransportVersion());
-        assertEquals(clusterService.state().nodes().getNodes().keySet(), clusterService.state().transportVersions().keySet());
+        assertEquals(clusterService.state().nodes().getNodes().keySet(), clusterService.state().compatibilityVersions().keySet());
     }
 
     public void testTransportVersions() throws Exception {

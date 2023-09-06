@@ -83,7 +83,7 @@ The following checks were performed on each of these signatures:
 
 Use Docker commands to start a single-node {es} cluster for development or
 testing. You can then run additional Docker commands to add nodes to the test
-cluster.
+cluster or run {kib}.
 
 TIP: This setup doesn't run multiple {es} nodes or {kib} by default. To create a
 multi-node cluster with {kib}, use Docker Compose instead. See
@@ -196,6 +196,81 @@ docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it -m 1GB {d
 curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cat/nodes
 ----
 // NOTCONSOLE
+
+[[run-kibana-docker]]
+===== Run {kib}
+
+. Pull the {kib} Docker image.
++
+ifeval::["{release-state}"=="unreleased"]
+WARNING: Version {version} of {kib} has not yet been released, so no
+Docker image is currently available for this version.
+endif::[]
++
+[source,sh,subs="attributes"]
+----
+docker pull {kib-docker-image}
+----
+
+. Optional: Verify the {kib} image's signature.
++
+ifeval::["{release-state}"=="unreleased"]
+WARNING: Version {version} of {kib} has not yet been released, so no
+Docker image signature is currently available for this version.
+endif::[]
++
+[source,sh,subs="attributes"]
+----
+wget https://artifacts.elastic.co/cosign.pub
+cosign verify --key cosign.pub {kib-docker-image}
+----
+
+. Start a {kib} container.
++
+[source,sh,subs="attributes"]
+----
+docker run --name kib01 --net elastic -p 5601:5601 {kib-docker-image}
+----
+
+. When {kib} starts, it outputs a unique generated link to the terminal. To
+access {kib}, open this link in a web browser.
+
+. In your browser, enter the enrollment token that was generated when you started {es}.
++
+To regenerate the token, run:
++
+[source,sh]
+----
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+----
+
+. Log in to {kib} as the `elastic` user with the password that was generated
+when you started {es}.
++
+To regenerate the password, run:
++
+[source,sh]
+----
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
+----
+
+[[remove-containers-docker]]
+===== Remove containers
+
+To remove the containers and their network, run:
+
+[source,sh,subs="attributes"]
+----
+# Remove the Elastic network
+docker network rm elastic
+
+# Remove {es} containers
+docker rm es01
+docker rm es02
+
+# Remove the {kib} container
+docker rm kib01
+----
 
 ===== Next steps
 

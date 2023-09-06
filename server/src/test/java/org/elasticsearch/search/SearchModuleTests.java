@@ -10,6 +10,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -545,7 +546,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 
@@ -602,7 +603,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 
@@ -652,7 +653,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 
@@ -720,7 +721,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 

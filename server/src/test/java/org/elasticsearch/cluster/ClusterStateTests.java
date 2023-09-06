@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -1125,7 +1126,7 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testGetMinTransportVersion() throws IOException {
-        assertEquals(TransportVersion.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
+        assertEquals(TransportVersions.MINIMUM_COMPATIBLE, ClusterState.EMPTY_STATE.getMinTransportVersion());
 
         var builder = ClusterState.builder(buildClusterState());
         int numNodes = randomIntBetween(2, 20);
@@ -1141,7 +1142,7 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(newState.getMinTransportVersion(), equalTo(minVersion));
 
         assertEquals(
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             ClusterState.builder(newState)
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .build()

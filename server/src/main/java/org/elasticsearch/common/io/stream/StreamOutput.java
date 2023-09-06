@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -552,7 +553,7 @@ public abstract class StreamOutput extends OutputStream {
         Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (this.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -667,7 +668,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {

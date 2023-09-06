@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -444,7 +445,7 @@ public class ClientHelperTests extends ESTestCase {
         // Rewritten for older version
         final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);

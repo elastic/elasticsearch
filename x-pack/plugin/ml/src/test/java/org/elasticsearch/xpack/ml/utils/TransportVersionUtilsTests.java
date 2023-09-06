@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -21,13 +22,13 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     private static final Map<String, TransportVersion> transportVersions = Map.of(
         "Alfredo",
-        TransportVersion.V_7_0_0,
+        TransportVersions.V_7_0_0,
         "Bertram",
-        TransportVersion.V_7_0_1,
+        TransportVersions.V_7_0_1,
         "Charles",
-        TransportVersion.V_8_500_010,
+        TransportVersions.V_8_500_010,
         "Dominic",
-        TransportVersion.V_8_0_0
+        TransportVersions.V_8_0_0
     );
 
     private static final ClusterState state = new ClusterState(
@@ -45,7 +46,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     );
 
     public void testGetMinTransportVersion() {
-        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersion.V_7_0_0));
+        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_7_0_0));
     }
 
     public void testIsMinTransformVersionSameAsCurrent() {
@@ -71,7 +72,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     }
 
     public void testIsMinTransportVersionOnOrAfter() {
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_7_0_0), equalTo(true));
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_500_010), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_7_0_0), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_500_010), equalTo(false));
     }
 }

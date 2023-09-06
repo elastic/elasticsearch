@@ -277,8 +277,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_013)) {
-            // to deserialize between the 8.8 and 8.500.013 version we need to translate
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.getTransportVersion().before(TransportVersion.V_8_500_020)) {
+            // to deserialize between the 8.8 and 8.500.020 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
             // we deserialize the empty list and do nothing
             List<QueryBuilder> rankQueryBuilders = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
@@ -371,11 +371,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)
-            && out.getTransportVersion().before(TransportVersion.V_8_500_013)) {
-            // to serialize between the 8.8 and 8.500.013 version we need to translate
+            && out.getTransportVersion().before(TransportVersion.V_8_500_020)) {
+            // to serialize between the 8.8 and 8.500.020 version we need to translate
             // the sub searches into rank queries if we are ranking, otherwise, we
             // ignore this because linear combination will have multiple sub searches in
-            // 8.500.013+, but only use the combined boolean query in prior versions
+            // 8.500.020+, but only use the combined boolean query in prior versions
             List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
             if (source != null && source.rankBuilder() != null && source.subSearches().size() >= 2) {
                 for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {

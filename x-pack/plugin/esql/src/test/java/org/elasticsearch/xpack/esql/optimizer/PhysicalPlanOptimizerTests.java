@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -1782,6 +1783,49 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         eval = as(project.child(), EvalExec.class);
         assertThat(Expressions.names(eval.fields()), contains(nullField));
         var source = source(eval.child());
+    }
+
+    /**
+     * ProjectExec[[a{r}#5]]
+     * \_EvalExec[[__a_SUM@81823521{r}#15 / __a_COUNT@31645621{r}#16 AS a]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],FINAL,24]
+     *       \_AggregateExec[[],[SUM(salary{f}#11) AS __a_SUM@81823521, COUNT(salary{f}#11) AS __a_COUNT@31645621],PARTIAL,16]
+     *         \_LimitExec[10[INTEGER]]
+     *           \_ExchangeExec[[],false]
+     *             \_ProjectExec[[salary{f}#11]]
+     *               \_FieldExtractExec[salary{f}#11]
+     *                 \_EsQueryExec[test], query[][_doc{f}#17], limit[10], sort[] estimatedRowSize[8]
+     */
+    public void testAvgSurrogateFunctionAfterRenameAndLimit() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10
+            | rename first_name as FN
+            | stats a = avg(salary)
+            """));
+
+        var project = as(plan, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(limit.limit().fold(), equalTo(10000));
+        var aggFinal = as(limit.child(), AggregateExec.class);
+        assertThat(aggFinal.getMode(), equalTo(AggregateExec.Mode.FINAL));
+        var aggPartial = as(aggFinal.child(), AggregateExec.class);
+        assertThat(aggPartial.getMode(), equalTo(AggregateExec.Mode.PARTIAL));
+        limit = as(aggPartial.child(), LimitExec.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(limit.limit().fold(), equalTo(10));
+
+        var exchange = as(limit.child(), ExchangeExec.class);
+        project = as(exchange.child(), ProjectExec.class);
+        var expectedFields = List.of("salary");
+        assertThat(Expressions.names(project.projections()), is(expectedFields));
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(expectedFields));
+        var source = source(fieldExtract.child());
+        assertThat(source.limit().fold(), equalTo(10));
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
@@ -78,11 +79,27 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
             );
         }
 
-        long tookNanos = System.nanoTime() - startNanos;
-        long tookMillis = TimeUnit.NANOSECONDS.toMillis(tookNanos);
-        LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}", tookMillis, esqlQuery);
-        restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
+        restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
 
         return restResponse;
+    }
+
+    /**
+     * Log the execution time and query when handling an ES|QL response.
+     */
+    public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+        // We need to measure the execution time after handling the response/failure for the measurement to be correct.
+        return ActionListener.wrap(r -> {
+            onResponse(r);
+            LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}", timeMillis(), esqlQuery);
+        }, ex -> {
+            onFailure(ex);
+            LOGGER.info("Failed executing ES|QL query in {}ms:\n{}", timeMillis(), esqlQuery);
+        });
+    }
+
+    private long timeMillis() {
+        long timeNanos = System.nanoTime() - startNanos;
+        return TimeUnit.NANOSECONDS.toMillis(timeNanos);
     }
 }

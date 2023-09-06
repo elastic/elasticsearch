@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.internal.VersionExtension;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.

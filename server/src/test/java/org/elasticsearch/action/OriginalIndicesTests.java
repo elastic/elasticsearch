@@ -45,7 +45,8 @@ public class OriginalIndicesTests extends ESTestCase {
             // indices options are not equivalent when sent to an older version and re-read due
             // to the addition of hidden indices as expand to hidden indices is always true when
             // read from a prior version
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || originalIndices.indicesOptions().expandWildcardsHidden()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)
+                || originalIndices.indicesOptions().expandWildcardsHidden()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
             } else if (originalIndices.indicesOptions().expandWildcardsHidden()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));

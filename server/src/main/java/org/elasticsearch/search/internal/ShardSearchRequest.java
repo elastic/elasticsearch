@@ -278,7 +278,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_500_013)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)
+            && in.getTransportVersion().before(TransportVersions.V_8_500_013)) {
             // to deserialize between the 8.8 and 8.500.013 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
             // we deserialize the empty list and do nothing

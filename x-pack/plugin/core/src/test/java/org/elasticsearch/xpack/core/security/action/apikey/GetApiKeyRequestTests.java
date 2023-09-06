@@ -139,7 +139,9 @@ public class GetApiKeyRequestTests extends ESTestCase {
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0)
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -159,7 +161,9 @@ public class GetApiKeyRequestTests extends ESTestCase {
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_8_4_0)
+            );
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));

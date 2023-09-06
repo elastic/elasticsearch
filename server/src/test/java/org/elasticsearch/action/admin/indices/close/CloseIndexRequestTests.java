@@ -56,7 +56,8 @@ public class CloseIndexRequestTests extends ESTestCase {
                     // to the addition of hidden indices as expand to hidden indices is always true when
                     // read from a prior version
                     // TODO update version on backport!
-                    if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                    if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)
+                        || request.indicesOptions().expandWildcardsHidden()) {
                         assertEquals(request.indicesOptions(), indicesOptions);
                     }
                     if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {

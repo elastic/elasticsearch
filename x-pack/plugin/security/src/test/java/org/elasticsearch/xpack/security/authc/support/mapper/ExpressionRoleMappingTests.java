@@ -426,7 +426,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerializationPreV71() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(false);
 
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_0_1);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_7_0_1
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
         original.writeTo(output);

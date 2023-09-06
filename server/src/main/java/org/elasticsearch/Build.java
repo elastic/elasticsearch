@@ -191,7 +191,8 @@ public record Build(
 
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
-        if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_039)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)
+            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_039)) {
             flavor = in.readString();
         } else {
             flavor = "default";

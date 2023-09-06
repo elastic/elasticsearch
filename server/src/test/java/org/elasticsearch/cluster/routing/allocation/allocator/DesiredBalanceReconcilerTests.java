@@ -72,6 +72,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1127,6 +1128,41 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().node("node-0").size(), equalTo(0));
         assertThat(allocation.routingNodes().node("node-1").size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(0));
+    }
+
+    public void testForcedInitialAllocationDoNotFallback() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final var initialForcedAllocationDecider = new AllocationDecider() {
+            @Override
+            public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Optional.of(Set.of("node-1"));// intentionally different from the desired balance
+            }
+
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Objects.equals(node.nodeId(), "node-2") ? Decision.YES : Decision.NO; // can allocate only on fallback node
+            }
+        };
+
+        final var allocation = createRoutingAllocationFrom(clusterState, initialForcedAllocationDecider);
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0"), 1, 0, 0)));
+
+        reconcile(allocation, balance);
+
+        assertThat(allocation.routingNodes().node("node-0").size(), equalTo(0));
+        assertThat(allocation.routingNodes().node("node-1").size(), equalTo(0));
+        assertThat(allocation.routingNodes().node("node-2").size(), equalTo(0));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
     }
 
     public void testRebalanceDoesNotCauseHotSpots() {

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -48,6 +49,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.TransportVersions.V_8_500_070;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -761,6 +763,24 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getYears());
             o.writeInt(period.getMonths());
             o.writeInt(period.getDays());
+        }),
+        entry(GenericNamedWriteable.class, (o, v) -> {
+            // Note that we do not rely on the checks in VersionCheckingStreamOutput because that only applies to CCS
+            final var genericNamedWriteable = (GenericNamedWriteable) v;
+            TransportVersion minSupportedVersion = genericNamedWriteable.getMinimalSupportedVersion();
+            assert minSupportedVersion.onOrAfter(V_8_500_070) : "[GenericNamedWriteable] requires [" + V_8_500_070 + "]";
+            if (o.getTransportVersion().before(minSupportedVersion)) {
+                final var message = Strings.format(
+                    "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",
+                    genericNamedWriteable.getWriteableName(),
+                    minSupportedVersion,
+                    o.getTransportVersion()
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+            o.writeByte((byte) 30);
+            o.writeNamedWriteable(genericNamedWriteable);
         })
     );
 
@@ -791,6 +811,8 @@ public abstract class StreamOutput extends OutputStream {
             return Set.class;
         } else if (value instanceof BytesReference) {
             return BytesReference.class;
+        } else if (value instanceof GenericNamedWriteable) {
+            return GenericNamedWriteable.class;
         } else {
             return value.getClass();
         }

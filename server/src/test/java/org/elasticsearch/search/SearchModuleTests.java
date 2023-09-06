@@ -12,6 +12,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -285,6 +286,7 @@ public class SearchModuleTests extends ESTestCase {
             1,
             module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count()
         );
+        assertEquals(1, module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(GenericNamedWriteable.class)).count());
     }
 
     public void testRegisterHighlighter() {

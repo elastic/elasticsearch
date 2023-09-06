@@ -22,6 +22,7 @@
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'test-release'
           black-list-target-branches:

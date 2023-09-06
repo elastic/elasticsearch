@@ -133,6 +133,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_500_067 = def(8_500_067, "a7c86604-a917-4aff-9a1b-a4d44c3dbe02");
     public static final TransportVersion V_8_500_068 = def(8_500_068, "2683c8b4-5372-4a6a-bb3a-d61aa679089a");
     public static final TransportVersion V_8_500_069 = def(8_500_069, "5b804027-d8a0-421b-9970-1f53d766854b");
+    public static final TransportVersion V_8_500_070 = def(8_500_070, "6BADC9CD-3C9D-4381-8BD9-B305CAA93F86");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -145,8 +146,7 @@ public class TransportVersions {
      * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
      *
      * To add a new transport version, add a new constant at the bottom of the list, above this comment, which is one greater than the
-     * current highest version, ensure it has a fresh UUID, and update CurrentHolder#CURRENT to point to the new version. Don't add other
-     * lines, comments, etc.
+     * current highest version and ensure it has a fresh UUID. Don't add other lines, comments, etc.
      *
      * REVERTING A TRANSPORT VERSION
      *
@@ -158,15 +158,15 @@ public class TransportVersions {
      * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
      * transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
+     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersion.java | grep registerTransportVersion
+     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
      *
      * ... and you can see which versions were added in between two versions too ...
      *
-     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersion.java
+     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
      */
 
     /**

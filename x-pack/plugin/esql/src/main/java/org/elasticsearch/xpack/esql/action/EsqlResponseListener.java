@@ -91,10 +91,10 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         // We need to measure the execution time after handling the response/failure for the measurement to be correct.
         return ActionListener.wrap(r -> {
             onResponse(r);
-            LOGGER.info("Successfully executed ES|QL query in {}ms:\n{}", timeMillis(), esqlQuery);
+            LOGGER.info("Successfully executed ESQL query in {}ms:\n{}", timeMillis(), esqlQuery);
         }, ex -> {
             onFailure(ex);
-            LOGGER.info("Failed executing ES|QL query in {}ms:\n{}", timeMillis(), esqlQuery);
+            LOGGER.info("Failed executing ESQL query in {}ms:\n{}", timeMillis(), esqlQuery);
         });
     }
 

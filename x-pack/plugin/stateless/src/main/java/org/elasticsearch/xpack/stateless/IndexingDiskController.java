@@ -147,8 +147,8 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
         }
         this.reservedBytes = reservedBytes;
         logger.info(
-            "indexing disk controller will flush and throttle indexing shards if available disk space drops below [{}/{} bytes]"
-                + "on [{}/{}] total [indexing buffer size={}/{}]",
+            "indexing disk controller will flush and throttle indexing shards if available disk space drops below [{}/{} bytes] on [{}/{}] "
+                + "total [indexing buffer size={}/{}]",
             reservedBytes,
             reservedBytes.getBytes(),
             totalBytes,

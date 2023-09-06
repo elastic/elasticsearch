@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -188,6 +189,7 @@ class Elasticsearch {
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
             AbstractRefCounted.class,
             SubscribableListener.class,
+            RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class
         );

@@ -250,16 +250,16 @@ public class ComputeService {
                 new EsPhysicalOperationProviders(context.searchContexts)
             );
 
-            LOGGER.info("Received physical plan:\n{}", plan);
+            LOGGER.debug("Received physical plan:\n{}", plan);
             plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
 
-            LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
+            LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             drivers = localExecutionPlan.createDrivers(context.sessionId);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
-            LOGGER.info("using {} drivers", drivers.size());
+            LOGGER.debug("using {} drivers", drivers.size());
         } catch (Exception e) {
             listener.onFailure(e);
             return;

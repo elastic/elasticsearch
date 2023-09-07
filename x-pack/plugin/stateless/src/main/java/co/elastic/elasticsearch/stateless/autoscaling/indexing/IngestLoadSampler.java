@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -67,7 +68,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     );
 
     // Minimum transport version required for master to be able to handle the metric publications
-    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_025;
+    private static final TransportVersion REQUIRED_VERSION = TransportVersions.V_8_500_025;
 
     private final Logger logger = LogManager.getLogger(IngestLoadSampler.class);
     private final ThreadPool threadPool;
@@ -86,7 +87,7 @@ public class IngestLoadSampler implements ClusterStateListener {
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
-    private volatile TransportVersion minTransportVersion = TransportVersion.MINIMUM_COMPATIBLE;
+    private volatile TransportVersion minTransportVersion = TransportVersions.MINIMUM_COMPATIBLE;
     private volatile String nodeId;
 
     public IngestLoadSampler(

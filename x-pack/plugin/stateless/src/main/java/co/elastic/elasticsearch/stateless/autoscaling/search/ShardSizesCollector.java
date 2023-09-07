@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -74,7 +75,7 @@ public class ShardSizesCollector implements ClusterStateListener {
     );
 
     // Minimum transport version required for master to be able to handle the metric publications
-    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_027;
+    private static final TransportVersion REQUIRED_VERSION = TransportVersions.V_8_500_027;
 
     private final ThreadPool threadPool;
     private final Executor executor;
@@ -91,7 +92,7 @@ public class ShardSizesCollector implements ClusterStateListener {
     private final PendingPublication pendingPublication = new PendingPublication();
     private final ConcurrentMap<ShardId, ShardSize> pastPublications = new ConcurrentHashMap<>();
 
-    private volatile TransportVersion minTransportVersion = TransportVersion.MINIMUM_COMPATIBLE;
+    private volatile TransportVersion minTransportVersion = TransportVersions.MINIMUM_COMPATIBLE;
     private volatile String nodeId;
 
     private class PendingPublication {

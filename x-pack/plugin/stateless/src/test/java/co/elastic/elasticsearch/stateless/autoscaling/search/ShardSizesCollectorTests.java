@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -100,7 +101,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         service = new ShardSizesCollector(clusterSettings, threadPool, statsClient, publisher, true);
         service.setNodeId("search_node_1");
-        service.setMinTransportVersion(TransportVersion.V_8_500_027);
+        service.setMinTransportVersion(TransportVersions.V_8_500_027);
     }
 
     @After
@@ -370,12 +371,12 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var builder = DiscoveryNodes.builder();
         var transportVersions = new HashMap<String, TransportVersion>();
         builder.add(DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build());
-        transportVersions.put("master", TransportVersion.V_8_500_027);
+        transportVersions.put("master", TransportVersions.V_8_500_027);
         builder.add(DiscoveryNodeUtils.builder("index_node_1").roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build());
-        transportVersions.put("index_node_1", TransportVersion.V_8_500_027);
+        transportVersions.put("index_node_1", TransportVersions.V_8_500_027);
         for (int i = 1; i <= searchNodes; i++) {
             builder.add(DiscoveryNodeUtils.builder("search_node_" + i).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build());
-            transportVersions.put("search_node_" + i, TransportVersion.V_8_500_027);
+            transportVersions.put("search_node_" + i, TransportVersions.V_8_500_027);
         }
         builder.masterNodeId("master").localNodeId("search_node_1");
         return ClusterState.builder(ClusterState.EMPTY_STATE)

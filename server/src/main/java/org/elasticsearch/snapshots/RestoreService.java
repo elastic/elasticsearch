@@ -969,7 +969,7 @@ public class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created using index version ["
+                "the snapshot was created with index version ["
                     + snapshotInfo.version()
                     + "] which is higher than the version used by this node ["
                     + IndexVersion.current()

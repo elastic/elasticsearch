@@ -49,6 +49,8 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
@@ -460,7 +462,22 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testCommitsAreRetainedUntilScrollCloses() throws Exception {
-        var indexNode = startMasterAndIndexNode();
+        testCommitsRetainementWithSearchScroll(true);
+    }
+
+    public void testCommitsAreDroppedAfterScrollClosesAndIndexingInactivity() throws Exception {
+        testCommitsRetainementWithSearchScroll(false);
+    }
+
+    private void testCommitsRetainementWithSearchScroll(boolean indexingActivityAfterScrollCloses) throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            indexingActivityAfterScrollCloses
+                ? Settings.EMPTY
+                : Settings.builder()
+                    .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), "100ms")
+                    .put(SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), "100ms")
+                    .build()
+        );
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -506,15 +523,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var searchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
 
-        assertBusy(() -> {
-            var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
-            assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
-        });
+        var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
+        assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
         client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
 
-        // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
-        totalIndexedDocs += indexDocsAndFlush(indexName);
+        if (indexingActivityAfterScrollCloses) {
+            // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
+            totalIndexedDocs += indexDocsAndFlush(indexName);
+        } else {
+            // New commit notifications should be sent from the inactive indexing shard so that ultimately the new commit notification
+            // responses do not contain the search's open readers anymore, and the shard cleans unused files.
+        }
 
         assertBusy(() -> {
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);

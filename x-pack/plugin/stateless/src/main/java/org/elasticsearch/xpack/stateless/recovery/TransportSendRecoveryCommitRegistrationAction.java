@@ -17,19 +17,25 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,6 +47,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportSendRecoveryCommitRegistrationAction(
@@ -53,11 +60,46 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.threadPool = clusterService.threadPool();
     }
 
     @Override
     protected void doExecute(Task task, RegisterCommitRequest request, ActionListener<RegisterCommitResponse> listener) {
         var state = clusterService.state();
+        // The timeout is intentionally kept low to prevent blocking other recoveries since this registration
+        // happens during unpromotable recovery).
+        var observer = new ClusterStateObserver(state, clusterService, new TimeValue(10000), logger, threadPool.getThreadContext());
+        tryRegistration(task, request, state, listener.delegateResponse((l, e) -> {
+            var cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof ShardNotFoundException) {
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        tryRegistration(task, request, state, l);
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        l.onFailure(new ElasticsearchException("cs observer closed"));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        l.onFailure(new ElasticsearchException("cs observer timed out", cause));
+                    }
+                });
+            } else {
+                l.onFailure(e);
+            }
+        }));
+    }
+
+    private void tryRegistration(
+        Task task,
+        RegisterCommitRequest request,
+        ClusterState state,
+        ActionListener<RegisterCommitResponse> listener
+    ) {
         var shardId = request.getShardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
@@ -68,11 +110,11 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
         if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
             // TODO: A search shard should be able to continue using the found commit despite not being able to register it.
             // For now, we fail the request to register the commit.
-            throw new NoShardAvailableActionException(shardId, "primary shard is not active");
+            listener.onFailure(new ShardNotFoundException(shardId, "cannot route request to the indexing shard"));
+            return;
         }
         DiscoveryNode node = state.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
         assert node != null;
-        // TODO: retry on ShardNotFoundException (with a new cluster state)
         transportService.sendChildRequest(
             node,
             TransportRegisterCommitForRecoveryAction.NAME,

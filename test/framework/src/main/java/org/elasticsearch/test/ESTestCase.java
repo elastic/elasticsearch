@@ -2014,24 +2014,4 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
-
-    public static IndexSearcher newSearcher(IndexReader reader) {
-        IndexSearcher searcher = LuceneTestCase.newSearcher(reader);
-        if (reader.getReaderCacheHelper() != null) {
-            ExecutorService executorService = Executors.newFixedThreadPool(1);
-            executorService.execute(() -> {});
-            reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
-        }
-        return searcher;
-    }
-
-    public static IndexSearcher newSearcher(IndexReader reader, boolean maybeWrap) {
-        IndexSearcher searcher = LuceneTestCase.newSearcher(reader, maybeWrap);
-        if (reader.getReaderCacheHelper() != null) {
-            ExecutorService executorService = Executors.newFixedThreadPool(1);
-            executorService.execute(() -> {});
-            reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
-        }
-        return searcher;
-    }
 }

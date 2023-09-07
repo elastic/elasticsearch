@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
-
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -281,7 +279,7 @@ public class Metadata {
         if (this == o) return true;
         if ((o instanceof Metadata) == false) return false;
         Metadata metadata = (Metadata) o;
-        return Maps.deepEquals(map, metadata.map);
+        return map.equals(metadata.map);
     }
 
     @Override

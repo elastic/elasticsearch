@@ -1543,12 +1543,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
                 final List<String> targetNodes = new ArrayList<>(2);
-                // Prefer executing shard requests on nodes that are part of PIT first.
-                if (clusterState.nodes().nodeExists(perNode.getNode())) {
-                    targetNodes.add(perNode.getNode());
-                }
                 try {
                     final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                    // Prefer executing shard requests on nodes that are part of PIT first.
+                    if (clusterState.nodes().nodeExists(perNode.getNode())) {
+                        targetNodes.add(perNode.getNode());
+                    }
                     if (perNode.getSearchContextId().getSearcherId() != null) {
                         for (ShardRouting shard : shards) {
                             if (shard.currentNodeId().equals(perNode.getNode()) == false) {

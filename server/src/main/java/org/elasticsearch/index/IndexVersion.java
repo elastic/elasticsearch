@@ -115,14 +115,19 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
     public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
-    public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_8_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
+    public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_7_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
 
     /*
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
-    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_8_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
-    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_8_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
+    // A synthetic version that is in the future and is on the next Lucene minor version
+    // It needs to be on the same major as the actual current version for backward compatibility assumptions to be correct
+    // Keep it above other versions so that adding new versions in main doesn't cause merge conflicts when merging into the lucene_snapshot
+    // branch
+    public static final IndexVersion UPGRADE_TO_NEXT_LUCENE_VERSION = registerIndexVersion(8_999_999, Version.LATEST, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
+    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
+    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -150,7 +155,9 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
 
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_500_001);
+        // The below line is different from the main branch, which causes merge conflicts when new index versions get added. This will get
+        // addressed when the latest index version gets computed dynamically based on the registered index versions.
+        private static final IndexVersion CURRENT = findCurrent(UPGRADE_TO_NEXT_LUCENE_VERSION);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

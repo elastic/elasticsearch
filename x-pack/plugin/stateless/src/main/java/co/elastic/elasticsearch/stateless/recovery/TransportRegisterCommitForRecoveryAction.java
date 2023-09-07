@@ -67,6 +67,8 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
     protected void doExecute(Task task, RegisterCommitRequest request, ActionListener<RegisterCommitResponse> listener) {
         var state = clusterService.state();
         var observer = new ClusterStateObserver(state, clusterService, new TimeValue(60000), logger, threadPool.getThreadContext());
+        // todo: check if we can collapse this with the check in `StatelessCommitService.registerCommitForUnpromotableRecovery`,
+        // which waits for the cluster state version to be applied.
         if (state.version() < request.getClusterStateVersion()) {
             // Indexing shard is behind
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -112,10 +114,13 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
         }
         assert engine instanceof IndexEngine;
         var statelessCommitService = ((IndexEngine) engine).getStatelessCommitService();
-        ActionListener.completeWith(listener, () -> {
-            var commitToRecoverFrom = statelessCommitService.registerCommitForUnpromotableRecovery(commit, shardId, request.getNodeId());
-            return new RegisterCommitResponse(commitToRecoverFrom);
-        });
+        statelessCommitService.registerCommitForUnpromotableRecovery(
+            commit,
+            shardId,
+            request.getNodeId(),
+            state.version(),
+            listener.map(RegisterCommitResponse::new)
+        );
     }
 
     private boolean isSearchShardInRoutingTable(ClusterState state, ShardId shardId, String nodeId) {

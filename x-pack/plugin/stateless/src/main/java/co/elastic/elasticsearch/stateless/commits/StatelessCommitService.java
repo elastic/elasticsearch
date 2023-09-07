@@ -19,8 +19,10 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+import co.elastic.elasticsearch.stateless.utils.WaitForVersion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,8 +50,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -64,7 +64,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +115,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final ConcurrentHashMap<ShardId, ShardCommitState> shardsCommitsStates = new ConcurrentHashMap<>();
     private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
     private final StatelessCommitCleaner commitCleaner;
-    private final NewCommitNotificationGrouperClient client;
+    private final Client client;
+
+    private final WaitForVersion waitForClusterStateVersion = new WaitForVersion();
+
     private final TimeValue shardInactivityDuration;
     private final TimeValue shardInactivityMonitorInterval;
     private final ShardInactivityMonitor shardInactivityMonitor;
@@ -153,7 +155,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
         this.shardRouting = shardRouting;
         this.threadPool = threadPool;
-        this.client = new NewCommitNotificationGrouperClient(client);
+        this.client = client;
         this.commitCleaner = commitCleaner;
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
@@ -239,6 +241,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // The CommitUpload listener is called after releasing the reference to the Lucene commit,
         // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
+        // todo: reevaluate this.
         compoundCommitBlob.incRef();
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
             @Override
@@ -494,10 +497,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
         private volatile StatelessCompoundCommit latestUploadedCommit = null; // having the highest generation ever uploaded
+
+        /**
+         * The highest generation that we received notification response from unpromotables for
+         */
+        private final AtomicLong generationNotified = new AtomicLong(-1);
         private volatile boolean isClosed;
         // map generations to compound commit blob instances
         private final Map<PrimaryTermAndGeneration, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
-        private final Map<String, UnpromotableShardCommitReferences> unpromotableShardCommitReferencesByNode = new ConcurrentHashMap<>();
+        /**
+         * Map from commit to set of search node-ids using the commit. The lifecycle of entries is like this:
+         * 1. Initially added on recovery or commit created - with an empty set. Only this adds to the keys of the Map.
+         * 2. Add to set of nodes before sending commit notification or when search shard registers during its initialization.
+         *    Only these two actions add to the set of node ids.
+         * 3. Remove from set of nodes when receiving commit notification response.
+         * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
+         * 5. Remove from map when nodes is empty, using remove(key, Set.of()) to ensure we are atomic towards a search shard registering.
+         *    When successful this dec-refs the CompoundCommitBlobs external reader ref-count.
+         */
+        private final Map<CompoundCommitBlob, Set<String>> unpromotableCommitReferences = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
@@ -648,11 +666,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .stream()
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
-            updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
 
-            for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
-                unpromotableShardCommitReferences.trackReferencedCommits(new HashSet<>(compoundCommitBlobs.values()));
-            }
+            compoundCommitBlobs.values().forEach(this::initializeUnpromotableCommitReferences);
+            compoundCommitBlobs.values()
+                .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
             // Decrement all of the non-recovered commits since we do not reference them locally
             compoundCommitBlobs.values()
@@ -698,7 +715,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // add pending blob locations for new files
             additionalFiles.forEach(fileName -> {
                 var previous = blobLocations.put(fileName, new CommitAndBlobLocation(compoundCommitBlob, null));
-                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous;
+                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + compoundCommitBlob;
             });
 
             // if there are external files the new instance must reference the corresponding commit blob instances
@@ -708,7 +725,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     compoundCommitBlob.incRef(commit);
                 }
             });
+            initializeUnpromotableCommitReferences(compoundCommitBlob);
             return compoundCommitBlob;
+        }
+
+        private void initializeUnpromotableCommitReferences(CompoundCommitBlob compoundCommitBlob) {
+            Set<String> previous = unpromotableCommitReferences.put(compoundCommitBlob, Set.of());
+            assert previous == null;
         }
 
         public void markCommitDeleted(long generation) {
@@ -780,15 +803,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void sendNewCommitNotification(CompoundCommitBlob compoundCommitBlob, StatelessCompoundCommit commit) {
             assert commit != null;
             var shardRoutingTable = shardRouting.apply(commit.shardId());
-            var releasables = shardRoutingTable.unpromotableShards()
+            Set<String> nodes = shardRoutingTable.unpromotableShards()
                 .stream()
-                .map(shardRouting -> trackOutstandingUnpromotableShardCommitRef(shardRouting.currentNodeId(), compoundCommitBlob))
-                .toList();
-
-            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+                .filter(ShardRouting::assignedToNode)
+                .map(ShardRouting::currentNodeId)
+                .collect(Collectors.toSet());
+            trackOutstandingUnpromotableShardCommitRef(nodes, compoundCommitBlob);
             NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
-            client.sendRequest(request, ActionListener.releaseAfter(ActionListener.wrap(response -> {
-                trackReferencedCommitsByUnpromotableShards(response.getUsedPrimaryTermAndGenerations());
+            client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
+                onNewCommitNotificationResponse(commit.generation(), nodes, response.getUsedPrimaryTermAndGenerations());
                 var consumer = commitNotificationSuccessListeners.get(shardId);
                 if (consumer != null) {
                     consumer.accept(commit.generation());
@@ -798,7 +821,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, commit.generation()),
                     e
                 )
-            ), Releasables.wrap(releasables)));
+            ));
         }
 
         private void resendLatestNewCommitNotification() {
@@ -891,68 +914,86 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        void trackReferencedCommitsByUnpromotableShards(Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations) {
+        void onNewCommitNotificationResponse(
+            long notificationGeneration,
+            Set<String> nodes,
+            Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations
+        ) {
             if (isClosed) {
                 return;
             }
 
+            if (generationNotified.getAndAccumulate(notificationGeneration, Math::max) > notificationGeneration) {
+                // no need to process backwards commit notifications
+                // (but would be safe - and we rely on it, this check is just an optimistic check)
+                return;
+            }
             // TODO: provide Map<nodeId, Set<PrimaryTermAndGeneration>>
-            for (UnpromotableShardCommitReferences unpromotableShardCommitReferences : unpromotableShardCommitReferencesByNode.values()) {
-                Set<CompoundCommitBlob> currentlyReferencedCommits = new HashSet<>();
-                for (PrimaryTermAndGeneration usedPrimaryTermAndGeneration : usedPrimaryTermAndGenerations) {
-                    var compoundCommit = compoundCommitBlobs.get(usedPrimaryTermAndGeneration);
-                    assert compoundCommit != null : usedPrimaryTermAndGeneration + " " + shardId + " " + compoundCommitBlobs;
-                    // TODO: Implement two ref-counting approaches, one to keep track of commits used by the index node and
-                    // one to keep track of outstanding references
-                    currentlyReferencedCommits.add(compoundCommit);
-                    currentlyReferencedCommits.addAll(compoundCommit.references);
-                }
 
-                unpromotableShardCommitReferences.trackReferencedCommits(Collections.unmodifiableSet(currentlyReferencedCommits));
+            for (CompoundCommitBlob commit : unpromotableCommitReferences.keySet()) {
+                // we are allowed to shrink the set of unpromotable nodes for any generation <= notificationGeneration, since after the
+                // notification generation has
+                // been refreshed on the search shard, we know that the shard will never add more use of any earlier generations.
+                if (commit.getPrimaryTermAndGeneration().generation() <= notificationGeneration
+                    && usedPrimaryTermAndGenerations.contains(commit.getPrimaryTermAndGeneration()) == false) {
+                    // remove nodes from the set. Any search shard registered during initialization will be left until it starts responding.
+                    Set<String> result = unpromotableCommitReferences.computeIfPresent(commit, (k, v) -> Sets.difference(v, nodes));
+                    // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
+                    // least that commit (relevant only in case there are no search shards currently).
+                    maybeRemoveAndCloseExternalReaders(notificationGeneration, commit, result);
+                }
             }
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
-            for (String currentNode : currentUnpromotableNodes) {
-                unpromotableShardCommitReferencesByNode.computeIfAbsent(currentNode, UnpromotableShardCommitReferences::new);
+            long generationNotified = this.generationNotified.get();
+            for (Map.Entry<CompoundCommitBlob, Set<String>> entry : unpromotableCommitReferences.entrySet()) {
+                Set<String> result = unpromotableCommitReferences.computeIfPresent(
+                    entry.getKey(),
+                    (k, v) -> Sets.intersection(v, currentUnpromotableNodes)
+                );
+                maybeRemoveAndCloseExternalReaders(generationNotified, entry.getKey(), result);
             }
+        }
 
-            var nodesIter = unpromotableShardCommitReferencesByNode.entrySet().iterator();
-            while (nodesIter.hasNext()) {
-                var nodeRef = nodesIter.next();
-                if (currentUnpromotableNodes.contains(nodeRef.getKey()) == false) {
-                    nodesIter.remove();
-                    nodeRef.getValue().close();
+        private void maybeRemoveAndCloseExternalReaders(long notificationGeneration, CompoundCommitBlob commit, Set<String> result) {
+            if (result != null && result.isEmpty() && notificationGeneration > commit.getPrimaryTermAndGeneration().generation()) {
+                if (unpromotableCommitReferences.remove(commit, Set.of())) {
+                    commit.closedExternalReaders();
                 }
             }
         }
 
-        Releasable trackOutstandingUnpromotableShardCommitRef(String nodeId, CompoundCommitBlob compoundCommitBlob) {
-            unpromotableShardCommitReferencesByNode.computeIfAbsent(nodeId, UnpromotableShardCommitReferences::new);
-
-            List<Releasable> releasables = new ArrayList<>(compoundCommitBlob.references.size() + 1);
-
-            // TODO: Implement two ref-counting approaches, one to keep track of commits used by the index node and
-            // one to keep track of outstanding references
-            compoundCommitBlob.incRef();
-            for (CompoundCommitBlob referencedCommit : compoundCommitBlob.references) {
-                referencedCommit.incRef();
-                releasables.add(referencedCommit::decRef);
-            }
-
-            releasables.add(compoundCommitBlob::decRef);
-            return Releasables.wrap(releasables);
+        void trackOutstandingUnpromotableShardCommitRef(Set<String> nodes, CompoundCommitBlob compoundCommitBlob) {
+            boolean success = registerUnpromoteableCommitRefs(nodes, compoundCommitBlob);
+            // it is fine if a newer commit notification removed the registration, since then compoundCommitBlob cannot be used
+            // by search shard readers anymore.
+            assert success || compoundCommitBlob.getPrimaryTermAndGeneration().generation() < generationNotified.get();
         }
 
-        void registerCommitForUnpromotableRecovery(String nodeId, CompoundCommitBlob compoundCommit) {
-            var unpromotableShardCommitRefs = unpromotableShardCommitReferencesByNode.computeIfAbsent(
-                nodeId,
-                UnpromotableShardCommitReferences::new
-            );
-            Set<CompoundCommitBlob> currentlyReferencedCommits = new HashSet<>();
-            currentlyReferencedCommits.add(compoundCommit);
-            currentlyReferencedCommits.addAll(compoundCommit.references);
-            unpromotableShardCommitRefs.registerCommitForUnpromotableRecovery(currentlyReferencedCommits);
+        /**
+         * Register commit used by unpromotable, returning the commit to use by the unpromotable.
+         */
+        CompoundCommitBlob registerCommitForUnpromotableRecovery(String nodeId, CompoundCommitBlob compoundCommit) {
+            long previousGenerationUploaded = -1;
+            while (true) {
+                if (compoundCommit != null && registerUnpromoteableCommitRefs(Set.of(nodeId), compoundCommit)) {
+                    assert compoundCommit.externalReadersClosed.get() == false;
+                    return compoundCommit;
+                } else {
+                    long generation = getMaxUploadedGeneration();
+                    assert generation > previousGenerationUploaded;
+                    previousGenerationUploaded = generation;
+                    compoundCommit = compoundCommitBlobs.get(new PrimaryTermAndGeneration(allocationPrimaryTerm, generation));
+                    assert compoundCommit != null || getMaxUploadedGeneration() > generation;
+                }
+            }
+        }
+
+        boolean registerUnpromoteableCommitRefs(Set<String> nodes, CompoundCommitBlob compoundCommit) {
+            Set<String> immutableNodes = Set.copyOf(nodes);
+            Set<String> result = unpromotableCommitReferences.computeIfPresent(compoundCommit, (k, v) -> Sets.union(v, immutableNodes));
+            return result != null;
         }
 
         public LongConsumer closedLocalReadersForGeneration() {
@@ -975,12 +1016,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final Set<CompoundCommitBlob> references;
             private final AtomicBoolean deleted = Assertions.ENABLED ? new AtomicBoolean() : null;
             private final AtomicBoolean readersClosed = new AtomicBoolean();
+            private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
 
             CompoundCommitBlob(long primaryTerm, long generation, Set<String> internalFiles) {
                 this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
-                // we both decRef on delete and on noMoreIndexShardReaders, hence an extra incRef().
+                // we both decRef on delete, closedLocalReaders and closedExternalReaders, hence the extra incRefs (in addition to the
+                // 1 ref given by AbstractRefCounted constructor)
+                this.incRef();
                 this.incRef();
             }
 
@@ -991,10 +1035,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void incRef(CompoundCommitBlob other) {
                 assert hasReferences() : this;
                 assert other.hasReferences() : other;
-                // incRef twice since we expect all commits to be both deleted and locally unused.
+                // incRef three times since we expect all commits to be both deleted, locally unused and externally unused
+                other.incRef();
                 other.incRef();
                 other.incRef();
                 if (references.add(other) == false) {
+                    other.decRef();
                     other.decRef();
                     other.decRef();
                 }
@@ -1011,6 +1057,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (readersClosed.compareAndSet(false, true)) {
                     references.forEach(AbstractRefCounted::decRef);
                     decRef();
+                }
+            }
+
+            public void closedExternalReaders() {
+                if (externalReadersClosed.compareAndSet(false, true)) {
+                    references.forEach(AbstractRefCounted::decRef);
+                    decRef();
+                } else {
+                    assert false : "external readers already closed for [" + this + "]";
                 }
             }
 
@@ -1049,59 +1104,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             public String toString() {
-                return "Compound commit blob " + primaryTermAndGeneration;
-            }
-
-        }
-
-        private static class UnpromotableShardCommitReferences implements Releasable {
-            private final String nodeId;
-            private Set<CompoundCommitBlob> referencedCommits = Collections.emptySet();
-            private boolean closed = false;
-
-            UnpromotableShardCommitReferences(String nodeId) {
-                this.nodeId = nodeId;
-            }
-
-            void trackReferencedCommits(Set<CompoundCommitBlob> newReferencedCommits) {
-                Set<CompoundCommitBlob> oldReferencedCommits;
-                synchronized (this) {
-                    if (closed) {
-                        return;
-                    }
-                    oldReferencedCommits = referencedCommits;
-                    referencedCommits = Collections.unmodifiableSet(newReferencedCommits);
-                    newReferencedCommits.forEach(AbstractRefCounted::incRef);
-                }
-
-                oldReferencedCommits.forEach(AbstractRefCounted::decRef);
-            }
-
-            void registerCommitForUnpromotableRecovery(Set<CompoundCommitBlob> commitsUsedForRecovery) {
-                synchronized (this) {
-                    if (closed) {
-                        return;
-                    }
-                    Set<CompoundCommitBlob> allReferencedCommits = new HashSet<>(referencedCommits);
-                    allReferencedCommits.addAll(commitsUsedForRecovery);
-                    commitsUsedForRecovery.forEach(AbstractRefCounted::incRef);
-                    referencedCommits = Collections.unmodifiableSet(allReferencedCommits);
-                }
-            }
-
-            @Override
-            public void close() {
-                Set<CompoundCommitBlob> oldReferencedCommits;
-                synchronized (this) {
-                    if (closed) {
-                        return;
-                    }
-                    closed = true;
-                    oldReferencedCommits = referencedCommits;
-                    referencedCommits = Collections.emptySet();
-                }
-
-                oldReferencedCommits.forEach(AbstractRefCounted::decRef);
+                return "Compound commit blob "
+                    + primaryTermAndGeneration
+                    + " ["
+                    + deleted.get()
+                    + ","
+                    + readersClosed.get()
+                    + ","
+                    + externalReadersClosed.get()
+                    + "]";
             }
         }
     }
@@ -1109,37 +1120,41 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // TODO: maybe give a grace period if the node left?
-        if (event.routingTableChanged()) {
-            var localShardRouting = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
+        try {
+            if (event.routingTableChanged()) {
+                var localShardRouting = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
 
-            if (localShardRouting == null) {
-                return;
-            }
-
-            for (ShardRouting shardRouting : localShardRouting) {
-                if (shardRouting.primary() == false) {
-                    continue;
-                }
-                var shardId = shardRouting.shardId();
-                var shardCommitState = shardsCommitsStates.get(shardId);
-                // shardsCommitsStates not registered yet
-                if (shardCommitState == null) {
-                    continue;
+                if (localShardRouting == null) {
+                    return;
                 }
 
-                if (event.indexRoutingTableChanged(shardId.getIndexName())) {
-                    var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
-                    var previousShardRoutingTable = event.previousState().routingTable().shardRoutingTable(shardId);
+                for (ShardRouting shardRouting : localShardRouting) {
+                    if (shardRouting.primary() == false) {
+                        continue;
+                    }
+                    var shardId = shardRouting.shardId();
+                    var shardCommitState = shardsCommitsStates.get(shardId);
+                    // shardsCommitsStates not registered yet
+                    if (shardCommitState == null) {
+                        continue;
+                    }
 
-                    if (currentShardRoutingTable != previousShardRoutingTable) {
-                        var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
-                        var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
-                            .map(ShardRouting::currentNodeId)
-                            .collect(Collectors.toSet());
-                        shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+                    if (event.indexRoutingTableChanged(shardId.getIndexName())) {
+                        var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
+                        var previousShardRoutingTable = event.previousState().routingTable().shardRoutingTable(shardId);
+
+                        if (currentShardRoutingTable != previousShardRoutingTable) {
+                            var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
+                            var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
+                                .map(ShardRouting::currentNodeId)
+                                .collect(Collectors.toSet());
+                            shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+                        }
                     }
                 }
             }
+        } finally {
+            waitForClusterStateVersion.notifyVersionProcessed(event.state().version());
         }
     }
 
@@ -1158,40 +1173,63 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return file.startsWith("_") && IndexFileNames.parseGeneration(file) > 0L;
     }
 
-    public PrimaryTermAndGeneration registerCommitForUnpromotableRecovery(PrimaryTermAndGeneration commit, ShardId shardId, String nodeId) {
-        var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-        var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit);
-        if (compoundCommit == null || compoundCommit.tryIncRef() == false) {
-            // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
-            // In that case, try the latest commit.
-            // TODO: add an accessor for the latest commit (should it also incRef?)
-            long lastUploadedGeneration = shardCommitsState.getMaxUploadedGeneration();
-            long primaryTerm = lastUploadedGeneration == shardCommitsState.recoveredGeneration
-                ? shardCommitsState.recoveredPrimaryTerm
-                : shardCommitsState.allocationPrimaryTerm;
-            compoundCommit = shardCommitsState.compoundCommitBlobs.get(new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration));
+    /**
+     *
+     * @param commit the commit to register
+     * @param shardId the shard id to register for
+     * @param nodeId the nodeId using the commit
+     * @param clusterStateVersion the cluster state version already applied on this node, but possibly not handled in this object yet.
+     * @param listener notified when available.
+     */
+    public void registerCommitForUnpromotableRecovery(
+        PrimaryTermAndGeneration commit,
+        ShardId shardId,
+        String nodeId,
+        long clusterStateVersion,
+        ActionListener<PrimaryTermAndGeneration> listener
+    ) {
+        // todo: assert clusterStateVersion <= clusterService.state().version();
+        waitForClusterStateProcessed(clusterStateVersion, () -> {
+            ActionListener.completeWith(listener, () -> {
 
-            // if the indexing shard is not finished initializing from the object store, we are not
-            // able to register the commit for recovery. For now, fail the registration request.
-            // TODO (ES-6698): we should be able to handle this case by either retrying the registration or keep the
-            // registration and run it after the indexing shard is finished initializing.
-            if (compoundCommit == null) {
-                throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
-            }
-            // TODO: If the search shard has seen a newer commit (w/ newer term) that wants to register and recover from, the stale
-            // indexing shard could reply with a commit from the last term. If this is possible, we should explicitly check against
-            // this and fail the registration request.
-            compoundCommit.incRef();
-        }
-        try {
-            shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, compoundCommit);
-        } finally {
-            compoundCommit.decRef();
-        }
-        var proposed = compoundCommit.primaryTermAndGeneration;
-        assert proposed.compareTo(commit) >= 0
-            : Strings.format("Proposed commit ({}) for unpromotable recovery must be newer that the requested one ({})", proposed, commit);
-        return proposed;
+                var shardCommitsState = getSafe(shardsCommitsStates, shardId);
+                var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit);
+                // todo: this should be moved to registerCommitForUnpromotableRecovery, noting that we'd need to ensure the loop still
+                // terminates possibly with some of the errors here.
+                if (compoundCommit == null) {
+                    // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
+                    // In that case, try the latest commit.
+                    // TODO: add an accessor for the latest commit (should it also incRef?)
+                    long lastUploadedGeneration = shardCommitsState.getMaxUploadedGeneration();
+                    long primaryTerm = lastUploadedGeneration == shardCommitsState.recoveredGeneration
+                        ? shardCommitsState.recoveredPrimaryTerm
+                        : shardCommitsState.allocationPrimaryTerm;
+                    compoundCommit = shardCommitsState.compoundCommitBlobs.get(
+                        new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration)
+                    );
+
+                    // if the indexing shard is not finished initializing from the object store, we are not
+                    // able to register the commit for recovery. For now, fail the registration request.
+                    // TODO (ES-6698): we should be able to handle this case by either retrying the registration or keep the
+                    // registration and run it after the indexing shard is finished initializing.
+                    if (compoundCommit == null) {
+                        throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
+                    }
+                    // TODO: If the search shard has seen a newer commit (w/ newer term) that wants to register and recover from, the stale
+                    // indexing shard could reply with a commit from the last term. If this is possible, we should explicitly check against
+                    // this and fail the registration request.
+                }
+                compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, compoundCommit);
+                var proposed = compoundCommit.primaryTermAndGeneration;
+                assert proposed.compareTo(commit) >= 0
+                    : Strings.format(
+                        "Proposed commit ({}) for unpromotable recovery must be newer that the requested one ({})",
+                        proposed,
+                        commit
+                    );
+                return proposed;
+            });
+        });
     }
 
     private record CommitAndBlobLocation(ShardCommitState.CompoundCommitBlob compoundCommitBlob, @Nullable BlobLocation blobLocation) {
@@ -1209,5 +1247,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      */
     public LongConsumer closedLocalReadersForGeneration(ShardId shardId) {
         return shardsCommitsStates.get(shardId).closedLocalReadersForGeneration();
+    }
+
+    private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {
+        waitForClusterStateVersion.waitUntilVersion(clusterStateVersion, () -> threadPool.generic().execute(whenDone));
     }
 }

@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;

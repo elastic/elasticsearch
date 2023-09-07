@@ -44,8 +44,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleLuceneTests extends ESTestCase {
     public void testSortValues() throws Exception {
-        try (Directory dir = new ByteBuffersDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+        try (
+            Directory dir = new ByteBuffersDirectory();
+            IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))
+        ) {
             for (int i = 0; i < 10; i++) {
                 Document document = new Document();
                 String text = new String(new char[] { (char) (97 + i), (char) (97 + i) });
@@ -58,15 +60,20 @@ public class SimpleLuceneTests extends ESTestCase {
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("str", SortField.Type.STRING)));
                 for (int i = 0; i < 10; i++) {
                     FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
-                    assertThat((BytesRef) fieldDoc.fields[0], equalTo(new BytesRef(new String(new char[] { (char) (97 + i), (char) (97 + i) }))));
+                    assertThat(
+                        (BytesRef) fieldDoc.fields[0],
+                        equalTo(new BytesRef(new String(new char[] { (char) (97 + i), (char) (97 + i) })))
+                    );
                 }
             }
         }
     }
 
     public void testSimpleNumericOps() throws Exception {
-        try (Directory dir = new ByteBuffersDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+        try (
+            Directory dir = new ByteBuffersDirectory();
+            IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))
+        ) {
             Document document = new Document();
             document.add(new TextField("_id", "1", Field.Store.YES));
             document.add(new IntPoint("test", 2));
@@ -94,8 +101,10 @@ public class SimpleLuceneTests extends ESTestCase {
      * first (with load and break).
      */
     public void testOrdering() throws Exception {
-        try (Directory dir = new ByteBuffersDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+        try (
+            Directory dir = new ByteBuffersDirectory();
+            IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER))
+        ) {
             Document document = new Document();
             document.add(new TextField("_id", "1", Field.Store.YES));
             document.add(new TextField("#id", "1", Field.Store.YES));
@@ -121,9 +130,11 @@ public class SimpleLuceneTests extends ESTestCase {
     }
 
     public void testNRTSearchOnClosedWriter() throws Exception {
-        try (Directory dir = new ByteBuffersDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-             DirectoryReader reader = DirectoryReader.open(indexWriter)) {
+        try (
+            Directory dir = new ByteBuffersDirectory();
+            IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+            DirectoryReader reader = DirectoryReader.open(indexWriter)
+        ) {
             for (int i = 0; i < 100; i++) {
                 Document document = new Document();
                 TextField field = new TextField("_id", Integer.toString(i), Field.Store.YES);

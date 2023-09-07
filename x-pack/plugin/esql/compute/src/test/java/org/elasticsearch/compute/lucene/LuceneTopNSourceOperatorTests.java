@@ -63,16 +63,11 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory simple(BigArrays bigArrays) {
+    protected LuceneTopNSourceOperator.Factory simple(BigArrays bigArrays) {
         return simple(bigArrays, DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory simple(
-        BigArrays bigArrays,
-        DataPartitioning dataPartitioning,
-        int size,
-        int limit
-    ) {
+    private LuceneTopNSourceOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int size, int limit) {
         int commitEvery = Math.max(1, size / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -94,7 +89,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = mock(SearchContext.class);
+        SearchContext ctx = LuceneSourceOperatorTests.mockSearchContext(reader);
         SearchExecutionContext ectx = mock(SearchExecutionContext.class);
         when(ctx.getSearchExecutionContext()).thenReturn(ectx);
         when(ectx.getFieldType(anyString())).thenAnswer(inv -> {
@@ -116,7 +111,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        return new LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory(
+        return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
             dataPartitioning,
@@ -154,12 +149,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
     private void testSimple(int size, int limit) {
         DriverContext ctx = new DriverContext();
-        LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory factory = simple(
-            nonBreakingBigArrays(),
-            DataPartitioning.SHARD,
-            size,
-            limit
-        );
+        LuceneTopNSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(
             reader,
             CoreValuesSourceType.NUMERIC,
@@ -175,17 +165,17 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
 
         long expectedS = 0;
         for (Page page : results) {
-            if (limit - expectedS < factory.maxPageSize) {
+            if (limit - expectedS < factory.maxPageSize()) {
                 assertThat(page.getPositionCount(), equalTo((int) (limit - expectedS)));
             } else {
-                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize));
+                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize()));
             }
             LongBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
             }
         }
-        int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize);
+        int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
     }
 }

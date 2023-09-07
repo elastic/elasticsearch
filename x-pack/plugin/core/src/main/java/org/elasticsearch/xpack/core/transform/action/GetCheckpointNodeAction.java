@@ -49,7 +49,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(getCheckpoints(), StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeMap(getCheckpoints(), StreamOutput::writeLongArray);
         }
 
         public Map<String, long[]> getCheckpoints() {
@@ -94,7 +94,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.shards = in.readImmutableSet(ShardId::new);
+            this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
         }
 

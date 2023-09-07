@@ -1,0 +1,5 @@
+pr: 98944
+summary: Auto-normalize `dot_product` vectors at index & query
+area: Vector Search
+type: enhancement
+issues: []

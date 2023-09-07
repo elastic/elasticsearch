@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -79,12 +79,12 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 
@@ -101,7 +101,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)
+            this.cacheStats = in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)
                 ? new EnrichStatsAction.Response.CacheStats(in)
                 : null;
             this.coordinatorStats = new CoordinatorStats(in);
@@ -118,7 +118,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
                 cacheStats.writeTo(out);
             }
             coordinatorStats.writeTo(out);

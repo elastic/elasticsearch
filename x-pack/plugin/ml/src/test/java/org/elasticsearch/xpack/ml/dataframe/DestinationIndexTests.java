@@ -62,6 +62,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -332,6 +333,7 @@ public class DestinationIndexTests extends ESTestCase {
                 client,
                 clock,
                 config,
+                ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
                 ActionListener.wrap(
                     response -> fail("should not succeed"),
                     e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
@@ -341,7 +343,13 @@ public class DestinationIndexTests extends ESTestCase {
             return null;
         }
 
-        DestinationIndex.createDestinationIndex(client, clock, config, ActionTestUtils.assertNoFailureListener(response -> {}));
+        DestinationIndex.createDestinationIndex(
+            client,
+            clock,
+            config,
+            ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
+            ActionTestUtils.assertNoFailureListener(response -> {})
+        );
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
@@ -569,6 +577,7 @@ public class DestinationIndexTests extends ESTestCase {
             client,
             clock,
             config,
+            ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
             ActionListener.wrap(
                 response -> fail("should not succeed"),
                 e -> assertThat(

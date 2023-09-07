@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -21,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
-    protected final Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         Number lhs = (Number) data.get(0);
         Number rhs = (Number) data.get(1);
         if (lhs instanceof Double || rhs instanceof Double) {
@@ -40,7 +42,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     }
 
     @Override
-    protected Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    protected Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         Number lhs = (Number) typedData.get(0).data();
         Number rhs = (Number) typedData.get(1).data();
         if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {
@@ -67,12 +69,12 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
     protected abstract long expectedUnsignedLongValue(long lhs, long rhs);
 
     @Override
-    protected final boolean supportsType(DataType type) {
-        return type.isNumeric();
+    protected boolean supportsType(DataType type) {
+        return type.isNumeric() && EsqlDataTypes.isRepresentable(type);
     }
 
     @Override
-    protected final void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
+    protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
         if (DataTypes.isNullOrNumeric(lhsType) && DataTypes.isNullOrNumeric(rhsType)) {
             assertTrue(op.toString(), op.typeResolved().resolved());
             assertThat(op.toString(), op.dataType(), equalTo(expectedType(lhsType, rhsType)));
@@ -97,7 +99,7 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
         );
     }
 
-    private DataType expectedType(DataType lhsType, DataType rhsType) {
+    protected DataType expectedType(DataType lhsType, DataType rhsType) {
         if (lhsType == DataTypes.DOUBLE || rhsType == DataTypes.DOUBLE) {
             return DataTypes.DOUBLE;
         }

@@ -22,6 +22,7 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'Team:Security'
           black-list-labels:

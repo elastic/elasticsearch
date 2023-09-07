@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -144,7 +145,6 @@ import static org.elasticsearch.common.hash.MessageDigests.sha256;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -203,12 +203,12 @@ public final class TokenService {
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersion.V_7_2_0;
-    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersion.V_7_2_0;
-    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersion.V_7_2_0;
-    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersion.V_7_2_0;
-    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersion.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersion.V_8_500_040;
+    static final TransportVersion VERSION_HASHED_TOKENS = TransportVersions.V_7_2_0;
+    static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersions.V_7_2_0;
+    static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersions.V_7_2_0;
+    static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersions.V_7_2_0;
+    static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_500_040;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -1004,7 +1004,7 @@ public final class TokenService {
                                         listener
                                     ),
                                     backoff.next(),
-                                    GENERIC
+                                    client.threadPool().generic()
                                 );
                         } else {
                             if (retryTokenDocIds.isEmpty() == false) {
@@ -1048,7 +1048,7 @@ public final class TokenService {
                                         listener
                                     ),
                                     backoff.next(),
-                                    GENERIC
+                                    client.threadPool().generic()
                                 );
                         } else {
                             listener.onFailure(e);
@@ -1161,7 +1161,7 @@ public final class TokenService {
                     .schedule(
                         () -> findTokenFromRefreshToken(refreshToken, tokensIndexManager, backoff, listener),
                         backofTimeValue,
-                        GENERIC
+                        client.threadPool().generic()
                     );
             } else {
                 logger.warn("failed to find token from refresh token after all retries");
@@ -1331,7 +1331,7 @@ public final class TokenService {
                                 .schedule(
                                     () -> innerRefresh(refreshToken, tokenDoc, clientAuth, backoff, refreshRequested, listener),
                                     backoff.next(),
-                                    GENERIC
+                                    client.threadPool().generic()
                                 );
                         } else {
                             logger.info(
@@ -1367,7 +1367,7 @@ public final class TokenService {
                                                 .schedule(
                                                     () -> getTokenDocAsync(tokenDoc.id(), refreshedTokenIndex, true, this),
                                                     backoff.next(),
-                                                    GENERIC
+                                                    client.threadPool().generic()
                                                 );
                                         } else {
                                             logger.warn("could not get token document [{}] for refresh after all retries", tokenDoc.id());
@@ -1385,7 +1385,7 @@ public final class TokenService {
                                     .schedule(
                                         () -> innerRefresh(refreshToken, tokenDoc, clientAuth, backoff, refreshRequested, listener),
                                         backoff.next(),
-                                        GENERIC
+                                        client.threadPool().generic()
                                     );
                             } else {
                                 logger.warn("failed to update the original token document [{}], after all retries", tokenDoc.id());
@@ -1455,7 +1455,11 @@ public final class TokenService {
                     if (backoff.hasNext()) {
                         logger.info("could not get token document [{}] that should have been created, retrying", tokenDocId);
                         client.threadPool()
-                            .schedule(() -> getTokenDocAsync(tokenDocId, tokensIndex, false, actionListener), backoff.next(), GENERIC);
+                            .schedule(
+                                () -> getTokenDocAsync(tokenDocId, tokensIndex, false, actionListener),
+                                backoff.next(),
+                                client.threadPool().generic()
+                            );
                     } else {
                         logger.warn("could not get token document [{}] that should have been created after all retries", tokenDocId);
                         onFailure.accept(invalidGrantException("could not refresh the requested token"));

@@ -97,7 +97,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         terms = in.readString();
         regex = in.readString();
         maxMatchingLength = in.readLong();
-        examples = new TreeSet<>(in.readStringList());
+        examples = new TreeSet<>(in.readStringCollectionAsList());
         grokPattern = in.readOptionalString();
         this.preferredToCategories = in.readVLongArray();
         this.numMatches = in.readVLong();

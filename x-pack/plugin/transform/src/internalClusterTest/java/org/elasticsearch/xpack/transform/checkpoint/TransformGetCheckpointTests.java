@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -125,7 +125,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putTransportVersion("node01", TransportVersion.V_8_5_0)
+            .putTransportVersion("node01", TransportVersions.V_8_5_0)
             .build();
 
         transformTask = new Task(

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -244,7 +245,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
-            new CompatibilityVersions(TransportVersionUtils.randomVersion(), Map.of()),
+            CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );

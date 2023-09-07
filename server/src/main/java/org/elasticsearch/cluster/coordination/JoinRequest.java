@@ -67,6 +67,7 @@ public class JoinRequest extends TransportRequest {
             compatibilityVersions = CompatibilityVersions.readVersion(in);
         } else {
             // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
+            // no known mapping versions here
             compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
         }
         minimumTerm = in.readLong();

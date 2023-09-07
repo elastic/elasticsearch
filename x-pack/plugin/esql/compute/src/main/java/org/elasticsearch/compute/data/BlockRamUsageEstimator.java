@@ -21,6 +21,6 @@ public final class BlockRamUsageEstimator {
 
     /** Returns the size in bytes used by the bitset. Otherwise, returns 0 if null. Not exact, but good enough */
     public static long sizeOfBitSet(@Nullable BitSet bitset) {
-        return bitset == null ? 0 : (bitset.size() + Byte.SIZE - 1) / Byte.SIZE;
+        return bitset == null ? 0 : RamUsageEstimator.shallowSizeOfInstance(BitSet.class) + (bitset.size() / Byte.SIZE);
     }
 }

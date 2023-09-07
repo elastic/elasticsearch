@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -21,12 +22,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class BlockAccountingTests extends ESTestCase {
-
-    // These value may differ on different platform. If so, simply increase to their maximum observed value.
-    // The point is to simply ensure that the bass size is "reasonably" small.
-    static final long BASE_ARRAY_VECTOR_SIZE = 40L;
-    static final long BASE_ARRAY_BLOCK_SIZE = 64L;
 
     // A large(ish) upperbound simply so that effective greaterThan assertions are not unbounded
     static final long UPPER_BOUND = 10_000;
@@ -34,7 +31,8 @@ public class BlockAccountingTests extends ESTestCase {
     // Array Vectors
     public void testBooleanVector() {
         Vector empty = new BooleanArrayVector(new boolean[] {}, 0);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_VECTOR_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Vector emptyPlusOne = new BooleanArrayVector(new boolean[] { randomBoolean() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1)));
@@ -50,7 +48,8 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testIntVector() {
         Vector empty = new IntArrayVector(new int[] {}, 0);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_VECTOR_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Vector emptyPlusOne = new IntArrayVector(new int[] { randomInt() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Integer.BYTES)));
@@ -66,7 +65,8 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testLongVector() {
         Vector empty = new LongArrayVector(new long[] {}, 0);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_VECTOR_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Vector emptyPlusOne = new LongArrayVector(new long[] { randomLong() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Long.BYTES));
@@ -82,7 +82,8 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testDoubleVector() {
         Vector empty = new DoubleArrayVector(new double[] {}, 0);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_VECTOR_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Vector emptyPlusOne = new DoubleArrayVector(new double[] { randomDouble() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Double.BYTES));
@@ -102,11 +103,13 @@ public class BlockAccountingTests extends ESTestCase {
             var arrayWithOne = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE)
         ) {
 
+            final long minus = RamUsageTester.ramUsed(BigArrays.NON_RECYCLING_INSTANCE);
             var bytesRef = new BytesRef(randomAlphaOfLengthBetween(1, 16));
             arrayWithOne.append(bytesRef);
 
             Vector empty = new BytesRefArrayVector(emptyArray, 0);
-            assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_VECTOR_SIZE + emptyArray.ramBytesUsed()));
+            long expectedEmptyUsed = RamUsageTester.ramUsed(empty) - minus;
+            assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed + emptyArray.ramBytesUsed()));
 
             Vector emptyPlusOne = new BytesRefArrayVector(arrayWithOne, 1);
             assertThat(emptyPlusOne.ramBytesUsed(), between(empty.ramBytesUsed() + bytesRef.length, UPPER_BOUND)); // just an upper bound
@@ -120,7 +123,8 @@ public class BlockAccountingTests extends ESTestCase {
     // Array Blocks
     public void testBooleanBlock() {
         Block empty = new BooleanArrayBlock(new boolean[] {}, 0, new int[] {}, null, Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Block emptyPlusOne = new BooleanArrayBlock(new boolean[] { randomBoolean() }, 1, new int[] {}, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1)));
@@ -135,12 +139,14 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testBooleanBlockWithNullFirstValues() {
         Block empty = new BooleanArrayBlock(new boolean[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(expectedEmptyUsed));
     }
 
     public void testIntBlock() {
         Block empty = new IntArrayBlock(new int[] {}, 0, new int[] {}, null, Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Block emptyPlusOne = new IntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Integer.BYTES)));
@@ -155,12 +161,14 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testIntBlockWithNullFirstValues() {
         Block empty = new IntArrayBlock(new int[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
     public void testLongBlock() {
         Block empty = new LongArrayBlock(new long[] {}, 0, new int[] {}, null, Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Block emptyPlusOne = new LongArrayBlock(new long[] { randomInt() }, 1, new int[] {}, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Long.BYTES)));
@@ -175,12 +183,14 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testLongBlockWithNullFirstValues() {
         Block empty = new LongArrayBlock(new long[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
     public void testDoubleBlock() {
         Block empty = new DoubleArrayBlock(new double[] {}, 0, new int[] {}, null, Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
         Block emptyPlusOne = new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] {}, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Double.BYTES)));
@@ -195,7 +205,8 @@ public class BlockAccountingTests extends ESTestCase {
 
     public void testDoubleBlockWithNullFirstValues() {
         Block empty = new DoubleArrayBlock(new double[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(BASE_ARRAY_BLOCK_SIZE));
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
     static Matcher<Long> between(long minInclusive, long maxInclusive) {

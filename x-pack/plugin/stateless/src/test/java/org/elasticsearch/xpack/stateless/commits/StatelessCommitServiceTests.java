@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -40,6 +41,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -93,7 +95,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -509,15 +514,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
-            var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
-                .collect(Collectors.toSet());
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -592,13 +589,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
+                .map(commit -> staleCommit(shardId, commit))
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
@@ -654,6 +645,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 commitService.markCommitDeleted(shardId, indexCommit.getGeneration());
             }
 
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, mergedCommit.getGeneration(), future);
+            future.actionGet();
+
             // Commits 0-9 are still used by the indexing shard
             // therefore we should retain them even if the indexing node/lucene has deleted them
             assertThat(deletedCommits, empty());
@@ -665,16 +660,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .forEach(c -> closedLocalReadersForGeneration.accept(c.getGeneration()));
 
             var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
+                .map(commit -> staleCommit(shardId, commit))
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // the external reader notification and thus delete can go on after the upload completed.
+            assertBusy(() -> { assertThat(deletedCommits, equalTo(expectedDeletedCommits)); });
         }
     }
 
@@ -771,15 +761,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             commitService.clusterChanged(new ClusterChangedEvent("unassigned search shard", clusterStateWithUnassignedSearchShard, state));
 
-            var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
-                .collect(Collectors.toSet());
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -855,10 +837,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            // There were multiple in-flight new commit notification responses, since we don't know what's the correct ordering, we should
-            // consider the union of all responses in order to avoid deleting commits that are still used. In this case we cannot delete
-            // anything since all commits are supposedly used.
-            assertThat(deletedCommits, empty());
+            // There were multiple in-flight new commit notification responses, but the notification filter by generation should ensure
+            // we still delete all initial files.
+            assertThat(deletedCommits, equalTo(staleCommits(initialCommits, shardId)));
         }
     }
 
@@ -927,16 +908,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             markDeletedAndLocalUnused(initialCommits, commitService, shardId);
 
-            var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
-                .collect(Collectors.toSet());
-            assertThat(deletedCommits, is(equalTo(expectedDeletedCommits)));
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            assertBusy(() -> assertThat(deletedCommits, is(equalTo(expectedDeletedCommits))));
         }
     }
 
@@ -1012,15 +985,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
             );
 
-            var expectedDeletedCommits = initialCommits.stream()
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
-                .collect(Collectors.toSet());
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
         }
     }
@@ -1110,33 +1075,306 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     ref -> ref.getGeneration() != retainedBySearch.getGeneration()
                         && ref.getGeneration() != retainedBySearch.getGeneration() - 1
                 )
-                .map(
-                    commit -> new StaleCompoundCommit(
-                        shardId,
-                        new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()),
-                        primaryTerm
-                    )
-                )
+                .map(commit -> staleCommit(shardId, commit))
                 .collect(Collectors.toSet());
             assertThat(deletedCommits, equalTo(expectedDeletedCommits));
 
             commitService.markCommitDeleted(shardId, recoveryCommit.getGeneration());
             commitService.closedLocalReadersForGeneration(shardId).accept(recoveryCommit.getGeneration());
             HashSet<StaleCompoundCommit> newDeleted = new HashSet<>(expectedDeletedCommits);
-            newDeleted.add(
-                new StaleCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, recoveryCommit.getGeneration()), primaryTerm)
-            );
+            newDeleted.add(staleCommit(shardId, recoveryCommit));
             assertThat(deletedCommits, equalTo(newDeleted));
         }
     }
 
-    private record PendingNewCommitNotification(
-        NewCommitNotificationRequest request,
-        ActionListener<NewCommitNotificationResponse> listener
-    ) {
-        void respondWithUsedCommits(PrimaryTermAndGeneration... usedCommits) {
-            listener.onResponse(new NewCommitNotificationResponse(Arrays.stream(usedCommits).collect(Collectors.toSet())));
+    public void testRegisterUnpromotableRecovery() throws Exception {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        AtomicBoolean activateSearchNode = new AtomicBoolean();
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+            @Override
+            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                deletedCommits.add(staleCompoundCommit);
+            }
+        };
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return new NoOpNodeClient(getTestName()) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        assert action == TransportNewCommitNotificationAction.TYPE;
+                        if (activateSearchNode.get()) {
+                            fakeSearchNode.doExecute(action, request, listener);
+                        } else {
+                            ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
+                                new NewCommitNotificationResponse(Set.of())
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void close() {
+                        super.close();
+                        fakeSearchNode.close();
+                    }
+                };
+            }
+
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return commitCleaner;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            stateRef.set(stateWithNoSearchShards);
+
+            var initialCommits = generateIndexCommits(testHarness, 10);
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+
+            var commit = initialCommits.get(initialCommits.size() - 1);
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
+            future.actionGet();
+
+            var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(state);
+            activateSearchNode.set(true);
+
+            boolean clusterChangedFirst = randomBoolean();
+            if (clusterChangedFirst) {
+                commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
+            }
+            PlainActionFuture<PrimaryTermAndGeneration> registerFuture = new PlainActionFuture<>();
+            commitService.registerCommitForUnpromotableRecovery(
+                new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()),
+                shardId,
+                state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
+                state.version(),
+                registerFuture
+            );
+            if (clusterChangedFirst == false) {
+                assertThat(registerFuture.isDone(), is(false));
+                commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
+            }
+            PrimaryTermAndGeneration registeredCommit = registerFuture.actionGet();
+            assertThat(registeredCommit, equalTo(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())));
+
+            var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+            commitService.onCommitCreation(mergedCommit);
+
+            markDeletedAndLocalUnused(initialCommits, commitService, shardId);
+
+            // The search node is still using commit 9, that contains references to all previous commits;
+            // therefore we should retain all commits.
+            assertThat(deletedCommits, empty());
+
+            fakeSearchNode.respondWithUsedCommits(
+                mergedCommit.getGeneration(),
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration())
+            );
+
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            assertBusy(
+                () -> assertThat(
+                    Sets.difference(deletedCommits, expectedDeletedCommits).toString(),
+                    deletedCommits,
+                    equalTo(expectedDeletedCommits)
+                )
+            );
         }
+    }
+
+    public void testConcurrentIndexingSearchAndRecoveries() throws Exception {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+            @Override
+            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                deletedCommits.add(staleCompoundCommit);
+            }
+        };
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return commitCleaner;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var noSearchState = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            var searchState = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(noSearchState);
+
+            CyclicBarrier barrier = new CyclicBarrier(3);
+            AtomicBoolean running = new AtomicBoolean(true);
+            AtomicLong indexingRoundsCompleted = new AtomicLong();
+
+            List<StatelessCommitRef> initialCommits = generateIndexCommits(testHarness, between(1, 5));
+            initialCommits.forEach(commitService::onCommitCreation);
+            Set<PrimaryTermAndGeneration> allCommits = ConcurrentCollections.newConcurrentSet();
+            initialCommits.stream()
+                .map(commit -> new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()))
+                .forEach(allCommits::add);
+
+            StatelessCommitRef initialLatestCommit = initialCommits.get(initialCommits.size() - 1);
+            AtomicReference<PrimaryTermAndGeneration> latestCommit = new AtomicReference<>(
+                new PrimaryTermAndGeneration(initialLatestCommit.getPrimaryTerm(), initialLatestCommit.getGeneration())
+            );
+
+            Thread indexer = new Thread(() -> {
+                List<StatelessCommitRef> previous = initialCommits;
+                safeAwait(barrier);
+                try {
+                    while (running.get()) {
+                        List<StatelessCommitRef> newCommits = generateIndexCommits(testHarness, between(1, 5));
+                        newCommits.forEach(commitService::onCommitCreation);
+                        newCommits.stream()
+                            .map(commit -> new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()))
+                            .forEach(allCommits::add);
+                        if (randomBoolean()) {
+                            StatelessCommitRef randomCommit = randomFrom(newCommits);
+                            latestCommit.set(new PrimaryTermAndGeneration(randomCommit.getPrimaryTerm(), randomCommit.getGeneration()));
+                        }
+                        markDeletedAndLocalUnused(previous, commitService, shardId);
+                        previous = newCommits;
+                        Thread.yield();
+                        indexingRoundsCompleted.incrementAndGet();
+                    }
+                    var mergedCommit = generateIndexCommits(testHarness, 1, true).get(0);
+                    commitService.onCommitCreation(mergedCommit);
+                    latestCommit.set(new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()));
+                    fakeSearchNode.respondWithUsedCommits(mergedCommit.getGeneration(), latestCommit.get());
+
+                    markDeletedAndLocalUnused(previous, commitService, shardId);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }, "indexer");
+
+            Thread searcher = new Thread(new Runnable() {
+                long generationResponded = latestCommit.get().generation();
+
+                public void respond(long toGeneration, PrimaryTermAndGeneration... commits) {
+                    while (generationResponded < toGeneration) {
+                        ++generationResponded;
+                        // we generate commits with holes in the sequence, skip those.
+                        if (allCommits.contains(new PrimaryTermAndGeneration(primaryTerm, generationResponded))) {
+                            fakeSearchNode.respondWithUsedCommits(generationResponded, commits);
+                        }
+                    }
+                }
+
+                @Override
+                public void run() {
+                    safeAwait(barrier);
+                    for (long i = 0; i < 10 || indexingRoundsCompleted.get() < 10; ++i) {
+                        respond(latestCommit.get().generation());
+                        long clusterStateVersion = changeClusterState(searchState);
+                        PlainActionFuture<PrimaryTermAndGeneration> future = new PlainActionFuture<>();
+                        commitService.registerCommitForUnpromotableRecovery(
+                            latestCommit.get(),
+                            shardId,
+                            searchState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
+                            clusterStateVersion,
+                            future
+                        );
+                        PrimaryTermAndGeneration recoveryCommit;
+                        try {
+                            recoveryCommit = future.actionGet();
+                        } catch (NoShardAvailableActionException e) {
+                            // todo: avoid the NoShardAvailableException when not warranted.
+                            continue;
+                        }
+                        if (randomBoolean()) {
+                            respond(recoveryCommit.generation() - 1);
+                        } else if (randomBoolean()) {
+                            respond(recoveryCommit.generation() - 1, recoveryCommit);
+                        }
+
+                        if (randomBoolean()) {
+                            respond(latestCommit.get().generation(), recoveryCommit);
+                        } else {
+                            // respond filters duplicates
+                            PrimaryTermAndGeneration latest = latestCommit.get();
+                            respond(latest.generation(), recoveryCommit, latest);
+                            assertThat(deletedCommits, not(hasItems(new StaleCompoundCommit(shardId, latest, primaryTerm))));
+                        }
+                        assertThat(deletedCommits, not(hasItems(new StaleCompoundCommit(shardId, recoveryCommit, primaryTerm))));
+
+                        changeClusterState(noSearchState);
+                    }
+                }
+
+                private long changeClusterState(ClusterState state) {
+                    ClusterState previous = stateRef.get();
+                    ClusterState next = ClusterState.builder(state).version(previous.getVersion() + 1).build();
+                    stateRef.set(next);
+                    commitService.clusterChanged(new ClusterChangedEvent("test search thread", next, previous));
+                    return next.version();
+                }
+            }, "searcher");
+            indexer.start();
+            searcher.start();
+            safeAwait(barrier);
+            searcher.join();
+            running.set(false);
+            indexer.join();
+            var expectedDeletedCommits = allCommits.stream()
+                .map(commit -> new StaleCompoundCommit(shardId, commit, primaryTerm))
+                .collect(Collectors.toSet());
+            assertBusy(
+                () -> assertThat(
+                    Sets.difference(expectedDeletedCommits, deletedCommits).toString(),
+                    deletedCommits,
+                    equalTo(expectedDeletedCommits)
+                )
+            );
+        }
+    }
+
+    private Set<StaleCompoundCommit> staleCommits(List<StatelessCommitRef> commits, ShardId shardId) {
+        return commits.stream().map(commit -> staleCommit(shardId, commit)).collect(Collectors.toSet());
+    }
+
+    private StaleCompoundCommit staleCommit(ShardId shardId, StatelessCommitRef commit) {
+        return new StaleCompoundCommit(shardId, new PrimaryTermAndGeneration(primaryTerm, commit.getGeneration()), primaryTerm);
     }
 
     private static class FakeSearchNode extends NoOpNodeClient {
@@ -1314,13 +1552,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
     private List<StatelessCommitRef> generateIndexCommits(FakeStatelessNode testHarness, int commitsNumber, boolean merge)
         throws IOException {
         List<StatelessCommitRef> commits = new ArrayList<>(commitsNumber);
-        Set<String> previousCommit = new HashSet<>();
+        Set<String> previousCommit;
 
         final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         String deleteId = randomAlphaOfLength(10);
 
         try (var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig)) {
+            try (var indexReader = DirectoryReader.open(indexWriter)) {
+                IndexCommit indexCommit = indexReader.getIndexCommit();
+                previousCommit = new HashSet<>(indexCommit.getFileNames());
+            }
             for (int i = 0; i < commitsNumber; i++) {
                 LuceneDocument document = new LuceneDocument();
                 document.add(new KeywordField("field0", "term", Field.Store.YES));

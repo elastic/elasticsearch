@@ -782,11 +782,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             TransportVersion transportVersion,
             Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions
         ) {
-            compatibilityVersions.put(
+            return putCompatibilityVersions(
                 nodeId,
                 new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), systemIndexMappingsVersions)
             );
-            return this;
         }
 
         public Builder putCompatibilityVersions(String nodeId, CompatibilityVersions versions) {

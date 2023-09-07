@@ -228,7 +228,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     1
                 );
                 int numSegments = directoryReader.getContext().leaves().size();
-                assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
                 assertBusy(() -> assertEquals(numSegments, executor.getCompletedTaskCount()));

@@ -227,6 +227,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             // the last downsampling round must remain in the data stream
             assertThat(dsBackingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+            assertThat(indexExists(firstGenerationBackingIndex), is(false));
             assertThat(indexExists(oneSecondDownsampleIndex), is(false));
         }, 30, TimeUnit.SECONDS);
     }

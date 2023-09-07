@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -18,23 +21,29 @@ import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
-
+    private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
+    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
+    /**
+     * Keep the initial query for logging purposes.
+     */
+    private final String esqlQuery;
     private final long startNanos = System.nanoTime();
-    private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
 
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
         super(channel);
 
         this.channel = channel;
         this.restRequest = restRequest;
+        this.esqlQuery = esqlRequest.query();
         mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
 
         /*
@@ -69,8 +78,28 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
                 ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
             );
         }
+
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
 
         return restResponse;
+    }
+
+    /**
+     * Log the execution time and query when handling an ES|QL response.
+     */
+    public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+        // We need to measure the execution time after handling the response/failure for the measurement to be correct.
+        return ActionListener.wrap(r -> {
+            onResponse(r);
+            LOGGER.info("Successfully executed ESQL query in {}ms:\n{}", timeMillis(), esqlQuery);
+        }, ex -> {
+            onFailure(ex);
+            LOGGER.info("Failed executing ESQL query in {}ms:\n{}", timeMillis(), esqlQuery);
+        });
+    }
+
+    private long timeMillis() {
+        long timeNanos = System.nanoTime() - startNanos;
+        return TimeUnit.NANOSECONDS.toMillis(timeNanos);
     }
 }

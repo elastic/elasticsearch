@@ -7,8 +7,10 @@ include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 :jdk_major:             11
 :build_type:            tar
 
-:docker-repo:     docker.elastic.co/elasticsearch/elasticsearch
-:docker-image:    {docker-repo}:{version}
+:docker-repo:       docker.elastic.co/elasticsearch/elasticsearch
+:docker-image:      {docker-repo}:{version}
+:kib-docker-repo:   docker.elastic.co/kibana/kibana
+:kib-docker-image:  {kib-docker-repo}:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 ///////

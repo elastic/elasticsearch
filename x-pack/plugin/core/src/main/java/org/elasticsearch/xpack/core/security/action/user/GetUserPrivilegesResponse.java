@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +48,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = in.readCollectionAsImmutableSet(Indices::new);
         application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
         runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         } else {
             remoteIndex = Set.of();
@@ -106,12 +106,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeStringCollection(runAs);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TransportVersion.V_8_8_0
+                    + TransportVersions.V_8_8_0
                     + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"

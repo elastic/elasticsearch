@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -666,7 +666,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeVLong(nodeLeftGeneration);
         } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
@@ -681,7 +681,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             builder.nodeLeftGeneration(in.readVLong());
         } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
 

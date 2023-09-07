@@ -10,56 +10,65 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
 
-public class Log10Tests extends AbstractScalarFunctionTestCase {
-    public Log10Tests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class Log10Tests extends AbstractFunctionTestCase {
+    public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Log10 of Double", () -> {
-            // TODO: include larger values here
-            double arg = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "Log10DoubleEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.log10(arg))
-            );
-        }), new TestCaseSupplier("Log10(negative)", () -> {
-            double arg = randomIntBetween(Integer.MIN_VALUE, -1); // it's inclusive
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "Log10DoubleEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Double.NaN)
-            );
-        })));
+        String read = "Attribute[channel=0]";
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "Log10IntEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::log10,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "Log10LongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::log10,
+            Long.MIN_VALUE,
+            Long.MAX_VALUE
+        );
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "Log10UnsignedLongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            ul -> Math.log10(ul.doubleValue()),
+            BigInteger.ZERO,
+            MAX_UNSIGNED_LONG
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "Log10DoubleEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::log10,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Log10(source, args.get(0));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
     }
 }

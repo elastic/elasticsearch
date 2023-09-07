@@ -46,10 +46,14 @@ public class TextFormatter {
         }
 
         // 2. Expand columns to fit the largest value
-        for (var row : response.values()) {
+        var iterator = response.values();
+        while (iterator.hasNext()) {
+            var row = iterator.next();
             for (int i = 0; i < width.length; i++) {
-                width[i] = Math.max(width[i], FORMATTER.apply(row.get(i)).length());
+                assert row.hasNext();
+                width[i] = Math.max(width[i], FORMATTER.apply(row.next()).length());
             }
+            assert row.hasNext() == false;
         }
     }
 
@@ -74,10 +78,10 @@ public class TextFormatter {
             String name = response.columns().get(i).name();
             // left padding
             int leftPadding = (width[i] - name.length()) / 2;
-            writer.append(" ".repeat(Math.max(0, leftPadding)));
+            writePadding(leftPadding, writer);
             writer.append(name);
             // right padding
-            writer.append(" ".repeat(Math.max(0, width[i] - name.length() - leftPadding)));
+            writePadding(width[i] - name.length() - leftPadding, writer);
         }
         writer.append('\n');
 
@@ -91,23 +95,37 @@ public class TextFormatter {
     }
 
     private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
-        return Iterators.map(response.values().iterator(), row -> writer -> {
+        return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
+                assert row.hasNext();
                 if (i > 0) {
                     writer.append('|');
                 }
-                String string = FORMATTER.apply(row.get(i));
+                String string = FORMATTER.apply(row.next());
                 if (string.length() <= width[i]) {
                     // Pad
                     writer.append(string);
-                    writer.append(" ".repeat(Math.max(0, width[i] - string.length())));
+                    writePadding(width[i] - string.length(), writer);
                 } else {
                     // Trim
                     writer.append(string, 0, width[i] - 1);
                     writer.append('~');
                 }
             }
+            assert row.hasNext() == false;
             writer.append('\n');
         });
+    }
+
+    private static final String PADDING_64 = " ".repeat(64);
+
+    private static void writePadding(int padding, Writer writer) throws IOException {
+        while (padding > PADDING_64.length()) {
+            writer.append(PADDING_64);
+            padding -= PADDING_64.length();
+        }
+        if (padding > 0) {
+            writer.append(PADDING_64, 0, padding);
+        }
     }
 }

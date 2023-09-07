@@ -9,6 +9,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Processors;
@@ -19,7 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class OsInfo implements ReportingService.Info {
-    private static final TransportVersion DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = TransportVersion.V_8_5_0;
+    private static final TransportVersion DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = TransportVersions.V_8_5_0;
 
     private final long refreshInterval;
     private final int availableProcessors;

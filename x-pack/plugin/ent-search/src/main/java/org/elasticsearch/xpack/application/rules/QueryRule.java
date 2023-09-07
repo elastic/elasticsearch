@@ -111,7 +111,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     public QueryRule(StreamInput in) throws IOException {
         this.id = in.readString();
         this.type = QueryRuleType.queryRuleType(in.readString());
-        this.criteria = in.readList(QueryRuleCriteria::new);
+        this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
         this.actions = in.readMap();
 
         validate();
@@ -148,7 +148,7 @@ public class QueryRule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(type.toString());
-        out.writeList(criteria);
+        out.writeCollection(criteria);
         out.writeGenericMap(actions);
     }
 

@@ -185,13 +185,13 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.fieldSelection = in.readList(FieldSelection::new);
+            this.fieldSelection = in.readCollectionAsList(FieldSelection::new);
             this.memoryEstimation = new MemoryEstimation(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(fieldSelection);
+            out.writeCollection(fieldSelection);
             memoryEstimation.writeTo(out);
         }
 

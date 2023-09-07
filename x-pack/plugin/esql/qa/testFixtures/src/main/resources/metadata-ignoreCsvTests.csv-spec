@@ -24,10 +24,16 @@ emp_no:integer
 ;
 
 metaIndexInAggs
-from employees [metadata _index] | stats max = max(emp_no) by _index;
+// tag::metaIndexInAggs[]
+FROM employees [METADATA _index, _id]
+| STATS max = MAX(emp_no) BY _index
+// end::metaIndexInAggs[]
+;
 
+// tag::metaIndexInAggs-result[]
 max:integer |_index:keyword
 10100       |employees
+// end::metaIndexInAggs-result[]
 ;
 
 metaIndexAliasedInAggs
@@ -96,10 +102,30 @@ min:integer |i:double
 ;
 
 overwritten
-from employees [metadata _index, _version] | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
+from employees [metadata _index, _version] | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
 
 emp_no:integer |_index:integer |_version:keyword
 10001          |3              |version
 10002          |3              |version
 10003          |3              |version
+;
+
+multipleIndices
+// tag::multipleIndices[]
+FROM ul_logs, apps [METADATA _index, _version]
+| WHERE id IN (13, 14) AND _version == 1
+| EVAL key = CONCAT(_index, "_", TO_STR(id))
+| SORT id, _index
+| KEEP id, _index, _version, key
+// end::multipleIndices[]
+;
+
+// tag::multipleIndices-result[]
+ id:long | _index:keyword | _version:long | key:keyword
+13       |apps            |1              |apps_13        
+13       |ul_logs         |1              |ul_logs_13     
+14       |apps            |1              |apps_14        
+14       |ul_logs         |1              |ul_logs_14     
+    
+// end::multipleIndices-result[]
 ;

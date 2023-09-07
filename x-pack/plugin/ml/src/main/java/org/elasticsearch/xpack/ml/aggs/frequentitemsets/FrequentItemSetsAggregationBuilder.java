@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -160,16 +161,16 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     public FrequentItemSetsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        this.fields = in.readList(MultiValuesSourceFieldConfig::new);
+        this.fields = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         } else {
             this.filter = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.executionHint = in.readOptionalString();
         } else {
             this.executionHint = null;
@@ -198,14 +199,14 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(fields);
+        out.writeCollection(fields);
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             out.writeOptionalNamedWriteable(filter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalString(executionHint);
         }
     }
@@ -265,7 +266,7 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_4_0;
+        return TransportVersions.V_8_4_0;
     }
 
 }

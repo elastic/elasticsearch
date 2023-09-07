@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -37,8 +39,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.util.Queries;
+import org.elasticsearch.xpack.ql.util.Queries.Clause;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,12 +58,11 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 
@@ -179,7 +180,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    private static class PushFiltersToSource extends OptimizerRule<FilterExec> {
+    public static class PushFiltersToSource extends OptimizerRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec filterExec) {
             PhysicalPlan plan = filterExec;
@@ -191,11 +192,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 }
                 if (pushable.size() > 0) { // update the executable with pushable conditions
                     QueryBuilder planQuery = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(pushable)).asBuilder();
-                    QueryBuilder query = planQuery;
-                    QueryBuilder filterQuery = queryExec.query();
-                    if (filterQuery != null) {
-                        query = boolQuery().filter(filterQuery).filter(planQuery);
-                    }
+                    var query = Queries.combine(Clause.FILTER, asList(queryExec.query(), planQuery));
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
@@ -216,7 +213,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private static boolean canPushToSource(Expression exp) {
+        public static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
                 return isAttributePushable(bc.left(), bc) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
@@ -232,7 +229,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
 
         private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
-            if (expression instanceof FieldAttribute) {
+            if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
                 return true;
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
@@ -282,8 +279,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
 
         private boolean canPushDownOrders(List<Order> orders) {
-            // allow only FieldAttributes (no expressions) for sorting
-            return false == Expressions.match(orders, s -> ((Order) s).child() instanceof FieldAttribute == false);
+            // allow only exact FieldAttributes (no expressions) for sorting
+            return orders.stream().allMatch(o -> o.child() instanceof FieldAttribute fa && fa.getExactInfo().hasExact());
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

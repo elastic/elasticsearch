@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
@@ -202,7 +203,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
             jobId = in.readOptionalString();
-            datafeedIndices = in.readStringList();
+            datafeedIndices = in.readStringCollectionAsList();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
@@ -276,7 +277,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.MINIMUM_COMPATIBLE;
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         @Override

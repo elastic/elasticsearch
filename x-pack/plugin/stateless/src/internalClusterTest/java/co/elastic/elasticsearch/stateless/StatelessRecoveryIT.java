@@ -70,6 +70,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -112,6 +113,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1536,5 +1538,48 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
         assertThat(registerCommitRequestsSent.get(), equalTo(1));
+    }
+
+    public void testSearchShardRecoveryRegistrationRetryOnShardNotFound() {
+        var indexNode = startIndexNode();
+        startSearchNode();
+        final var indexName = randomIdentifier();
+        var maxRetries = randomFrom(0, 5);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS))
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), maxRetries)
+                .build()
+        );
+        ensureGreen(indexName);
+        // Create some commits
+        int commits = randomIntBetween(0, 3);
+        for (int i = 0; i < commits; i++) {
+            indexDocs(indexName, randomIntBetween(10, 50));
+            refresh(indexName);
+        }
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        // Make sure we hit the transport action's retries by failing more than the number of allocation attempts
+        final var toFailCount = maxRetries + 1;
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger receivedRegistration = new AtomicInteger();
+        var indexNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
+        indexNodeTransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+            receivedRegistration.incrementAndGet();
+            if (failed.get() < toFailCount) {
+                failed.incrementAndGet();
+                channel.sendResponse(new ShardNotFoundException(shardId, "can't register"));
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        // Trigger enough cluster state updates to see the reties succeed.
+        for (int i = 0; i < toFailCount + 1; i++) {
+            indicesAdmin().preparePutMapping(indexName).setSource("field" + i, "type=keyword").get();
+        }
+        ensureGreen(indexName);
+        assertThat(failed.get(), equalTo(toFailCount));
+        assertThat(receivedRegistration.get(), greaterThan(toFailCount));
     }
 }

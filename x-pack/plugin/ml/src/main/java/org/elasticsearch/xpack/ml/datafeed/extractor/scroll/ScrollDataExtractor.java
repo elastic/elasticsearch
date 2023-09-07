@@ -179,7 +179,7 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        BigBytesStreamOutput outputStream = new BigBytesStreamOutput();
+        BigBytesStreamOutput outputStream = new BytesStreamOutput();
 
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);

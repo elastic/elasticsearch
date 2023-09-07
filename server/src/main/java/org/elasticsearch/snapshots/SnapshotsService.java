@@ -2115,8 +2115,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Determines the minimum {@link IndexVersion} that the snapshot repository must be compatible with from the current nodes in the cluster
-     * and the contents of the repository. The minimum version is determined as the lowest version found across all snapshots in the
+     * Determines the minimum {@link IndexVersion} that the snapshot repository must be compatible with
+     * from the current nodes in the cluster and the contents of the repository.
+     * The minimum version is determined as the lowest version found across all snapshots in the
      * repository and all nodes in the cluster.
      *
      * @param minNodeVersion minimum node version in the cluster

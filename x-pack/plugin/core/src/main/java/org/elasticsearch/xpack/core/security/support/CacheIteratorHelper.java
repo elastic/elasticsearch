@@ -23,31 +23,33 @@ import java.util.function.Predicate;
  */
 public class CacheIteratorHelper<K, V> {
     private final Cache<K, V> cache;
-    private final ReleasableLock updateLock;
-    private final ReleasableLock iteratorLock;
+    private final ReleasableLock readLock;
+    private final ReleasableLock writeLock;
 
     public CacheIteratorHelper(Cache<K, V> cache) {
         this.cache = cache;
         final ReadWriteLock lock = new ReentrantReadWriteLock();
         // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using the
         // iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
-        // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values
+        // the read lock can obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values
         // of the cache the write lock must obtained to prevent any modifications.
-        updateLock = new ReleasableLock(lock.readLock());
-        iteratorLock = new ReleasableLock(lock.writeLock());
+        // Note - the write lock is needed for concurrent modifications across Cache#put and Cache#invalidateAll
+        // see https://github.com/elastic/elasticsearch/issues/99326 for additional information
+        readLock = new ReleasableLock(lock.readLock());
+        writeLock = new ReleasableLock(lock.writeLock());
     }
 
-    public ReleasableLock acquireUpdateLock() {
-        return updateLock.acquire();
+    public ReleasableLock acquireReadLock() {
+        return readLock.acquire();
     }
 
-    private ReleasableLock acquireForIterator() {
-        return iteratorLock.acquire();
+    public ReleasableLock acquireWriteLock() {
+        return writeLock.acquire();
     }
 
     public void removeKeysIf(Predicate<K> removeIf) {
         // the cache cannot be modified while doing this operation per the terms of the cache iterator
-        try (ReleasableLock ignored = this.acquireForIterator()) {
+        try (ReleasableLock ignored = this.acquireWriteLock()) {
             Iterator<K> iterator = cache.keys().iterator();
             while (iterator.hasNext()) {
                 K key = iterator.next();
@@ -60,7 +62,7 @@ public class CacheIteratorHelper<K, V> {
 
     public void removeValuesIf(Predicate<V> removeIf) {
         // the cache cannot be modified while doing this operation per the terms of the cache iterator
-        try (ReleasableLock ignored = this.acquireForIterator()) {
+        try (ReleasableLock ignored = this.acquireWriteLock()) {
             Iterator<V> iterator = cache.values().iterator();
             while (iterator.hasNext()) {
                 V value = iterator.next();

@@ -141,7 +141,11 @@ public class SpatialPluginTests extends ESTestCase {
             .filter(e -> e.categoryClass.equals(GenericNamedWriteable.class))
             .map(e -> e.name)
             .collect(Collectors.toSet());
-        assertThat("Expect both Geo and Cartesian BoundingBox", names, equalTo(Set.of("GeoBoundingBox", "CartesianBoundingBox")));
+        assertThat(
+            "Expect both Geo and Cartesian BoundingBox",
+            names,
+            equalTo(Set.of("GeoBoundingBox", "CartesianBoundingBox", "GeoShapeValue", "CartesianShapeValue"))
+        );
     }
 
     private SpatialPlugin getPluginWithOperationMode(License.OperationMode operationMode) {

@@ -109,4 +109,10 @@ public class GeometryDocValueReader {
         }
     }
 
+    byte[] copyBytes() {
+        input.setPosition(0);
+        byte[] copy = new byte[input.length()];
+        input.readBytes(copy, 0, copy.length);
+        return copy;
+    }
 }

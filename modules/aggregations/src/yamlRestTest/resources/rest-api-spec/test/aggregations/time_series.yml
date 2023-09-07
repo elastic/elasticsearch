@@ -126,7 +126,7 @@ setup:
                 size: 1
 
   - length: { aggregations.ts.buckets: 1 }
-  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "RGqc4j2Kf_6WOnwsPSufD8_yG6Y_INhnbbI" } }
 
   - do:
       search:
@@ -144,9 +144,9 @@ setup:
                 size: 3
 
   - length: { aggregations.ts.buckets: 3 }
-  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
-  - match: { aggregations.ts.buckets.1.key: { _tsid: fCw9K58Pz_Ibpj8g2Gdtsg } }
-  - match: { aggregations.ts.buckets.2.key: { _tsid: g4DKHI17Abkfzziime-XEQ } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "RGqc4j2Kf_6WOnwsPSufD8_yG6Y_INhnbbI" } }
+  - match: { aggregations.ts.buckets.1.key: { _tsid: "RGqc4j2v9houOhyLbojV0RSqi9yhwd0OzmU" } }
+  - match: { aggregations.ts.buckets.2.key: { _tsid: "RGqc4j25AZB2OoOAyhyNewG5H884opnvlxE" } }
 
 ---
 "Score test filter some":

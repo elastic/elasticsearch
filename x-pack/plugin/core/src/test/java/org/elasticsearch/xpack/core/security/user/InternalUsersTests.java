@@ -229,7 +229,7 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final List<String> allowedSystemDataStreams = Arrays.asList("*.fleet-actions-results*", "*.fleet-fileds*");
+        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
                 assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));

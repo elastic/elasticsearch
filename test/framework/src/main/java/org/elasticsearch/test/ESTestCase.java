@@ -2015,7 +2015,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
-
     public static IndexSearcher newSearcher(IndexReader reader) {
         IndexSearcher searcher = LuceneTestCase.newSearcher(reader);
         ExecutorService executorService = Executors.newFixedThreadPool(1);

@@ -22,6 +22,7 @@
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           black-list-labels:
             - '>test-mute'
             - 'test-full-bwc'

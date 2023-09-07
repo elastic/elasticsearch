@@ -24,10 +24,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
-import static org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask.REPLACEMENT_SOURCE_INDEX;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -159,6 +160,12 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
+        // let's add some lifecycle custom metadata to the first generation index
+        IndexMetadata indexMetadata = previousState.metadata().index(firstGenIndex);
+        IndexMetadata.Builder firstGenBuilder = IndexMetadata.builder(indexMetadata)
+            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, String.valueOf(now)));
+        Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata()).put(firstGenBuilder);
+        previousState = ClusterState.builder(previousState).metadata(metaBuilder).build();
         ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
             previousState
         );
@@ -181,12 +188,55 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
 
         IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
-        // the donwsample index contains metadata to remember the index we downsampled from
-        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), is(notNullValue()));
+        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), notNullValue());
         assertThat(
-            downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY).get(REPLACEMENT_SOURCE_INDEX),
-            is(sourceIndexAbstraction.getName())
+            downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY).get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
+            is(String.valueOf(now))
         );
+    }
+
+    public void testSourceWithoutLifecycleMetaAndDestWithOriginationDateAlreadyConfigured() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            now
+        );
+        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String downsampleIndex = "downsample-1s-" + firstGenIndex;
+        long downsampleOriginationDate = now - randomLongBetween(10_000, 12_000);
+        IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
+            .settings(
+                settings(IndexVersion.current()).put(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.getKey(), downsampleOriginationDate)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        builder.put(downsampleIndexMeta);
+        builder.put(dataStream);
+        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
+            previousState
+        );
+
+        IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
+        assertThat(downsampleIndexAbstraction, is(notNullValue()));
+        assertThat(downsampleIndexAbstraction.getParentDataStream(), is(notNullValue()));
+        // the downsample index is part of the data stream
+        assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
+
+        // the source index is NOT part of the data stream
+        IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
+        assertThat(sourceIndexAbstraction, is(notNullValue()));
+        assertThat(sourceIndexAbstraction.getParentDataStream(), is(nullValue()));
+
+        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
+        assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(downsampleOriginationDate));
     }
 
     public void testSourceIndexIsNotPartOfDSAnymore() {
@@ -227,12 +277,6 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         IndexMetadata firstGenMeta = newState.metadata().index(firstGenIndex);
         RolloverInfo rolloverInfo = firstGenMeta.getRolloverInfos().get(dataStreamName);
         assertThat(rolloverInfo, is(notNullValue()));
-
-        IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
-        assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
-        // the donwsample index contains metadata to remember the index we downsampled from
-        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), is(notNullValue()));
-        assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY).get(REPLACEMENT_SOURCE_INDEX), is(firstGenIndex));
     }
 
     public void testListenersIsNonConsideredInEquals() {

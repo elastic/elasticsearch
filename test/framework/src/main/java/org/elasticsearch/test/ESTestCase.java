@@ -2017,17 +2017,21 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static IndexSearcher newSearcher(IndexReader reader) {
         IndexSearcher searcher = LuceneTestCase.newSearcher(reader);
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-        executorService.execute(() -> {});
-        reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        if (reader.getReaderCacheHelper() != null) {
+            ExecutorService executorService = Executors.newFixedThreadPool(1);
+            executorService.execute(() -> {});
+            reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        }
         return searcher;
     }
 
     public static IndexSearcher newSearcher(IndexReader reader, boolean maybeWrap) {
         IndexSearcher searcher = LuceneTestCase.newSearcher(reader, maybeWrap);
-        ExecutorService executorService = Executors.newFixedThreadPool(1);
-        executorService.execute(() -> {});
-        reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        if (reader.getReaderCacheHelper() != null) {
+            ExecutorService executorService = Executors.newFixedThreadPool(1);
+            executorService.execute(() -> {});
+            reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        }
         return searcher;
     }
 }

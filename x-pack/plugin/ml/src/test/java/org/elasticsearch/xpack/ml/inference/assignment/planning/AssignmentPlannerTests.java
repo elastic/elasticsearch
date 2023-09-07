@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AssignmentPlannerTests extends ESTestCase {
 
-    private long scaleNodeSize(long nodeMemory) {
+    private static long scaleNodeSize(long nodeMemory) {
         // 240 Mb is the size in StartTrainedModelDeploymentAction.MEMORY_OVERHEAD
         return ByteSizeValue.ofMb(240 + 2 * nodeMemory).getBytes();
     }
@@ -272,12 +272,12 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testFullCoreUtilization_GivenModelsWithSingleThreadPerAllocation() {
         List<Node> nodes = List.of(
-            new Node("n_1", ByteSizeValue.ofGb(6).getBytes(), 8),
-            new Node("n_2", ByteSizeValue.ofGb(6).getBytes(), 8),
-            new Node("n_3", ByteSizeValue.ofGb(6).getBytes(), 8),
-            new Node("n_4", ByteSizeValue.ofGb(6).getBytes(), 8),
-            new Node("n_5", ByteSizeValue.ofGb(16).getBytes(), 16),
-            new Node("n_6", ByteSizeValue.ofGb(8).getBytes(), 16)
+            new Node("n_1", ByteSizeValue.ofGb(18).getBytes(), 8),
+            new Node("n_2", ByteSizeValue.ofGb(18).getBytes(), 8),
+            new Node("n_3", ByteSizeValue.ofGb(18).getBytes(), 8),
+            new Node("n_4", ByteSizeValue.ofGb(18).getBytes(), 8),
+            new Node("n_5", ByteSizeValue.ofGb(64).getBytes(), 16),
+            new Node("n_6", ByteSizeValue.ofGb(32).getBytes(), 16)
         );
         List<Deployment> deployments = List.of(
             new Deployment("m_1", ByteSizeValue.ofGb(4).getBytes(), 10, 1, Map.of("n_1", 5), 0, 0, 0),
@@ -611,7 +611,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         for (int i = 0; i < 1 + 3 * scale; i++) {
             int cores = randomIntBetween(2, 32);
             long memBytesPerCore = randomFrom(memBytesPerCoreValues);
-            nodes.add(new Node(nodeIdPrefix + "n_" + i, cores * memBytesPerCore, cores));
+            nodes.add(new Node(nodeIdPrefix + "n_" + i, scaleNodeSize(ByteSizeValue.ofBytes(cores * memBytesPerCore).getMb()), cores));
         }
         return nodes;
     }

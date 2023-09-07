@@ -90,8 +90,7 @@ abstract class AbstractPreserveAllocations {
                     mergedPlanBuilder.accountMemory(m, n);
                 }
                 if (newAllocations > 0
-                    && ((preservedAllocations == 0
-                        && m.estimateMemoryUsageBytes(newAllocations) <= assignmentPlan.getRemainingNodeMemory(n.id()))
+                    && ((preservedAllocations == 0 && m.estimateMemoryUsageBytes(newAllocations) <= mergedPlanBuilder.getRemainingMemory(n))
                         || (preservedAllocations > 0
                             && m.estimateAdditionalMemoryUsageBytes(
                                 (newAllocations - preservedAllocations),

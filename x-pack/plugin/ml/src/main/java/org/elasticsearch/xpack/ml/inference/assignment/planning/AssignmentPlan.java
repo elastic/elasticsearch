@@ -380,7 +380,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         boolean canAssign(Deployment deployment, Node node, int allocations) {
             return ((isAlreadyAssigned(deployment, node)
                 && deployment.estimateAdditionalMemoryUsageBytes(
-                    deployment.currentAllocationsByNodeId().get(node),
+                    deployment.currentAllocationsByNodeId().get(node.id()),
                     allocations
                 ) <= remainingNodeMemory.get(node))
                 || (deployment.estimateMemoryUsageBytes(allocations) <= remainingNodeMemory.get(node))
@@ -417,6 +417,15 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 : deployment.estimateMemoryUsageBytes(allocations);
             assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
             remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - additionalModelMemory);
+            if (remainingNodeMemory.get(node) < 0) {
+                throw new IllegalArgumentException("node enough memory on node [" + node.id()+ "] to assign ["
+                    + allocations
+                    + "] allocations to deployment ["
+                    + deployment.id()
+                    + "]; required threads per allocation ["
+                    + deployment.threadsPerAllocation()
+                    + "]");
+            }
             if (deployment.priority == Priority.NORMAL) {
                 remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
             }
@@ -430,6 +439,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         public void accountMemory(Deployment m, Node n) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId.get(n.id())));
+            if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
+                throw new IllegalArgumentException("node enough memory on node [" + n.id()+ "]");
+            }
         }
 
         public AssignmentPlan build() {

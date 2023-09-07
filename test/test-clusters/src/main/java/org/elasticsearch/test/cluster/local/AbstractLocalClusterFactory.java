@@ -418,7 +418,18 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void copyExtraConfigFiles() {
-            spec.getExtraConfigFiles().forEach((fileName, resource) -> resource.writeTo(configDir.resolve(fileName)));
+            spec.getExtraConfigFiles().forEach((fileName, resource) -> {
+                final Path target = configDir.resolve(fileName);
+                final Path directory = target.getParent();
+                if (Files.exists(directory) == false) {
+                    try {
+                        Files.createDirectories(directory);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                resource.writeTo(target);
+            });
         }
 
         private void createKeystore() {

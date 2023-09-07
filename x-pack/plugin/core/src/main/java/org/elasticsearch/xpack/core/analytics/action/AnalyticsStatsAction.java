@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.analytics.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -107,12 +107,12 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public EnumCounters<Item> getStats() {
@@ -144,15 +144,15 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 counters = new EnumCounters<>(in, Item.class);
             } else {
                 counters = new EnumCounters<>(Item.class);
-                if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                     counters.inc(Item.BOXPLOT, in.readVLong());
                 }
                 counters.inc(Item.CUMULATIVE_CARDINALITY, in.readZLong());
-                if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                     counters.inc(Item.STRING_STATS, in.readVLong());
                     counters.inc(Item.TOP_METRICS, in.readVLong());
                 }
@@ -162,14 +162,14 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 counters.writeTo(out);
             } else {
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                     out.writeVLong(counters.get(Item.BOXPLOT));
                 }
                 out.writeZLong(counters.get(Item.CUMULATIVE_CARDINALITY));
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                     out.writeVLong(counters.get(Item.STRING_STATS));
                     out.writeVLong(counters.get(Item.TOP_METRICS));
                 }

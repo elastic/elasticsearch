@@ -42,6 +42,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -455,6 +458,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             ),
             null
         );
+        createApiKeyRequest.setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE, NONE));
         final CreateApiKeyResponse createApiKeyResponse = limitedClient().execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).get();
 
         final String base64ApiKey = Base64.getEncoder()

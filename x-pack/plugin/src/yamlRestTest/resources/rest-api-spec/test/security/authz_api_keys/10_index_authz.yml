@@ -1,0 +1,343 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      indices.create:
+        index: only_read
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: only_create_doc
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: only_index
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: only_delete
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: everything
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+---
+"Test indexing documents with API Key":
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-index-access"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "only_read" ]
+                  privileges: [ "read" ]
+                - names: [ "only_create_doc" ]
+                  privileges: [ "create_doc" ]
+                - names: [ "only_index" ]
+                  privileges: [ "index" ]
+                - names: [ "only_delete" ]
+                  privileges: [ "delete" ]
+                - names: [ "everything" ]
+                  privileges: [ "all" ]
+  - match: { name: "test-index-access" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  ###
+  # Successful indexing
+  ###
+
+  # document create
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "c1"
+        index: only_create_doc
+        body: >
+          {
+            "name" : "create-doc-1"
+          }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "i1"
+        index: only_index
+        body: >
+          {
+            "name" : "index-doc-1"
+          }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "e1"
+        index: everything
+        body: >
+          {
+            "name" : "everything-doc-1"
+          }
+
+  # document index
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      index:
+        # no "id" due to create_doc privilege
+        index: only_create_doc
+        body: >
+          {
+            "name" : "create-doc-2"
+          }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      index:
+        id: "i2"
+        index: only_index
+        body: >
+          {
+            "name" : "index-doc-2"
+          }
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "e2"
+        index: everything
+        body: >
+          {
+            "name" : "everything-doc-2"
+          }
+
+  # bulk
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      bulk:
+        body:
+            - '{"create": {"_index": "only_create_doc", "_id": "c3"}}'
+            - '{"name": "create-doc-3"}'
+            - '{"index": {"_index": "only_index", "_id": "i3"}}'
+            - '{"name": "index-doc-3"}'
+            - '{"index": {"_index": "everything" }}'
+            - '{"name": "everything-doc-3"}'
+  - match: { errors: false }
+
+  - do:
+      indices.refresh:
+        index: only_create_doc,only_index,everything
+
+  - do:
+     search:
+        index: only_create_doc
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 3 }
+
+  - do:
+      search:
+        index: only_index
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+
+  - do:
+      search:
+        index: everything
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+
+  ###
+  # Authz failures
+  ###
+
+  # Error: Cannot create docs in an index with read only privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "r1"
+        index: only_read
+        body: >
+          {
+            "name" : "read-doc-1"
+          }
+
+  # Error: Cannot index docs in an index with read only privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      index:
+        id: "r2"
+        index: only_read
+        body: >
+          {
+            "name" : "read-doc-2"
+          }
+
+  # Error: Cannot create docs in an index with only delete privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      create:
+        id: "d1"
+        index: only_delete
+        body: >
+          {
+            "name" : "delete-doc-1"
+          }
+
+  # Error: Cannot index docs in an index with only delete privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      index:
+        index: only_delete
+        body: >
+          {
+            "name" : "delete-doc-2"
+          }
+
+  # Error: Cannot index docs (with an id) in an index with only create_doc privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      index:
+        id: "c4"
+        index: only_create_doc
+        body: >
+          {
+            "name" : "create-doc-4"
+          }
+
+  # Error: Cannot update docs in an index with only create_doc privileges
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      update:
+        id: "c1"
+        index: only_create_doc
+        body: >
+          {
+            "doc": { "name" : "updated-create-doc-1" }
+          }
+
+  # Subset of the above, via bulk
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      bulk:
+        body:
+          - '{"index": {"_index": "only_read", "_id": "r3"}}'
+          - '{"name": "read-doc-3"}'
+          - '{"create": {"_index": "only_delete"}}'
+          - '{"name": "delete-doc-3"}'
+          - '{"update": {"_index": "only_create_doc", "_id": "c2"}}'
+          - '{"doc": {"name": "updated-create-doc-2"}}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.create.status: 403 }
+  - match: { items.1.create.error.type: "security_exception" }
+  - match: { items.2.update.status: 403 }
+  - match: { items.2.update.error.type: "security_exception" }
+
+  - do:
+      indices.refresh:
+        index: only_create_doc,only_read,only_delete
+
+  - do:
+      search:
+        index: only_create_doc,only_read,only_delete
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 3 } # Existing docs
+
+  ###
+  # Mixed success / failure
+  ###
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      bulk:
+        body:
+          - '{"index": {"_index": "only_read", "_id": "r4"}}'
+          - '{"name": "read-doc-4"}'
+          - '{"index": {"_index": "only_index", "_id": "i4"}}'
+          - '{"name": "index-doc-4"}'
+          - '{"create": {"_index": "only_create_doc" }}'
+          - '{"name": "create-doc-5"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 201 }
+  - match: { items.1.index._id: "i4" }
+  - match: { items.2.create.status: 201 }
+  - is_true: items.2.create._id
+
+  - do:
+      indices.refresh:
+        index: only_create_doc,only_read,only_index
+
+  - do:
+      search:
+        index: only_create_doc
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 } # 3 existing + 1 new
+
+  - do:
+      search:
+        index: only_read
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: only_index
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 } # 3 existing + 1 new

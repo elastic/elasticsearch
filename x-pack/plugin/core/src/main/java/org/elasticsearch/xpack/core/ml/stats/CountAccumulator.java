@@ -63,7 +63,7 @@ public class CountAccumulator implements Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(counts, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(counts, StreamOutput::writeLong);
     }
 
     @Override

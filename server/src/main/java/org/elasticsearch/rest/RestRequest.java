@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
@@ -62,7 +63,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
-    private final RestApiVersion restApiVersion;
+    private final Optional<RestApiVersion> restApiVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -112,9 +113,11 @@ public class RestRequest implements ToXContent.Params {
         } catch (ElasticsearchStatusException e) {
             throw new MediaTypeHeaderException(e, "Accept", "Content-Type");
         }
-        this.parserConfig = parserConfig.restApiVersion().equals(restApiVersion)
+
+        var effectiveApiVersion = this.getRestApiVersion();
+        this.parserConfig = parserConfig.restApiVersion().equals(effectiveApiVersion)
             ? parserConfig
-            : parserConfig.withRestApiVersion(restApiVersion);
+            : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
         this.rawPath = path;
@@ -123,7 +126,7 @@ public class RestRequest implements ToXContent.Params {
     }
 
     protected RestRequest(RestRequest other) {
-        assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
+        assert other.parserConfig.restApiVersion().equals(other.getRestApiVersion());
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
         if (other.xContentType.get() != null) {
@@ -610,7 +613,11 @@ public class RestRequest implements ToXContent.Params {
      * The requested version of the REST API.
      */
     public RestApiVersion getRestApiVersion() {
-        return restApiVersion;
+        return restApiVersion.orElse(RestApiVersion.current());
+    }
+
+    public boolean hasExplicitRestApiVersion() {
+        return restApiVersion.isPresent();
     }
 
     public void markResponseRestricted(String restriction) {

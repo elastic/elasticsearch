@@ -6,8 +6,8 @@
 
   # Create synonyms_set1
   - do:
-      synonyms.put:
-        synonyms_set: synonyms_set1
+      synonyms.put_synonym:
+        id: synonyms_set1
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -17,8 +17,8 @@
 
   # Create synonyms synonyms_set2
   - do:
-      synonyms.put:
-        synonyms_set: synonyms_set2
+      synonyms.put_synonym:
+        id: synonyms_set2
         body:
           synonyms_set:
             - synonyms: "hello, hi"
@@ -98,8 +98,8 @@
 
   # An update of synonyms_set1 must trigger auto-reloading of analyzers only for synonyms_set1
   - do:
-      synonyms.put:
-        synonyms_set: synonyms_set1
+      synonyms.put_synonym:
+        id: synonyms_set1
         body:
           synonyms_set:
             - synonyms: "hello, salute"

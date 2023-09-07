@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -51,7 +51,7 @@ public class AnalysisTestsHelper {
     ) throws IOException {
         final Settings actualSettings;
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
-            actualSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            actualSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         } else {
             actualSettings = settings;
         }

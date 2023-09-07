@@ -312,7 +312,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 // Use different action to collect nodes information depending on the connection model
                 if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
                     action = RemoteClusterNodesAction.NAME;
-                    request = RemoteClusterNodesAction.Request.INSTANCE;
+                    request = RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES;
                     sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
                     action = ClusterStateAction.NAME;
@@ -606,7 +606,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(seedNodes.toArray(new String[0]));
+            out.writeStringCollection(seedNodes);
             out.writeVInt(maxConnectionsPerCluster);
             out.writeVInt(numNodesConnected);
         }
@@ -619,18 +619,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public String modeName() {
             return "sniff";
-        }
-
-        public List<String> getSeedNodes() {
-            return seedNodes;
-        }
-
-        public int getMaxConnectionsPerCluster() {
-            return maxConnectionsPerCluster;
-        }
-
-        public int getNumNodesConnected() {
-            return numNodesConnected;
         }
 
         @Override

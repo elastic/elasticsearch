@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,7 +68,7 @@ public class IndexFieldCapabilities implements Writeable {
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.isDimension = in.readBoolean();
             this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
@@ -85,11 +85,11 @@ public class IndexFieldCapabilities implements Writeable {
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
-        out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(meta, StreamOutput::writeString);
     }
 
     public String getName() {

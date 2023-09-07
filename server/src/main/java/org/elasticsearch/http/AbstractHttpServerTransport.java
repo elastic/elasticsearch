@@ -653,5 +653,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         public InetSocketAddress getRemoteAddress() {
             return inner.getRemoteAddress();
         }
+
+        @Override
+        public String toString() {
+            return inner.toString();
+        }
     }
 }

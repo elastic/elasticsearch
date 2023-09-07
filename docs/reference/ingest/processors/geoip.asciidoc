@@ -386,8 +386,8 @@ databases.
 http://dev.maxmind.com/geoip/geoip2/geolite2[MaxMind site].
 +
 You can also use custom city, country, and ASN `.mmdb` files. These files must
-be uncompressed and use the respective `-City.mmdb`, `-Country.mmdb`, or
-`-ASN.mmdb` extensions.
+be uncompressed. The type (city, country, or ASN) will be pulled from the file
+metadata, so the filename does not matter.
 
 . On {ess} deployments upload database using
 a {cloud}/ec-custom-bundles.html[custom bundle].

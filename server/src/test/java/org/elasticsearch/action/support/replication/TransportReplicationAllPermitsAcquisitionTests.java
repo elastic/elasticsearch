@@ -62,6 +62,7 @@ import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -176,6 +177,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         private TransportResponseHandler<TransportReplicationAction.ReplicaResponse> getResponseHandler() {
                             return (TransportResponseHandler<TransportReplicationAction.ReplicaResponse>) getResponseHandlers()
                                 .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER);
+                        }
+
+                        @Override
+                        public Executor executor(ThreadPool threadPool) {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
                         @Override

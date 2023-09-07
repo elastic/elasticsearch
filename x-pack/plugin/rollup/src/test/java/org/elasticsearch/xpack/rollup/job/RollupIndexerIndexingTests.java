@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -682,7 +681,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         Map<String, MappedFieldType> fieldTypeLookup = createFieldTypes(config);
         Directory dir = index(docs, fieldTypeLookup);
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
@@ -691,7 +689,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
                 job,
-                searcher,
+                reader,
                 fieldTypeLookup.values().toArray(new MappedFieldType[0]),
                 fieldTypeLookup.get(dateHistoField)
             );
@@ -792,7 +790,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     class SyncRollupIndexer extends RollupIndexer {
-        private final IndexSearcher searcher;
+        private final IndexReader reader;
         private final MappedFieldType[] fieldTypes;
         private final MappedFieldType timestampField;
         private final List<IndexRequest> documents = new ArrayList<>();
@@ -802,12 +800,12 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         SyncRollupIndexer(
             ThreadPool threadPool,
             RollupJob job,
-            IndexSearcher searcher,
+            IndexReader reader,
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
             super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
-            this.searcher = searcher;
+            this.reader = reader;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;
         }
@@ -863,7 +861,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
+                result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

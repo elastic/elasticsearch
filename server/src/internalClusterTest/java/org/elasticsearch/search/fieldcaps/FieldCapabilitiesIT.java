@@ -421,7 +421,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
-        assertEquals(2, response.getFailedIndices().length);
+        assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
         assertEquals(IllegalArgumentException.class, failure.getClass());

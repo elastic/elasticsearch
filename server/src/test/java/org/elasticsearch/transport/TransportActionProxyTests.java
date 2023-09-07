@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -53,7 +55,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IndexVersion.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
-    protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
+    protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
@@ -157,6 +159,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     }
 
                     @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
                     public void handleResponse(SimpleTestResponse response) {
                         try {
                             assertEquals("TS_C", response.targetNode);
@@ -201,6 +208,11 @@ public class TransportActionProxyTests extends ESTestCase {
                     @Override
                     public SimpleTestResponse read(StreamInput in) throws IOException {
                         return new SimpleTestResponse(in);
+                    }
+
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
                     @Override
@@ -265,6 +277,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 }
 
                 @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(SimpleTestResponse response) {
                     try {
                         assertEquals("TS_B", response.targetNode);
@@ -320,6 +337,11 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public SimpleTestResponse read(StreamInput in) throws IOException {
                     return new SimpleTestResponse(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override

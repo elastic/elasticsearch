@@ -1,0 +1,15 @@
+[[esql-mv_sum]]
+=== `MV_SUM`
+Converts a multivalued field into a single valued field containing the sum
+of all of the values. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=mv_sum]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_sum-result]
+|===
+
+NOTE: The input type can be any number and the output type is the same as the input type.

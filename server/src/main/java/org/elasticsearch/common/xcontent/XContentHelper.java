@@ -10,7 +10,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -138,6 +139,21 @@ public class XContentHelper {
      * Exactly the same as {@link XContentHelper#convertToMap(BytesReference, boolean, XContentType, Set, Set)} but
      * none of the fields are filtered
      */
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(
+        BytesReference bytes,
+        boolean ordered,
+        XContentType xContentType,
+        DocumentParsingObserver documentParsingObserver
+    ) {
+        return parseToType(
+            ordered ? XContentParser::mapOrdered : XContentParser::map,
+            bytes,
+            xContentType,
+            XContentParserConfiguration.EMPTY,
+            documentParsingObserver
+        );
+    }
+
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
         return parseToType(
             ordered ? XContentParser::mapOrdered : XContentParser::map,
@@ -182,9 +198,24 @@ public class XContentHelper {
         @Nullable XContentType xContentType,
         @Nullable XContentParserConfiguration config
     ) throws ElasticsearchParseException {
+        return parseToType(extractor, bytes, xContentType, config, DocumentParsingObserver.EMPTY_INSTANCE);
+    }
+
+    public static <T> Tuple<XContentType, T> parseToType(
+        CheckedFunction<XContentParser, T, IOException> extractor,
+        BytesReference bytes,
+        @Nullable XContentType xContentType,
+        @Nullable XContentParserConfiguration config,
+        DocumentParsingObserver documentParsingObserver
+    ) throws ElasticsearchParseException {
         config = config != null ? config : XContentParserConfiguration.EMPTY;
-        try (XContentParser parser = xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)) {
-            return new Tuple<>(parser.contentType(), extractor.apply(parser));
+        try (
+            XContentParser parser = documentParsingObserver.wrapParser(
+                xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)
+            )
+        ) {
+            Tuple<XContentType, T> xContentTypeTTuple = new Tuple<>(parser.contentType(), extractor.apply(parser));
+            return xContentTypeTTuple;
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to type", e);
         }
@@ -612,7 +643,7 @@ public class XContentHelper {
      * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
             out.writeVInt(xContentType.canonical().ordinal());
         } else {

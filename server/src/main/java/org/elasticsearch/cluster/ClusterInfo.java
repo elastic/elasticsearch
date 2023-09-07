@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,8 +49,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -106,14 +107,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
+        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
         if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
+            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         }
         if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
@@ -140,7 +141,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(startObject("nodes"), leastAvailableSpaceUsage.entrySet().stream().<ToXContent>map(c -> (builder, p) -> {
+        return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
             builder.startObject(c.getKey());
             { // node
                 builder.field("node_name", c.getValue().getNodeName());
@@ -160,45 +161,38 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             }
             builder.endObject(); // end $nodename
             return builder;
-        }).iterator(),
+        }),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "nodes"
                 (builder, p) -> builder.startObject("shard_sizes")
             ),
 
-            shardSizes.entrySet()
-                .stream()
-                .<ToXContent>map(
-                    c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
-                )
-                .iterator(),
+            Iterators.map(
+                shardSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
+            ),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_sizes"
                 (builder, p) -> builder.startObject("shard_data_set_sizes")
             ),
-            shardDataSetSizes.entrySet()
-                .stream()
-                .<ToXContent>map(
-                    c -> (builder, p) -> builder.humanReadableField(
-                        c.getKey() + "_bytes",
-                        c.getKey().toString(),
-                        ByteSizeValue.ofBytes(c.getValue())
-                    )
+            Iterators.map(
+                shardDataSetSizes.entrySet().iterator(),
+                c -> (builder, p) -> builder.humanReadableField(
+                    c.getKey() + "_bytes",
+                    c.getKey().toString(),
+                    ByteSizeValue.ofBytes(c.getValue())
                 )
-                .iterator(),
+            ),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_data_set_sizes"
                 (builder, p) -> builder.startObject("shard_paths")
             ),
-            dataPath.entrySet()
-                .stream()
-                .<ToXContent>map(c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue()))
-                .iterator(),
+            Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
             singleChunk(
                 (builder, p) -> builder.endObject(), // end "shard_paths"
                 (builder, p) -> builder.startArray("reserved_sizes")
             ),
-            reservedSpace.entrySet().stream().<ToXContent>map(c -> (builder, p) -> {
+            Iterators.map(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {
                     builder.field("node_id", c.getKey().nodeId);
@@ -206,7 +200,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                     c.getValue().toXContent(builder, params);
                 }
                 return builder.endObject(); // NodeAndPath
-            }).iterator(),
+            }),
 
             endArray() // end "reserved_sizes"
 
@@ -365,7 +359,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         ReservedSpace(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readSet(ShardId::new));
+            this(in.readVLong(), in.readCollectionAsSet(ShardId::new));
         }
 
         @Override

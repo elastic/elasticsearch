@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -388,6 +387,6 @@ public class GetApiKeyResponseTests extends ESTestCase {
     }
 
     private String getType(String type) {
-        return TcpTransport.isUntrustedRemoteClusterEnabled() ? "\"type\": \"" + type + "\"," : "";
+        return "\"type\": \"" + type + "\",";
     }
 }

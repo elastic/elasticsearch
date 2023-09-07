@@ -76,7 +76,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -194,12 +193,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
         assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
-    }
-
-    public static int numberOfFiles(Path dir) throws IOException {
-        final AtomicInteger count = new AtomicInteger();
-        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
-        return count.get();
     }
 
     protected void stopNode(final String node) throws IOException {
@@ -563,9 +556,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitNDeletionsInProgress(int count) throws Exception {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
-        awaitClusterState(
-            state -> state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().size() == count
-        );
+        awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
 
     protected void awaitNoMoreRunningOperations() throws Exception {
@@ -577,8 +568,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         awaitClusterState(
             logger,
             viaNode,
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty()
-                && state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false
+            state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
     }
 
@@ -621,13 +611,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
-        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).count() == count);
+        awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
     public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).count() == count);
+        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -817,10 +806,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public RepositoryMetadata getRepositoryMetadata(String repo) {
-        RepositoriesMetadata repositories = clusterService().state()
-            .metadata()
-            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+        Optional<RepositoryMetadata> repositoryMetadata = RepositoriesMetadata.get(clusterService().state())
+            .repositories()
             .stream()
             .filter(x -> x.name().equals(repo))
             .findFirst();

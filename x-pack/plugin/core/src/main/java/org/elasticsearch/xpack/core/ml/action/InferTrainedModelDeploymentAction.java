@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -145,14 +145,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            docs = in.readImmutableList(StreamInput::readMap);
+            docs = in.readCollectionAsImmutableList(StreamInput::readMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 highPriority = in.readBoolean();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
@@ -220,10 +220,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeBoolean(highPriority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
         }
@@ -320,8 +320,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             super(in);
 
             // Multiple results added in 8.6.1
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
-                results = in.readNamedWriteableList(InferenceResults.class);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
+                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
             } else {
                 results = List.of(in.readNamedWriteable(InferenceResults.class));
             }
@@ -331,8 +331,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_1)) {
-                out.writeNamedWriteableList(results);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_1)) {
+                out.writeNamedWriteableCollection(results);
             } else {
                 out.writeNamedWriteable(results.get(0));
             }

@@ -79,7 +79,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.shutdownStatuses = in.readList(SingleNodeShutdownStatus::new);
+            this.shutdownStatuses = in.readCollectionAsList(SingleNodeShutdownStatus::new);
         }
 
         public List<SingleNodeShutdownStatus> getShutdownStatuses() {
@@ -102,7 +102,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(shutdownStatuses);
+            out.writeCollection(shutdownStatuses);
         }
 
         @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -91,6 +92,7 @@ public class DiscoveryModule {
     );
 
     private final Coordinator coordinator;
+    private final Reconfigurator reconfigurator;
 
     public DiscoveryModule(
         Settings settings,
@@ -108,7 +110,8 @@ public class DiscoveryModule {
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        CompatibilityVersions compatibilityVersions
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -182,7 +185,7 @@ public class DiscoveryModule {
                 );
         }
 
-        var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        this.reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
         var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
         var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
 
@@ -209,7 +212,8 @@ public class DiscoveryModule {
                 circuitBreakerService,
                 reconfigurator,
                 leaderHeartbeatService,
-                preVoteCollectorFactory
+                preVoteCollectorFactory,
+                compatibilityVersions
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
@@ -281,5 +285,9 @@ public class DiscoveryModule {
 
     public Coordinator getCoordinator() {
         return coordinator;
+    }
+
+    public Reconfigurator getReconfigurator() {
+        return reconfigurator;
     }
 }

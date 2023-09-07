@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,9 +85,7 @@ public class FieldFetcher {
         // immediately below the current scope. This means that the unmapped field fetcher won't
         // retrieve any fields that live inside a nested child, instead leaving this to the
         // NestedFieldFetchers defined for each child scope in buildFieldContexts()
-        Set<String> mappedAndNestedFields = new HashSet<>(mappedFields);
-        mappedAndNestedFields.addAll(context.nestedLookup().getImmediateChildMappers(nestedScope));
-        return new UnmappedFieldFetcher(mappedAndNestedFields, unmappedFetchPatterns);
+        return new UnmappedFieldFetcher(mappedFields, context.nestedLookup().getImmediateChildMappers(nestedScope), unmappedFetchPatterns);
     }
 
     private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField fieldAndFormat) {

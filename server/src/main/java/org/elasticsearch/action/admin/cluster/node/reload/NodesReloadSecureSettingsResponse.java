@@ -40,12 +40,12 @@ public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesRe
 
     @Override
     protected List<NodesReloadSecureSettingsResponse.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeResponse::new);
+        return in.readCollectionAsList(NodeResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesReloadSecureSettingsResponse.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -45,6 +44,7 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -614,7 +614,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDiagnosisNotGeneratedWhenNotDrillingDown() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -652,7 +652,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDiagnoseRestoreIndexAfterDataLoss() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -676,13 +676,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         // affected feature states and indices
 
         IndexMetadata featureIndex = IndexMetadata.builder(".feature-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         IndexMetadata regularIndex = IndexMetadata.builder("regular-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -753,12 +753,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         List<IndexMetadata> indexMetadataList = List.of(
             IndexMetadata.builder(".feature-index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(),
             IndexMetadata.builder("regular-index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(),
@@ -816,7 +816,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDiagnoseUnknownAllocationDeciderIssue() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -867,7 +867,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                     .build()
             )
@@ -899,7 +899,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                     .build()
             )
@@ -928,7 +928,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDiagnoseEnableClusterAllocation() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -962,7 +962,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                     .build()
             )
@@ -1000,7 +1000,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1033,7 +1033,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                     .build()
@@ -1092,7 +1092,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1156,7 +1156,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                     .build()
@@ -1215,7 +1215,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1279,7 +1279,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".data", "hot")
                     .build()
@@ -1315,7 +1315,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .put(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data", "hot")
                     .build()
@@ -1351,7 +1351,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1386,7 +1386,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1425,7 +1425,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
@@ -1677,7 +1677,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<IndexMetadata> indices = indexRoutes.stream()
             .map(
                 table -> IndexMetadata.builder(table.getIndex().getName())
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .numberOfShards(1)
                     .numberOfReplicas(table.size() - 1)
                     .build()
@@ -1696,7 +1696,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build();
                 indexMetadataBuilder.settings(settings);
                 indexMetadataList.add(indexMetadataBuilder.build());
@@ -1777,7 +1777,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     private static IndexRoutingTable index(String name, ShardAllocation primaryState, ShardAllocation... replicaStates) {
         return index(
             IndexMetadata.builder(name)
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                 .numberOfShards(1)
                 .numberOfReplicas(replicaStates.length)
                 .build(),

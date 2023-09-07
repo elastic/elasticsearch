@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,6 +62,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -166,7 +168,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index1SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.mapping.total_fields.limit", 1000)
@@ -228,7 +230,7 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         Settings.Builder index2SettingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put("index.mapping.total_fields.limit", 99999999)
@@ -331,6 +333,7 @@ public class DestinationIndexTests extends ESTestCase {
                 client,
                 clock,
                 config,
+                ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
                 ActionListener.wrap(
                     response -> fail("should not succeed"),
                     e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
@@ -340,7 +343,13 @@ public class DestinationIndexTests extends ESTestCase {
             return null;
         }
 
-        DestinationIndex.createDestinationIndex(client, clock, config, ActionTestUtils.assertNoFailureListener(response -> {}));
+        DestinationIndex.createDestinationIndex(
+            client,
+            clock,
+            config,
+            ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
+            ActionTestUtils.assertNoFailureListener(response -> {})
+        );
 
         GetSettingsRequest capturedGetSettingsRequest = getSettingsRequestCaptor.getValue();
         assertThat(capturedGetSettingsRequest.indices(), equalTo(SOURCE_INDEX));
@@ -568,6 +577,7 @@ public class DestinationIndexTests extends ESTestCase {
             client,
             clock,
             config,
+            ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
             ActionListener.wrap(
                 response -> fail("should not succeed"),
                 e -> assertThat(

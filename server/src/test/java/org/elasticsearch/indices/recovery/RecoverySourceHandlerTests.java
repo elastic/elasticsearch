@@ -77,7 +77,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -132,7 +132,7 @@ import static org.mockito.Mockito.when;
 public class RecoverySourceHandlerTests extends MapperServiceTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
     private static final BytesArray TRANSLOG_OPERATION_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
@@ -719,7 +719,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                indexSettings(VersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                indexSettings(IndexVersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
                     IndexMetadata.SETTING_INDEX_UUID,
                     UUIDs.randomBase64UUID(random())
                 )

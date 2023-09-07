@@ -16,5 +16,11 @@
     "name": "GeoLite2-Country.tgz",
     "url": "db/GeoLite2-Country.tgz",
     "provider": "maxmind"
+  },
+  {
+    "md5_hash": "77dcf272548942520d1b549957065a9f",
+    "name": "MyCustomGeoLite2-City.tgz",
+    "url": "db/MyCustomGeoLite2-City.tgz",
+    "provider": "maxmind"
   }
 ]

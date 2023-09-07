@@ -8,7 +8,7 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -224,9 +224,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         super(in);
         bucketInfo = new BucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readList(stream -> new Bucket(stream, format));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             bucketInnerInterval = in.readVLong();
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
@@ -237,9 +237,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     protected void doWriteTo(StreamOutput out) throws IOException {
         bucketInfo.writeTo(out);
         out.writeNamedWriteable(format);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
         out.writeVInt(targetBuckets);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             out.writeVLong(bucketInnerInterval);
         }
     }

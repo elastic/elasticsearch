@@ -27,89 +27,151 @@ public class InferenceRescorerIT extends InferenceTestCase {
     public void setupModelAndData() throws IOException {
         putRegressionModel(MODEL_ID, """
             {
-                        "description": "super complex model for tests",
-                        "input": {"field_names": ["cost", "product"]},
-                        "inference_config": {
-                          "learn_to_rank": {
-                          }
-                        },
-                        "definition": {
-                          "preprocessors" : [{
-                            "one_hot_encoding": {
-                              "field": "product",
-                              "hot_map": {
-                                "TV": "type_tv",
-                                "VCR": "type_vcr",
-                                "Laptop": "type_laptop"
-                              }
-                            }
-                          }],
-                          "trained_model": {
-                            "ensemble": {
-                              "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop"],
-                              "target_type": "regression",
-                              "trained_models": [
-                                {
-                                  "tree": {
-                                    "feature_names": [
-                                      "cost"
-                                    ],
-                                    "tree_structure": [
-                                      {
-                                        "node_index": 0,
-                                        "split_feature": 0,
-                                        "split_gain": 12,
-                                        "threshold": 400,
-                                        "decision_type": "lte",
-                                        "default_left": true,
-                                        "left_child": 1,
-                                        "right_child": 2
-                                      },
-                                      {
-                                        "node_index": 1,
-                                        "leaf_value": 5.0
-                                      },
-                                      {
-                                        "node_index": 2,
-                                        "leaf_value": 2.0
-                                      }
-                                    ],
-                                    "target_type": "regression"
-                                  }
-                                },
-                                {
-                                  "tree": {
-                                    "feature_names": [
-                                      "type_tv"
-                                    ],
-                                    "tree_structure": [
-                                      {
-                                        "node_index": 0,
-                                        "split_feature": 0,
-                                        "split_gain": 12,
-                                        "threshold": 1,
-                                        "decision_type": "lt",
-                                        "default_left": true,
-                                        "left_child": 1,
-                                        "right_child": 2
-                                      },
-                                      {
-                                        "node_index": 1,
-                                        "leaf_value": 1.0
-                                      },
-                                      {
-                                        "node_index": 2,
-                                        "leaf_value": 12.0
-                                      }
-                                    ],
-                                    "target_type": "regression"
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }""");
+               "description": "super complex model for tests",
+               "input": {"field_names": ["cost", "product"]},
+               "inference_config": {
+                 "learn_to_rank": {
+                   "feature_extractors": [{
+                     "query_extractor": {
+                       "feature_name": "two",
+                       "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
+                     }
+                   }]
+                 }
+               },
+               "definition": {
+                 "preprocessors" : [{
+                   "one_hot_encoding": {
+                     "field": "product",
+                     "hot_map": {
+                       "TV": "type_tv",
+                       "VCR": "type_vcr",
+                       "Laptop": "type_laptop"
+                     }
+                   }
+                 }],
+                 "trained_model": {
+                   "ensemble": {
+                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
+                     "target_type": "regression",
+                     "trained_models": [
+                       {
+                         "tree": {
+                           "feature_names": [
+                             "cost"
+                           ],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12,
+                               "threshold": 400,
+                               "decision_type": "lte",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             },
+                             {
+                               "node_index": 1,
+                               "leaf_value": 5.0
+                             },
+                             {
+                               "node_index": 2,
+                               "leaf_value": 2.0
+                             }
+                           ],
+                           "target_type": "regression"
+                         }
+                       },
+                       {
+                         "tree": {
+                           "feature_names": [
+                             "type_tv"
+                           ],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12,
+                               "threshold": 1,
+                               "decision_type": "lt",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             },
+                             {
+                               "node_index": 1,
+                               "leaf_value": 1.0
+                             },
+                             {
+                               "node_index": 2,
+                               "leaf_value": 12.0
+                             }
+                           ],
+                           "target_type": "regression"
+                         }
+                       },
+                       {
+                         "tree": {
+                           "feature_names": [
+                             "two"
+                           ],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12,
+                               "threshold": 1,
+                               "decision_type": "lt",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             },
+                             {
+                               "node_index": 1,
+                               "leaf_value": 1.0
+                             },
+                             {
+                               "node_index": 2,
+                               "leaf_value": 2.0
+                             }
+                           ],
+                           "target_type": "regression"
+                         }
+                       },
+                       {
+                         "tree": {
+                           "feature_names": [
+                             "product_bm25"
+                           ],
+                           "tree_structure": [
+                             {
+                               "node_index": 0,
+                               "split_feature": 0,
+                               "split_gain": 12,
+                               "threshold": 1,
+                               "decision_type": "lt",
+                               "default_left": true,
+                               "left_child": 1,
+                               "right_child": 2
+                             },
+                             {
+                               "node_index": 1,
+                               "leaf_value": 1.0
+                             },
+                             {
+                               "node_index": 2,
+                               "leaf_value": 4.0
+                             }
+                           ],
+                           "target_type": "regression"
+                         }
+                       }
+                     ]
+                   }
+                 }
+               }
+             }""");
         createIndex(INDEX_NAME, Settings.EMPTY, """
             "properties":{
              "product":{"type": "keyword"},
@@ -126,8 +188,9 @@ public class InferenceRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescore() throws Exception {
-        Request request = new Request("GET", "store/_search?size=3");
+        Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
             {
               "rescore": {
@@ -135,18 +198,37 @@ public class InferenceRescorerIT extends InferenceTestCase {
                 "inference": { "model_id": "ltr-model" }
               }
             }""");
-        assertHitScores(client().performRequest(request), List.of(17.0, 17.0, 14.0));
+        assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 17.0));
         request.setJsonEntity("""
             {
               "query": {"term": {"product": "Laptop"}},
               "rescore": {
                 "window_size": 10,
-                "inference": { "model_id": "ltr-model" }
+                "inference": {
+                  "model_id": "ltr-model",
+                  "inference_config": {
+                    "learn_to_rank": {
+                      "feature_extractors":[{
+                        "query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "Laptop"}}}
+                      }]
+                    }
+                  }
+                }
               }
             }""");
-        assertHitScores(client().performRequest(request), List.of(6.0, 6.0, 3.0));
+        assertHitScores(client().performRequest(request), List.of(12.0, 12.0, 9.0));
+        request.setJsonEntity("""
+            {
+              "query": {"term": {"product": "Laptop"}},
+              "rescore": {
+                "window_size": 10,
+                "inference": { "model_id": "ltr-model"}
+              }
+            }""");
+        assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
@@ -156,9 +238,10 @@ public class InferenceRescorerIT extends InferenceTestCase {
                 "inference": { "model_id": "ltr-model" }
               }
             }""");
-        assertHitScores(client().performRequest(request), List.of(17.0, 17.0, 1.0, 1.0, 1.0));
+        assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
     public void testInferenceRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
@@ -178,7 +261,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
                }
               ]
              }""");
-        assertHitScores(client().performRequest(request), List.of(37.0, 37.0, 14.0, 5.0, 1.0));
+        assertHitScores(client().performRequest(request), List.of(40.0, 40.0, 17.0, 5.0, 1.0));
     }
 
     private void indexData(String data) throws IOException {

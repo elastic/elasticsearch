@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97518")
     public void testTimeThrottle() throws Exception {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(id)
@@ -95,8 +94,8 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     private void assertLatestHistoryEntry(String id, String expectedValue) throws Exception {
         assertBusy(() -> {
+            ensureGreen(HistoryStoreField.DATA_STREAM);
             refresh(HistoryStoreField.DATA_STREAM + "*");
-
             SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(1)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))

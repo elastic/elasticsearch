@@ -28,6 +28,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -63,6 +65,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     private final TransformAuditor auditor;
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportUpdateTransformAction(
@@ -73,7 +76,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             UpdateTransformAction.NAME,
@@ -95,6 +99,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         this.auditor = transformServices.getAuditor();
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -113,7 +118,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
             return;
@@ -142,6 +147,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     false, // dryRun
                     true, // checkAccess
                     request.getTimeout(),
+                    destIndexSettings,
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();

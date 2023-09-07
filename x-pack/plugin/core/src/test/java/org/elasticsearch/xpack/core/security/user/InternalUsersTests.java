@@ -18,12 +18,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -46,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -228,10 +232,10 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
-        final String allowedSystemDataStream = ".fleet-actions-results";
+        final List<String> allowedSystemDataStreams = Arrays.asList(".fleet-actions-results", ".fleet-fileds*");
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {
-                assertThat(group.indices(), arrayContaining(allowedSystemDataStream));
+                assertThat(group.indices(), arrayContaining(allowedSystemDataStreams.toArray(new String[0])));
             }
         }
 
@@ -239,7 +243,18 @@ public class InternalUsersTests extends ESTestCase {
             RolloverAction.NAME,
             DeleteIndexAction.NAME,
             ForceMergeAction.NAME,
-            IndicesStatsAction.NAME
+            IndicesStatsAction.NAME,
+            UpdateSettingsAction.NAME,
+            DownsampleAction.NAME,
+            AddIndexBlockAction.NAME
+        );
+
+        final List<String> sampleSystemDataStreamActions = List.of(
+            RolloverAction.NAME,
+            DeleteIndexAction.NAME,
+            ForceMergeAction.NAME,
+            IndicesStatsAction.NAME,
+            UpdateSettingsAction.NAME
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
@@ -251,15 +266,17 @@ public class InternalUsersTests extends ESTestCase {
             true
         );
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), allowedSystemDataStream, true);
-        checkIndexAccess(
-            role,
-            randomFrom(sampleIndexActions),
-            DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
-            true
-        );
+        allowedSystemDataStreams.forEach(allowedSystemDataStream -> {
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream, true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
+        });
 
-        checkIndexAccess(role, randomFrom(sampleIndexActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
+        checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
     }
 
     public void testRegularUser() {

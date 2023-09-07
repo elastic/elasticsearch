@@ -18,6 +18,8 @@
 package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
@@ -30,6 +32,10 @@ import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -59,6 +65,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -259,7 +266,17 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
-        return new NodeClient(nodeSettings, threadPool);
+        return new NoOpNodeClient(threadPool) {
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                assert action == TransportNewCommitNotificationAction.TYPE;
+                ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
+            }
+        };
     }
 
     protected long getPrimaryTerm() {

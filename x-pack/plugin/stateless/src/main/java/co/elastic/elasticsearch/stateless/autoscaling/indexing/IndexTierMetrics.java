@@ -22,7 +22,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +49,7 @@ public class IndexTierMetrics extends AbstractBaseTierMetrics implements Autosca
 
     public IndexTierMetrics(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_500_063)) {
             this.nodesLoad = in.readCollectionAsList(NodeIngestLoadSnapshot::new);
             this.memoryMetrics = new MemoryMetrics(in);
             return;
@@ -69,7 +69,7 @@ public class IndexTierMetrics extends AbstractBaseTierMetrics implements Autosca
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_500_063)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_500_063)) {
             out.writeCollection(nodesLoad);
             memoryMetrics.writeTo(out);
             return;

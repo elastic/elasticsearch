@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGenerationTests;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -56,7 +56,7 @@ public class NewCommitNotificationResponseSerializationTests extends AbstractWir
 
     public void testBwCSerialization() throws Exception {
         var testInstance = createTestInstance();
-        var bwcReadInstance = copyInstance(testInstance, TransportVersion.V_8_500_060);
+        var bwcReadInstance = copyInstance(testInstance, TransportVersions.V_8_500_060);
         assertThat(bwcReadInstance, equalTo(NewCommitNotificationResponse.EMPTY));
     }
 }

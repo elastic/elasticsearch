@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.metering.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -133,7 +134,7 @@ public class GetBlobStoreStatsNodeResponseTests extends AbstractWireSerializingT
 
     public void testSerializationForOldVersion() throws IOException {
         final GetBlobStoreStatsNodeResponse instance = createTestInstance();
-        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_500_056);
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_500_056);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(oldVersion);

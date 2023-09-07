@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -28,7 +29,7 @@ import java.util.function.Supplier;
 
 public class IndicesMappingSizePublisher {
 
-    private static final TransportVersion REQUIRED_VERSION = TransportVersion.V_8_500_050;
+    private static final TransportVersion REQUIRED_VERSION = TransportVersions.V_8_500_050;
 
     private final NodeClient client;
     private final Supplier<TransportVersion> minimumTransportVersion;

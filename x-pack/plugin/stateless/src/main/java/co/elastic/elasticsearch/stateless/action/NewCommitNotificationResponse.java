@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.action;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,7 @@ import java.util.Set;
 public class NewCommitNotificationResponse extends ActionResponse {
     public static final NewCommitNotificationResponse EMPTY = new NewCommitNotificationResponse(Set.of());
 
-    private static final TransportVersion VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE = TransportVersion.V_8_500_061;
+    private static final TransportVersion VERSION_SUPPORTING_NEW_COMMIT_NOTIFICATION_RESPONSE = TransportVersions.V_8_500_061;
 
     private final Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations;
 

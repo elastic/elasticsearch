@@ -42,7 +42,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         .put(TransportSettings.CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
         // value and the time of disruption and does not recover immediately
         // when disruption is stop. We should make sure we recover faster
-        // then the default of 30s, causing ensureGreen and friends to time out
+        // than the default of 30s, causing ensureGreen and friends to time out
         .build();
 
     @Override

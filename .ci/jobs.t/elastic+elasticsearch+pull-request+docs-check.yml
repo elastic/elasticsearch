@@ -20,6 +20,7 @@
           cancel-builds-on-update: true
           included-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           black-list-labels:
             - '>test-mute'
     builders:

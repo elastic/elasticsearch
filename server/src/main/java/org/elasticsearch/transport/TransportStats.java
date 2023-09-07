@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,7 +69,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) && in.readBoolean()) {
             inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
             for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
                 inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
@@ -82,7 +82,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             inboundHandlingTimeBucketFrequencies = new long[0];
             outboundHandlingTimeBucketFrequencies = new long[0];
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
         } else {
             transportActionStats = Map.of();
@@ -98,7 +98,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
             out.writeBoolean(inboundHandlingTimeBucketFrequencies.length > 0);
             for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
@@ -108,8 +108,8 @@ public class TransportStats implements Writeable, ChunkedToXContent {
                 out.writeVLong(handlingTimeBucketFrequency);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeMap(transportActionStats, StreamOutput::writeString, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeMap(transportActionStats, StreamOutput::writeWriteable);
         } // else just drop these stats
     }
 

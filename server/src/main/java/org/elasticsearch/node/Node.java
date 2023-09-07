@@ -108,7 +108,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -1027,14 +1026,14 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
                 transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(
+            final HealthService healthService = createHealthService(
                 clusterService,
                 clusterModule,
                 coordinationDiagnosticsService,
@@ -1155,7 +1154,7 @@ public class Node implements Closeable {
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(newReadinessService(clusterService, environment)));
             }
 
             injector = modules.createInjector();
@@ -1289,26 +1288,18 @@ public class Node implements Closeable {
         ThreadPool threadPool,
         SystemIndices systemIndices
     ) {
-        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
+        var serverHealthIndicatorServices = List.of(
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
+            new DiskHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService)
         );
-        var serverHealthIndicatorServices = new ArrayList<>(
-            List.of(
-                new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
-            )
-        );
-        serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
-        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(
-            preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            threadPool
-        );
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
     }
 
     private HealthPeriodicLogger createHealthPeriodicLogger(
@@ -1911,7 +1902,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new SearchService. This method can be overwritten by tests to inject mock implementations.
      */
     protected SearchService newSearchService(
         ClusterService clusterService,
@@ -1940,7 +1931,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
     protected ScriptService newScriptService(
         Settings settings,
@@ -1949,6 +1940,13 @@ public class Node implements Closeable {
         LongSupplier timeProvider
     ) {
         return new ScriptService(settings, engines, contexts, timeProvider);
+    }
+
+    /**
+     * Creates a new ReadinessService. This method can be overwritten by tests to inject mock implementations.
+     */
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        return new ReadinessService(clusterService, environment);
     }
 
     /**

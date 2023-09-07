@@ -588,7 +588,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         public static ObservableAction readObservableAction(StreamInput in) throws IOException {
-            List<Step> steps = in.readList(ObservableClusterStateWaitStep::new);
+            List<Step> steps = in.readCollectionAsList(ObservableClusterStateWaitStep::new);
             boolean safe = in.readBoolean();
             return new ObservableAction(steps, safe);
         }

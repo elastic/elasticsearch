@@ -166,7 +166,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private synchronized void scheduleNext() {
         try {
-            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
+            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), threadPool.generic());
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug("failed to schedule next maintenance task; shutting down", e);

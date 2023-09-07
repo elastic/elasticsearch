@@ -165,9 +165,7 @@ public class InternalUsers {
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
                         IndicesStatsAction.NAME + "*",
-                        UpdateSettingsAction.NAME,
-                        DownsampleAction.NAME,
-                        AddIndexBlockAction.NAME
+                        UpdateSettingsAction.NAME
                     )
                     .allowRestrictedIndices(true)
                     .build() },

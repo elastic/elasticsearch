@@ -32,6 +32,8 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -156,6 +158,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -2010,5 +2013,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+
+    public static IndexSearcher newSearcher(IndexReader reader) {
+        IndexSearcher searcher = LuceneTestCase.newSearcher(reader);
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        executorService.execute(() -> {});
+        reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        return searcher;
+    }
+
+    public static IndexSearcher newSearcher(IndexReader reader, boolean maybeWrap) {
+        IndexSearcher searcher = LuceneTestCase.newSearcher(reader, maybeWrap);
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        executorService.execute(() -> {});
+        reader.getReaderCacheHelper().addClosedListener(key -> terminate(executorService));
+        return searcher;
     }
 }

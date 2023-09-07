@@ -358,11 +358,11 @@ public abstract class DocumentParserContext {
      * If we under-count fields here (for example by not counting multi-fields),
      * we may only know that we exceed the field limit during the mapping update.
      * This leads to document rejection instead of ignoring fields above the limit if Dynamic.UNTIL_LIMIT is configured for the index.
-     * If we over-count the fields, we may reject fields earlier than necessary and before actually hitting the field limit.
-     * The current implementation optimizes to avoid under-counting but may over-count.
+     * If we over-count the fields (for example by counting all mappers with the same name),
+     * we may reject fields earlier than necessary and before actually hitting the field limit.
      */
     private int getNewDynamicMappersSize() {
-        return dynamicMappers.values().stream().flatMap(List::stream).mapToInt(Mapper::mapperSize).sum();
+        return dynamicMappers.values().stream().mapToInt(mappers -> mappers.stream().mapToInt(Mapper::mapperSize).max().orElse(0)).sum();
     }
 
     /**

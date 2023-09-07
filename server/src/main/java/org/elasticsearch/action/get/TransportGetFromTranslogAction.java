@@ -41,7 +41,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
     TransportGetFromTranslogAction.Request,
     TransportGetFromTranslogAction.Response> {
 
-    public static final String NAME = "internal:data/read/get_from_translog";
+    public static final String NAME = "indices:data/read/get_from_translog";
     public static final Logger logger = LogManager.getLogger(TransportGetFromTranslogAction.class);
 
     private final IndicesService indicesService;

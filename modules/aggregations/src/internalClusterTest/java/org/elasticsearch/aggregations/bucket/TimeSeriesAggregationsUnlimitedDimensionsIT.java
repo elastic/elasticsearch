@@ -185,7 +185,6 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         assertTimeSeriesAggregation(ts);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98715")
     public void testCardinalityByTsid() {
         final TimeSeriesAggregationBuilder timeSeries = new TimeSeriesAggregationBuilder("ts").subAggregation(
             new CardinalityAggregationBuilder("dim_n_cardinality").field("dim_" + (numberOfDimensions - 1))

@@ -251,16 +251,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         /**
          * Here we build the hash of the tsid using a similarity function so that we have a result
          * with the following pattern:
-         *
          * ${similarityHash(_tsid)}-${hash(_tsid)}.
-         *
          * The idea is to be able to place 'similar' time series close to each other. Two time series
          * are considered 'similar' if they share the same values for a subset of the dimensions (sorted
          * names/values).
          */
         public BytesReference similarityHash(final BytesReference timeSeriesId) throws IOException {
             int bufferIndex = 0;
-            // 512 entries of (hash32(fieldName) + '=' + hash32(fieldValue) + ":") plus the timeSeriesIdBytesRef hash on 128 bits
+            // max 512 entries of (hash32(fieldName) + '=' + hash32(fieldValue) + ":") plus the has128(timeSeriesId)
             final byte[] buffer = new byte[MAX_DIMENSIONS * 10 + 16];
             for (final DimensionDataHolder dimensionDataHolder : dimensions) {
                 if (bufferIndex >= MAX_DIMENSIONS) break;

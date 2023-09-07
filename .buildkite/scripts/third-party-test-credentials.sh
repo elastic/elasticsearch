@@ -32,17 +32,17 @@ fi
 
 if [[ "${USE_3RD_PARTY_S3_CREDENTIALS:-}" == "true" ]]; then
   json=$(.buildkite/scripts/get-legacy-secret.sh aws-test/creds/elasticsearch-ci-s3)
-  AMAZON_S3_ACCESS_KEY=$(echo "$data" | jq -r .data.access_key)
+  AMAZON_S3_ACCESS_KEY=$(echo "$json" | jq -r .data.access_key)
   export AMAZON_S3_ACCESS_KEY
   export amazon_s3_access_key="$AMAZON_S3_ACCESS_KEY"
 
-  AMAZON_S3_SECRET_KEY=$(echo "$data" | jq -r .data.secret_key)
+  AMAZON_S3_SECRET_KEY=$(echo "$json" | jq -r .data.secret_key)
   export AMAZON_S3_SECRET_KEY
   export amazon_s3_secret_key="$AMAZON_S3_SECRET_KEY"
 fi
 
 if [[ "${USE_3RD_PARTY_GCS_CREDENTIALS:-}" == "true" ]]; then
-  export google_storage_service_account=$(mktemp --sufix .json)
+  export google_storage_service_account=$(mktemp)
   .buildkite/scripts/third-party-test-credentials.gcs.sh "$google_storage_service_account"
 fi
 

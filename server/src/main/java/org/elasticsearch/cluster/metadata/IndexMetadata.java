@@ -2648,7 +2648,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     * Return the {@link IndexVersion} of Elasticsearch that has been used to create an index given its settings.
      *
      * @throws IllegalArgumentException if the given index settings doesn't contain a value for the key
      *                                  {@value IndexMetadata#SETTING_VERSION_CREATED}

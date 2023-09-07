@@ -169,7 +169,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             "foo",
             new UnsupportedEsField("foo", "keyword"),
             "field not supported",
-            new NameId(53)
+            new NameId()
         );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
@@ -193,7 +193,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomEsField(),
             null, // qualifier, can be null
             Nullability.TRUE,
-            new NameId(53),
+            new NameId(),
             true // synthetic
         );
         BytesStreamOutput bso = new BytesStreamOutput();

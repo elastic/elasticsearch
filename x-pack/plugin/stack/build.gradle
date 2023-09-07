@@ -9,6 +9,7 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
+
 base {
   archivesName = 'x-pack-stack'
 }
@@ -19,6 +20,14 @@ dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('wildcard'))
+}
+
+// These tests are only invoked direclty as part of a dedicated build job
+tasks.named('javaRestTest').configure {
+    onlyIf("E2E test task must be invoked directly") {
+      gradle.startParameter.getTaskNames().contains(this.path) ||
+        (gradle.startParameter.getTaskNames().contains(this.name) && gradle.startParameter.currentDir == project.projectDir)
+    }
 }
 
 addQaCheckDependencies(project)

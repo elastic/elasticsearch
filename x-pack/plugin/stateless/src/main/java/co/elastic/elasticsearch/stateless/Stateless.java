@@ -363,8 +363,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var commitService = createStatelessCommitService(objectStoreService, clusterService, client, commitCleaner);
+        var commitService = createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
         setAndGet(this.commitService, commitService);
+        components.add(commitService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
@@ -476,12 +477,13 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     }
 
     protected StatelessCommitService createStatelessCommitService(
+        Settings settings,
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner
     ) {
-        var commitService = new StatelessCommitService(objectStoreService, clusterService, client, commitCleaner);
+        var commitService = new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
         clusterService.addListener(commitService);
         return commitService;
     }
@@ -522,6 +524,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ShardSizesCollector.PUSH_INTERVAL_SETTING,
             ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
+            StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
+            StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING
         );

@@ -80,13 +80,14 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
         @Override
         protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
             ObjectStoreService objectStoreService,
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner
         ) {
             StatelessCommitService commitService = spy(
-                super.createStatelessCommitService(objectStoreService, clusterService, client, commitCleaner)
+                super.createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner)
             );
             doAnswer(invocation -> {
                 ActionListener<Void> argument = invocation.getArgument(2);

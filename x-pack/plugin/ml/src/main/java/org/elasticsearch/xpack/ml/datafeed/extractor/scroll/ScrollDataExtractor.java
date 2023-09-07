@@ -204,7 +204,7 @@ class ScrollDataExtractor implements DataExtractor {
                 hits[i] = null;
             }
         }
-        return outputStream.resetAndGetInputStream();
+        return outputStream.bytes().streamInput();
     }
 
     private InputStream continueScroll() throws IOException {

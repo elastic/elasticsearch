@@ -19,7 +19,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -125,10 +124,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         iw.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
-        Aggregation result = searchAndReduce(indexSearcher, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
+        Aggregation result = searchAndReduce(indexReader, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
         indexReader.close();
         directory.close();
         return result;
@@ -177,12 +173,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(w);
         w.close();
 
-        IndexSearcher searcher = new IndexSearcher(reader);
         Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
+        TopHits result = searchAndReduce(reader, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

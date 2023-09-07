@@ -37,7 +37,7 @@ public class MultiSearchResponseTests extends ESTestCase {
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+            SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse searchResponse = new SearchResponse(
                 internalSearchResponse,
@@ -65,7 +65,7 @@ public class MultiSearchResponseTests extends ESTestCase {
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+                SearchResponse.Clusters clusters = SearchResponseTests.randomSimpleClusters();
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse searchResponse = new SearchResponse(
                     internalSearchResponse,

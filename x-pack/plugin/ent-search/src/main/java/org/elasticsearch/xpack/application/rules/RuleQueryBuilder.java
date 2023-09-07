@@ -10,6 +10,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -38,7 +39,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -57,13 +57,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME = "rule_query";
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
-    private static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
+    static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
-
-    /**
-     * Defines the set of allowed match criteria, so that we can validate that rule query requests are sending in allowed/supported data.
-     */
-    static final Set<String> ALLOWED_MATCH_CRITERIA = Set.of("query_string");
 
     private final String rulesetId;
     private final Map<String, Object> matchCriteria;
@@ -78,7 +73,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_033;
+        return TransportVersions.V_8_500_033;
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
@@ -90,9 +85,9 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readMap();
         rulesetId = in.readString();
-        pinnedIds = in.readOptionalStringList();
+        pinnedIds = in.readOptionalStringCollectionAsList();
         pinnedIdsSupplier = null;
-        pinnedDocs = in.readOptionalList(Item::new);
+        pinnedDocs = in.readOptionalCollectionAsList(Item::new);
         pinnedDocsSupplier = null;
     }
 
@@ -111,11 +106,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         }
         if (matchCriteria == null || matchCriteria.isEmpty()) {
             throw new IllegalArgumentException("matchCriteria must not be null or empty");
-        }
-        for (String matchCriteriaKey : matchCriteria.keySet()) {
-            if (ALLOWED_MATCH_CRITERIA.contains(matchCriteriaKey) == false) {
-                throw new IllegalArgumentException("matchCriteria key [" + matchCriteriaKey + "] is not allowed");
-            }
         }
         if (Strings.isNullOrEmpty(rulesetId)) {
             throw new IllegalArgumentException("rulesetId must not be null or empty");

@@ -11,11 +11,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
@@ -40,11 +45,13 @@ class ModelImporter {
     private final Client client;
     private final String modelId;
     private final ModelPackageConfig config;
+    private final CancellableTask task;
 
-    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig) {
+    ModelImporter(Client client, String modelId, ModelPackageConfig packageConfig, CancellableTask task) {
         this.client = client;
         this.modelId = Objects.requireNonNull(modelId);
         this.config = Objects.requireNonNull(packageConfig);
+        this.task = Objects.requireNonNull(task);
     }
 
     public void doImport() throws URISyntaxException, IOException, ElasticsearchStatusException {
@@ -73,15 +80,16 @@ class ModelImporter {
         for (int part = 0; part < totalParts - 1; ++part) {
             BytesArray definition = chunkIterator.next();
 
-            PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+            PutTrainedModelDefinitionPartAction.Request modelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
                 modelId,
                 definition,
                 part,
                 size,
-                totalParts
+                totalParts,
+                true
             );
 
-            client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+            executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, modelPartRequest);
         }
 
         // get the last part, this time verify the checksum and size
@@ -107,15 +115,16 @@ class ModelImporter {
             throw new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR);
         }
 
-        PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+        PutTrainedModelDefinitionPartAction.Request finalModelPartRequest = new PutTrainedModelDefinitionPartAction.Request(
             modelId,
             definition,
             totalParts - 1,
             size,
-            totalParts
+            totalParts,
+            true
         );
 
-        client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+        executeRequestIfNotCancelled(PutTrainedModelDefinitionPartAction.INSTANCE, finalModelPartRequest);
         logger.debug(format("finished importing model [%s] using [%d] parts", modelId, totalParts));
     }
 
@@ -124,14 +133,26 @@ class ModelImporter {
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
         );
 
-        PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(
+        PutTrainedModelVocabularyAction.Request request = new PutTrainedModelVocabularyAction.Request(
             modelId,
             vocabularyAndMerges.v1(),
             vocabularyAndMerges.v2(),
-            List.of()
+            List.of(),
+            true
         );
 
-        client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
+        executeRequestIfNotCancelled(PutTrainedModelVocabularyAction.INSTANCE, request);
+    }
+
+    private <Request extends ActionRequest, Response extends ActionResponse> void executeRequestIfNotCancelled(
+        ActionType<Response> action,
+        Request request
+    ) {
+        if (task.isCancelled()) {
+            throw new TaskCancelledException(format("task cancelled with reason [%s]", task.getReasonCancelled()));
+        }
+
+        client.execute(action, request).actionGet();
     }
 
     private void writeDebugNotification(String modelId, String message) {

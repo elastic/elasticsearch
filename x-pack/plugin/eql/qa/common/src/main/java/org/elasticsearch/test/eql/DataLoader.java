@@ -107,7 +107,7 @@ public class DataLoader {
         //
         // missing_events index
         //
-        // load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
+        load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
         load(client, TEST_SAMPLE_MULTI, null, null, p);
     }
 

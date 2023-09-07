@@ -41,13 +41,14 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+
+  implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
@@ -151,10 +152,4 @@ testClusters.configureEach {
 if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
-  }
 }

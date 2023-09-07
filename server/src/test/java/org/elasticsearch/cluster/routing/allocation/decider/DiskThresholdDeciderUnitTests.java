@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();
@@ -135,7 +135,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();
@@ -237,7 +237,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         final IndexMetadata indexMetadata = metadata.index("test");
 
@@ -406,13 +406,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT).put("index.uuid", "1234"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "1234"))
                 .numberOfShards(3)
                 .numberOfReplicas(1)
         );
         metaBuilder.put(
             IndexMetadata.builder("other")
-                .settings(settings(Version.CURRENT).put("index.uuid", "5678"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "5678"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
         );
@@ -524,7 +524,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder(mainIndexName)
                     .settings(
-                        settings(Version.CURRENT).put("index.uuid", "1234")
+                        settings(IndexVersion.current()).put("index.uuid", "1234")
                             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     )
                     .numberOfShards(3)
@@ -532,7 +532,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(anotherIndexName)
-                    .settings(settings(Version.CURRENT).put("index.uuid", "5678"))
+                    .settings(settings(IndexVersion.current()).put("index.uuid", "5678"))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
@@ -641,14 +641,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT).put("index.uuid", "1234"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "1234"))
                 .numberOfShards(4)
                 .numberOfReplicas(0)
         );
         metaBuilder.put(
             IndexMetadata.builder("target")
                 .settings(
-                    settings(Version.CURRENT).put("index.uuid", "5678")
+                    settings(IndexVersion.current()).put("index.uuid", "5678")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234")
                 )
@@ -658,7 +658,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         metaBuilder.put(
             IndexMetadata.builder("target2")
                 .settings(
-                    settings(Version.CURRENT).put("index.uuid", "9101112")
+                    settings(IndexVersion.current()).put("index.uuid", "9101112")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234")
                 )
@@ -839,7 +839,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
+                    .settings(settings(IndexVersion.current()).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
@@ -906,7 +906,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();

@@ -32,13 +32,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -73,6 +72,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
 
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         xContentRegistry = new NamedXContentRegistry(
             CollectionUtils.appendToCopy(
@@ -84,7 +84,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         putIndexTemplateRequestCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
     }
 
-    public void testStatsTemplateWithIlm() {
+    public void testStateTemplate() {
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             Settings.EMPTY,
             clusterService,
@@ -100,15 +100,15 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()
-            .filter(r -> r.name().equals(MlStatsIndex.TEMPLATE_NAME))
+            .filter(r -> r.name().equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX))
             .findFirst()
-            .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
+            .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
         assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
+        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
     }
 
-    public void testStatsTemplateNoIlm() {
+    public void testStatsTemplate() {
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
             Settings.EMPTY,
             clusterService,
@@ -128,8 +128,8 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml stats index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), is(nullValue()));
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), is(nullValue()));
+        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
+        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-stats-write"));
     }
 
     @SuppressWarnings("unchecked")

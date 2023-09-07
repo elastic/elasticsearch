@@ -17,7 +17,7 @@ import java.util.List;
 public class SqlUnresolvedFunctionTests extends UnresolvedFunctionTests {
 
     @Override
-    protected List<FunctionResolutionStrategy> resolutionStrategies() {
+    protected List<FunctionResolutionStrategy> pluggableResolutionStrategies() {
         return Arrays.asList(FunctionResolutionStrategy.DEFAULT, SqlFunctionResolution.DISTINCT, SqlFunctionResolution.EXTRACT);
     }
 }

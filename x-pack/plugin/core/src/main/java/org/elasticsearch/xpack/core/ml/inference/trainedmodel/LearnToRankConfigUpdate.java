@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,7 +32,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig.FEATURE_EXTRACTORS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES;
 
-public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
+public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXContentObject, Rewriteable<LearnToRankConfigUpdate> {
 
     public static final ParseField NAME = LearnToRankConfig.NAME;
 
@@ -90,7 +92,7 @@ public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXCon
 
     public LearnToRankConfigUpdate(StreamInput in) throws IOException {
         this.numTopFeatureImportanceValues = in.readOptionalVInt();
-        this.featureExtractorBuilderList = in.readNamedWriteableList(LearnToRankFeatureExtractorBuilder.class);
+        this.featureExtractorBuilderList = in.readNamedWriteableCollectionAsList(LearnToRankFeatureExtractorBuilder.class);
     }
 
     public Integer getNumTopFeatureImportanceValues() {
@@ -115,7 +117,7 @@ public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numTopFeatureImportanceValues);
-        out.writeNamedWriteableList(featureExtractorBuilderList);
+        out.writeNamedWriteableCollection(featureExtractorBuilderList);
     }
 
     @Override
@@ -198,6 +200,24 @@ public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXCon
         return (numTopFeatureImportanceValues == null || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues)
             && (featureExtractorBuilderList.isEmpty()
                 || Objects.equals(originalConfig.getFeatureExtractorBuilders(), featureExtractorBuilderList));
+    }
+
+    @Override
+    public LearnToRankConfigUpdate rewrite(QueryRewriteContext ctx) throws IOException {
+        if (featureExtractorBuilderList.isEmpty()) {
+            return this;
+        }
+        List<LearnToRankFeatureExtractorBuilder> rewrittenBuilders = new ArrayList<>(featureExtractorBuilderList.size());
+        boolean rewritten = false;
+        for (LearnToRankFeatureExtractorBuilder extractorBuilder : featureExtractorBuilderList) {
+            LearnToRankFeatureExtractorBuilder rewrittenExtractor = Rewriteable.rewrite(extractorBuilder, ctx);
+            rewritten |= (rewrittenExtractor != extractorBuilder);
+            rewrittenBuilders.add(rewrittenExtractor);
+        }
+        if (rewritten) {
+            return new LearnToRankConfigUpdate(getNumTopFeatureImportanceValues(), rewrittenBuilders);
+        }
+        return this;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, LearnToRankConfigUpdate> {

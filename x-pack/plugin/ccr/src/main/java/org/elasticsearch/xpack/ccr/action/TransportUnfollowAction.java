@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -56,6 +57,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
     private static final Logger logger = LogManager.getLogger(TransportUnfollowAction.class);
 
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
 
     @Inject
     public TransportUnfollowAction(
@@ -77,6 +79,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             ThreadPool.Names.SAME
         );
         this.client = Objects.requireNonNull(client);
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
     }
 
     @Override
@@ -118,7 +121,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
                 final Client remoteClient;
                 try {
-                    remoteClient = client.getRemoteClusterClient(remoteClusterName);
+                    remoteClient = client.getRemoteClusterClient(remoteClusterName, remoteClientResponseExecutor);
                 } catch (Exception e) {
                     onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
                     return;

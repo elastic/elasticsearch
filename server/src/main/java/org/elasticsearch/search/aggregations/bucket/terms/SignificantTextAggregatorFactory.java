@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -316,7 +317,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                     Source source = sourceProvider.getSource(ctx, doc).filter(sourceFilter);
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = extractRawValues(source, sourceField).stream().map(obj -> {
+                            Iterator<String> itr = Iterators.map(extractRawValues(source, sourceField).iterator(), obj -> {
                                 if (obj == null) {
                                     return null;
                                 }
@@ -324,7 +325,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return fieldType.valueForDisplay(obj).toString();
                                 }
                                 return obj.toString();
-                            }).iterator();
+                            });
                             while (itr.hasNext()) {
                                 String text = itr.next();
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), text);

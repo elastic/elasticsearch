@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +40,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        nodeDecisions = in.readBoolean() ? in.readImmutableList(NodeAllocationResult::new) : null;
+        nodeDecisions = in.readBoolean() ? in.readCollectionAsImmutableList(NodeAllocationResult::new) : null;
     }
 
     /**
@@ -82,7 +83,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
-            out.writeList(nodeDecisions);
+            out.writeCollection(nodeDecisions);
         } else {
             out.writeBoolean(false);
         }
@@ -110,6 +111,11 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
             }
             builder.endObject();
         }
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : node.getRoles()) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
         return builder;
     }
 

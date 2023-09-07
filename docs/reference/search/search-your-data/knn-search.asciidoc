@@ -333,7 +333,7 @@ nearest documents. If the search also includes a `query`, then aggregations are
 calculated on the combined set of `knn` and `query` matches.
 
 [discrete]
-[[semantic-search]]
+[[knn-semantic-search]]
 ==== Perform semantic search
 
 kNN search enables you to perform semantic search by using a previously deployed

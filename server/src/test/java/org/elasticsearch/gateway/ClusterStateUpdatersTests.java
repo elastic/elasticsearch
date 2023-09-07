@@ -8,7 +8,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -46,7 +46,9 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
     private IndexMetadata createIndexMetadata(final String name, final Settings settings) {
         return IndexMetadata.builder(name)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).put(settings))
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).put(settings)
+            )
             .build();
     }
 

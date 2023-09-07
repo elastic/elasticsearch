@@ -1,0 +1,85 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: networks
+        body:
+          mappings:
+            properties:
+              range:
+                type: "ip_range"
+              name:
+                type: keyword
+              department:
+                type: keyword
+
+  - do:
+      bulk:
+        index: networks
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "range": "10.100.0.0/16", "name": "Production", "department": "OPS" }
+          - { "index": { } }
+          - { "range": "10.101.0.0/16", "name": "QA", "department": "Engineering" }
+
+  - do:
+      enrich.put_policy:
+        name: networks-policy
+        body:
+          range:
+            indices: [ "networks" ]
+            match_field: "range"
+            enrich_fields: [ "name", "department" ]
+
+  - do:
+      enrich.execute_policy:
+        name: networks-policy
+
+  - do:
+      indices.create:
+        index: events
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              ip:
+                type: "ip"
+              message:
+                type: keyword
+
+  - do:
+      bulk:
+        index: events
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-06-20", "ip": "10.100.0.21", "message": "network connected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-21", "ip": [ "10.100.0.21", "10.101.0.107" ], "message": "sending messages" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-22", "ip": "10.101.0.107", "message": "network disconnected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-24", "ip": "13.101.0.114", "message": "authentication failed" }
+---
+"IP strings":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+
+  - match: { columns.0.name: "ip" }
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", "Production", "OPS", "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], [ "Production", "QA" ], [ "OPS","Engineering" ], "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , "QA", "Engineering", "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }

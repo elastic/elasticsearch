@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +50,7 @@ public class Aggregations implements Iterable<Aggregation>, ToXContentFragment {
      */
     @Override
     public final Iterator<Aggregation> iterator() {
-        return aggregations.stream().map((p) -> (Aggregation) p).iterator();
+        return Iterators.map(aggregations.iterator(), p -> (Aggregation) p);
     }
 
     /**

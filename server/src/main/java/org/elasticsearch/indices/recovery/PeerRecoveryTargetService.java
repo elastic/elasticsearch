@@ -64,6 +64,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -256,14 +257,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
+            threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(newTarget.recoveryId()));
         }
     }
 
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
         final long recoveryId = request.recoveryId();
         logger.trace("will try to reestablish recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId, request));
+        threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(recoveryId, request));
     }
 
     private void doRecovery(final long recoveryId, final StartRecoveryRequest preExistingRequest) {
@@ -828,9 +829,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         @Override
-        public String executor() {
+        public Executor executor(ThreadPool threadPool) {
             // we do some heavy work like refreshes in the response so fork off to the generic threadpool
-            return ThreadPool.Names.GENERIC;
+            return threadPool.generic();
         }
 
         @Override

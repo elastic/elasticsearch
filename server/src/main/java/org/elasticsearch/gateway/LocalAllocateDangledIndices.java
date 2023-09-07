@@ -10,7 +10,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
@@ -93,7 +94,7 @@ public class LocalAllocateDangledIndices {
             masterNode,
             ACTION_NAME,
             request,
-            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -272,7 +273,7 @@ public class LocalAllocateDangledIndices {
     public static class AllocateDangledResponse extends TransportResponse {
 
         private AllocateDangledResponse(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readBoolean();
             }
         }
@@ -281,7 +282,7 @@ public class LocalAllocateDangledIndices {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeBoolean(true);
             }
         }

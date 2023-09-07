@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
@@ -165,9 +165,9 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
 
     public DataStreamAlias(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.dataStreams = in.readStringList();
+        this.dataStreams = in.readStringCollectionAsList();
         this.writeDataStream = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.dataStreamToFilterMap = in.readMap(CompressedXContent::readCompressedString);
         } else {
             this.dataStreamToFilterMap = new HashMap<>();
@@ -398,8 +398,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            out.writeMap(dataStreamToFilterMap, StreamOutput::writeString, (out1, filter) -> filter.writeTo(out1));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            out.writeMap(dataStreamToFilterMap, StreamOutput::writeWriteable);
         } else {
             if (dataStreamToFilterMap.isEmpty()) {
                 out.writeBoolean(false);

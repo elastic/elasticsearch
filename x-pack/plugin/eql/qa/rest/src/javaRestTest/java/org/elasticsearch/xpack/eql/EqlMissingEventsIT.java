@@ -7,13 +7,21 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlMissingEventsSpecTestCase;
+import org.junit.ClassRule;
 
 import java.util.List;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97644")
 public class EqlMissingEventsIT extends EqlMissingEventsSpecTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public EqlMissingEventsIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
         super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);

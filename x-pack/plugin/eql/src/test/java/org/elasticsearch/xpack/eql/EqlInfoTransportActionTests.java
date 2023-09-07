@@ -96,7 +96,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         var usageAction = new EqlUsageTransportAction(
             mock(TransportService.class),
             clusterService,
-            null,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             client

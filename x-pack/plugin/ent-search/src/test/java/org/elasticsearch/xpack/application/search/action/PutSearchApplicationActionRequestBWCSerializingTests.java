@@ -48,6 +48,6 @@ public class PutSearchApplicationActionRequestBWCSerializingTests extends Abstra
         PutSearchApplicationAction.Request instance,
         TransportVersion version
     ) {
-        return new PutSearchApplicationAction.Request(instance.getSearchApplication(), instance.create());
+        return instance;
     }
 }

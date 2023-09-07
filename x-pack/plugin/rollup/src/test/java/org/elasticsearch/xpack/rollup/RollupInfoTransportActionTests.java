@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -34,7 +35,13 @@ public class RollupInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
-        var usageAction = new RollupUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null);
+        var usageAction = new RollupUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            null
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage rollupUsage = future.get().getUsage();

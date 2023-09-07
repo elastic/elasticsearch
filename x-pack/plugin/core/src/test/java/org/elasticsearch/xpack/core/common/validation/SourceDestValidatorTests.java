@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.common.validation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
@@ -56,6 +56,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -125,17 +126,17 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     static {
         IndexMetadata source1 = IndexMetadata.builder(SOURCE_1)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(SOURCE_1_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata source2 = IndexMetadata.builder(SOURCE_2)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata aliasedDest = IndexMetadata.builder(ALIASED_DEST)
-            .settings(indexSettings(Version.CURRENT, 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
@@ -160,7 +161,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         }
 
         @Override
-        public Client getRemoteClusterClient(String clusterAlias) {
+        public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
             return this;
         }
 

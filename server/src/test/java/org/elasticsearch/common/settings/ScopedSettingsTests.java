@@ -9,7 +9,6 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -705,7 +705,11 @@ public class ScopedSettingsTests extends ESTestCase {
         AtomicInteger consumer = new AtomicInteger();
         service.addSettingsUpdateConsumer(testSetting, consumer::set);
         AtomicInteger consumer2 = new AtomicInteger();
-        service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> assertTrue(s > 0));
+        service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> {
+            if (s < 0) {
+                throw randomBoolean() ? new RuntimeException("inner message") : new IllegalArgumentException("inner message");
+            }
+        });
 
         AtomicInteger aC = new AtomicInteger();
         AtomicInteger bC = new AtomicInteger();
@@ -718,12 +722,12 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
-        try {
-            service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
-            fail("invalid value");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
-        }
+        final var iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build())
+        );
+        assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", iae.getMessage());
+        assertEquals("inner message", iae.getCause().getMessage());
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
@@ -1064,7 +1068,7 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0).put(indexSettings)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0).put(indexSettings)).build();
     }
 
     public void testKeyPattern() {

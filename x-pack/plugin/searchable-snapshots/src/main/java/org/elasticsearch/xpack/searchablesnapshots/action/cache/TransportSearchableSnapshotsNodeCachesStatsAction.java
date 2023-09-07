@@ -289,12 +289,12 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         @Override
         protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeCachesStatsResponse::new);
+            return in.readCollectionAsList(NodeCachesStatsResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

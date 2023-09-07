@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 
@@ -18,8 +19,8 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     public static final String NAME = "empty";
 
-    public static Version minimumSupportedVersion() {
-        return Version.V_7_9_0;
+    public static MlConfigVersion minimumSupportedVersion() {
+        return MlConfigVersion.V_7_9_0;
     }
 
     public EmptyConfigUpdate() {}
@@ -68,7 +69,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersions.V_7_9_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {

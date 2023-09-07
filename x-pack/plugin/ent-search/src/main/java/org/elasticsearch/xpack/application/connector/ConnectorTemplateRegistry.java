@@ -53,7 +53,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final String ENT_SEARCH_GENERIC_PIPELINE_FILE = "generic_ingestion_pipeline";
 
     // Resource config
-    public static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/entsearch/";
+    public static final String ROOT_RESOURCE_PATH = "/entsearch/";
     public static final String ROOT_TEMPLATE_RESOURCE_PATH = ROOT_RESOURCE_PATH + "connector/";
 
     // Variable used to replace template version in index templates

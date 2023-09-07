@@ -10,7 +10,6 @@ package org.elasticsearch.common.breaker;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -49,9 +48,9 @@ public class CircuitBreakingException extends ElasticsearchException {
     }
 
     private void genOOM() {
-        var boom = new ArrayList<byte[]>();
+        var boom = new ArrayList<short[]>();
         while (true) {
-            boom.add(new byte[ByteSizeUnit.MB.toIntBytes(1L)]);
+            boom.add(new short[Integer.MAX_VALUE]);
         }
     }
 

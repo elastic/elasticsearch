@@ -1136,7 +1136,6 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
-          buildDirectory: /dev/shm/bk
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2

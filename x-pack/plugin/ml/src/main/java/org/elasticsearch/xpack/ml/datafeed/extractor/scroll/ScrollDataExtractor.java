@@ -18,7 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.io.stream.BigBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -179,7 +179,7 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        BigBytesStreamOutput outputStream = new BytesStreamOutput();
+        BytesStreamOutput outputStream = new BytesStreamOutput();
 
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);

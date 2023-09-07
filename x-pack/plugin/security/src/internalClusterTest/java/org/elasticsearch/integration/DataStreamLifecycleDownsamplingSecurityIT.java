@@ -306,7 +306,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : mappings, null, lifecycle),
+                new Template(settings, mappings, null, lifecycle),
                 null,
                 null,
                 null,

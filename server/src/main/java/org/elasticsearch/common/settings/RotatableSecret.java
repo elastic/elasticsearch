@@ -13,7 +13,6 @@ import org.elasticsearch.core.TimeValue;
 
 import java.time.Instant;
 import java.util.concurrent.locks.StampedLock;
-import java.util.function.Consumer;
 
 /**
  * A {@link SecureString} that can be rotated with a grace period for the secret that has been rotated out.
@@ -76,8 +75,7 @@ public class RotatableSecret {
     }
 
     // for testing only
-    //TODO: adjust test so that i don't need to make this public
-    public Secrets getSecrets() {
+    Secrets getSecrets() {
         return secrets;
     }
 

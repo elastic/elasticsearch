@@ -162,7 +162,7 @@ public class InternalUsers {
                         // indices stats is used by rollover, so we need to grant it here
                         IndicesStatsAction.NAME + "*",
                         UpdateSettingsAction.NAME
-                        )
+                    )
                     .allowRestrictedIndices(true)
                     .build() },
             null,

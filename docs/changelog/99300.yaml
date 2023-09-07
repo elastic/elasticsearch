@@ -1,5 +1,5 @@
 pr: 99300
 summary: Change `GetFromTranslog` to indices action
-area: "Authorization, CRUD"
+area: CRUD
 type: bug
 issues: []

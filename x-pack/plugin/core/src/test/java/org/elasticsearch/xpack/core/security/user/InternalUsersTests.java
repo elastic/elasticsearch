@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -240,8 +241,9 @@ public class InternalUsersTests extends ESTestCase {
             RolloverAction.NAME,
             DeleteIndexAction.NAME,
             ForceMergeAction.NAME,
-            IndicesStatsAction.NAME
-        );
+            IndicesStatsAction.NAME,
+            UpdateSettingsAction.NAME
+            );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
         // Also check backing index access

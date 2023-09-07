@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.upgrade;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -91,8 +91,8 @@ public class StatelessUpgraderTests extends ESTestCase {
                     .add(localNode)
                     .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9202), "node2"))
             )
-            .putTransportVersion("node1", TransportVersion.V_8_500_034)
-            .putTransportVersion("node2", TransportVersion.V_8_500_034)
+            .putTransportVersion("node1", TransportVersions.V_8_500_034)
+            .putTransportVersion("node2", TransportVersions.V_8_500_034)
             .build();
 
         ClusterState oneUpgradedNode = ClusterState.builder(noUpgradeNodes)
@@ -131,8 +131,8 @@ public class StatelessUpgraderTests extends ESTestCase {
         );
         ClusterState noUpgradeNodes = ClusterState.builder(new ClusterName("cluster"))
             .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).masterNodeId(masterNode.getId()).add(localNode).add(masterNode))
-            .putTransportVersion("node1", TransportVersion.V_8_500_034)
-            .putTransportVersion("node2", TransportVersion.V_8_500_034)
+            .putTransportVersion("node1", TransportVersions.V_8_500_034)
+            .putTransportVersion("node2", TransportVersions.V_8_500_034)
             .build();
 
         ClusterState oneUpgradedNode = ClusterState.builder(noUpgradeNodes)

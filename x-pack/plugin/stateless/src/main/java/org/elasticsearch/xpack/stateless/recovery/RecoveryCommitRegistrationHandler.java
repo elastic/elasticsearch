@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.recovery;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,7 +30,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 public class RecoveryCommitRegistrationHandler {
-    public static final TransportVersion REQUIRED_MIN_VERSION = TransportVersion.V_8_500_066;
+    public static final TransportVersion REQUIRED_MIN_VERSION = TransportVersions.V_8_500_066;
     private static final Logger logger = LogManager.getLogger(RecoveryCommitRegistrationHandler.class);
 
     private final Client client;

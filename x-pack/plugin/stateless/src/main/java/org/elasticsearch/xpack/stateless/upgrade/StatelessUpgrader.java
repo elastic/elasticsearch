@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.upgrade;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.internal.Client;
@@ -30,7 +31,7 @@ import org.elasticsearch.core.TimeValue;
 
 public class StatelessUpgrader implements ClusterStateListener {
 
-    public static final TransportVersion RETRY_ALLOCATION_VERSION = TransportVersion.V_8_500_036;
+    public static final TransportVersion RETRY_ALLOCATION_VERSION = TransportVersions.V_8_500_036;
     private static final Logger logger = LogManager.getLogger(StatelessUpgrader.class);
 
     private final Client client;

@@ -317,23 +317,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         state = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(Objects.requireNonNull(state).metadata())
+                    .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
+                    .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-my_app-1",
-                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-my_app-2",
-                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "traces-my_app-1",
-                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
-                        )
+                        DataStreamTestHelper.newInstance("traces-my_app-1", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i")))
                     )
             )
             .build();
@@ -355,7 +342,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // no rollover on upgrade because the test registry doesn't support automatic rollover by default
-        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(0)));
+        // todo - what's the right way to verify that the result doesn't change from 0 (like assertBusy, but assertNotChanged)
+        assertThat(rolloverCounter.get(), equalTo(0));
 
         // test successful rollovers
         registry.setApplyRollover(true);
@@ -407,23 +395,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         state = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(Objects.requireNonNull(state).metadata())
+                    .put(DataStreamTestHelper.newInstance("logs-my_app-1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
+                    .put(DataStreamTestHelper.newInstance("logs-my_app-2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
                     .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-my_app-1",
-                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "logs-my_app-2",
-                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "traces-my_app-1",
-                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
-                        )
+                        DataStreamTestHelper.newInstance("traces-my_app-1", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i")))
                     )
             )
             .build();
@@ -729,19 +704,11 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         Map<String, Integer> existingIngestPipelines,
         DiscoveryNodes nodes
     ) {
-        ClusterState clusterState = createClusterState(
-            existingTemplates,
-            existingPolicies,
-            existingIngestPipelines,
-            nodes
-        );
+        ClusterState clusterState = createClusterState(existingTemplates, existingPolicies, existingIngestPipelines, nodes);
         return createClusterChangedEvent(nodes, clusterState);
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(
-        DiscoveryNodes nodes,
-        ClusterState state
-    ) {
+    private ClusterChangedEvent createClusterChangedEvent(DiscoveryNodes nodes, ClusterState state) {
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             state,
@@ -806,30 +773,10 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         state = ClusterState.builder(state)
             .metadata(
                 Metadata.builder(state.metadata())
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "ds1",
-                            Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "ds2",
-                            Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "ds3",
-                            Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))
-                        )
-                    )
-                    .put(
-                        DataStreamTestHelper.newInstance(
-                            "ds4",
-                            Collections.singletonList(new Index(".ds-ds4-000001", "ds4i"))
-                        )
-                    )
+                    .put(DataStreamTestHelper.newInstance("ds1", Collections.singletonList(new Index(".ds-ds1-000001", "ds1i"))))
+                    .put(DataStreamTestHelper.newInstance("ds2", Collections.singletonList(new Index(".ds-ds2-000001", "ds2i"))))
+                    .put(DataStreamTestHelper.newInstance("ds3", Collections.singletonList(new Index(".ds-ds3-000001", "ds3i"))))
+                    .put(DataStreamTestHelper.newInstance("ds4", Collections.singletonList(new Index(".ds-ds4-000001", "ds4i"))))
             )
             .build();
 
@@ -867,12 +814,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         );
 
         state = ClusterState.builder(state)
-            .metadata(
-                Metadata.builder(state.metadata())
-                    .put("it1", it1)
-                    .put("it2", it2)
-                    .put("it5", it5)
-            )
+            .metadata(Metadata.builder(state.metadata()).put("it1", it1).put("it2", it2).put("it5", it5))
             .build();
 
         assertThat(IndexTemplateRegistry.findRolloverTargetDataStreams(state, "it1", it1), containsInAnyOrder("ds1", "ds3"));

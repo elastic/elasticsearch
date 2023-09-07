@@ -40,14 +40,12 @@ import static org.elasticsearch.xpack.apm.ResourceUtils.loadVersionedResourceUTF
 public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(APMIndexTemplateRegistry.class);
 
-    // TODO(axw) when the template version is updated, data streams using the old
-    // version should be rolled over after upgrading. Ideally this would be done
-    // automatically: https://github.com/elastic/elasticsearch/issues/96521
-
     /**
-     * The version that will be assigned to all resources loaded by this registry instance, as specified in resources.yaml
+     * The version that will be assigned to all resources loaded by this registry instance, as specified in resources.yaml.
+     * The version is only meant to be set once during the registry instance construction. It is not final only to allow registry upgrade
+     * tests.
      */
-    private final int version;
+    private int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
@@ -69,7 +67,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 loadResource("/resources.yaml"),
                 false
             );
-            version = ((Number) apmResources.get("version")).intValue();
+            setVersion(((Number) apmResources.get("version")).intValue());
             final List<Object> componentTemplateNames = (List<Object>) apmResources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) apmResources.get("index-templates");
             final List<Object> ingestPipelineConfigs = (List<Object>) apmResources.get("ingest-pipelines");
@@ -87,6 +85,17 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Sets this registry instance version, which is the version that will be assigned to all resources managed by this registry instance.
+     * Not intended for any use other than during construction.
+     * Exposed with package-private access in order to allow registry upgrade tests.
+     *
+     * @param version this registry instance version
+     */
+    void setVersion(int version) {
+        this.version = version;
     }
 
     public int getVersion() {
@@ -151,5 +160,10 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
             APM_TEMPLATE_VERSION_VARIABLE,
             dependencies
         );
+    }
+
+    @Override
+    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+        return true;
     }
 }

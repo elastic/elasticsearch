@@ -70,20 +70,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         NamedWriteableRegistry namedWriteableRegistry,
         EsqlConfiguration configuration
     ) {
-        this(streamInput, registry, namedWriteableRegistry, configuration, DEFAULT_NAME_ID_FUNC.get());
-    }
-
-    public PlanStreamInput(
-        StreamInput streamInput,
-        PlanNameRegistry registry,
-        NamedWriteableRegistry namedWriteableRegistry,
-        EsqlConfiguration configuration,
-        LongFunction<NameId> nameIdFunction
-    ) {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
-        this.nameIdFunction = nameIdFunction;
         this.configuration = configuration;
+        this.nameIdFunction = DEFAULT_NAME_ID_FUNC.get();
     }
 
     NameId nameIdFromLongValue(long value) {

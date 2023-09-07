@@ -28,13 +28,16 @@ import org.elasticsearch.xpack.inference.services.InferenceService;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.unknownSettingsError;
+
 public class ElserMlNodeService implements InferenceService {
 
     public static final String NAME = "elser";
 
     public static Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> settings) {
-        Map<String, Object> serviceSettings = removeMApOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
-        Map<String, Object> taskSettings = removeMApOrThrowIfNull(settings, Model.TASK_SETTINGS);
+        Map<String, Object> serviceSettings = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
+        Map<String, Object> taskSettings = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
 
         return new Model(modelId, taskType, NAME, serviceSettingsFromMap(serviceSettings), taskSettingsFromMap(taskType, taskSettings));
     }
@@ -48,6 +51,10 @@ public class ElserMlNodeService implements InferenceService {
     @Override
     public Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         return parseConfigLenient(modelId, taskType, config);
+    }
+
+    public void init(Model model, ActionListener<Boolean> listener) {
+
     }
 
     @Override
@@ -86,7 +93,7 @@ public class ElserMlNodeService implements InferenceService {
     private static ServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
         // no config options yet
         if (config.isEmpty() == false) {
-            throw unknownSettingsError(config);
+            throw unknownSettingsError(config, NAME);
         }
         return new ElserServiceSettings();
     }
@@ -101,31 +108,14 @@ public class ElserMlNodeService implements InferenceService {
             );
         }
 
+//        Integer numAllocations = config.get(ElserTaskSettings.NUM_ALLOCATIONS);
+//        Integer numThreads = config.get(ElserTaskSettings.NUM_THREADS);
         // no config options yet
         if (config.isEmpty() == false) {
-            throw unknownSettingsError(config);
+            throw unknownSettingsError(config, NAME);
         }
 
-        return new ElserSparseEmbeddingTaskSettings();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> removeMApOrThrowIfNull(Map<String, Object> sourceMap, String fieldName) {
-        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
-        if (value == null) {
-            throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, fieldName);
-        }
-        return value;
-    }
-
-    private static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config) {
-        // TOOD map as JSON
-        return new ElasticsearchStatusException(
-            "Model configuration contains settings [{}] unknown to the [{}] service",
-            RestStatus.BAD_REQUEST,
-            config,
-            NAME
-        );
+        return ElserTaskSettings.DEFAULT;
     }
 
     @Override

@@ -20,5 +20,7 @@ public interface InferenceService {
 
     Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
+    void init(Model model, ActionListener<Boolean> listener);
+
     void infer(String modelId, TaskType taskType, String input, Map<String, Object> config, ActionListener<InferenceResult> listener);
 }

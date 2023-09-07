@@ -17,17 +17,32 @@ import org.elasticsearch.xpack.inference.TaskSettings;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ElserSparseEmbeddingTaskSettings implements TaskSettings {
+public class ElserTaskSettings implements TaskSettings {
 
     public static final String NAME = "elser_sparse_embedding";
+    public static final String NUM_ALLOCATIONS = "num_allocations";
+    public static final String NUM_THREADS = "num_threads";
 
-    public ElserSparseEmbeddingTaskSettings() {}
+    public static ElserTaskSettings DEFAULT = new ElserTaskSettings(1, 1);
 
-    public ElserSparseEmbeddingTaskSettings(StreamInput in) {}
+    private final int numAllocations;
+    private final int numThreads;
+
+    public ElserTaskSettings(int numAllocations, int numThreads) {
+        this.numAllocations = numAllocations;
+        this.numThreads = numThreads;
+    }
+
+    public ElserTaskSettings(StreamInput in) throws IOException {
+        numAllocations = in.readVInt();
+        numThreads = in.readVInt();
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(NUM_ALLOCATIONS, numAllocations);
+        builder.field(NUM_THREADS, numThreads);
         builder.endObject();
         return builder;
     }
@@ -44,19 +59,20 @@ public class ElserSparseEmbeddingTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(numAllocations);
+        out.writeVInt(numThreads);
+    }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ElserTaskSettings that = (ElserTaskSettings) o;
+        return numAllocations == that.numAllocations && numThreads == that.numThreads;
     }
 
     @Override
     public int hashCode() {
-        // TODO Class has no members all instances are equivalent
-        return Objects.hashCode(NAME);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        return true;
+        return Objects.hash(numAllocations, numThreads);
     }
 }

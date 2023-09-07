@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResult;
 import org.elasticsearch.xpack.inference.services.elser.ElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserSparseEmbeddingTaskSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserTaskSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +28,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 TaskSettings.class,
-                ElserSparseEmbeddingTaskSettings.NAME,
-                ElserSparseEmbeddingTaskSettings::new
+                ElserTaskSettings.NAME,
+                ElserTaskSettings::new
             )
         );
 

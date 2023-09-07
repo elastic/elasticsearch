@@ -20,7 +20,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 taskType,
                 ElserMlNodeService.NAME,
                 new ElserServiceSettings(),
-                new ElserSparseEmbeddingTaskSettings()
+                new ElserTaskSettings(1, 1) // TODO
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };

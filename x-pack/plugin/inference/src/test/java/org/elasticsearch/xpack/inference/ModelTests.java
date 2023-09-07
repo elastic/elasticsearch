@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.elser.ElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserSparseEmbeddingTaskSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserTaskSettings;
 
 public class ModelTests extends AbstractWireSerializingTestCase<Model> {
 
@@ -54,7 +54,7 @@ public class ModelTests extends AbstractWireSerializingTestCase<Model> {
     }
 
     private static TaskSettings randomTaskSettings(TaskType taskType) {
-        return new ElserSparseEmbeddingTaskSettings();
+        return new ElserTaskSettings(randomIntBetween(1, 5), randomIntBetween(1, 6));
     }
 
     @Override

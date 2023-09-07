@@ -104,7 +104,9 @@ public final class MappingParser {
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
+
         boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
+        boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -124,12 +126,17 @@ public final class MappingParser {
                     .build(MapperBuilderContext.forMetadata());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
+
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
                     // Validation in other places should have failed first
                     assert sfm.isSynthetic()
                         || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
                         : "synthetic source can't be disabled in a time series index";
                     isSourceSynthetic = sfm.isSynthetic();
+                }
+
+                if (metadataFieldMapper instanceof DataStreamTimestampFieldMapper dsfm) {
+                    isDataStream = dsfm.isEnabled();
                 }
             }
         }
@@ -159,7 +166,7 @@ public final class MappingParser {
         }
 
         return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic)),
+            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream)),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
             meta
         );

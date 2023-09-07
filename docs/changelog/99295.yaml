@@ -1,5 +1,0 @@
-pr: 99295
-summary: Fix `NameId` Mapper in `PlanStreamInput`
-area: ES|QL
-type: bug
-issues: []

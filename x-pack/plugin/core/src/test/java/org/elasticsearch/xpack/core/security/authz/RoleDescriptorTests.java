@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -495,7 +496,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersion.V_8_8_0);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -515,10 +516,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_8_0);
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -560,7 +561,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeWorkflowsRestriction
         );
         final BytesStreamOutput output = new BytesStreamOutput();

@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -54,7 +55,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         }
     }
 
-    private static final LongFunction<NameId> DEFAULT_NAME_ID_FUNC = new NameIdMapper();
+    private static final Supplier<LongFunction<NameId>> DEFAULT_NAME_ID_FUNC = NameIdMapper::new;
 
     private final PlanNameRegistry registry;
 
@@ -69,7 +70,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         NamedWriteableRegistry namedWriteableRegistry,
         EsqlConfiguration configuration
     ) {
-        this(streamInput, registry, namedWriteableRegistry, configuration, DEFAULT_NAME_ID_FUNC);
+        this(streamInput, registry, namedWriteableRegistry, configuration, DEFAULT_NAME_ID_FUNC.get());
     }
 
     public PlanStreamInput(

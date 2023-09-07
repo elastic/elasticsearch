@@ -336,7 +336,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99217")
     public void testFetchFullCacheEntry() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -370,11 +369,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             {
                 final var cacheKey = generateCacheKey();
                 assertEquals(5, cacheService.freeRegionCount());
-                AtomicLong bytesRead = new AtomicLong(size(250));
+                final long size = size(250);
+                AtomicLong bytesRead = new AtomicLong(size);
                 final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                cacheService.maybeFetchFullEntry(cacheKey, size(250), (channel, channelPos, relativePos, length, progressUpdater) -> {
-                    progressUpdater.accept(length);
+                cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(-length);
+                    progressUpdater.accept(length);
                 }, future);
 
                 future.get(10, TimeUnit.SECONDS);

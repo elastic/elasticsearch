@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -37,8 +38,8 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
 
 public class DesiredBalanceResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersion.V_8_7_0;
-    private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersion.V_8_8_0;
+    private static final TransportVersion CLUSTER_BALANCE_STATS_VERSION = TransportVersions.V_8_7_0;
+    private static final TransportVersion CLUSTER_INFO_VERSION = TransportVersions.V_8_8_0;
 
     private final DesiredBalanceStats stats;
     private final ClusterBalanceStats clusterBalanceStats;
@@ -197,9 +198,9 @@ public class DesiredBalanceResponse extends ActionResponse implements ChunkedToX
         List<String> tierPreference
     ) implements Writeable, ToXContentObject {
 
-        private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersion.V_8_7_0;
-        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersion.V_8_8_0;
-        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersion.V_8_8_0;
+        private static final TransportVersion ADD_FORECASTS_VERSION = TransportVersions.V_8_7_0;
+        private static final TransportVersion ADD_TIER_PREFERENCE = TransportVersions.V_8_8_0;
+        private static final TransportVersion NULLABLE_RELOCATING_NODE_IS_DESIRED = TransportVersions.V_8_8_0;
 
         public ShardView {
             assert (relocatingNode == null) == (relocatingNodeIsDesired == null)

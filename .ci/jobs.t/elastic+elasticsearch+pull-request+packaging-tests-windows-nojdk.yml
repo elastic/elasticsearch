@@ -27,6 +27,7 @@
             - 7.16
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - ':Delivery/Packaging'
           black-list-labels:

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.ttest;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -181,6 +182,6 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_8_0;
+        return TransportVersions.V_7_8_0;
     }
 }

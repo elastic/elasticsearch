@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
-    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersion.V_7_16_0;
+    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersions.V_7_16_0;
 
     public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 

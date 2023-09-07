@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
@@ -55,22 +56,30 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
     private final Scheduler scheduler;
+    private final Executor executor;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
-    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, Scheduler scheduler) {
+    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, ThreadPool threadPool) {
         // there tends to be a lot of state operations on an upgrade - this one is not time-critical,
         // so use LOW priority. It just needs to be run at some point after upgrade.
-        this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client, scheduler);
+        this(
+            service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()),
+            client,
+            threadPool,
+            threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION)
+        );
     }
 
     TransportVersionsFixupListener(
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue,
         ClusterAdminClient client,
-        Scheduler scheduler
+        Scheduler scheduler,
+        Executor executor
     ) {
         this.taskQueue = taskQueue;
         this.client = client;
         this.scheduler = scheduler;
+        this.executor = executor;
     }
 
     class NodeTransportVersionTask implements ClusterStateTaskListener {
@@ -147,7 +156,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private void scheduleRetry(Set<String> nodes, int thisRetryNum) {
         // just keep retrying until this succeeds
         logger.debug("Scheduling retry {} for nodes {}", thisRetryNum + 1, nodes);
-        scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, ThreadPool.Names.CLUSTER_COORDINATION);
+        scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, executor);
     }
 
     private void updateTransportVersions(Set<String> nodes, int retryNum) {

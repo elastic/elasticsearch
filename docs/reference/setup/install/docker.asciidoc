@@ -133,7 +133,7 @@ credentials using the following commands.
 --
 [source,sh,subs="attributes"]
 ----
-docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
 ----
 
@@ -202,28 +202,32 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_c
 
 . Pull the {kib} Docker image.
 +
+--
 ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {kib} has not yet been released, so no
 Docker image is currently available for this version.
 endif::[]
-+
+
 [source,sh,subs="attributes"]
 ----
 docker pull {kib-docker-image}
 ----
+--
 
 . Optional: Verify the {kib} image's signature.
 +
+--
 ifeval::["{release-state}"=="unreleased"]
 WARNING: Version {version} of {kib} has not yet been released, so no
 Docker image signature is currently available for this version.
 endif::[]
-+
+
 [source,sh,subs="attributes"]
 ----
 wget https://artifacts.elastic.co/cosign.pub
 cosign verify --key cosign.pub {kib-docker-image}
 ----
+--
 
 . Start a {kib} container.
 +
@@ -251,7 +255,7 @@ To regenerate the password, run:
 +
 [source,sh]
 ----
-docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 ----
 
 [[remove-containers-docker]]

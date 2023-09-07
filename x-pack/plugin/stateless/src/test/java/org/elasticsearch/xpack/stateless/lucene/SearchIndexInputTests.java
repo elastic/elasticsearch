@@ -59,9 +59,10 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             for (int i = 0; i < 100; i++) {
                 final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final byte[] input = randomChecksumBytes(randomIntBetween(1, 100_000)).v2();
+                final long primaryTerm = randomNonNegativeLong();
                 final SearchIndexInput indexInput = new SearchIndexInput(
                     fileName,
-                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, fileName), input.length),
+                    sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
                     TestUtils.singleBlobContainer(fileName, input),
                     sharedBlobCacheService,
@@ -97,9 +98,10 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final byte[] input = randomByteArrayOfLength(randomIntBetween(1, 100_000));
             final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final long primaryTerm = randomNonNegativeLong();
             final SearchIndexInput indexInput = new SearchIndexInput(
                 fileName,
-                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, fileName), input.length),
+                sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
                 TestUtils.singleBlobContainer(fileName, input),
                 sharedBlobCacheService,

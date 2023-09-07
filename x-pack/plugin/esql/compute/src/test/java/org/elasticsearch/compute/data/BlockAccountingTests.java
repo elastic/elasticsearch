@@ -9,12 +9,16 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
+import java.lang.reflect.Field;
 import java.util.BitSet;
+import java.util.Collection;
+import java.util.Map;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.hamcrest.Matchers.allOf;
@@ -22,7 +26,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class BlockAccountingTests extends ESTestCase {
 
     // A large(ish) upperbound simply so that effective greaterThan assertions are not unbounded
@@ -102,17 +105,29 @@ public class BlockAccountingTests extends ESTestCase {
             var emptyArray = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
             var arrayWithOne = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE)
         ) {
+            var acc = new RamUsageTester.Accumulator() {
+                @Override
+                public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+                    for (var entry : fieldValues.entrySet()) {
+                        if (entry.getKey().getType().equals(BigArrays.class)) {
+                            // skip BigArrays, as it is (correctly) not part of the ramBytesUsed for BytesRefArray
+                        } else if (o instanceof BigArray bigArray) {
+                            return bigArray.ramBytesUsed();
+                        } else {
+                            queue.add(entry.getValue());
+                        }
+                    }
+                    return shallowSize;
+                }
+            };
+            Vector emptyVector = new BytesRefArrayVector(emptyArray, 0);
+            long expectedEmptyVectorUsed = RamUsageTester.ramUsed(emptyVector, acc);
+            assertThat(emptyVector.ramBytesUsed(), is(expectedEmptyVectorUsed));
 
-            final long minus = RamUsageTester.ramUsed(BigArrays.NON_RECYCLING_INSTANCE);
             var bytesRef = new BytesRef(randomAlphaOfLengthBetween(1, 16));
             arrayWithOne.append(bytesRef);
-
-            Vector empty = new BytesRefArrayVector(emptyArray, 0);
-            long expectedEmptyUsed = RamUsageTester.ramUsed(empty) - minus;
-            assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed + emptyArray.ramBytesUsed()));
-
             Vector emptyPlusOne = new BytesRefArrayVector(arrayWithOne, 1);
-            assertThat(emptyPlusOne.ramBytesUsed(), between(empty.ramBytesUsed() + bytesRef.length, UPPER_BOUND)); // just an upper bound
+            assertThat(emptyPlusOne.ramBytesUsed(), between(emptyVector.ramBytesUsed() + bytesRef.length, UPPER_BOUND));
 
             // a filter becomes responsible for it's enclosing data, both in terms of accountancy and releasability
             Vector filterVector = emptyPlusOne.filter(1);

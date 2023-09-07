@@ -243,7 +243,7 @@ public class InternalUsersTests extends ESTestCase {
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
             UpdateSettingsAction.NAME
-            );
+        );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
         // Also check backing index access

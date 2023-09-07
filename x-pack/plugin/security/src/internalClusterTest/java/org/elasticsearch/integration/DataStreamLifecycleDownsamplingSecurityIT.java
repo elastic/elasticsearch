@@ -35,6 +35,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -134,11 +135,54 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         waitAndAssertDownsamplingCompleted(dataStreamName);
     }
 
-    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
-    public void testDownsamplingAuthorizedSystemDataStream() throws Exception {
+    public void testConfiguringLifecycleWithDownsamplingForSystemDataStreamFails() {
         String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
-        indexDocuments(client(), dataStreamName, 10_000);
-        waitAndAssertDownsamplingCompleted(dataStreamName);
+        indexDocuments(client(), dataStreamName, 100);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueMillis(0),
+                            new DownsampleConfig(new DateHistogramInterval("1s"))
+                        ),
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueSeconds(10),
+                            new DownsampleConfig(new DateHistogramInterval("10s"))
+                        )
+                    )
+                )
+            )
+            .build();
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutDataStreamLifecycleAction.INSTANCE,
+                new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, lifecycle)
+            ).actionGet()
+        );
+        assertThat(
+            illegalArgumentException.getMessage(),
+            is(
+                "System data streams do not support downsampling as part of their lifecycle "
+                    + "configuration. Encountered ["
+                    + dataStreamName
+                    + "] in the request"
+            )
+        );
+    }
+
+    public void testExplicitSystemDataStreamConfigurationWithDownsamplingFails() {
+        SystemDataStreamWithDownsamplingConfigurationPlugin pluginWithIllegalSystemDataStream =
+            new SystemDataStreamWithDownsamplingConfigurationPlugin();
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> pluginWithIllegalSystemDataStream.getSystemDataStreamDescriptors()
+        );
+        assertThat(
+            illegalArgumentException.getMessage(),
+            is("System data streams do not support downsampling as part of their lifecycle configuration")
+        );
     }
 
     private void waitAndAssertDownsamplingCompleted(String dataStreamName) throws Exception {
@@ -170,6 +214,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             assertNoAuthzErrors();
             assertThat(witnessedDownsamplingIndices.size(), is(2));
             assertThat(witnessedDownsamplingIndices.contains(oneSecondDownsampleIndex), is(true));
+
             assertThat(witnessedDownsamplingIndices.contains(tenSecondsDownsampleIndex), is(true));
         }, 30, TimeUnit.SECONDS);
 
@@ -338,6 +383,55 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
+
+            try {
+                return List.of(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATA_STREAM_NAME,
+                        "a system data stream for testing",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        new ComposableIndexTemplate(
+                            List.of(SYSTEM_DATA_STREAM_NAME),
+                            new Template(settings.build(), getTSDBMappings(), null, null),
+                            null,
+                            null,
+                            null,
+                            null,
+                            new ComposableIndexTemplate.DataStreamTemplate()
+                        ),
+                        Map.of(),
+                        Collections.singletonList("test"),
+                        new ExecutorNames(
+                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
+                            ThreadPool.Names.SYSTEM_READ,
+                            ThreadPool.Names.SYSTEM_WRITE
+                        )
+                    )
+                );
+            } catch (IOException e) {
+                throw new RuntimeException("Unable to create system data stream descriptor", e);
+            }
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SystemDataStreamTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "A plugin for testing the data stream lifecycle runtime actions on system data streams";
+        }
+    }
+
+    public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
+
+        static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
             DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new DataStreamLifecycle.Downsampling(
@@ -354,6 +448,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     )
                 )
                 .build();
+
             Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
 

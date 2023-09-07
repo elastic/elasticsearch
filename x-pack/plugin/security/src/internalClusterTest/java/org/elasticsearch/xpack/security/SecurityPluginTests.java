@@ -78,7 +78,7 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
 
     public void testThatPluginIsLoaded() throws IOException {
         try {
-            logger.info("executing unauthorized request to /_acxpack info");
+            logger.info("executing unauthorized request to /_xpack info");
             getRestClient().performRequest(new Request("GET", "/_xpack"));
             fail("request should have failed");
         } catch (ResponseException e) {

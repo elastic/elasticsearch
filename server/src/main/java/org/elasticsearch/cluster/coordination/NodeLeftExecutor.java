@@ -107,7 +107,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         DiscoveryNodes.Builder remainingNodesBuilder,
         Map<String, CompatibilityVersions> compatibilityVersions
     ) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).compatibilityVersions(compatibilityVersions).build();
+        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).compatibilityVersionsMap(compatibilityVersions).build();
     }
 
 }

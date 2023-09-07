@@ -80,8 +80,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
-            .putTransportVersion("master", TransportVersionUtils.randomVersion(random()))
-            .putTransportVersion("other", TransportVersionUtils.randomVersion(random()))
+            .putCompatibilityVersions("master", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
+            .putCompatibilityVersions("other", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
             .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -250,7 +250,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             versions.put(id, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
         }
 
-        return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersions(versions);
+        return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersionsMap(versions);
     }
 
     /**

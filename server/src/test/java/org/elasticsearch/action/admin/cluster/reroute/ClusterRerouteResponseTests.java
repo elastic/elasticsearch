@@ -323,7 +323,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersions.V_8_0_0)
+            .putCompatibilityVersions(node0.getId(), TransportVersions.V_8_0_0, Map.of())
             .metadata(
                 Metadata.builder()
                     .put(

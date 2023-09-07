@@ -1049,7 +1049,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .compatibilityVersions(
+            .compatibilityVersionsMap(
                 Map.of(
                     "nodeId1",
                     new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
@@ -1159,7 +1159,7 @@ public class ClusterStateTests extends ESTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();
-            builder.putTransportVersion("nodeTv" + i, tv);
+            builder.putCompatibilityVersions("nodeTv" + i, tv, Map.of());
             minVersion = Collections.min(List.of(minVersion, tv));
         }
 

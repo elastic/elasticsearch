@@ -187,7 +187,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startMasterAndIndexNode() {
-        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE));
+        return startMasterAndIndexNode(Settings.EMPTY);
+    }
+
+    protected String startMasterAndIndexNode(Settings extraSettings) {
+        return internalCluster().startNode(
+            settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE).put(extraSettings)
+        );
     }
 
     protected List<String> startIndexNodes(int numOfNodes) {

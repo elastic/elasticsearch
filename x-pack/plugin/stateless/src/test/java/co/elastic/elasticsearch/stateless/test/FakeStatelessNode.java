@@ -229,6 +229,7 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             commitService = new StatelessCommitService(
+                nodeSettings,
                 objectStoreService,
                 () -> clusterService.localNode().getEphemeralId(),
                 this::getShardRoutingTable,

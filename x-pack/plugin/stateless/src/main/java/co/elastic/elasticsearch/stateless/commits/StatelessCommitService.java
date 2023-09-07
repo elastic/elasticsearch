@@ -36,6 +36,10 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -52,6 +56,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -84,9 +89,23 @@ import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
-public class StatelessCommitService implements ClusterStateListener {
+public class StatelessCommitService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessCommitService.class);
+
+    /** How long an indexing shard should not have sent new commit notifications in order to be deemed as inactive. */
+    public static final Setting<TimeValue> SHARD_INACTIVITY_DURATION_TIME_SETTING = Setting.positiveTimeSetting(
+        "shard.inactivity.duration",
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.NodeScope
+    );
+
+    /** How frequently we check for inactive indexing shards to send new commit notifications. */
+    public static final Setting<TimeValue> SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
+        "shard.inactivity.monitor.interval",
+        TimeValue.timeValueMinutes(30),
+        Setting.Property.NodeScope
+    );
 
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
@@ -98,14 +117,20 @@ public class StatelessCommitService implements ClusterStateListener {
     private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
     private final StatelessCommitCleaner commitCleaner;
     private final NewCommitNotificationGrouperClient client;
+    private final TimeValue shardInactivityDuration;
+    private final TimeValue shardInactivityMonitorInterval;
+    private final ShardInactivityMonitor shardInactivityMonitor;
+    private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
 
     public StatelessCommitService(
+        Settings settings,
         ObjectStoreService objectStoreService,
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner
     ) {
         this(
+            settings,
             objectStoreService,
             () -> clusterService.localNode().getEphemeralId(),
             (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
@@ -116,6 +141,7 @@ public class StatelessCommitService implements ClusterStateListener {
     }
 
     public StatelessCommitService(
+        Settings settings,
         ObjectStoreService objectStoreService,
         Supplier<String> ephemeralNodeIdSupplier,
         Function<ShardId, IndexShardRoutingTable> shardRouting,
@@ -129,6 +155,9 @@ public class StatelessCommitService implements ClusterStateListener {
         this.threadPool = threadPool;
         this.client = new NewCommitNotificationGrouperClient(client);
         this.commitCleaner = commitCleaner;
+        this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
+        this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
+        this.shardInactivityMonitor = new ShardInactivityMonitor();
     }
 
     public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit recoveredCommit, Set<BlobFile> unreferencedFiles) {
@@ -144,6 +173,48 @@ public class StatelessCommitService implements ClusterStateListener {
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
+    }
+
+    @Override
+    protected void doStart() {
+        scheduledShardInactivityMonitorFuture = threadPool.scheduleWithFixedDelay(
+            shardInactivityMonitor,
+            shardInactivityMonitorInterval,
+            threadPool.executor(ThreadPool.Names.GENERIC)
+        );
+    }
+
+    @Override
+    protected void doStop() {
+        scheduledShardInactivityMonitorFuture.cancel();
+    }
+
+    @Override
+    protected void doClose() throws IOException {}
+
+    /**
+     * An always rescheduled runnable that monitors shards which have been inactive, i.e., have not received indexing, for a long time, and
+     * sends new commit notification to search shards.
+     */
+    private class ShardInactivityMonitor implements Runnable {
+
+        @Override
+        public void run() {
+            if (lifecycleState() != Lifecycle.State.STARTED) {
+                return;
+            }
+
+            shardsCommitsStates.forEach((shardId, commitState) -> {
+                if (commitState.isClosed == false) {
+                    long elapsed = threadPool.relativeTimeInMillis() - commitState.lastNewCommitNotificationSentTimestamp;
+                    // TODO (ES-6726) improvement: there should be unpromotable searches registered in order to send out the notification.
+                    if (elapsed > shardInactivityDuration.getMillis()) {
+                        logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
+                        commitState.resendLatestNewCommitNotification();
+                    }
+                }
+            });
+        }
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
@@ -172,27 +243,7 @@ public class StatelessCommitService implements ClusterStateListener {
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
-                var shardRoutingTable = shardRouting.apply(commit.shardId());
-                var releasables = shardRoutingTable.unpromotableShards()
-                    .stream()
-                    .map(
-                        shardRouting -> commitState.trackOutstandingUnpromotableShardCommitRef(
-                            shardRouting.currentNodeId(),
-                            compoundCommitBlob
-                        )
-                    )
-                    .toList();
-
-                NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
-                client.sendRequest(request, ActionListener.releaseAfter(ActionListener.wrap(response -> {
-                    commitState.trackReferencedCommitsByUnpromotableShards(response.getUsedPrimaryTermAndGenerations());
-                    var consumer = commitNotificationSuccessListeners.get(shardId);
-                    if (consumer != null) {
-                        consumer.accept(generation);
-                    }
-                }, e -> logger.warn(() -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation), e)),
-                    Releasables.wrap(releasables)
-                ));
+                commitState.sendNewCommitNotification(compoundCommitBlob, commit);
             }
 
             @Override
@@ -442,7 +493,7 @@ public class StatelessCommitService implements ClusterStateListener {
         private List<Consumer<UploadedCommitInfo>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
-        private volatile long generationUploaded = -1;
+        private volatile StatelessCompoundCommit latestUploadedCommit = null; // having the highest generation ever uploaded
         private volatile boolean isClosed;
         // map generations to compound commit blob instances
         private final Map<PrimaryTermAndGeneration, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
@@ -450,6 +501,7 @@ public class StatelessCommitService implements ClusterStateListener {
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
+        private volatile long lastNewCommitNotificationSentTimestamp = -1;
 
         private ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
@@ -674,20 +726,21 @@ public class StatelessCommitService implements ClusterStateListener {
 
         private void handleUploadedCommit(StatelessCompoundCommit commit) {
             final long newGeneration = commit.generation();
+
             List<ActionListener<UploadedCommitInfo>> listenersToFire = null;
             List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
             synchronized (this) {
-                generationUploaded = Math.max(generationUploaded, newGeneration);
-
-                // Generation did not increase so just bail early
-                if (generationUploaded != newGeneration) {
+                if (newGeneration > getMaxUploadedGeneration()) {
+                    latestUploadedCommit = commit;
+                } else {
+                    // Generation did not increase so just bail early
                     return;
                 }
 
                 if (generationListeners != null) {
                     for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
                         Long generation = tuple.v1();
-                        if (generationUploaded >= generation) {
+                        if (getMaxUploadedGeneration() >= generation) {
                             if (listenersToFire == null) {
                                 listenersToFire = new ArrayList<>();
                             }
@@ -717,6 +770,59 @@ public class StatelessCommitService implements ClusterStateListener {
         }
 
         /**
+         * Gets the max generation uploaded, by accessing the latest uploaded {@link StatelessCompoundCommit} without synchronization,
+         * or -1 otherwise.
+         */
+        public long getMaxUploadedGeneration() {
+            return latestUploadedCommit == null ? -1L : latestUploadedCommit.generation();
+        }
+
+        private void sendNewCommitNotification(CompoundCommitBlob compoundCommitBlob, StatelessCompoundCommit commit) {
+            assert commit != null;
+            var shardRoutingTable = shardRouting.apply(commit.shardId());
+            var releasables = shardRoutingTable.unpromotableShards()
+                .stream()
+                .map(shardRouting -> trackOutstandingUnpromotableShardCommitRef(shardRouting.currentNodeId(), compoundCommitBlob))
+                .toList();
+
+            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
+            client.sendRequest(request, ActionListener.releaseAfter(ActionListener.wrap(response -> {
+                trackReferencedCommitsByUnpromotableShards(response.getUsedPrimaryTermAndGenerations());
+                var consumer = commitNotificationSuccessListeners.get(shardId);
+                if (consumer != null) {
+                    consumer.accept(commit.generation());
+                }
+            },
+                e -> logger.warn(
+                    () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, commit.generation()),
+                    e
+                )
+            ), Releasables.wrap(releasables)));
+        }
+
+        private void resendLatestNewCommitNotification() {
+            StatelessCompoundCommit latestStatelessCompoundCommitUploaded = null;
+            ShardCommitState.CompoundCommitBlob latestCompoundCommitBlob = null;
+
+            // Get latest uploaded stateless compound commit and the respective compound commit blob
+            synchronized (this) {
+                if (latestUploadedCommit == null) {
+                    return;
+                }
+                latestStatelessCompoundCommitUploaded = latestUploadedCommit;
+                PrimaryTermAndGeneration termGen = new PrimaryTermAndGeneration(
+                    latestStatelessCompoundCommitUploaded.primaryTerm(),
+                    latestStatelessCompoundCommitUploaded.generation()
+                );
+                latestCompoundCommitBlob = compoundCommitBlobs.get(termGen);
+                assert latestCompoundCommitBlob != null : "could not find latest " + termGen + " in compound commit blobs";
+            }
+
+            sendNewCommitNotification(latestCompoundCommitBlob, latestStatelessCompoundCommitUploaded);
+        }
+
+        /**
          * Register a listener that is invoked once a commit with the given generation has been uploaded to the object store. The listener
          * is invoked only once.
          *
@@ -729,7 +835,7 @@ public class StatelessCommitService implements ClusterStateListener {
             synchronized (this) {
                 if (isClosed) {
                     completeListenerClosed = true;
-                } else if (generationUploaded >= generation) {
+                } else if (getMaxUploadedGeneration() >= generation) {
                     // Location already visible, just call the listener
                     completeListenerSuccess = true;
                 } else {
@@ -1059,7 +1165,7 @@ public class StatelessCommitService implements ClusterStateListener {
             // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
             // In that case, try the latest commit.
             // TODO: add an accessor for the latest commit (should it also incRef?)
-            long lastUploadedGeneration = shardCommitsState.generationUploaded;
+            long lastUploadedGeneration = shardCommitsState.getMaxUploadedGeneration();
             long primaryTerm = lastUploadedGeneration == shardCommitsState.recoveredGeneration
                 ? shardCommitsState.recoveredPrimaryTerm
                 : shardCommitsState.allocationPrimaryTerm;

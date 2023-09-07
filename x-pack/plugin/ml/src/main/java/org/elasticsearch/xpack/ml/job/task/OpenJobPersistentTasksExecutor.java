@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -83,7 +84,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.
-    private static final TransportVersion MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = TransportVersion.V_7_11_0;
+    private static final TransportVersion MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = TransportVersions.V_7_11_0;
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {

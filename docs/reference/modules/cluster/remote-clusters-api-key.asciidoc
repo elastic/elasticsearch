@@ -48,6 +48,8 @@ To add a remote cluster using API key authentication:
 . <<remote-clusters-connect-api-key>>
 . <<remote-clusters-privileges-api-key>>
 
+If you run into any issues, refer to <<remote-clusters-troubleshooting>>.
+
 [[remote-clusters-prerequisites-api-key]]
 ==== Prerequisites
 

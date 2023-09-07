@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
@@ -39,7 +39,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             profileResult = in.readOptionalWriteable(ProfileResult::new);
         } else {
             profileResult = null;
@@ -50,7 +50,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             out.writeOptionalWriteable(profileResult);
         }
     }

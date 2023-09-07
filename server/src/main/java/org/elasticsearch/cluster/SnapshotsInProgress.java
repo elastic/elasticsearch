@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -192,10 +193,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
-    private static final TransportVersion DIFFABLE_VERSION = TransportVersion.V_8_5_0;
+    private static final TransportVersion DIFFABLE_VERSION = TransportVersions.V_8_5_0;
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
@@ -1614,7 +1615,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.MINIMUM_COMPATIBLE;
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         @Override

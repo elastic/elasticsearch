@@ -11,6 +11,7 @@ package org.elasticsearch.test;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -731,7 +732,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 }

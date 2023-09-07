@@ -10,6 +10,7 @@ package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -137,7 +138,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
 
         private static final DecayFunction decayFunction = new LinearMultScoreFunction();

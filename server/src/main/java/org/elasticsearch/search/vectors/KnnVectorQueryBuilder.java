@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -80,19 +81,19 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         super(in);
         this.fieldName = in.readString();
         this.numCands = in.readVInt();
-        if (in.getTransportVersion().before(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
             this.queryVector = in.readFloatArray();
             this.byteQueryVector = null;
         } else {
             this.queryVector = in.readBoolean() ? in.readFloatArray() : null;
             this.byteQueryVector = in.readBoolean() ? in.readByteArray() : null;
         }
-        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
             this.filterQueries = new ArrayList<>();
         } else {
             this.filterQueries = readQueries(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
             this.vectorSimilarity = null;
@@ -142,7 +143,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(numCands);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             boolean queryVectorNotNull = queryVector != null;
             out.writeBoolean(queryVectorNotNull);
             if (queryVectorNotNull) {
@@ -165,10 +166,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             out.writeFloatArray(f);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             writeQueries(out, filterQueries);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
     }
@@ -270,6 +271,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_0_0;
+        return TransportVersions.V_8_0_0;
     }
 }

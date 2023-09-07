@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +43,7 @@ public class StartRecoveryRequest extends TransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_070)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
             clusterStateVersion = in.readVLong();
         } else {
             clusterStateVersion = 0L; // bwc: do not wait for cluster state to be applied
@@ -164,7 +164,7 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_070)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
             out.writeVLong(clusterStateVersion);
         } // else bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         metadataSnapshot.writeTo(out);

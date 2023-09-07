@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -50,7 +50,7 @@ public class StatelessPrimaryRelocationAction {
             shardId = new ShardId(in);
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_070)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
                 clusterStateVersion = in.readVLong();
             } else {
                 clusterStateVersion = 0L; // temporary bwc: do not wait for cluster state to be applied
@@ -69,7 +69,7 @@ public class StatelessPrimaryRelocationAction {
             shardId.writeTo(out);
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_070)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_072)) {
                 out.writeVLong(clusterStateVersion);
             } // temporary bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         }

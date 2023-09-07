@@ -19,4 +19,4 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import org.elasticsearch.index.shard.ShardId;
 
-public record FileCacheKey(ShardId shardId, String fileName) {}
+public record FileCacheKey(ShardId shardId, long primaryTerm, String fileName) {}

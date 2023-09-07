@@ -293,7 +293,7 @@ public class SearchDirectory extends ByteSizeDirectory {
         }
         return new SearchIndexInput(
             name,
-            cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.blobLength()),
+            cacheService.getCacheFile(new FileCacheKey(shardId, location.primaryTerm(), location.blobName()), location.blobLength()),
             context,
             blobContainer.get().apply(location.primaryTerm()),
             cacheService,

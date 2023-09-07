@@ -28,7 +28,9 @@ import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.function.LongFunction;
 
 /**
@@ -37,7 +39,22 @@ import java.util.function.LongFunction;
  */
 public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
-    private static final LongFunction<NameId> DEFAULT_NAME_ID_FUNC = NameId::new;
+    /**
+     * A Mapper of stream named id, represented as a primitive long value, to NameId instance.
+     * The no-args NameId constructor is used for absent entries, as it will automatically select
+     * and increment an id from the global counter, thus avoiding potential conflicts between the
+     * id in the stream and id's during local re-planning on the data node.
+     */
+    static final class NameIdMapper implements LongFunction<NameId> {
+        final Map<Long, NameId> seen = new HashMap<>();
+
+        @Override
+        public NameId apply(long streamNameId) {
+            return seen.computeIfAbsent(streamNameId, k -> new NameId());
+        }
+    }
+
+    private static final LongFunction<NameId> DEFAULT_NAME_ID_FUNC = new NameIdMapper();
 
     private final PlanNameRegistry registry;
 

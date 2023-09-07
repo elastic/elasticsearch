@@ -57,6 +57,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public static final ParseField DOCS_FIELD = new ParseField("docs");
     public static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
+    private static final TransportVersion OPTIONAL_INDEX_IN_DOCS_VERSION = TransportVersions.V_8_500_071;
+
     private final List<String> ids;
     private final List<Item> docs;
     private QueryBuilder organicQuery;
@@ -84,10 +86,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * @param id and its id
          */
         public Item(String index, String id) {
-            if (index == null) {
-                throw new IllegalArgumentException("Item requires index to be non-null");
-            }
-            if (Regex.isSimpleMatchPattern(index)) {
+            if (index != null && Regex.isSimpleMatchPattern(index)) {
                 throw new IllegalArgumentException("Item index cannot contain wildcard expressions");
             }
             if (id == null) {
@@ -106,20 +105,35 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
          * Read from a stream.
          */
         public Item(StreamInput in) throws IOException {
-            index = in.readString();
+            if (in.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                index = in.readOptionalString();
+            } else {
+                index = in.readString();
+            }
             id = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(index);
+            if (out.getTransportVersion().onOrAfter(OPTIONAL_INDEX_IN_DOCS_VERSION)) {
+                out.writeOptionalString(index);
+            } else {
+                if (index == null) {
+                    throw new IllegalArgumentException(
+                        "[_index] needs to be specified for docs elements when cluster nodes are not in the same version"
+                    );
+                }
+                out.writeString(index);
+            }
             out.writeString(id);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            if (this.index != null) {
+                builder.field(INDEX_FIELD.getPreferredName(), this.index);
+            }
             builder.field(ID_FIELD.getPreferredName(), this.id);
             return builder.endObject();
         }
@@ -130,7 +144,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         );
 
         static {
-            PARSER.declareString(constructorArg(), INDEX_FIELD);
+            PARSER.declareString(optionalConstructorArg(), INDEX_FIELD);
             PARSER.declareString(constructorArg(), ID_FIELD);
         }
 

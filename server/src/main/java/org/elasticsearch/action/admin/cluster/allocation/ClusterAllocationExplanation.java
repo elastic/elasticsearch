@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -68,7 +68,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
             this.specificShard = in.readBoolean();
         } else {
             this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
@@ -82,7 +82,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
             out.writeBoolean(specificShard);
         } // else suppress "this is a random shard" warning in BwC situations
         shardRouting.writeTo(out);

@@ -9,7 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1223,7 +1223,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? SERIALIZATION_FORMAT
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
@@ -1364,7 +1364,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? SERIALIZATION_FORMAT
                 : FORMAT_NO_VERSION_TYPE;
             out.writeVInt(format);
@@ -1504,7 +1504,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
-        if (input.getTransportVersion().before(TransportVersion.V_8_8_0)) {
+        if (input.getTransportVersion().before(TransportVersions.V_8_8_0)) {
             for (int i = 0; i < numOps; i++) {
                 operations.add(readOperation(checksumStreamInput));
             }
@@ -1554,7 +1554,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (size == 0) {
             return;
         }
-        if (outStream.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (outStream.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
             for (Operation op : toWrite) {
                 writeOperationNoSize(checksumStreamOutput, op);

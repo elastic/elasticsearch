@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -326,7 +326,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersion.V_8_0_0)
+            .putTransportVersion(node0.getId(), TransportVersions.V_8_0_0)
             .metadata(
                 Metadata.builder()
                     .put(

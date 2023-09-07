@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -233,7 +234,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersion.V_7_15_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_7_15_0)) {
             ids = in.readStringCollectionAsList();
             docs = null;
         } else {
@@ -245,7 +246,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_7_15_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_7_15_0)) {
             out.writeStringCollection(this.ids);
         } else {
             out.writeOptionalStringCollection(this.ids);
@@ -404,6 +405,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 }

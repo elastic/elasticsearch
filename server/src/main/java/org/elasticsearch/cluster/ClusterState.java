@@ -134,12 +134,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(CompatibilityVersions value, StreamOutput out) throws IOException {
-                TransportVersion.writeVersion(value.transportVersion(), out);
+                value.writeTo(out);
             }
 
             @Override
             public CompatibilityVersions read(StreamInput in, String key) throws IOException {
-                return new CompatibilityVersions(TransportVersion.readVersion(in), Map.of());
+                return CompatibilityVersions.readVersion(in);
             }
         };
 

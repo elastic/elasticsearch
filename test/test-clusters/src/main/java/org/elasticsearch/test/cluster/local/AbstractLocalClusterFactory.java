@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.cluster.ClusterFactory;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
@@ -63,7 +62,7 @@ import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
 public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H extends LocalClusterHandle>
     implements
-        ClusterFactory<S, H> {
+        LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
     private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();

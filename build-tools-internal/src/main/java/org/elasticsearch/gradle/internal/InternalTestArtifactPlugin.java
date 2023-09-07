@@ -10,6 +10,9 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaLibraryPlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
@@ -23,7 +26,10 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(InternalTestArtifactBasePlugin.class);
         InternalTestArtifactExtension testArtifactExtension = project.getExtensions().getByType(InternalTestArtifactExtension.class);
-        SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
-        testArtifactExtension.registerTestArtifactFromSourceSet(testSourceSet);
+        project.getExtensions().getByType(SourceSetContainer.class).all(sourceSet -> {
+            if (sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME) == false) {
+                testArtifactExtension.registerTestArtifactFromSourceSet(sourceSet);
+            }
+        });
     }
 }

@@ -170,8 +170,8 @@ fetch a tag:
 ---
 "fetch the tsid":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:
@@ -184,7 +184,7 @@ fetch a tag:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: [{_tsid: "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}]}
 
 ---
 aggregate a dimension:
@@ -265,8 +265,8 @@ aggregate a tag:
 ---
 "aggregate the tsid":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:
@@ -308,8 +308,8 @@ aggregate a tag:
 ---
 sort by tsid:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:
@@ -318,7 +318,7 @@ sort by tsid:
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  - match: {hits.hits.0.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635804467]}
-  - match: {hits.hits.1.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635824467]}
-  - match: {hits.hits.4.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635803142]}
-  - match: {hits.hits.7.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635863142]}
+  - match: {hits.hits.0.sort: [{ _tsid : "q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt"}, 1619635803142]}
+  - match: {hits.hits.1.sort: [{ _tsid : "q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt"}, 1619635823142]}
+  - match: {hits.hits.4.sort: [{ _tsid : "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}, 1619635804467]}
+  - match: {hits.hits.7.sort: [{ _tsid : "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}, 1619635864467]}

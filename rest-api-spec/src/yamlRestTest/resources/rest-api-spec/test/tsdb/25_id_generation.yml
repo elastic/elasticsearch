@@ -211,8 +211,8 @@ create operation on top of old document fails:
 ---
 create operation on top of old document fails over bulk:
   - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       bulk:
@@ -221,13 +221,13 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{_tsid=q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
   - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:
@@ -240,9 +240,9 @@ ids query:
               values: ["cn4exTOUtxytuLkQAAABeRnR_mY", "cZZNs4NdV58ePSPIAAABeRnSA5M"]
           sort: ["@timestamp"]
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "cn4exTOUtxytuLkQAAABeRnR_mY"}
+  - match: {hits.hits.0._id: "cn4exWs7v3M2l8W_AAABeRnR_mY"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "cZZNs4NdV58ePSPIAAABeRnSA5M"}
+  - match: {hits.hits.1._id: "cZZNs-e5_7Eqw0RIAAABeRnSA5M"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---

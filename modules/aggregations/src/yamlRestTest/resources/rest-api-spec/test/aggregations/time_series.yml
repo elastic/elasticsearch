@@ -54,8 +54,8 @@ setup:
 ---
 "Basic test":
   - skip:
-      version: " - 8.6.99"
-      reason: Time series result serialization changed in 8.6.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:
@@ -76,7 +76,7 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "RGqc4j2v9houOhyLbojV0RSqi9yhwd0OzmU" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
 ---
@@ -107,8 +107,8 @@ setup:
 ---
 "Size test":
   - skip:
-      version: " - 8.6.99"
-      reason: Size added in 8.7.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       search:

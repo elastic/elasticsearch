@@ -1,8 +1,8 @@
 keyword dimension:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
 
   - do:
@@ -64,19 +64,19 @@ keyword dimension:
                     field: voltage
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {uid: 947e4ced-1786-4e53-9e0c-5c447e959507}}
+  - match: {aggregations.tsids.buckets.0.key: {_tsid: "AIyzSj05ihHDOqC4_tr4552crJx0TqjcW7g"}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.3, error: 0.01 }}
-  - match: {aggregations.tsids.buckets.1.key: {uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9}}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 3.3, error: 0.01 }}
+  - match: {aggregations.tsids.buckets.1.key: {_tsid: "AIyzSj112oDhOtNCfOZzwsTk1dFwRk7N1Ok"}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
-  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.3, error: 0.01 }}
 
 ---
 flattened dimension:
   - skip:
       features: close_to
-      version: " - 8.7.99"
-      reason: flattened field support as dimension added in 8.8.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
 
   - do:
@@ -143,44 +143,44 @@ flattened dimension:
   - match: { hits.total.value: 8}
   - length: { aggregations.tsids.buckets: 4}
 
-  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: "1516op6778" }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.minor: "8" }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.patch: "0" }
+  - match: { aggregations.tsids.buckets.0.key._tsid: "_kNKbD0oaZ29OgfsaEw9eRDHRzrIzN4RPXkQx0c6MyW1mT3jCuTKOgCMs0o9ddqA4ToLLl9hH3dYvJfQ2itG5erT" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.minor: null }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.patch: null }
   - match: { aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.09, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.35, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: "1516op6885" }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.minor: "8" }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.patch: "0" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: "_kNKbD2rnf7qOgfsaEw9eRDHRzrIzN4RPXkQx0c6MyW1mT2LDvTuOgCMs0o9OYoRwzp_JH2u_f61eKTtc7WKDxz2" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.minor: null }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.patch: null }
   - match: { aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.35, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.75, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "16w3xaca09" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.minor: "8" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.patch: "1" }
+  - match: { aggregations.tsids.buckets.2.key._tsid: "_kNKbD3P1l1UOgfsaEw9eRDHRzrIzN4RPXkQx0c6MyW1mT3jCuTKOgCMs0o9ddqA4TqthmN6Hp0it0rJEKT-tx88" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.minor: null }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.patch: null }
   - match: { aggregations.tsids.buckets.2.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.64, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.10, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "16w3xacq34" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.minor: "8" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.patch: "1" }
+  - match: { aggregations.tsids.buckets.3.key._tsid: "_kNKbD3gKelzOgfsaEw9eRDHRzrIzN4RPXkQx0c6MyW1mT2LDvTuOgCMs0o9OYoRwzq2_k34oJmdL2fZQ7k7CHYf" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.minor: null }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.patch: null }
   - match: { aggregations.tsids.buckets.3.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.65, error: 0.01 }}
 
 ---
 flattened empty dimension:
   - skip:
       features: close_to
-      version: " - 8.7.99"
-      reason: flattened field support as dimension added in 8.8.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
 
   - do:
@@ -247,21 +247,21 @@ flattened empty dimension:
   - match: { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 2 }
 
-  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key._tsid: "AIyzSj05ihHDOqC4_tr4552crJx0TqjcW7g" }
   - match: { aggregations.tsids.buckets.0.doc_count: 4 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.22, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 6.69, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: "AIyzSj112oDhOtNCfOZzwsTk1dFwRk7N1Ok" }
   - match: { aggregations.tsids.buckets.1.doc_count: 4 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.22, error: 0.01 }}
 
 
 ---
 flattened field missing routing path field:
   - skip:
       features: close_to
-      version: " - 8.7.99"
-      reason: flattened field support as dimension added in 8.8.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       indices.create:
@@ -327,54 +327,54 @@ flattened field missing routing path field:
   - match: { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 6 }
 
-  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key._tsid: "44GrMT3xTXebOgfsaEw9eRDHRzoAjLNKPTmKEcM6weBqMfSkCLURxvYg7_XhDA" }
   - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: null }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: null }
   - match: { aggregations.tsids.buckets.0.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: "44GrMT3xTXebOgfsaEw9eRDHRzoAjLNKPXXagOE6GbruwU-xzOsh9ZZJhOBfUw" }
   - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: null }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: null }
   - match: { aggregations.tsids.buckets.1.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.30, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "1516op6778" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.2.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.09, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.2.key._tsid: "44GrMT3xTXebOv5DSmw9KGmdvToH7GhMPXkQx0c6AIyzSj112oDhOjpbv9RozLKOlpbIO-C6F2M" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.40, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "1516op6885" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.3.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 7.40, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.3.key._tsid: "44GrMT3xTXebOv5DSmw9q53-6joH7GhMPXkQx0c6AIyzSj05ihHDOkZFQrdV9cMHIc2Yv5avEAQ" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.3.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.4.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.tag: "16w3xaca09" }
-  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.4.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.4.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.4.voltage.value: { value: 6.59, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.4.key._tsid: "44GrMT3xTXebOv5DSmw9z9ZdVDoH7GhMPXkQx0c6AIyzSj112oDhOktc_H930xsM7SVUdyQEec0" }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.4.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.4.voltage.value: { value: 7.10, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.5.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.tag: "16w3xacq34" }
-  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.branch: "release-8.8" }
-  - match: { aggregations.tsids.buckets.5.key.deployment\.version\.major: "8" }
-  - match: { aggregations.tsids.buckets.5.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.5.voltage.value: { value: 6.75, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.5.key._tsid: "44GrMT3xTXebOv5DSmw94CnpczoH7GhMPXkQx0c6AIyzSj05ihHDOphogYqrNlaBjWszNoYt_vM" }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.branch: null }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.version\.major: null }
+  - match: { aggregations.tsids.buckets.5.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.5.voltage.value: { value: 6.60, error: 0.01 }}
 
 ---
 flattened field misspelled routing path field:
   - skip:
       features: close_to
-      version: " - 8.7.99"
-      reason: flattened field support as dimension added in 8.8.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       indices.create:
@@ -445,28 +445,28 @@ flattened field misspelled routing path field:
   - match: { hits.total.value: 6 }
   - length: { aggregations.tsids.buckets: 4 }
 
-  - match: { aggregations.tsids.buckets.0.key._tsid: CGcajru3QohMHSqC7Hamag }
-  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.09, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.0.key._tsid: "_kNKbD0oaZ29OmgpnMwz_lb52slXKOVHbNg" }
+  - match: { aggregations.tsids.buckets.0.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.40, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key._tsid: QTTaRfl0gDouwjSzzE09QA }
-  - match: { aggregations.tsids.buckets.1.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.59, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.1.key._tsid: "_kNKbD2rnf7qOrrF1oUBkaXNQ_lHN_ixdkU" }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.75, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key._tsid: aCmczDP-VvnayVco5Uds2A }
-  - match: { aggregations.tsids.buckets.2.doc_count: 1 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.40, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.2.key._tsid: "_kNKbD3P1l1UOghnGo67t0KITB0qgux2pmo" }
+  - match: { aggregations.tsids.buckets.2.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.10, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key._tsid: usXWhQGRpc1D-Uc3-LF2RQ }
-  - match: { aggregations.tsids.buckets.3.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
+  - match: { aggregations.tsids.buckets.3.key._tsid: "_kNKbD3gKelzOkE02kX5dIA6LsI0s8xNPUA" }
+  - match: { aggregations.tsids.buckets.3.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.60, error: 0.01 }}
 
 ---
 long dimension:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       indices.create:
@@ -540,8 +540,8 @@ long dimension:
 ip dimension:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.10.99"
+      reason: _tsid hasing introduced in 8.11
 
   - do:
       indices.create:
@@ -604,10 +604,10 @@ ip dimension:
                     field: voltage
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: { _tsid: "4Yt2mD1DgKYdOlaZAWQ973outjqByH6Leukt8Syv6_LtDjuE"}}
+  - match: {aggregations.tsids.buckets.0.key: { _tsid: "4h8Hlj3Yzb-vOlaZAWQ973outjpBT4iJTy1L0m3hsXJt8DKM"}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 3.3, error: 0.01 }}
-  - match: {aggregations.tsids.buckets.1.key: { _tsid: "4Yt2mD2tm41vOlaZAWQ973outjrbyf07xExY7uwo0Fb0U9i9" }}
+  - match: {aggregations.tsids.buckets.1.key: { _tsid: "4h8Hlj3aaOFKOlaZAWQ973outjq8M4UoPsTYTRpxgCKGd65O"}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
   - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.3, error: 0.01 }}
 

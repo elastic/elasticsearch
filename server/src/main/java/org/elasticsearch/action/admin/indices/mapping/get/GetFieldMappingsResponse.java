@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +52,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
         mappings = in.readImmutableMap(mapIn -> {
-            if (mapIn.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (mapIn.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 int typesSize = mapIn.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
                 if (typesSize == 0) {
@@ -154,7 +154,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(mappings, (outpt, map) -> {
-            if (outpt.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (outpt.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 outpt.writeVInt(1);
                 outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
             }

@@ -11,7 +11,7 @@ package org.elasticsearch.indices.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -203,7 +203,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
                 new ShardId(in);
             }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
@@ -217,12 +217,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
                 // no compatible version cares about the shard ID, we can just make one up
                 FAKE_SHARD_ID.writeTo(out);
 
                 // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0) : out.getTransportVersion();
+                assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
             out.writeCollection(peerRecoveryRetentionLeases);

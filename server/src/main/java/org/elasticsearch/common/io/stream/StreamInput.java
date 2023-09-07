@@ -13,6 +13,8 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -762,10 +764,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
@@ -790,6 +792,7 @@ public abstract class StreamInput extends InputStream {
             case 27 -> readOffsetTime();
             case 28 -> readDuration();
             case 29 -> readPeriod();
+            case 30 -> readNamedWriteable(GenericNamedWriteable.class);
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -1066,114 +1069,6 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
-     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
-     *
-     * @return the list of objects
-     * @throws IOException if an I/O exception occurs reading the list
-     * @deprecated use {@link #readCollectionAsList}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
-        return readCollectionAsList(reader);
-    }
-
-    /**
-     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeCollection}.
-     * The returned list is immutable.
-     *
-     * @return the list of objects
-     * @throws IOException if an I/O exception occurs reading the list
-     * @deprecated use {@link #readCollectionAsImmutableList}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
-        return readCollectionAsImmutableList(reader);
-    }
-
-    /**
-     * Same as {@link #readStringList()} but always returns an immutable list.
-     *
-     * @return immutable list of strings
-     * @throws IOException on failure
-     * @deprecated use {@link #readStringCollectionAsImmutableList}.
-     */
-    @Deprecated(forRemoval = true)
-    public List<String> readImmutableStringList() throws IOException {
-        return readStringCollectionAsImmutableList();
-    }
-
-    /**
-     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
-     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
-     *
-     * @return the list of strings
-     * @throws IOException if an I/O exception occurs reading the list
-     * @deprecated use {@link #readStringCollectionAsList}.
-     */
-    @Deprecated(forRemoval = true)
-    public List<String> readStringList() throws IOException {
-        return readStringCollectionAsList();
-    }
-
-    /**
-     * Reads an optional list. The list is expected to have been written using
-     * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
-     * If it is empty it might be immutable.
-     * @deprecated use {@link #readOptionalCollectionAsList}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
-        return readOptionalCollectionAsList(reader);
-    }
-
-    /**
-     * Reads an optional list of strings. The list is expected to have been written using
-     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
-     * If it is empty it might be immutable.
-     *
-     * @return the list of strings
-     * @throws IOException if an I/O exception occurs reading the list
-     * @deprecated use {@link #readOptionalStringCollectionAsList}.
-     */
-    @Deprecated(forRemoval = true)
-    public List<String> readOptionalStringList() throws IOException {
-        return readOptionalStringCollectionAsList();
-    }
-
-    /**
-     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
-     * @deprecated use {@link #readCollectionAsSet}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
-        return readCollectionAsSet(reader);
-    }
-
-    /**
-     * Reads a set of objects. The set is expected to have been written using {@link StreamOutput#writeCollection(Collection)}} with
-     * a collection that contains no duplicates. The returned set is immutable.
-     *
-     * @return the set of objects
-     * @throws IOException if an I/O exception occurs reading the set
-     * @deprecated use {@link #readCollectionAsImmutableSet}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T> Set<T> readImmutableSet(final Writeable.Reader<T> reader) throws IOException {
-        return readCollectionAsImmutableSet(reader);
-    }
-
-    /**
-     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
-     * If it is empty it might be immutable.
-     * @deprecated use {@link #readNamedWriteableCollectionAsList}.
-     */
-    @Deprecated(forRemoval = true)
-    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
-        return readNamedWriteableCollectionAsList(categoryClass);
-    }
-
-    /**
      * Reads a list of objects which was written using {@link StreamOutput#writeCollection}. If the returned list contains any entries it
      * will be a (mutable) {@link ArrayList}. If it is empty it might be immutable.
      */
@@ -1238,7 +1133,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set of objects which was written using {@link StreamOutput#writeCollection}}. If the returned set contains any entries it
+     * Reads a set of objects which was written using {@link StreamOutput#writeCollection}. If the returned set contains any entries it
      * will a (mutable) {@link HashSet}. If it is empty it might be immutable. The collection that was originally written should also have
      * been a set.
      */
@@ -1275,6 +1170,20 @@ public abstract class StreamInput extends InputStream {
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a collection which was written using {@link StreamOutput#writeCollection}, accumulating the results using the provided
+     * consumer.
+     */
+    public <C> C readCollection(IntFunction<C> constructor, CheckedBiConsumer<StreamInput, C, IOException> itemConsumer)
+        throws IOException {
+        int count = readArraySize();
+        var result = constructor.apply(count);
+        for (int i = 0; i < count; i++) {
+            itemConsumer.accept(this, result);
+        }
+        return result;
     }
 
     /**

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -247,6 +248,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersions.V_7_9_0;
     }
 }

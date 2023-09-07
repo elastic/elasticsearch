@@ -10,6 +10,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -285,7 +286,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return models.stream()
             .map(TrainedModel::getMinimalCompatibilityVersion)
             .max(TransportVersion::compareTo)
-            .orElse(TransportVersion.V_7_6_0);
+            .orElse(TransportVersions.V_7_6_0);
     }
 
     public static class Builder {

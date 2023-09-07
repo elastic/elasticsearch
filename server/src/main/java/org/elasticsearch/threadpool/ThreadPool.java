@@ -533,16 +533,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
-    /**
-     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
-     */
-    @SuppressWarnings("removal")
-    @Deprecated(forRemoval = true)
-    @Override
-    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return scheduleWithFixedDelay(command, interval, executor(executor));
-    }
-
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
         var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {

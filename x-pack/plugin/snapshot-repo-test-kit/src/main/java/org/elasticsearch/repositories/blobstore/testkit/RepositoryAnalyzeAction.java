@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -802,7 +802,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWritePermitted = in.readBoolean();
             } else {
                 abortWritePermitted = false;
@@ -829,7 +829,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
                 throw new IllegalStateException(

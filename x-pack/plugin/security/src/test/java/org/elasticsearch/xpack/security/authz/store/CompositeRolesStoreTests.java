@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -1884,7 +1885,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
             TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
@@ -1967,7 +1968,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final TransportVersion version = randomFrom(
             TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1)
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
         );
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,

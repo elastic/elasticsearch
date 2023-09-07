@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -34,6 +35,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -99,7 +101,10 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    TransportVersion recordedTv = builder.transportVersions().get(e.getKey());
+                    var cvMap = builder.compatibilityVersions();
+                    TransportVersion recordedTv = Optional.ofNullable(cvMap.get(e.getKey()))
+                        .map(CompatibilityVersions::transportVersion)
+                        .orElse(null);
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
                     if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
@@ -113,9 +118,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     @Override
@@ -129,9 +134,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
-            Set<String> nodes = getTransportVersions(event.state()).entrySet()
+            Set<String> nodes = getCompatibilityVersions(event.state()).entrySet()
                 .stream()
-                .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
+                .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 

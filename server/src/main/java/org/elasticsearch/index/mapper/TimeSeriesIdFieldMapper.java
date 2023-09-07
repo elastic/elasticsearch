@@ -12,6 +12,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,12 +36,14 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -143,10 +146,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         final BytesReference timeSeriesId = timeSeriesIdBuilder.build();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), hash128(timeSeriesId).toBytesRef()));
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.similarityHash(timeSeriesId).toBytesRef()));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId.toBytesRef());
     }
 
+    // TODO: remove if using {@link TimeSeriesIdBuilder#similarityHash(BytesReference)}
     public static BytesReference hash128(final BytesReference timeSeriesId) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             final byte[] buffer = new byte[16];
@@ -156,6 +160,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, 0, hash);
             ByteUtils.writeLongLE(hash.h1, buffer, 0);
             ByteUtils.writeLongLE(hash.h2, buffer, 8);
+            // TODO: maybe remove Base64 encoding and do it in {@link TimeSeriesIdFieldMapper#decodeTsid(StreamInput)} )}
             final BytesRef encoded = new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(buffer));
             out.writeBytesRef(encoded);
             return out.bytes();
@@ -179,7 +184,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         try {
             int sizeOrTsidHashSentinel = in.readVInt();
             if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                return Collections.singletonMap("_tsid", in.readBytesRef().utf8ToString());
+                final BytesRef bytesRef = in.readBytesRef();
+                return Collections.singletonMap("_tsid", Base64.getUrlEncoder().withoutPadding().encodeToString(bytesRef.bytes));
             }
             Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
@@ -206,12 +212,17 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static class TimeSeriesIdBuilder implements DocumentDimensions {
+
+        public static final int MAX_DIMENSIONS = 512;
+
+        private record DimensionDataHolder(BytesReference fieldName, int fieldNameHash, BytesReference value, int valueHash) {}
+
         /**
-         * A sorted map of the serialized values of dimension fields that will be used
+         * A sorted set of the serialized values of dimension fields that will be used
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
          * to build the _tsid field for the document.
          */
-        private final SortedMap<BytesRef, BytesReference> dimensions = new TreeMap<>();
+        private final SortedSet<DimensionDataHolder> dimensions = new TreeSet<>(Comparator.comparing(o -> o.fieldName));
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
@@ -229,11 +240,47 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(dimensions.size());
-                for (Map.Entry<BytesRef, BytesReference> entry : dimensions.entrySet()) {
-                    final BytesRef fieldName = entry.getKey();
-                    out.writeBytesRef(fieldName);
-                    entry.getValue().writeTo(out);
+                for (DimensionDataHolder entry : dimensions) {
+                    out.writeBytesRef(entry.fieldName.toBytesRef());
+                    entry.value.writeTo(out);
                 }
+                return out.bytes();
+            }
+        }
+
+        /**
+         * Here we build the hash of the tsid using a similarity function so that we have a result
+         * with the following pattern:
+         *
+         * ${similarityHash(_tsid)}-${hash(_tsid)}.
+         *
+         * The idea is to be able to place 'similar' time series close to each other. Two time series
+         * are considered 'similar' if they share the same values for a subset of the dimensions (sorted
+         * names/values).
+         */
+        public BytesReference similarityHash(final BytesReference timeSeriesId) throws IOException {
+            int bufferIndex = 0;
+            // 512 entries of (hash32(fieldName) + '=' + hash32(fieldValue) + ":") plus the timeSeriesIdBytesRef hash on 128 bits
+            final byte[] buffer = new byte[MAX_DIMENSIONS * 10 + 16];
+            for (final DimensionDataHolder dimensionDataHolder : dimensions) {
+                if (bufferIndex >= MAX_DIMENSIONS) break;
+                ByteUtils.writeIntLE(dimensionDataHolder.fieldNameHash, buffer, bufferIndex);
+                ByteUtils.writeIntLE('=', buffer, bufferIndex + 4);
+                ByteUtils.writeIntLE(dimensionDataHolder.valueHash, buffer, bufferIndex + 5);
+                ByteUtils.writeIntLE(':', buffer, bufferIndex + 9);
+                bufferIndex += 10;
+            }
+            final BytesRef timeSeriesIdBytesRef = timeSeriesId.toBytesRef();
+            final MurmurHash3.Hash128 tsidFullHash = new MurmurHash3.Hash128();
+            MurmurHash3.hash128(timeSeriesIdBytesRef.bytes, timeSeriesIdBytesRef.offset, timeSeriesIdBytesRef.length, 0, tsidFullHash);
+            ByteUtils.writeLongLE(tsidFullHash.h1, buffer, bufferIndex);
+            bufferIndex += 8;
+            ByteUtils.writeLongLE(tsidFullHash.h2, buffer, bufferIndex);
+            bufferIndex += 8;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(TSID_HASH_SENTINEL);
+                final BytesRef hash = new BytesRef(Arrays.copyOfRange(buffer, 0, bufferIndex));
+                out.writeBytesRef(hash);
                 return out.bytes();
             }
         }
@@ -291,11 +338,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
 
-        private void add(String fieldName, BytesReference encoded) {
-            BytesReference old = dimensions.put(new BytesRef(fieldName), encoded);
-            if (old != null) {
+        private void add(String fieldName, BytesReference encoded) throws IOException {
+            final BytesArray fieldNameBytesRef = new BytesArray(fieldName);
+            final DimensionDataHolder dimension = new DimensionDataHolder(
+                fieldNameBytesRef,
+                StringHelper.murmurhash3_x86_32(fieldNameBytesRef.toBytesRef(), 0),
+                encoded,
+                StringHelper.murmurhash3_x86_32(encoded.toBytesRef(), 0)
+            );
+            if (dimensions.contains(dimension)) {
                 throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
             }
+            dimensions.add(dimension);
         }
     }
 

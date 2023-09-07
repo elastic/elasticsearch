@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -77,15 +76,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "value").field("b", 100).field("c", 500));
-        assertThat(
-            doc.rootDoc().getBinaryValue("_tsid"),
-            equalTo(new BytesRef("\u0002\u0001as\u0005value\u0001bl\u0000\u0000\u0000\u0000\u0000\u0000\u0000d"))
-        );
-        assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
-        assertThat(doc.rootDoc().getField("b").numericValue(), equalTo(100L));
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", "value").entry("b", 100L)
+            matchesMap().entry("_tsid", "smklPD3uDjjxOgN-3pU9PwT2Ojp-syegKjheHg5h5ERLJH6q")
         );
     }
 
@@ -132,7 +125,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         );
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
-            matchesMap().entry("a", "foo").entry("o.e", "bort")
+            matchesMap().entry("_tsid", "smklPD2v9houOmeyDcA9tA-WtDo47R9yulyYUoudsXFaYRtH")
         );
     }
 
@@ -148,9 +141,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Map<String, Object> tsid = TimeSeriesIdFieldMapper.decodeTsid(
             new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)
         );
-        assertMap(tsid, matchesMap().entry(coffee, "good").entry(fire, "hot"));
-        // Also make sure the keys are in order
-        assertThat(List.copyOf(tsid.keySet()), equalTo(List.of(coffee, fire)));
+        assertMap(tsid, matchesMap().entry("_tsid", "2vZdwj2ejAXjOviZF9Y9DKlQ6jqs_5V1RcDg-M6kBhZ5cO40"));
     }
 
     public void testKeywordTooLong() throws IOException {
@@ -161,7 +152,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)));
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", "more_than_1024_bytes".repeat(52))
+            matchesMap().entry("_tsid", "smklPD29ZDUoOsglT7sfXPKk_XyMzgZv1OM")
         );
     }
 
@@ -174,7 +165,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)));
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", theWordLong.repeat(200))
+            matchesMap().entry("_tsid", "smklPD1M43f6OplCG-jkf0ftosS7HTvPX9Q")
         );
     }
 
@@ -215,7 +206,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
-            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", 1234L)
+            matchesMap().entry("_tsid", "smklPD2tm41vOuD2FrQ9SrpJyzpnsg3APd1wa2A6wmulw_SDY7Ceqg2_cpDqoQ")
         );
     }
 
@@ -269,7 +260,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
-            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Integer.MIN_VALUE)
+            matchesMap().entry("_tsid", "smklPD2tm41vOuD2FrQ9SrpJyzpnsg3APdXyEVA6iVca07m_g8ACVY2SDNSrWw")
         );
     }
 
@@ -327,7 +318,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
-            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Short.MIN_VALUE)
+            matchesMap().entry("_tsid", "smklPD2tm41vOuD2FrQ9SrpJyzpnsg3APSYAWY86NJtZIt97lRcRUmcsL5Wx2Q")
         );
     }
 
@@ -385,7 +376,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
-            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Byte.MIN_VALUE)
+            matchesMap().entry("_tsid", "smklPD2tm41vOuD2FrQ9SrpJyzpnsg3APSgrqoc6Jd0t9U26YHnblyf7j8D6Nw")
         );
     }
 
@@ -443,7 +434,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("kw", "kw").entry("a", "192.168.0.1").entry("o.e", "255.255.255.1")
+            matchesMap().entry("_tsid", "smklPD0LrOlWOuD2FrQ9SrpJyzpnsg3APbPzTuw6XwWVVVRBrzAohq4krNO_Vg")
         );
     }
 
@@ -479,7 +470,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("_tsid", new BytesRef("hash-I0H5PpthdzedQ50vMO9Y3Q"))
+            matchesMap().entry(
+                "_tsid",
+                "A37elT2v9houOt_AxbA9WKlBkzpDxtikPVipQZM63evtJj1YqUGTOmcGd009WKlBkzoL00iOPVipQZM6HcyYDT1YqUGTOmP60TU9WKlBkzomGtdvPVipQZM6nzBSpz1YqUGTOhCUdPc9WKlBkzrt94dlPVipQZM6tpOXzz1YqUGTOh3AKiU9WKlBkzqzeblUPVipQZM64cqTnD1YqUGTOo7laSA9WKlBkzrsUq91PVipQZM6werJIj1YqUGTOv35ZJw9WKlBkzqVPxV2PVipQZM6EXQ--T1YqUGTOrQj-k49WKlBkzpvCEIlPVipQZM6aBOtmD1YqUGTOuPkbfc9WKlBkzpbjZwZPVipQZM69D3Ilz1YqUGTOuxzV_s9WKlBkzrSfQp1PVipQZM6_cSVAD1YqUGTOnC5_2s9WKlBkzrN0KotPVipQZM6YDdNnj1YqUGTOgHxRIM9WKlBkzofqtnuPVipQZM6Ol1y0z1YqUGTOocA5Ws9WKlBkzo_lx9_PVipQZM6vYmcTj1YqUGTOraOdYA9WKlBkzq4XTKzPVipQZM6IAcd1j1YqUGTOmJz9-09WKlBkzo3MbjRPVipQZM63bx19j1YqUGTOuBxVpk9WKlBkzoGxKMZPVipQZM6QrzUnD1YqUGTOvRyFPE9WKlBkzo6syljPVipQZM6tgdVsT1YqUGTOiNB-T6bYXc3nUOdLzDvWN0"
+            )
         );
     }
 

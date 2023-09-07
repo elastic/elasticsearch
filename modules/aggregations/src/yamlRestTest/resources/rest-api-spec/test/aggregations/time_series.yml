@@ -126,7 +126,7 @@ setup:
                 size: 1
 
   - length: { aggregations.ts.buckets: 1 }
-  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
 
   - do:
       search:
@@ -144,9 +144,9 @@ setup:
                 size: 3
 
   - length: { aggregations.ts.buckets: 3 }
-  - match: { aggregations.ts.buckets.0.key: { "key": "bar" } }
-  - match: { aggregations.ts.buckets.1.key: { "key": "baz" } }
-  - match: { aggregations.ts.buckets.2.key: { "key": "foo" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: HItuiNXRFKqL3KHB3Q7OZQ } }
+  - match: { aggregations.ts.buckets.1.key: { _tsid: fCw9K58Pz_Ibpj8g2Gdtsg } }
+  - match: { aggregations.ts.buckets.2.key: { _tsid: g4DKHI17Abkfzziime-XEQ } }
 
 ---
 "Score test filter some":

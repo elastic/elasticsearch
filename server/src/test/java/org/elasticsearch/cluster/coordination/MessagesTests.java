@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -242,7 +243,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
-            TransportVersionUtils.randomVersion(),
+            new CompatibilityVersions(TransportVersionUtils.randomVersion()),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -254,21 +255,23 @@ public class MessagesTests extends ESTestCase {
                 if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
                     return new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
-                        joinRequest.getTransportVersion(),
+                        joinRequest.getCompatibilityVersions(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
                 } else if (randomBoolean()) {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
-                        TransportVersionUtils.randomVersion(Set.of(joinRequest.getTransportVersion())),
+                        new CompatibilityVersions(
+                            TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion()))
+                        ),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
                 } else if (randomBoolean()) {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
-                        joinRequest.getTransportVersion(),
+                        joinRequest.getCompatibilityVersions(),
                         randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                         joinRequest.getOptionalJoin()
                     );
@@ -290,7 +293,7 @@ public class MessagesTests extends ESTestCase {
                     }
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
-                        joinRequest.getTransportVersion(),
+                        joinRequest.getCompatibilityVersions(),
                         joinRequest.getMinimumTerm(),
                         newOptionalJoin
                     );

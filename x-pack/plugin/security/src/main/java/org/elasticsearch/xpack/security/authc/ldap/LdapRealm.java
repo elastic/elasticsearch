@@ -14,12 +14,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -159,7 +159,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             logger
         );
         threadPool.generic().execute(cancellableLdapRunnable);
-        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override
@@ -181,7 +181,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 logger
             );
             threadPool.generic().execute(cancellableLdapRunnable);
-            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
+            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         } else {
             userActionListener.onResponse(null);
         }

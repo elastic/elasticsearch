@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -103,7 +104,7 @@ public class TaskResultsService {
                 } else {
                     TimeValue wait = backoff.next();
                     logger.warn(() -> "failed to store task result, retrying in [" + wait + "]", e);
-                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
+                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 }
             }
         });

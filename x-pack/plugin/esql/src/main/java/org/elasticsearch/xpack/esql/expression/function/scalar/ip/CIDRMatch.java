@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -106,7 +105,7 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

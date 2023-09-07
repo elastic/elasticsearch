@@ -9,6 +9,7 @@ emp_no:integer |avg_worked_seconds:long
 
 inShortAndByte
 from employees | keep emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+ignoreOrder:true
 
 emp_no:integer |languages.short:short|languages.byte:byte
 10003          |4                    |4
@@ -17,6 +18,7 @@ emp_no:integer |languages.short:short|languages.byte:byte
 
 inCast
 from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+ignoreOrder:true
 
 emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 10003          |4                   |200296405               |1.83
@@ -26,6 +28,7 @@ emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
 // `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
 inOverNulls
 from employees | keep emp_no, languages | where languages is null or emp_no <= 10030 | where languages in (2, 3, emp_no);
+ignoreOrder:true
 
 emp_no:integer |languages:integer
 10001          |2
@@ -360,7 +363,7 @@ autoBucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL bs = auto_bucket(salary, 20, 25324, 74999)
-| SORT hire_date
+| SORT hire_date, salary
 | KEEP hire_date, salary, bs
 // end::auto_bucket[]
 ;
@@ -375,8 +378,8 @@ hire_date:date           | salary:integer | bs:double
 1985-10-14T00:00:00.000Z | 54329          | 50000.0
 1985-10-20T00:00:00.000Z | 48735          | 45000.0
 1985-11-19T00:00:00.000Z | 52833          | 50000.0
-1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-20T00:00:00.000Z | 33956          | 30000.0
+1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-21T00:00:00.000Z | 56371          | 55000.0
 // end::auto_bucket-result[]
 ;

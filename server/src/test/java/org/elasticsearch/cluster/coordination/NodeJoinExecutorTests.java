@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
@@ -57,6 +58,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -159,21 +161,24 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
             .toList();
         TransportVersion min = Collections.min(versions);
+        List<CompatibilityVersions> compatibilityVersions = versions.stream().map(CompatibilityVersions::new).toList();
 
         // should not throw
         NodeJoinExecutor.ensureTransportVersionBarrier(
-            TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()),
-            versions
+            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
+            compatibilityVersions
         );
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureTransportVersionBarrier(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    TransportVersionUtils.getFirstVersion(),
-                    TransportVersionUtils.getPreviousVersion(min)
+                new CompatibilityVersions(
+                    TransportVersionUtils.randomVersionBetween(
+                        random(),
+                        TransportVersionUtils.getFirstVersion(),
+                        TransportVersionUtils.getPreviousVersion(min)
+                    )
                 ),
-                versions
+                compatibilityVersions
             )
         );
     }
@@ -697,6 +702,39 @@ public class NodeJoinExecutorTests extends ESTestCase {
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testResetsNodeLeftGenerationOnNewTerm() throws Exception {
+        final AllocationService allocationService = createAllocationService();
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+
+        final long term = randomLongBetween(0, Long.MAX_VALUE - 1);
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(term).build()))
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).add(otherNode).remove(otherNode))
+            .build();
+
+        assertEquals(term, clusterState.term());
+        assertEquals(1L, clusterState.nodes().getNodeLeftGeneration());
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.completingElection(
+                    Stream.of(new JoinTask.NodeJoinTask(otherNode, TransportVersion.current(), TEST_REASON, NOT_COMPLETED_LISTENER)),
+                    randomLongBetween(term + 1, Long.MAX_VALUE)
+                )
+            )
+        );
+
+        assertThat(resultingState.term(), greaterThan(term));
+        assertEquals(0L, resultingState.nodes().getNodeLeftGeneration());
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

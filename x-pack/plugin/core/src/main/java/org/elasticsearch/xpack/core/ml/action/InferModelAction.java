@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -147,20 +147,20 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
         }
@@ -222,13 +222,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
         }
@@ -316,7 +316,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
+            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
             this.id = in.readOptionalString();
         }
@@ -335,7 +335,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableList(inferenceResults);
+            out.writeNamedWriteableCollection(inferenceResults);
             out.writeBoolean(isLicensed);
             out.writeOptionalString(id);
         }

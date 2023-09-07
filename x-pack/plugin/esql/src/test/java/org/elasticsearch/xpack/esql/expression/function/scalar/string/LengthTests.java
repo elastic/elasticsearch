@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,7 +26,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LengthTests extends AbstractScalarFunctionTestCase {
-    public LengthTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public LengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -33,8 +34,8 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("length basic test", () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
-            return new TestCase(
-                List.of(new TypedData(value, DataTypes.KEYWORD, "f")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
                 "LengthEvaluator[val=Attribute[channel=0]]",
                 DataTypes.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
@@ -50,9 +51,9 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         ));
     }
 
-    private static TestCase makeTestCase(String text, int expectedLength) {
-        return new TestCase(
-            List.of(new TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
+    private static TestCaseSupplier.TestCase makeTestCase(String text, int expectedLength) {
+        return new TestCaseSupplier.TestCase(
+            List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
             "LengthEvaluator[val=Attribute[channel=0]]",
             DataTypes.INTEGER,
             equalTo(expectedLength)
@@ -64,7 +65,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         return DataTypes.INTEGER;
     }
 
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
     }
 

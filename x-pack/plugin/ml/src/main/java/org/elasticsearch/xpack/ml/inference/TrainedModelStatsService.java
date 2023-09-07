@@ -161,7 +161,7 @@ public class TrainedModelStatsService {
         scheduledFuture = threadPool.scheduleWithFixedDelay(
             this::updateStats,
             PERSISTENCE_INTERVAL,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 

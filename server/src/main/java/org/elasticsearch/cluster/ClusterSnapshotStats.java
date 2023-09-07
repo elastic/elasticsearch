@@ -184,7 +184,7 @@ public record ClusterSnapshotStats(
             in.readVInt(),
             in.readVInt(),
             in.readVInt(),
-            in.readList(PerRepositoryStats::readFrom)
+            in.readCollectionAsList(PerRepositoryStats::readFrom)
         );
     }
 

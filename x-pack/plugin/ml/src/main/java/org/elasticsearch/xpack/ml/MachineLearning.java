@@ -1160,7 +1160,8 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsAuditor,
             indexNameExpressionResolver,
             resultsPersisterService,
-            modelLoadingService
+            modelLoadingService,
+            machineLearningExtension.get().getAnalyticsDestIndexAllowedSettings()
         );
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 

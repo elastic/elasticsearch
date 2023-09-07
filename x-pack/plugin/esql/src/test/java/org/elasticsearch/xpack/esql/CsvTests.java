@@ -25,7 +25,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -132,7 +131,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * To log the results logResults() should return "true".
  */
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -233,12 +232,12 @@ public class CsvTests extends ESTestCase {
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, log);
+        assertResults(expected, actualResults, testCase.ignoreOrder, log);
         assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
     }
 
-    protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
-        CsvAssert.assertResults(expected, actual, logger);
+    protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
          * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
          * This is useful when creating a new test or trying to figure out what are the actual results.

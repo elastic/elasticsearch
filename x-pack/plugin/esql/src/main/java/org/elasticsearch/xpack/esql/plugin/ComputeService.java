@@ -140,6 +140,9 @@ public class ComputeService {
             return;
         }
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
+
+        LOGGER.info("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
+
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
         computeTargetNodes(
             rootTask,

@@ -10,6 +10,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -54,7 +55,7 @@ public class TransportActionProxyTests extends ESTestCase {
         IndexVersion.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
-    protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
+    protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;

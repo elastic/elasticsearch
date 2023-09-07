@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -112,12 +113,12 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_13_0;
+        return TransportVersions.V_7_13_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.modelAliases, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.modelAliases, StreamOutput::writeWriteable);
     }
 
     public String getModelId(String modelAlias) {
@@ -162,7 +163,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_13_0;
+            return TransportVersions.V_7_13_0;
         }
 
     }

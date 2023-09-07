@@ -169,7 +169,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
-        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+        assertThat(exception.getMessage(), equalTo("value is missing"));
     }
 
     public void testExists() throws IOException {

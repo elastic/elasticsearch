@@ -308,7 +308,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 TimeValue.timeValueSeconds(5),
                 TimeValue.timeValueMillis(Long.MAX_VALUE),
                 listener,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.shardCommitState = shardCommitState;
             this.reference = reference;

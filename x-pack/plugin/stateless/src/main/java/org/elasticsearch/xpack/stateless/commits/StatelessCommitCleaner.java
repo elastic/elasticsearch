@@ -102,7 +102,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
                     deleteStaleCommitsIfNodeIsStillPrimary(commitsToDelete);
                     return null;
                 }),
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 

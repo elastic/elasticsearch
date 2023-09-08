@@ -327,7 +327,7 @@ public class CompositeRolesStore {
             restrictedIndices,
             listener.delegateFailureAndWrap((delegate, role) -> {
                 if (role != null && tryCache) {
-                    try (ReleasableLock ignored = roleCacheHelper.acquireForUpdate()) {
+                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
                         /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
                          * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
                          * stuff in an async fashion we need to make sure that if the cache got invalidated since we
@@ -546,7 +546,7 @@ public class CompositeRolesStore {
     public void invalidateAll() {
         numInvalidation.incrementAndGet();
         negativeLookupCache.invalidateAll();
-        try (ReleasableLock ignored = roleCacheHelper.acquireForUpdate()) {
+        try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
             roleCache.invalidateAll();
         }
         dlsBitsetCache.clear("role store invalidation");

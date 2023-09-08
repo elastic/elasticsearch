@@ -404,7 +404,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     () -> format("Realm [%s] roles resolved [%s] for principal=[%s].", name(), join(",", user.roles()), principal)
                 );
                 if (isCacheEnabled()) {
-                    try (ReleasableLock ignored = jwtCacheHelper.acquireForUpdate()) {
+                    try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
                         final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + allowedClockSkew.getMillis();
                         jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
                     }

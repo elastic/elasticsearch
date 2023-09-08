@@ -40,7 +40,7 @@ public class CacheIteratorHelper<K, V> {
         iteratorLock = new ReleasableLock(lock.writeLock());
     }
 
-    public ReleasableLock acquireForUpdate() {
+    public ReleasableLock acquireUpdateLock() {
         return updateLock.acquire();
     }
 

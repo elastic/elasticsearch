@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -82,16 +83,26 @@ public final class IngestDocument {
     }
 
     /**
-     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
+     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
      */
     public IngestDocument(IngestDocument other) {
-        this(deepCopyMap(other.sourceAndMetadata), deepCopyMap(other.ingestMetadata));
+        this(deepCopyMap(ensureNoSelfReferences(other.sourceAndMetadata)), deepCopyMap(other.ingestMetadata));
     }
 
     /**
-     * Constructor needed for testing that allows to create a new {@link IngestDocument} given the provided elasticsearch metadata,
-     * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
-     * init time, which makes equality comparisons impossible in tests.
+     * Internal helper utility method to get around the issue that a {@code this(...) } constructor call must be the first statement
+     * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
+     * general purpose method.
+     */
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
+        CollectionUtils.ensureNoSelfReferences(source, null);
+        return source;
+    }
+
+    /**
+     * Constructor to create an IngestDocument from its constituent maps. The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;

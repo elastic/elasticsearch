@@ -126,7 +126,19 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
     ) {
         this.processorTag = processorTag;
         this.description = description;
-        this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
+        WriteableIngestDocument wid = null;
+        if (ingestDocument != null) {
+            try {
+                wid = new WriteableIngestDocument(ingestDocument);
+            } catch (Exception ex) {
+                // if there was a failure already, then track it as a suppressed exception
+                if (failure != null) {
+                    ex.addSuppressed(failure);
+                }
+                failure = ex;
+            }
+        }
+        this.ingestDocument = wid;
         this.failure = failure;
         this.conditionalWithResult = conditionalWithResult;
         this.type = type;

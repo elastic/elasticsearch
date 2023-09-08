@@ -92,7 +92,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -393,35 +392,6 @@ public class CsvTests extends ESTestCase {
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }
-    }
-
-    /**
-     * Run all the of the listed drivers in the supplier {@linkplain ThreadPool}.
-     * @return the headers added to the context while running the drivers
-     */
-    static Map<String, List<String>> runToCompletion(ThreadPool threadPool, int maxIterations, List<Driver> drivers) {
-        DriverRunner runner = new DriverRunner() {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, maxIterations, driverListener);
-            }
-        };
-        AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        runner.runToCompletion(drivers, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                future.onFailure(e);
-            }
-        });
-        future.actionGet(TimeValue.timeValueSeconds(30));
-        return responseHeaders.get();
     }
 
     private Throwable reworkException(Throwable th) {

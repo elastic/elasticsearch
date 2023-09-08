@@ -86,14 +86,14 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
 
         transportService.registerRequestHandler(
             START_RELOCATION_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
             StatelessPrimaryRelocationAction.Request::new,
             (request, channel, task) -> handleStartRelocation(task, request, new ChannelActionListener<>(channel))
         );
 
         transportService.registerRequestHandler(
             PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> handlePrimaryContextHandoff(
                 request,

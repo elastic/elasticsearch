@@ -372,7 +372,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private void processValidatedJwt(
+    // package private for testing
+    void processValidatedJwt(
         String tokenPrincipal,
         BytesArray jwtCacheKey,
         JWTClaimsSet claimsSet,
@@ -403,7 +404,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     () -> format("Realm [%s] roles resolved [%s] for principal=[%s].", name(), join(",", user.roles()), principal)
                 );
                 if (isCacheEnabled()) {
-                    try (ReleasableLock ignored = jwtCacheHelper.acquireWriteLock()) {
+                    try (ReleasableLock ignored = jwtCacheHelper.acquireForUpdate()) {
                         final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + allowedClockSkew.getMillis();
                         jwtCache.put(jwtCacheKey, new ExpiringUser(result.getValue(), new Date(expWallClockMillis)));
                     }
@@ -449,7 +450,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         if (isCacheEnabled()) {
             try {
                 logger.trace("Invalidating JWT cache for realm [{}]", name());
-                try (ReleasableLock ignored = jwtCacheHelper.acquireWriteLock()) {
+                try (ReleasableLock ignored = jwtCacheHelper.acquireForIterator()) {
                     jwtCache.invalidateAll();
                 }
                 logger.debug("Invalidated JWT cache for realm [{}]", name());

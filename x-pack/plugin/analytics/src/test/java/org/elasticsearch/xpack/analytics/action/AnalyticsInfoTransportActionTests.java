@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -60,15 +59,13 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             client
@@ -87,16 +84,14 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             client

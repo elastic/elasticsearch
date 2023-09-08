@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -79,18 +78,24 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), settings);
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), settings);
+        SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings
+        );
         assertThat(featureSet.enabled(), is(true));
 
         Settings disabled = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        featureSet = new SecurityInfoTransportAction(transportService, mock(ActionFilters.class), disabled);
+        featureSet = new SecurityInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), disabled);
         assertThat(featureSet.enabled(), is(false));
     }
 
@@ -366,12 +371,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     private SecurityUsageTransportAction newUsageAction(Settings settings) {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         return new SecurityUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             null,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             settings,

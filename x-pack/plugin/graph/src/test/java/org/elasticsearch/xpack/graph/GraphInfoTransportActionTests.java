@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -34,9 +33,8 @@ public class GraphInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -46,7 +44,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
 
         var usageAction = new GraphUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
@@ -75,10 +73,8 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         } else {
             settings.put("xpack.graph.enabled", enabled);
         }
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         GraphInfoTransportAction featureSet = new GraphInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -86,7 +82,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(enabled));
 
         GraphUsageTransportAction usageAction = new GraphUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),

@@ -135,7 +135,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         transportService.registerRequestHandler(
             transportShardAction,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             NodeTermsEnumRequest::new,
             new NodeTransportHandler()
         );

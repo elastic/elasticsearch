@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -41,10 +40,8 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     public void init() throws IOException {
         serviceAccountService = mock(ServiceAccountService.class);
         securityContext = mock(SecurityContext.class);
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
-            transportService,
+            mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             serviceAccountService,
             securityContext

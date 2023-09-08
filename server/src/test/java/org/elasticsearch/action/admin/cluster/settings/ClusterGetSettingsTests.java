@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,12 +47,10 @@ public class ClusterGetSettingsTests extends ESTestCase {
     public void testTransportFilters() throws Exception {
         final SettingsFilter filter = new SettingsFilter(List.of("persistent.foo.filtered", "transient.foo.filtered"));
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportClusterGetSettingsAction action = new TransportClusterGetSettingsAction(
-            transportService,
+            mock(TransportService.class),
             mock(ClusterService.class),
-            threadPool,
+            mock(ThreadPool.class),
             filter,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)

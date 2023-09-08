@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -58,10 +57,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             .build(false);
         when(context.getAuthentication()).thenReturn(authentication);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
-            transportService,
+            mock(TransportService.class),
             new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
@@ -113,10 +110,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             );
             return null;
         }).when(authorizationService).checkPrivileges(any(), any(), anyCollection(), anyActionListener());
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final var action = new TransportHasPrivilegesAction(
-            transportService,
+            mock(TransportService.class),
             new ActionFilters(Set.of()),
             authorizationService,
             privilegeStore,

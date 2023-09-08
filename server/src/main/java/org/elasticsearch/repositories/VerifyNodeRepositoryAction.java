@@ -56,7 +56,7 @@ public class VerifyNodeRepositoryAction {
         this.repositoriesService = repositoriesService;
         transportService.registerRequestHandler(
             ACTION_NAME,
-            transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT),
+            ThreadPool.Names.SNAPSHOT,
             VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler()
         );

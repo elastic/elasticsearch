@@ -110,7 +110,7 @@ public abstract class PeerFinder {
 
         transportService.registerRequestHandler(
             REQUEST_PEERS_ACTION_NAME,
-            this.clusterCoordinationExecutor,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PeersRequest::new,

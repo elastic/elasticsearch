@@ -21,7 +21,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<
     UpdateByQueryRequest,
@@ -52,10 +51,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
         TransportService transportService = mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
             new ActionFilters(Collections.emptySet()),

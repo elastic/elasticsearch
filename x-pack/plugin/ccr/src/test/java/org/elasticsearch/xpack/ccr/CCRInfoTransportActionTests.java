@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -49,9 +48,8 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -66,9 +64,8 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -76,14 +73,13 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRInfoTransportAction(transportService, mock(ActionFilters.class), settings.build(), licenseState);
+        featureSet = new CCRInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -141,12 +137,10 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new CCRUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             null,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,

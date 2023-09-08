@@ -64,7 +64,7 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
 
         transportService.registerRequestHandler(
             REQUEST_PRE_VOTE_ACTION_NAME,
-            this.clusterCoordinationExecutor,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PreVoteRequest::new,

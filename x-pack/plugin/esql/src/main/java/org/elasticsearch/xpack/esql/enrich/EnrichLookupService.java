@@ -102,7 +102,12 @@ public class EnrichLookupService {
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
+        transportService.registerRequestHandler(
+            LOOKUP_ACTION_NAME,
+            EsqlPlugin.ESQL_THREAD_POOL_NAME,
+            LookupRequest::new,
+            new TransportHandler()
+        );
     }
 
     public void lookupAsync(

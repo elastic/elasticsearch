@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -121,7 +120,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         try {
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ThreadPool.Names.SAME,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -135,7 +134,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             if (hasClusterCredentials) {
                 newService.registerRequestHandler(
                     RemoteClusterNodesAction.NAME,
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    ThreadPool.Names.SAME,
                     RemoteClusterNodesAction.Request::new,
                     (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(knownNodes))
                 );

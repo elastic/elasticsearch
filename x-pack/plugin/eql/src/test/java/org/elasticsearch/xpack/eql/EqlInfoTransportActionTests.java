@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -55,14 +54,12 @@ public class EqlInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        EqlInfoTransportAction featureSet = new EqlInfoTransportAction(transportService, mock(ActionFilters.class));
+        EqlInfoTransportAction featureSet = new EqlInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        EqlInfoTransportAction featureSet = new EqlInfoTransportAction(transportService, mock(ActionFilters.class));
+        EqlInfoTransportAction featureSet = new EqlInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -96,12 +93,10 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new EqlUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             client

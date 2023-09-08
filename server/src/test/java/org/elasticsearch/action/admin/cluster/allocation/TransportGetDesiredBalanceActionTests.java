@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +45,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +59,6 @@ import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -69,27 +66,16 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
     private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
-    private TransportService transportService = mock(TransportService.class);
-    private ThreadPool threadPool = mock(ThreadPool.class);
-    private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
-
-    @Before
-    public void initialize() {
-        // TODO: temporary, remove in #97879
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
-        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-            transportService,
-            mock(ClusterService.class),
-            threadPool,
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            desiredBalanceShardsAllocator,
-            clusterInfoService,
-            TEST_WRITE_LOAD_FORECASTER
-        );
-    }
+    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+        mock(TransportService.class),
+        mock(ClusterService.class),
+        mock(ThreadPool.class),
+        mock(ActionFilters.class),
+        mock(IndexNameExpressionResolver.class),
+        desiredBalanceShardsAllocator,
+        clusterInfoService,
+        TEST_WRITE_LOAD_FORECASTER
+    );
 
     private static DesiredBalanceResponse execute(TransportGetDesiredBalanceAction action, ClusterState clusterState) throws Exception {
         return PlainActionFuture.get(
@@ -110,10 +96,11 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
+
         final var action = new TransportGetDesiredBalanceAction(
-            transportService,
+            mock(TransportService.class),
             mock(ClusterService.class),
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),

@@ -15,7 +15,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -58,7 +57,6 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
         final TransportService transportService = mock(TransportService.class);
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
         assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
 
@@ -89,7 +87,6 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
             }
         }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
 
         final String sessionUUID = UUIDs.randomBase64UUID();

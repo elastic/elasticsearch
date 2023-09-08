@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -28,9 +27,8 @@ public class TransportDeletePipelineActionTests extends ESTestCase {
 
     public void testDeletePipelineWithMissingIndex() throws Exception {
         try (Client client = getFailureClient(new IndexNotFoundException("missing .logstash"))) {
-            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
             final TransportDeletePipelineAction action = new TransportDeletePipelineAction(
-                transportService,
+                mock(TransportService.class),
                 mock(ActionFilters.class),
                 client
             );

@@ -122,7 +122,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         transportService.registerRequestHandler(
             Actions.FILES_INFO,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryFilesInfoRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -140,7 +140,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.RESTORE_FILE_FROM_SNAPSHOT,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoverySnapshotFileRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -151,13 +151,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.CLEAN_FILES,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryCleanFilesRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -179,7 +179,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.PREPARE_TRANSLOG,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryPrepareForTranslogOperationsRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -194,13 +194,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.TRANSLOG_OPS,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryTranslogOperationsRequest::new,
             new TranslogOperationsRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.FINALIZE,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryFinalizeRecoveryRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -215,7 +215,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.HANDOFF_PRIMARY_CONTEXT,
-            threadPool.executor(ThreadPool.Names.GENERIC),
+            ThreadPool.Names.GENERIC,
             RecoveryHandoffPrimaryContextRequest::new,
             new HandoffPrimaryContextRequestHandler()
         );

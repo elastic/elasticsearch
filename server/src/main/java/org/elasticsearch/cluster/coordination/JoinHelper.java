@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -115,7 +114,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
-            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION),
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             JoinRequest::new,
@@ -127,7 +126,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             START_JOIN_ACTION_NAME,
-            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION),
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             StartJoinRequest::new,
@@ -140,7 +139,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             JOIN_PING_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             false,
             false,
             TransportRequest.Empty::new,

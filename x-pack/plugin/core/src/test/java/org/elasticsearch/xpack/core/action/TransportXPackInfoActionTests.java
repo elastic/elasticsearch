@@ -17,7 +17,6 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -60,9 +59,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             });
         }
 
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         TransportXPackInfoAction action = new TransportXPackInfoAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             licenseService,
             client

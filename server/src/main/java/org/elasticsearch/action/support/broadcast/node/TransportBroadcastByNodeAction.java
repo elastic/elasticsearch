@@ -119,7 +119,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         transportService.registerRequestHandler(
             transportNodeBroadcastAction,
-            this.executor,
+            executor,
             false,
             canTripCircuitBreaker,
             NodeRequest::new,

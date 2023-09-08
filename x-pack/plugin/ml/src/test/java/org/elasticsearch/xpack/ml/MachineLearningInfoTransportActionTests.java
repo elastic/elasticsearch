@@ -27,7 +27,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -146,12 +145,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         boolean isDataFrameAnalyticsEnabled,
         boolean isNlpEnabled
     ) {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         return new MachineLearningUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings),
@@ -165,9 +162,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             commonSettings,
             licenseState
@@ -195,11 +191,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
         }
-
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         boolean expected = enabled;
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             settings.build(),
             licenseState

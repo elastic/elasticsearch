@@ -24,7 +24,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -91,13 +90,10 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
-
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         this.action = new TransportCreateIndexAction(
-            transportService,
+            mock(TransportService.class),
             mock(ClusterService.class),
-            threadPool,
+            mock(ThreadPool.class),
             metadataCreateIndexService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

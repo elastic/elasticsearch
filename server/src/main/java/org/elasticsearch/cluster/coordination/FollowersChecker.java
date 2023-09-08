@@ -124,7 +124,7 @@ public class FollowersChecker {
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
             FOLLOWER_CHECK_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Names.SAME,
             false,
             false,
             FollowerCheckRequest::new,

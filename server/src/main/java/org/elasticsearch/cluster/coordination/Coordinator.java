@@ -271,7 +271,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
         transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
-            this.clusterCoordinationExecutor,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             ApplyCommitRequest::new,

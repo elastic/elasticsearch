@@ -79,12 +79,7 @@ public abstract class TransportTasksAction<
         this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
-        transportService.registerRequestHandler(
-            transportNodeAction,
-            transportService.getThreadPool().executor(nodeExecutor),
-            NodeTaskRequest::new,
-            new NodeTransportHandler()
-        );
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
     @Override

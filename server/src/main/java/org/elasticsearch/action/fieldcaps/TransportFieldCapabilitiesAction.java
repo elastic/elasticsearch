@@ -92,7 +92,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.indicesService = indicesService;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
-            this.searchCoordinationExecutor,
+            ThreadPool.Names.SEARCH_COORDINATION,
             FieldCapabilitiesNodeRequest::new,
             new NodeTransportHandler()
         );

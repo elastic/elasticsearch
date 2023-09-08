@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
@@ -160,7 +159,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
         remoteTransportService.registerRequestHandler(
             RemoteClusterNodesAction.NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             RemoteClusterNodesAction.Request::new,
             (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(List.of(remoteNode)))
         );

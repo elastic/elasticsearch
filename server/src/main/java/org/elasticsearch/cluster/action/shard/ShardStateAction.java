@@ -36,7 +36,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -99,13 +98,13 @@ public class ShardStateAction {
 
         transportService.registerRequestHandler(
             SHARD_STARTED_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             StartedShardEntry::new,
             new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService))
         );
         transportService.registerRequestHandler(
             SHARD_FAILED_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             FailedShardEntry::new,
             new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService))
         );

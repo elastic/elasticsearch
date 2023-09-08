@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
@@ -51,13 +50,10 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
         fileRealm = mockRealm("file");
         final Realms realms = mockRealms(List.of(nativeRealm, fileRealm));
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-
         action = new TransportClearRealmCacheAction(
-            threadPool,
+            mock(ThreadPool.class),
             mockClusterService(),
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             realms,
             authenticationService

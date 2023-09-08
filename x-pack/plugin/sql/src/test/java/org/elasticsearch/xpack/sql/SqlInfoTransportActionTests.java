@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -58,8 +57,11 @@ public class SqlInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(transportService, mock(ActionFilters.class), licenseState);
+        SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            licenseState
+        );
         assertThat(featureSet.available(), is(true));
     }
 
@@ -93,12 +95,10 @@ public class SqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new SqlUsageTransportAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             null,
             licenseState,

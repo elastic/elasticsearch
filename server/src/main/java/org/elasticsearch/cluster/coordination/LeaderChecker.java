@@ -113,7 +113,7 @@ public class LeaderChecker {
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Names.SAME,
             false,
             false,
             LeaderCheckRequest::new,

@@ -35,6 +35,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -72,7 +73,7 @@ public class LocalAllocateDangledIndices {
         this.indexMetadataVerifier = indexMetadataVerifier;
         transportService.registerRequestHandler(
             ACTION_NAME,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ThreadPool.Names.SAME,
             AllocateDangledRequest::new,
             new AllocateDangledRequestHandler()
         );

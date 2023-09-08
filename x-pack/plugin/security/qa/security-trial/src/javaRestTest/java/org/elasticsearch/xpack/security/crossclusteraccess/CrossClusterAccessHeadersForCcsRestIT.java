@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -1109,7 +1108,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         try {
             service.registerRequestHandler(
                 ClusterStateAction.NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ThreadPool.Names.SAME,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1122,7 +1121,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             );
             service.registerRequestHandler(
                 RemoteClusterNodesAction.NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ThreadPool.Names.SAME,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1133,7 +1132,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             );
             service.registerRequestHandler(
                 SearchShardsAction.NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ThreadPool.Names.SAME,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1142,36 +1141,31 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
-            service.registerRequestHandler(
-                SearchAction.NAME,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                SearchRequest::new,
-                (request, channel, task) -> {
-                    capturedHeaders.add(
-                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                    );
-                    channel.sendResponse(
-                        new SearchResponse(
-                            new InternalSearchResponse(
-                                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                                InternalAggregations.EMPTY,
-                                null,
-                                null,
-                                false,
-                                null,
-                                1
-                            ),
+            service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
+                capturedHeaders.add(
+                    new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
+                );
+                channel.sendResponse(
+                    new SearchResponse(
+                        new InternalSearchResponse(
+                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                            InternalAggregations.EMPTY,
                             null,
-                            1,
-                            1,
-                            0,
-                            100,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
-                    );
-                }
-            );
+                            null,
+                            false,
+                            null,
+                            1
+                        ),
+                        null,
+                        1,
+                        1,
+                        0,
+                        100,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
+                    )
+                );
+            });
             service.start();
             service.acceptIncomingRequests();
             success = true;

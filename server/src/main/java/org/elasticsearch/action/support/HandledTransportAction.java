@@ -61,14 +61,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         String executor
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(
-            actionName,
-            transportService.getThreadPool().executor(executor),
-            false,
-            canTripCircuitBreaker,
-            requestReader,
-            new TransportHandler()
-        );
+        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {

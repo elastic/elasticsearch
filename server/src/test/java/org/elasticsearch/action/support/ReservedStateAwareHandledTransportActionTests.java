@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -48,8 +47,7 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         doReturn(clusterState).when(clusterService).state();
 
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        Action handler = new Action("internal:testAction", clusterService, transportService, mock(ActionFilters.class));
+        Action handler = new Action("internal:testAction", clusterService, mock(TransportService.class), mock(ActionFilters.class));
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
         var future = new PlainActionFuture<FakeResponse>();
@@ -63,7 +61,7 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         FakeReservedStateAwareAction action = new FakeReservedStateAwareAction(
             "internal:testClusterSettings",
             clusterService,
-            transportService,
+            mock(TransportService.class),
             mock(ActionFilters.class),
             null
         );

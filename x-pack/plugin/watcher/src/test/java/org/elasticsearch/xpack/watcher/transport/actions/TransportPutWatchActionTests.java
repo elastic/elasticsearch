@@ -22,7 +22,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -64,7 +63,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        TransportService transportService = mock(TransportService.class);
 
         WatchParser parser = mock(WatchParser.class);
         when(parser.parseWithSecrets(eq("_id"), eq(false), any(), any(), any(), anyBoolean(), anyLong(), anyLong())).thenReturn(watch);

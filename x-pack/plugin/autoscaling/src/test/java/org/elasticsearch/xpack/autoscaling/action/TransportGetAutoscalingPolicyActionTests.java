@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
@@ -38,12 +37,10 @@ import static org.mockito.Mockito.mock;
 public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCase {
 
     public void testReadBlock() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
-            transportService,
+            mock(TransportService.class),
             mock(ClusterService.class),
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             new AutoscalingLicenseChecker(() -> true)
@@ -67,12 +64,10 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
     }
 
     public void testNoReadBlock() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportGetAutoscalingPolicyAction action = new TransportGetAutoscalingPolicyAction(
-            transportService,
+            mock(TransportService.class),
             mock(ClusterService.class),
-            threadPool,
+            mock(ThreadPool.class),
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             new AutoscalingLicenseChecker(() -> true)

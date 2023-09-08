@@ -121,7 +121,7 @@ public class JoinValidationService {
         final var dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            this.responseExecutor,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final var remoteState = request.getOrReadState();

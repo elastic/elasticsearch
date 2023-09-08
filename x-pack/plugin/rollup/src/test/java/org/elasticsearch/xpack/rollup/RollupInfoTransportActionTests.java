@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -26,21 +25,23 @@ import static org.mockito.Mockito.mock;
 public class RollupInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(transportService, mock(ActionFilters.class));
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(transportService, mock(ActionFilters.class));
+        RollupInfoTransportAction featureSet = new RollupInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new RollupUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class), null);
+        var usageAction = new RollupUsageTransportAction(
+            mock(TransportService.class),
+            null,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            null
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage rollupUsage = future.get().getUsage();

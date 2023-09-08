@@ -106,7 +106,7 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            this.clusterCoordinationExecutor,
+            ThreadPool.Names.CLUSTER_COORDINATION,
             false,
             false,
             BytesTransportRequest::new,

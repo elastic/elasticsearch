@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -252,7 +253,7 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersionUtils.getFirstVersion(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE)
+                TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE)
             );
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -28,7 +29,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField PREDICTION_FIELD_TYPE = new ParseField("prediction_field_type");
     private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
-    private static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_6_0;
+    private static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_6_0;
 
     public static ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(
         0,
@@ -200,7 +201,7 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return requestingImportance() ? TransportVersion.V_7_7_0 : MIN_SUPPORTED_TRANSPORT_VERSION;
+        return requestingImportance() ? TransportVersions.V_7_7_0 : MIN_SUPPORTED_TRANSPORT_VERSION;
     }
 
     public static Builder builder() {

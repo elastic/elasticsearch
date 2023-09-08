@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
+
 /**
  * A dense Vector of single values.
  */
-public interface Vector {
+public interface Vector extends Accountable {
 
     /**
      * {@return Returns a Block view over this vector.}

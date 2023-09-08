@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -970,8 +971,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersion.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersion.V_8_500_010;
+        private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersions.V_8_4_0;
+        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_500_020;
 
         private final String reason;
         private final long unassigned;

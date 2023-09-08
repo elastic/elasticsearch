@@ -10,7 +10,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -970,10 +969,10 @@ public class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with Elasticsearch version ["
+                "the snapshot was created with index version ["
                     + snapshotInfo.version()
-                    + "] which is higher than the version of this node ["
-                    + Version.CURRENT
+                    + "] which is higher than the version used by this node ["
+                    + IndexVersion.current()
                     + "]"
             );
         }

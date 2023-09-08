@@ -13,11 +13,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator.LuceneSourceOperatorFactory;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator.LuceneTopNSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.EmptySourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -62,7 +61,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.appendChannel(attr.id());
+            layout.append(attr);
             Layout previousLayout = op.layout;
 
             var sources = ValueSources.sources(
@@ -72,7 +71,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 LocalExecutionPlanner.toElementType(attr.dataType())
             );
 
-            int docChannel = previousLayout.getChannel(sourceAttr.id());
+            int docChannel = previousLayout.get(sourceAttr.id()).channel();
 
             op = op.with(
                 new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, docChannel, attr.name()),
@@ -84,7 +83,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
-        LuceneOperator.LuceneOperatorFactory operatorFactory = null;
+        final LuceneOperator.Factory luceneFactory;
         Function<SearchContext, Query> querySupplier = searchContext -> {
             SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
             Query query = ctx.toQuery(esQueryExec.query()).query();
@@ -118,7 +117,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             for (FieldSort sort : sorts) {
                 fieldSorts.add(sort.fieldSortBuilder());
             }
-            operatorFactory = new LuceneTopNSourceOperatorFactory(
+            luceneFactory = new LuceneTopNSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
                 context.dataPartitioning(),
@@ -128,7 +127,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fieldSorts
             );
         } else {
-            operatorFactory = new LuceneSourceOperatorFactory(
+            luceneFactory = new LuceneSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
                 context.dataPartitioning(),
@@ -138,15 +137,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
         }
         Layout.Builder layout = new Layout.Builder();
-        for (int i = 0; i < esQueryExec.output().size(); i++) {
-            layout.appendChannel(esQueryExec.output().get(i).id());
-        }
-        if (operatorFactory.size() > 0) {
-            context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, operatorFactory.size()));
-            return PhysicalOperation.fromSource(operatorFactory, layout.build());
-        } else {
-            return PhysicalOperation.fromSource(new EmptySourceOperator.Factory(), layout.build());
-        }
+        layout.append(esQueryExec.output());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
     @Override
@@ -159,7 +153,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
-        int docChannel = source.layout.getChannel(sourceAttribute.id());
+        int docChannel = source.layout.get(sourceAttribute.id()).channel();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(

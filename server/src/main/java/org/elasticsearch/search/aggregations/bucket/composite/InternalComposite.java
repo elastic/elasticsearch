@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -100,7 +100,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
         } else {
             this.missingOrders = new MissingOrder[reverseMuls.length];
@@ -108,7 +108,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         this.buckets = in.readCollectionAsList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
-        this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
+        this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0) ? in.readBoolean() : false;
     }
 
     @Override
@@ -119,12 +119,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             out.writeArray(missingOrders);
         }
         out.writeCollection(buckets);
         out.writeOptionalWriteable(afterKey);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
             out.writeBoolean(earlyTerminated);
         }
     }

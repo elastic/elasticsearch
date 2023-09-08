@@ -24,9 +24,4 @@ public class SimulateBulkAction extends ActionType<BulkResponse> {
     private SimulateBulkAction() {
         super(NAME, BulkResponse::new);
     }
-
-    @Override
-    public TransportRequestOptions transportOptions() {
-        return TRANSPORT_REQUEST_OPTIONS;
-    }
 }

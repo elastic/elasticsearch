@@ -33,13 +33,13 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
 public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
     /**
      * A simple, thread-safe stop watch for timing a single action.
-     * Allows to stop the time for building a response and to e.g. log it at a later point.
+     * Allows to stop the time for building a response and to log it at a later point.
      */
     private static class ThreadSafeStopWatch {
         /**
          * Start time of the watch
          */
-        private long startTimeNS;
+        private final long startTimeNS = System.nanoTime();
 
         /**
          * End time of the watch
@@ -49,24 +49,15 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         /**
          * Is the stop watch currently running?
          */
-        private boolean running;
+        private boolean running = true;
 
         /**
-         * Start the stop watch. Will do nothing if it is already running.
+         * Starts the {@link ThreadSafeStopWatch} immediately after construction.
          */
-        public void start() {
-            synchronized (this) {
-                if (running) {
-                    return;
-                } else {
-                    startTimeNS = System.nanoTime();
-                    running = true;
-                }
-            }
-        }
+        ThreadSafeStopWatch() {}
 
         /**
-         * Stop the stop watch (or do nothing if it is not running) and return the elapsed time since starting.
+         * Stop the stop watch (or do nothing if it was already stopped) and return the elapsed time since starting.
          * @return the elapsed time since starting the watch
          */
         public TimeValue stop() {
@@ -101,8 +92,6 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
         super(channel);
-
-        stopWatch.start();
 
         this.channel = channel;
         this.restRequest = restRequest;

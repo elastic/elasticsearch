@@ -116,7 +116,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo
             );
         }
 

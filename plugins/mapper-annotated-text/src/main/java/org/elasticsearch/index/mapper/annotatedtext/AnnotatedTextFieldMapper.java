@@ -148,7 +148,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 fieldType,
                 buildFieldType(fieldType, context),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }

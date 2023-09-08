@@ -119,7 +119,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 parser,
                 meta.get()
             );
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
 
     }

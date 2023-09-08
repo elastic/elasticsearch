@@ -496,7 +496,7 @@ public class TextFieldMapper extends FieldMapper {
                 prefixFieldInfo,
                 phraseFieldInfo,
                 multiFields,
-                copyTo.build(),
+                copyTo,
                 this
             );
         }

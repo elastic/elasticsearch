@@ -341,7 +341,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 buildFieldType(),
                 ft,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 collator,
                 this
             );

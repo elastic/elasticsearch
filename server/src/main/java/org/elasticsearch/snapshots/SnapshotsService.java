@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -20,8 +21,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -269,31 +268,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         submitCreateSnapshotRequest(request, listener, repository, new Snapshot(repositoryName, snapshotId), repository.getMetadata());
     }
 
-    public void globalStateMetaData(final SnapshotGlobalStateRequest request, final ActionListener<SnapshotGlobalStateResponse> listener) {
-        String repositoryName = request.repository();
-        Repository repository = repositoriesService.repository(repositoryName);
-
-        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        repository.getRepositoryData(repositoryDataListener);
-
-        final List<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
-        repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
-
-            final String snapshotName = request.snapshot();
-            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
-                .stream()
-                .filter(s -> snapshotName.equals(s.getName()))
-                .findFirst();
-            if (matchingSnapshotId.isPresent() == false) {
-                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
-            }
-
-            snapshotIdsToLoad.add(matchingSnapshotId.get());
-        }));
-
-        Metadata globalMetadata = repository.getSnapshotGlobalMetadata(snapshotIdsToLoad.get(0));
-
-        listener.onResponse(new SnapshotGlobalStateResponse(globalMetadata));
+    /**
+     * This method provides the metadata of the cluster at the time when snapshot was being captured
+     * @param repositoryName repository name
+     * @param snapshotName snapshot name
+     * @param listener snapshot global state listener
+     */
+    public void getSnapshotGlobalMetadata(String repositoryName, String snapshotName, ActionListener<Metadata> listener) {
+        final Repository repository = repositoriesService.repository(repositoryName);
+        repository.getRepositoryData(
+            listener.delegateFailureAndWrap(
+                (delegate, repositoryData) -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+                    .execute(ActionRunnable.supply(delegate, () -> {
+                        for (final SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                            if (Objects.equals(snapshotId.getName(), snapshotName)) {
+                                return repository.getSnapshotGlobalMetadata(snapshotId);
+                            }
+                        }
+                        throw new ResourceNotFoundException(
+                            String.format("snapshot [%s] in repository [%s] not found", snapshotName, repositoryName)
+                        );
+                    }))
+            )
+        );
     }
 
     private void submitCreateSnapshotRequest(

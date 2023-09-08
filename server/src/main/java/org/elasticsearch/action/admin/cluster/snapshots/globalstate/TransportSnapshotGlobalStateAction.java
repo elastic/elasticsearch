@@ -54,7 +54,11 @@ public class TransportSnapshotGlobalStateAction extends TransportMasterNodeActio
         final ClusterState state,
         final ActionListener<SnapshotGlobalStateResponse> listener
     ) throws Exception {
-        snapshotsService.globalStateMetaData(request, listener);
+        snapshotsService.getSnapshotGlobalMetadata(
+            request.repository(),
+            request.snapshot(),
+            listener.map(SnapshotGlobalStateResponse::new)
+        );
     }
 
     @Override

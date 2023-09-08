@@ -262,7 +262,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return new SearchAsYouTypeFieldMapper(
                 name,
                 ft,
-                copyTo.build(),
+                copyTo,
                 indexAnalyzers,
                 prefixFieldMapper,
                 shingleFieldMappers,

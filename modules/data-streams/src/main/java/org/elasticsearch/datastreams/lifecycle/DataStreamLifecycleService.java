@@ -974,6 +974,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
+                    logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(targetIndex);
                     listener.onResponse(null);

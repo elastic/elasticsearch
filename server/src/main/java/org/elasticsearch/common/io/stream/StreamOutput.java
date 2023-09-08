@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +49,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersion.V_8_500_070;
+import static org.elasticsearch.TransportVersions.V_8_500_070;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -554,7 +555,7 @@ public abstract class StreamOutput extends OutputStream {
         Iterator<? extends Map.Entry<String, ?>> iterator = map.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (this.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 this.writeGenericValue(next.getKey());
             } else {
                 this.writeString(next.getKey());
@@ -669,7 +670,7 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            if (o.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 final Map<?, ?> map = (Map<?, ?>) v;
                 o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
             } else {

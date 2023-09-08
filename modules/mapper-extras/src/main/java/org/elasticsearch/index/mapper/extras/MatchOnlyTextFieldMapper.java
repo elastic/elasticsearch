@@ -136,15 +136,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(
-                name,
-                Defaults.FIELD_TYPE,
-                tft,
-                multiFields,
-                copyTo.build(),
-                context.isSourceSynthetic(),
-                this
-            );
+            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo, context.isSourceSynthetic(), this);
         }
     }
 

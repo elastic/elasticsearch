@@ -331,25 +331,16 @@ public class LocalExecutionPlanner {
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        if (source.layout.numberOfChannels() != topNExec.child().output().size()) {
-            for (var l : source.layout.internalLayout().entrySet()) {
-                System.err.println("l: " + l.getKey());
-            }
-            for (var o : topNExec.child().output()) {
-                System.err.println("o: " + o.id() + " " + o.name());
-            }
-            System.err.println("ASDFDSAF");
-        }
-        for (Attribute a : topNExec.child().output()) {
-            int channel = source.layout.getChannel(a.id());
-            elementTypes[channel] = toElementType(a.dataType());
-            encoders[channel] = switch (a.dataType().typeName()) {
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes[channel] = toElementType(inverse.get(channel).type());
+            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
                 case "ip" -> TopNEncoder.IP;
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + a.dataType().typeName());
+                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {

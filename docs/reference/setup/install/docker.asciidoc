@@ -4,7 +4,7 @@
 Docker images for {es} are available from the Elastic Docker registry. A list of
 all published Docker images and tags is available at
 https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
-https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
+https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[GitHub].
 
 include::license.asciidoc[]
 
@@ -236,18 +236,18 @@ usage in Docker Desktop by going to **Settings > Resources**.
 
 . Create or navigate to an empty directory for the project.
 
-. Download and save the following files to the project directory:
+. Download and save the following files in the project directory:
 +
-- https://github.com/elastic/elasticsearch/blob/main/docs/reference/setup/install/docker/.env[`.env`]
-- https://github.com/elastic/elasticsearch/blob/main/docs/reference/setup/install/docker/docker-compose.yml[`.docker-compose.yml`]
+- https://github.com/elastic/elasticsearch/blob/{branch}/docs/reference/setup/install/docker/.env[`.env`]
+- https://github.com/elastic/elasticsearch/blob/{branch}/docs/reference/setup/install/docker/docker-compose.yml[`docker-compose.yml`]
 
 
 . In the `.env` file, specify a password for the `ELASTIC_PASSWORD` and
 `KIBANA_PASSWORD` variables.
 +
 The passwords must be alphanumeric and can't contain special characters, such as
-`!` or `@``. The `bash` script included in the `docker-compose.yml` file only
-works using alphanumeric characters. Example:
+`!` or `@`. The bash script included in the `docker-compose.yml` file only
+works with alphanumeric characters. Example:
 +
 [source,txt]
 ----

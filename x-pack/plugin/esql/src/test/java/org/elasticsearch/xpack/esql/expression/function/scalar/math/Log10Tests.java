@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
 
-@Seed("392BA54EC48A9F56")
 public class Log10Tests extends AbstractFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

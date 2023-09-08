@@ -549,6 +549,5 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         public String toString() {
             return "persistent_task_recheck";
         }
-
     }
 }

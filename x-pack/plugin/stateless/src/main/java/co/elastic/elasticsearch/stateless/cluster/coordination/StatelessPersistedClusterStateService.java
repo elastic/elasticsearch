@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -118,7 +119,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     private static ClusterState getInitialState(Settings settings, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, TransportVersion.current()))
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, new CompatibilityVersions(TransportVersion.current())))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterSettings))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .andThen(state -> addLocalNodeVotingConfig(state, localNode))

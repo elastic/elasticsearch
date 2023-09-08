@@ -58,7 +58,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 );
                 return;
             }
-            var model = service.get().parseConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
             listener.onResponse(new PutInferenceModelAction.Response(model));
         }, listener::onFailure));
     }

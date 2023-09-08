@@ -14,11 +14,14 @@ import java.util.Map;
 
 public class MapParsingUtils {
     /**
+     * Remove the object from the map and cast to the expected type.
+     * If the object cannot be cast to type an ElasticsearchStatusException
+     * is thrown.
      *
-     * @param sourceMap
-     * @param key
-     * @param type
-     * @return {@code null} if not present
+     * @param sourceMap Map containing fields
+     * @param key The key of the object to remove
+     * @param type The expected type of the removed object
+     * @return {@code null} if not present else the object cast to type T
      * @param <T> The expected type
      */
     @SuppressWarnings("unchecked")
@@ -31,9 +34,13 @@ public class MapParsingUtils {
         if (type.isAssignableFrom(o.getClass())) {
             return (T) o;
         } else {
-            throw new ElasticsearchStatusException("field [{}] if not of the expected type." +
-                " The value [{}] cannot be converted to a [{}]", RestStatus.BAD_REQUEST,
-                key, o, type.getName());
+            throw new ElasticsearchStatusException(
+                "field [{}] is not of the expected type." + " The value [{}] cannot be converted to a [{}]",
+                RestStatus.BAD_REQUEST,
+                key,
+                o,
+                type.getSimpleName()
+            );
         }
     }
 
@@ -53,6 +60,15 @@ public class MapParsingUtils {
             RestStatus.BAD_REQUEST,
             config,
             serviceName
+        );
+    }
+
+    public static ElasticsearchStatusException missingSettingError(String settingName, String scope) {
+        return new ElasticsearchStatusException(
+            "[{}] does not contain the required setting [{}]",
+            RestStatus.BAD_REQUEST,
+            scope,
+            settingName
         );
     }
 }

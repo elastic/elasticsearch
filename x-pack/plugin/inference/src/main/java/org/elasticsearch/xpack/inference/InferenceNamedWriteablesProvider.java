@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResult;
-import org.elasticsearch.xpack.inference.services.elser.ElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserTaskSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,13 +24,11 @@ public class InferenceNamedWriteablesProvider {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
         // ELSER config
-        namedWriteables.add(new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserServiceSettings.NAME, ElserServiceSettings::new));
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                TaskSettings.class,
-                ElserTaskSettings.NAME,
-                ElserTaskSettings::new
-            )
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserMlNodeServiceSettings.NAME, ElserMlNodeServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
         );
 
         // Inference results

@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.action.DeleteInferenceModelAction;
 
 import java.util.List;
@@ -34,7 +33,7 @@ public class RestDeleteInferenceModelAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        TaskType taskType = TaskType.fromString(restRequest.param("task_type")); // TODO better error message
+        String taskType = restRequest.param("task_type");
         String modelId = restRequest.param("model_id");
 
         var request = new DeleteInferenceModelAction.Request(modelId, taskType);

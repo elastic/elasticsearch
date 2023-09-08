@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        TaskType taskType = TaskType.fromString(restRequest.param("task_type")); // TODO better error message
+        String taskType = restRequest.param("task_type");
         String modelId = restRequest.param("model_id");
 
         var request = new GetInferenceModelAction.Request(modelId, taskType);

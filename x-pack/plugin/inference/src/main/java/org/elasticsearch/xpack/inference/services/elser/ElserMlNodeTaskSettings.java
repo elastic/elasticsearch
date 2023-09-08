@@ -12,23 +12,20 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.TaskSettings;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
-public class ElserServiceSettings implements ServiceSettings {
+public class ElserMlNodeTaskSettings implements TaskSettings {
 
-    public static final String NAME = "elser";
+    public static final String NAME = "elser_mlnode_task_settings";
 
-    public static ElserServiceSettings fromMap(Map<String, Object> map) {
-        return new ElserServiceSettings();
-    }
+    public static ElserMlNodeTaskSettings DEFAULT = new ElserMlNodeTaskSettings();
 
-    public ElserServiceSettings() {}
+    public ElserMlNodeTaskSettings() {}
 
-    public ElserServiceSettings(StreamInput in) {}
+    public ElserMlNodeTaskSettings(StreamInput in) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -48,21 +45,19 @@ public class ElserServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
-    }
-
-    @Override
-    public int hashCode() {
-        // TODO Class has no members all instances are equivalent
-        // Return the hash of NAME to make the serialization tests poss
-        return Objects.hashCode(NAME);
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         return true;
+    }
+
+    @Override
+    public int hashCode() {
+        // TODO Class has no members all instances are equivalent
+        // Return the hash of NAME to make the serialization tests poss
+        return Objects.hash(NAME);
     }
 }

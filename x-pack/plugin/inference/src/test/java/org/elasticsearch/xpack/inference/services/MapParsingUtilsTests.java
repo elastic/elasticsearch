@@ -7,21 +7,20 @@
 
 package org.elasticsearch.xpack.inference.services;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+
 public class MapParsingUtilsTests extends ESTestCase {
 
     public void testRemoveAsTypeWithTheCorrectType() {
-        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE,
-            "d", 1.0));
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
 
         Integer i = MapParsingUtils.removeAsType(map, "a", Integer.class);
         assertEquals(Integer.valueOf(5), i);
@@ -43,27 +42,50 @@ public class MapParsingUtilsTests extends ESTestCase {
     }
 
     public void testRemoveAsTypeWithInCorrectType() {
-        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", ));
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
 
-        var e = expectThrows(ElasticsearchStatusException.class,
-            () -> MapParsingUtils.removeAsType(map, "a", String.class));
-        assertThat(e.getMessage(), containsString(""));
+        var e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "a", String.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
+        );
 
-        e = expectThrows(ElasticsearchStatusException.class,
-            () -> MapParsingUtils.removeAsType(map, "b", Boolean.class));
-        assertThat(e.getMessage(), containsString(""));
+        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "b", Boolean.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [b] is not of the expected type. The value [a string] cannot be converted to a [Boolean]")
+        );
         assertNull(map.get("b"));
 
-        e = expectThrows(ElasticsearchStatusException.class,
-            () -> MapParsingUtils.removeAsType(map, "c", Integer.class));
-        assertThat(e.getMessage(), containsString(""));
+        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "c", Integer.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [c] is not of the expected type. The value [true] cannot be converted to a [Integer]")
+        );
         assertNull(map.get("c"));
+
+        // cannot convert double to integer
+        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "d", Integer.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [d] is not of the expected type. The value [5.0] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("d"));
+
+        // cannot convert integer to double
+        e = expectThrows(ElasticsearchStatusException.class, () -> MapParsingUtils.removeAsType(map, "e", Double.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
+        );
+        assertNull(map.get("d"));
 
         assertThat(map.entrySet(), empty());
     }
 
-    public void testNUll() {
+    public void testRemoveAsTypeMissingReturnsNull() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
         assertNull(MapParsingUtils.removeAsType(new HashMap<>(), "missing", Integer.class));
+        assertThat(map.entrySet(), hasSize(3));
     }
 }

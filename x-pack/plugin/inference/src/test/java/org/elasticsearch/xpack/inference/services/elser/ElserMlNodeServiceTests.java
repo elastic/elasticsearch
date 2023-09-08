@@ -15,12 +15,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
     public static Model randomModelConfig(String modelId, TaskType taskType) {
         return switch (taskType) {
-            case SPARSE_EMBEDDING -> new Model(
+            case SPARSE_EMBEDDING -> new ElserMlNodeModel(
                 modelId,
                 taskType,
                 ElserMlNodeService.NAME,
-                new ElserServiceSettings(),
-                new ElserTaskSettings(1, 1) // TODO
+                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserMlNodeTaskSettingsTests.createRandom()
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };

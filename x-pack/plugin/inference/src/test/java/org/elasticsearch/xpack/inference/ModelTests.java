@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserTaskSettings;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
 public class ModelTests extends AbstractWireSerializingTestCase<Model> {
 
@@ -50,11 +50,11 @@ public class ModelTests extends AbstractWireSerializingTestCase<Model> {
     }
 
     private static ServiceSettings randomServiceSettings() {
-        return new ElserServiceSettings();
+        return ElserMlNodeServiceSettingsTests.createRandom();
     }
 
     private static TaskSettings randomTaskSettings(TaskType taskType) {
-        return new ElserTaskSettings(randomIntBetween(1, 5), randomIntBetween(1, 6));
+        return ElserMlNodeTaskSettings.DEFAULT; // only 1 implementation
     }
 
     @Override

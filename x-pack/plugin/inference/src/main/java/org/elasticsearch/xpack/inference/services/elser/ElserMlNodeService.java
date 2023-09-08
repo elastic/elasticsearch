@@ -15,31 +15,47 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.ServiceSettings;
-import org.elasticsearch.xpack.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResult;
 import org.elasticsearch.xpack.inference.services.InferenceService;
+import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.unknownSettingsError;
 
 public class ElserMlNodeService implements InferenceService {
 
-    public static final String NAME = "elser";
+    public static final String NAME = "elser_mlnode";
 
-    public static Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> settings) {
-        Map<String, Object> serviceSettings = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
-        Map<String, Object> taskSettings = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+    private static final String ELSER_V1_MODEL = ".elser_model_1";
 
-        return new Model(modelId, taskType, NAME, serviceSettingsFromMap(serviceSettings), taskSettingsFromMap(taskType, taskSettings));
+    public static ElserMlNodeModel parseConfig(
+        boolean throwOnUnknownFields,
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> settings
+    ) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+
+        var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
+        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+        if (throwOnUnknownFields == false) {
+            throwIfNotEmptyMap(settings);
+            throwIfNotEmptyMap(serviceSettingsMap);
+            throwIfNotEmptyMap(taskSettingsMap);
+        }
+
+        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettings, taskSettings);
     }
 
     private final OriginSettingClient client;
@@ -49,12 +65,40 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfigLenient(modelId, taskType, config);
+    public Model parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config) {
+        return parseConfig(true, modelId, taskType, config);
     }
 
-    public void init(Model model, ActionListener<Boolean> listener) {
+    @Override
+    public ElserMlNodeModel parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config) {
+        return parseConfig(false, modelId, taskType, config);
+    }
 
+    @Override
+    public void start(Model model, ActionListener<Boolean> listener) {
+        if (model instanceof ElserMlNodeModel == false) {
+            listener.onFailure(new IllegalStateException("not an elser model")); // TODO
+            return;
+        }
+
+        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(new IllegalStateException("not an elser model")); // TODO
+            return;
+        }
+
+        var elserModel = (ElserMlNodeModel) model;
+        var serviceSettings = elserModel.getServiceSettings();
+
+        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getModelId());
+        startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
+        startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
+        startRequest.setWaitForState(STARTED);
+
+        client.execute(
+            StartTrainedModelDeploymentAction.INSTANCE,
+            startRequest,
+            ActionListener.wrap(r -> listener.onResponse(Boolean.TRUE), listener::onFailure)
+        );
     }
 
     @Override
@@ -90,15 +134,11 @@ public class ElserMlNodeService implements InferenceService {
         }, listener::onFailure));
     }
 
-    private static ServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
-        // no config options yet
-        if (config.isEmpty() == false) {
-            throw unknownSettingsError(config, NAME);
-        }
-        return new ElserServiceSettings();
+    private static ElserMlNodeServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
+        return ElserMlNodeServiceSettings.fromMap(config);
     }
 
-    private static TaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
+    private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
         if (taskType != TaskType.SPARSE_EMBEDDING) {
             throw new ElasticsearchStatusException(
                 "The [{}] service does not support task type [{}]",
@@ -108,18 +148,20 @@ public class ElserMlNodeService implements InferenceService {
             );
         }
 
-//        Integer numAllocations = config.get(ElserTaskSettings.NUM_ALLOCATIONS);
-//        Integer numThreads = config.get(ElserTaskSettings.NUM_THREADS);
         // no config options yet
-        if (config.isEmpty() == false) {
-            throw unknownSettingsError(config, NAME);
-        }
+        throwIfNotEmptyMap(config);
 
-        return ElserTaskSettings.DEFAULT;
+        return ElserMlNodeTaskSettings.DEFAULT;
     }
 
     @Override
     public String name() {
         return NAME;
+    }
+
+    private static void throwIfNotEmptyMap(Map<String, Object> settingsMap) {
+        if (settingsMap.isEmpty() == false) {
+            throw MapParsingUtils.unknownSettingsError(settingsMap, NAME);
+        }
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
+import org.elasticsearch.xpack.inference.services.InferenceService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -84,11 +85,18 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        var model = service.get().parseConfig(request.getModelId(), request.getTaskType(), requestAsMap);
-
+        var model = service.get().parseConfigStrict(request.getModelId(), request.getTaskType(), requestAsMap);
+        // model is valid good to persist then start
         this.modelRegistry.storeModel(
             model,
-            ActionListener.wrap(r -> { listener.onResponse(new PutInferenceModelAction.Response(model)); }, listener::onFailure)
+            ActionListener.wrap(r -> { startModel(service.get(), model, listener); }, listener::onFailure)
+        );
+    }
+
+    private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
+        service.start(
+            model,
+            ActionListener.wrap(ok -> listener.onResponse(new PutInferenceModelAction.Response(model)), listener::onFailure)
         );
     }
 

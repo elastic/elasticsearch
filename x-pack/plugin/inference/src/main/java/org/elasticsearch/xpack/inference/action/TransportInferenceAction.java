@@ -60,7 +60,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 );
                 return;
             }
-            var model = service.get().parseConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
 
             inferOnService(request, service.get(), listener);
         }, listener::onFailure);

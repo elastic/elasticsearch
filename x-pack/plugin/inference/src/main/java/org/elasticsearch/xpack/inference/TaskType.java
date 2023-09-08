@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 public enum TaskType implements Writeable {
     TEXT_EMBEDDING,
@@ -22,6 +25,15 @@ public enum TaskType implements Writeable {
 
     public static TaskType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
+    public static TaskType fromStringOrStatusException(String name) {
+        try {
+            TaskType taskType = TaskType.fromString(name);
+            return Objects.requireNonNull(taskType);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchStatusException("Unknown task_type [{}]", RestStatus.BAD_REQUEST, name);
+        }
     }
 
     @Override

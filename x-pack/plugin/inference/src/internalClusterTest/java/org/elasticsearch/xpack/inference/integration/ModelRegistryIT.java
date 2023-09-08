@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
 import org.junit.Before;
@@ -73,7 +74,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config());
         assertEquals(model.getService(), unparsedModel.service());
-        Model roundTripModel = ElserMlNodeService.parseConfigLenient(
+        ElserMlNodeModel roundTripModel = ElserMlNodeService.parseConfig(
+            false,
             unparsedModel.modelId(),
             unparsedModel.taskType(),
             unparsedModel.settings()

@@ -12,30 +12,53 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
-public class ElserTaskSettings implements TaskSettings {
+public class ElserMlNodeServiceSettings implements ServiceSettings {
 
-    public static final String NAME = "elser_sparse_embedding";
+    public static final String NAME = "elser_mlnode_service_settings";
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
-
-    public static ElserTaskSettings DEFAULT = new ElserTaskSettings(1, 1);
 
     private final int numAllocations;
     private final int numThreads;
 
-    public ElserTaskSettings(int numAllocations, int numThreads) {
+    public static ElserMlNodeServiceSettings fromMap(Map<String, Object> map) {
+        Integer numAllocations = MapParsingUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
+        Integer numThreads = MapParsingUtils.removeAsType(map, NUM_THREADS, Integer.class);
+
+        if (numAllocations == null) {
+            throw MapParsingUtils.missingSettingError(NUM_ALLOCATIONS, Model.SERVICE_SETTINGS);
+        }
+        if (numThreads == null) {
+            throw MapParsingUtils.missingSettingError(NUM_THREADS, Model.SERVICE_SETTINGS);
+        }
+
+        return new ElserMlNodeServiceSettings(numAllocations, numThreads);
+    }
+
+    public ElserMlNodeServiceSettings(int numAllocations, int numThreads) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
     }
 
-    public ElserTaskSettings(StreamInput in) throws IOException {
+    public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
         numAllocations = in.readVInt();
         numThreads = in.readVInt();
+    }
+
+    public int getNumAllocations() {
+        return numAllocations;
+    }
+
+    public int getNumThreads() {
+        return numThreads;
     }
 
     @Override
@@ -64,15 +87,17 @@ public class ElserTaskSettings implements TaskSettings {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ElserTaskSettings that = (ElserTaskSettings) o;
-        return numAllocations == that.numAllocations && numThreads == that.numThreads;
+    public int hashCode() {
+        // TODO Class has no members all instances are equivalent
+        // Return the hash of NAME to make the serialization tests poss
+        return Objects.hashCode(NAME);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(numAllocations, numThreads);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
+        return numAllocations == that.numAllocations && numThreads == that.numThreads;
     }
 }

@@ -18,9 +18,39 @@ public interface InferenceService {
 
     String name();
 
-    Model parseConfig(String modelId, TaskType taskType, Map<String, Object> config);
+    /**
+     * Parse model configuration from the {@code config map} and return
+     * the parsed {@link Model}.
+     * This function modifies {@code config map}, fields are removed
+     * from the map as they are read.
+     *
+     * If the map contains unrecognized configuration option an
+     * {@code ElasticsearchStatusException} is thrown.
+     *
+     * @param modelId Model Id
+     * @param taskType The model task type
+     * @param config Configuration options
+     * @return The parsed {@link Model}
+     */
+    Model parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config);
 
-    void init(Model model, ActionListener<Boolean> listener);
+    /**
+     * As {@link #parseConfigStrict(String, TaskType, Map)} but the function
+     * does not throw on unrecognized options.
+     *
+     * @param modelId Model Id
+     * @param taskType The model task type
+     * @param config Configuration options
+     * @return The parsed {@link Model}
+     */
+    Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config);
+
+    /**
+     * Start or prepare the model for use.
+     * @param model The model
+     * @param listener The listener
+     */
+    void start(Model model, ActionListener<Boolean> listener);
 
     void infer(String modelId, TaskType taskType, String input, Map<String, Object> config, ActionListener<InferenceResult> listener);
 }

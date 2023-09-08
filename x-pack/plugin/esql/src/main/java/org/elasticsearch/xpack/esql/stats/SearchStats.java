@@ -135,7 +135,7 @@ public class SearchStats {
     }
 
     //
-    // @see org.elasticsearch.search.query.TopDocsCollectorManagerFactory#shortcutTotalHitCount(IndexReader, Query)
+    // @see org.elasticsearch.search.query.QueryPhaseCollectorManager#shortcutTotalHitCount(IndexReader, Query)
     //
     private static int countEntries(IndexReader indexReader, String field) {
         int count = 0;

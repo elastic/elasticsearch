@@ -10,6 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -169,7 +170,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_2_0,
+            TransportVersions.V_8_2_0,
             TransportVersion.current()
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
@@ -201,8 +202,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     }
 
     public void testSerializeCCSResponseBetweenOldClusters() throws IOException {
-        TransportVersion minCompactVersion = TransportVersion.MINIMUM_COMPATIBLE;
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersion.V_8_2_0));
+        TransportVersion minCompactVersion = TransportVersions.MINIMUM_COMPATIBLE;
+        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersions.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
@@ -212,7 +213,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             minCompactVersion,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_2_0)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_2_0)
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
@@ -228,7 +229,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
             Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
             Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(TransportVersion.V_8_0_0)) {
+            if (version.onOrAfter(TransportVersions.V_8_0_0)) {
                 assertThat(outCap, equalTo(inCap));
             } else {
                 // Exclude metric types which was introduced in 8.0
@@ -251,7 +252,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             + "GluZGV4XzAyAAAIaW5kZXhfMDMCDHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAA"
             + "EAAAAAAAAAAAA=";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setTransportVersion(TransportVersion.V_8_1_0);
+        in.setTransportVersion(TransportVersions.V_8_1_0);
         FieldCapabilitiesResponse nodeResp = new FieldCapabilitiesResponse(in);
         assertThat(nodeResp.getFailures(), empty());
         assertThat(

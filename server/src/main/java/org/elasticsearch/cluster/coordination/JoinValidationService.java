@@ -375,7 +375,7 @@ public class JoinValidationService {
                         public String toString() {
                             return cacheClearer + " after timeout";
                         }
-                    }, cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
+                    }, cacheTimeout, responseExecutor);
                 }
             } catch (Exception e) {
                 assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;

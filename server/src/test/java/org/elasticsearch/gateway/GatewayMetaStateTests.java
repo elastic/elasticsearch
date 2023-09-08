@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -163,7 +164,17 @@ public class GatewayMetaStateTests extends ESTestCase {
             assertThat(
                 expectThrows(
                     IllegalStateException.class,
-                    () -> gatewayMetaState.start(null, null, null, null, null, null, null, List.of(duplicatePlugin, duplicatePlugin))
+                    () -> gatewayMetaState.start(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of(duplicatePlugin, duplicatePlugin),
+                        CompatibilityVersionsUtils.staticCurrent()
+                    )
                 ).getMessage(),
                 containsString("multiple persisted-state factories")
             );
@@ -173,7 +184,7 @@ public class GatewayMetaStateTests extends ESTestCase {
                 public Optional<PersistedStateFactory> getPersistedStateFactory() {
                     return Optional.of((settings, transportService, persistedClusterStateService) -> testPersistedState);
                 }
-            }));
+            }), CompatibilityVersionsUtils.staticCurrent());
             assertSame(testPersistedState, gatewayMetaState.getPersistedState());
         }
     }

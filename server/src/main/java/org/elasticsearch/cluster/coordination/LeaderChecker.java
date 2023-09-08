@@ -393,7 +393,7 @@ public class LeaderChecker {
                 public String toString() {
                     return "scheduled check of leader " + leader;
                 }
-            }, leaderCheckInterval, Names.SAME);
+            }, leaderCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
     }
 

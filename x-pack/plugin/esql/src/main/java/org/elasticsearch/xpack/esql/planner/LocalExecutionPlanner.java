@@ -44,7 +44,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -203,7 +202,7 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         }
 
-        throw new EsqlUnsupportedOperationException("unknown physical plan node [" + node.nodeName() + "]");
+        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -257,7 +256,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+        throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
@@ -282,7 +281,7 @@ public class LocalExecutionPlanner {
         int index = -1;
         boolean transformRequired = false;
         for (var attribute : attrs) {
-            mappedPosition[++index] = layout.getChannel(attribute.id());
+            mappedPosition[++index] = layout.get(attribute.id()).channel();
             transformRequired |= mappedPosition[index] != index;
         }
         Function<Page, Page> transformer = transformRequired ? p -> {
@@ -297,7 +296,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        throw new EsqlUnsupportedOperationException("Exchange needs to be replaced with a sink/source");
+        throw new UnsupportedOperationException("Exchange needs to be replaced with a sink/source");
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
@@ -315,9 +314,7 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSourceHandler, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
-        for (var attr : exchangeSource.output()) {
-            builder.appendChannel(attr.id());
-        }
+        builder.append(exchangeSource.output());
         // decorate the layout
         var l = builder.build();
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
@@ -331,7 +328,7 @@ public class LocalExecutionPlanner {
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
             int sortByChannel;
             if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.getChannel(a.id());
+                sortByChannel = source.layout.get(a.id()).channel();
             } else {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
@@ -365,7 +362,7 @@ public class LocalExecutionPlanner {
         if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
-            throw new EsqlUnsupportedOperationException("limit only supported with literal values");
+            throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
 
         // TODO Replace page size with passing estimatedRowSize down
@@ -387,7 +384,7 @@ public class LocalExecutionPlanner {
             Supplier<ExpressionEvaluator> evaluatorSupplier;
             evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(field.toAttribute().id());
+            layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
@@ -396,9 +393,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(dissect.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        for (Attribute attr : dissect.extractedFields()) {
-            layoutBuilder.appendChannel(attr.id());
-        }
+        layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
         String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
 
@@ -418,10 +413,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(grok.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
         List<Attribute> extractedFields = grok.extractedFields();
-        for (Attribute attr : extractedFields) {
-            layoutBuilder.appendChannel(attr.id());
-        }
-
+        layoutBuilder.append(extractedFields);
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
@@ -448,10 +440,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEnrich(EnrichExec enrich, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(enrich.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        List<NamedExpression> extractedFields = enrich.enrichFields();
-        for (NamedExpression attr : extractedFields) {
-            layoutBuilder.appendChannel(attr.id());
-        }
+        layoutBuilder.append(enrich.enrichFields());
         Layout layout = layoutBuilder.build();
         Set<String> indices = enrich.enrichIndex().concreteIndices();
         if (indices.size() != 1) {
@@ -463,7 +452,7 @@ public class LocalExecutionPlanner {
                 sessionId,
                 parentTask,
                 1, // TODO: Add a concurrent setting for enrich - also support unordered mode
-                source.layout.getChannel(enrich.matchField().id()),
+                source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
                 "match", // TODO: enrich should also resolve the match_type
@@ -481,20 +470,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
         List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
         Layout.Builder layout = new Layout.Builder();
-        var output = row.output();
-        for (Attribute attribute : output) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(row.output());
         return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
-
         Layout.Builder layout = new Layout.Builder();
-        var output = localSourceExec.output();
-        for (Attribute attribute : output) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(localSourceExec.output());
         LocalSourceOperator.BlockSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
@@ -502,16 +484,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planShow(ShowExec showExec) {
         Layout.Builder layout = new Layout.Builder();
-        for (var attribute : showExec.output()) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
 
-        Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>();
+        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
         for (NamedExpression ne : project.projections()) {
             NameId inputId;
             if (ne instanceof Alias a) {
@@ -519,19 +499,26 @@ public class LocalExecutionPlanner {
             } else {
                 inputId = ne.id();
             }
-            int inputChannel = source.layout.getChannel(inputId);
-            inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
+            Layout.ChannelAndType input = source.layout.get(inputId);
+            Layout.ChannelSet channelSet = inputChannelToOutputIds.computeIfAbsent(
+                input.channel(),
+                ignore -> new Layout.ChannelSet(new HashSet<>(), input.type())
+            );
+            if (channelSet.type() != input.type()) {
+                throw new IllegalArgumentException("type mismatch for aliases");
+            }
+            channelSet.nameIds().add(ne.id());
         }
 
         BitSet mask = new BitSet();
         Layout.Builder layout = new Layout.Builder();
 
         for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-            Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
+            Layout.ChannelSet outputSet = inputChannelToOutputIds.get(inChannel);
 
-            if (outputIds != null) {
+            if (outputSet != null) {
                 mask.set(inChannel);
-                layout.appendChannel(outputIds);
+                layout.append(outputSet);
             }
         }
 
@@ -556,7 +543,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        return source.with(new MvExpandOperator.Factory(source.layout.getChannel(mvExpandExec.target().id())), source.layout);
+        return source.with(new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel()), source.layout);
     }
 
     /**

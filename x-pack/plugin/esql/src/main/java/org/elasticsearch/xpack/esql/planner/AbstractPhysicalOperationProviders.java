@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -59,9 +58,9 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
             // append channels to the layout
             if (mode == AggregateExec.Mode.FINAL) {
-                layout.appendChannels(aggregates);
+                layout.append(aggregates);
             } else {
-                layout.appendChannels(aggregateMapper.mapNonGrouping(aggregates));
+                layout.append(aggregateMapper.mapNonGrouping(aggregates));
             }
             // create the agg factories
             aggregatesToFactory(
@@ -88,8 +87,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 if (groupAttribute == null) {
                     throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
                 }
-                Set<NameId> grpAttribIds = new HashSet<>();
-                grpAttribIds.add(groupAttribute.id());
+                Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), groupAttribute.dataType());
+                groupAttributeLayout.nameIds().add(groupAttribute.id());
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
@@ -100,10 +99,9 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     if (agg instanceof Alias a) {
                         if (a.child() instanceof Attribute attr) {
                             if (groupAttribute.id().equals(attr.id())) {
-                                grpAttribIds.add(a.id());
+                                groupAttributeLayout.nameIds().add(a.id());
                                 // TODO: investigate whether a break could be used since it shouldn't be possible to have multiple
-                                // attributes
-                                // pointing to the same attribute
+                                // attributes pointing to the same attribute
                             }
                             // partial mode only
                             // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
@@ -118,18 +116,19 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                         }
                     }
                 }
-                layout.appendChannel(grpAttribIds);
-                groupSpecs.add(new GroupSpec(source.layout.getChannel(groupAttribute.id()), groupAttribute));
+                layout.append(groupAttributeLayout);
+                Layout.ChannelAndType groupInput = source.layout.get(groupAttribute.id());
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
             }
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
                     if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.appendChannel(alias.id());
+                        layout.append(alias);
                     }
                 }
             } else {
-                layout.appendChannels(aggregateMapper.mapGrouping(aggregates));
+                layout.append(aggregateMapper.mapGrouping(aggregates));
             }
 
             // create the agg factories
@@ -163,7 +162,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         if (operatorFactory != null) {
             return source.with(operatorFactory, layout.build());
         }
-        throw new EsqlUnsupportedOperationException("no operator factory");
+        throw new EsqlIllegalArgumentException("no operator factory");
     }
 
     /***
@@ -253,7 +252,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                         params[i] = aggParams.get(i).fold();
                     }
 
-                    List<Integer> inputChannels = sourceAttr.stream().map(NamedExpression::id).map(layout::getChannel).toList();
+                    List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels != null && inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
                     if (aggregateFunction instanceof ToAggregator agg) {
                         consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));

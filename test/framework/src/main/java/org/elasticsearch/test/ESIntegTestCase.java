@@ -2075,8 +2075,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        boolean eagerConcurrentSearch = eagerConcurrentSearch();
-        if (eagerConcurrentSearch) {
+        boolean enableConcurrentSearch = enableConcurrentSearch();
+        if (enableConcurrentSearch) {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true);
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
         }
         return new NodeConfigurationSource() {
@@ -2095,7 +2096,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                if (eagerConcurrentSearch) {
+                if (enableConcurrentSearch) {
                     List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
                     plugins.add(ConcurrentSearchTestPlugin.class);
                     return plugins;
@@ -2114,11 +2115,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Whether we'd like to increase the likelihood of leveraging inter-segment search concurrency, by creating multiple slices
-     * with a low amount of documents in them, which would not be allowed in production.
+     * Whether we'd like to enable inter-segment search concurrency and increase the likelihood of leveraging it, by creating multiple
+     * slices with a low amount of documents in them, which would not be allowed in production.
      * Default is true, can be disabled if it causes problems in specific tests.
      */
-    protected boolean eagerConcurrentSearch() {
+    protected boolean enableConcurrentSearch() {
         return true;
     }
 

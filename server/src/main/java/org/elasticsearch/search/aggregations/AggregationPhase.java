@@ -72,7 +72,6 @@ public class AggregationPhase {
         searcher.setProfiler(context);
         try {
             searcher.search(context.rewrittenQuery(), collector);
-            collector.postCollection();
         } catch (IOException e) {
             throw new AggregationExecutionException("Could not perform time series aggregation", e);
         }

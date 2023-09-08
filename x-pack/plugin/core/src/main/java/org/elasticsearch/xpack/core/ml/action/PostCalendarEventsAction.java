@@ -68,7 +68,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();
-            scheduledEvents = in.readList(ScheduledEvent::new);
+            scheduledEvents = in.readCollectionAsList(ScheduledEvent::new);
         }
 
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
@@ -124,7 +124,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            in.readList(ScheduledEvent::new);
+            in.readCollectionAsList(ScheduledEvent::new);
         }
 
         public Response(List<ScheduledEvent> scheduledEvents) {

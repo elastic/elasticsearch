@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -376,7 +377,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -455,7 +456,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",

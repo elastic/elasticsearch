@@ -25,6 +25,7 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           black-list-labels:
             - '>test-mute'
     builders:

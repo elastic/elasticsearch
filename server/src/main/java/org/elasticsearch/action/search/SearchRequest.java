@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -239,7 +240,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -263,16 +264,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0) && in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             waitForCheckpoints = in.readMap(StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -288,7 +289,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -304,15 +305,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeBoolean(minCompatibleShardNode != null);
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
+        TransportVersion waitForCheckpointsVersion = TransportVersions.V_7_16_0;
         if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
-            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
             throw new IllegalArgumentException(
@@ -324,7 +325,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "] or greater."
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {

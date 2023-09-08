@@ -414,7 +414,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            }, followerCheckInterval, Names.SAME);
+            }, followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

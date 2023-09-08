@@ -3,7 +3,7 @@
 [.text-center]
 image::esql/functions/signature/right.svg[Embedded,opts=inline]
 
-Return the substring that extracts 'length' chars from the string starting from its right end.
+Return the substring that extracts 'length' chars from the 'string' starting from its right.
 
 [source.merge.styled,esql]
 ----

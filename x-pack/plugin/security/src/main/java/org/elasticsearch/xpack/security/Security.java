@@ -1904,13 +1904,15 @@ public class Security extends Plugin
 
     @Override
     public void reload(Settings settings) throws Exception {
-        realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
-            if (realm instanceof JwtRealm jwtRealm) {
-                jwtRealm.rotateClientSecret(
-                    CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
-                );
-            }
-        });
+        if (enabled) {
+            realms.get().stream().filter(r -> JwtRealmSettings.TYPE.equals(r.realmRef().getType())).forEach(realm -> {
+                if (realm instanceof JwtRealm jwtRealm) {
+                    jwtRealm.rotateClientSecret(
+                        CLIENT_AUTHENTICATION_SHARED_SECRET.getConcreteSettingForNamespace(realm.realmRef().getName()).get(settings)
+                    );
+                }
+            });
+        }
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

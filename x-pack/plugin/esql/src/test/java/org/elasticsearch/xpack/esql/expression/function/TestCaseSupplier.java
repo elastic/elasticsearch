@@ -40,7 +40,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
-    public static final BigInteger MAX_UNSIGNED_LONG = BigInteger.valueOf(1 << 64).subtract(BigInteger.ONE);
+    public static final BigInteger MAX_UNSIGNED_LONG = NumericUtils.UNSIGNED_LONG_MAX;
     /**
      * Build a test case without types.
      *
@@ -584,6 +584,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public record TypedData(Object data, DataType type, String name) {
         public TypedData(Object data, String name) {
             this(data, EsqlDataTypes.fromJava(data), name);
+        }
+
+        @Override
+        public String toString() {
+            return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
         }
     }
 }

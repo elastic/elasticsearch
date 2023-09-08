@@ -465,6 +465,7 @@ public class Constants {
         "indices:admin/seq_no/remove_retention_lease",
         "indices:admin/seq_no/renew_retention_lease",
         "indices:admin/settings/update",
+        "indices:admin/simulate/bulk",
         "indices:admin/shards/search_shards",
         "indices:admin/search/search_shards",
         "indices:admin/template/delete",

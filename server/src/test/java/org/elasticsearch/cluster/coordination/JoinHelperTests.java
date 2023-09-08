@@ -10,13 +10,13 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -90,7 +90,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
@@ -256,7 +257,8 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
@@ -331,12 +333,13 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated"))
+            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
+            CompatibilityVersionsUtils.staticCurrent()
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, TransportVersion.current(), joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), joinListener);
         assert joinListener.isDone() == false;
 
         final var mockAppender = new MockLogAppender();

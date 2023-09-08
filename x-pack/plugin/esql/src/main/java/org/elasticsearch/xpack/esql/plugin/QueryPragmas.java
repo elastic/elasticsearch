@@ -59,6 +59,10 @@ public final class QueryPragmas implements Writeable {
         settings.writeTo(out);
     }
 
+    public Settings getSettings() {
+        return settings;
+    }
+
     public int exchangeBufferSize() {
         return EXCHANGE_BUFFER_SIZE.get(settings);
     }

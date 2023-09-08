@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -161,7 +162,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_7_0,
+            TransportVersions.V_7_7_0,
             TransportVersion.current()
         );
         final SamlServiceProviderDocument read = copyWriteable(

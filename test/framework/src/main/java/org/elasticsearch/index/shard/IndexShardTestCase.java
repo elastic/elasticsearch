@@ -224,11 +224,31 @@ public abstract class IndexShardTestCase extends ESTestCase {
         EngineFactory engineFactory,
         final IndexingOperationListener... listeners
     ) throws IOException {
+        return newShard(primary, new ShardId("index", "_na_", 0), settings, engineFactory, listeners);
+    }
+
+    /**
+     * Creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param primary       indicates whether to a primary shard (ready to recover from an empty store) or a replica (ready to recover from
+     *                      another shard)
+     * @param shardId       the shard ID for this shard
+     * @param settings      the settings to use for this shard
+     * @param engineFactory the engine factory to use for this shard
+     * @param listeners     the indexing operation listeners to add
+     */
+    protected IndexShard newShard(
+        boolean primary,
+        ShardId shardId,
+        Settings settings,
+        EngineFactory engineFactory,
+        final IndexingOperationListener... listeners
+    ) throws IOException {
         final RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
         final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId("index", "_na_", 0),
+            shardId,
             randomAlphaOfLength(10),
             primary,
             ShardRoutingState.INITIALIZING,
@@ -482,7 +502,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 xContentRegistry(),
                 createTempDir(),
                 indexSettings.getSettings(),
-                "index"
+                routing.getIndexName()
             );
             mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
@@ -712,7 +732,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected void recoveryEmptyReplica(IndexShard replica, boolean startReplica) throws IOException {
         IndexShard primary = null;
         try {
-            primary = newStartedShard(true);
+            primary = newStartedShard(
+                p -> newShard(p, replica.routingEntry().shardId(), replica.indexSettings.getSettings(), new InternalEngineFactory()),
+                true
+            );
             recoverReplica(replica, primary, startReplica);
         } finally {
             closeShards(primary);

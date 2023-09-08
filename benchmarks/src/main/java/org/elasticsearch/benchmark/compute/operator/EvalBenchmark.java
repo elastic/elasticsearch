@@ -44,6 +44,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -133,9 +134,7 @@ public class EvalBenchmark {
 
     private static Layout layout(FieldAttribute... fields) {
         Layout.Builder layout = new Layout.Builder();
-        for (FieldAttribute field : fields) {
-            layout.appendChannel(field.id());
-        }
+        layout.append(Arrays.asList(fields));
         return layout.build();
     }
 

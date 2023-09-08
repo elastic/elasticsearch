@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1162,7 +1163,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
-                    coordinationServices.getPreVoteCollectorFactory()
+                    coordinationServices.getPreVoteCollectorFactory(),
+                    CompatibilityVersionsUtils.staticCurrent()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

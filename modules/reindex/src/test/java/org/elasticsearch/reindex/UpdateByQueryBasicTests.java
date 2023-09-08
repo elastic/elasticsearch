@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -23,7 +24,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
@@ -64,6 +69,14 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         assertEquals(4, client().prepareGet("test", "2").get().getVersion());
         assertEquals(3, client().prepareGet("test", "3").get().getVersion());
         assertEquals(2, client().prepareGet("test", "4").get().getVersion());
+
+        // test script with source validation
+        UpdateByQueryRequestBuilder requestWithSource = updateByQuery().source("test");
+        requestWithSource.request().getSearchRequest().source().fetchSource("foo", null);
+
+        ActionRequestValidationException e = requestWithSource.request().validate();
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("source is not supported in this context"));
     }
 
     public void testSlices() throws Exception {

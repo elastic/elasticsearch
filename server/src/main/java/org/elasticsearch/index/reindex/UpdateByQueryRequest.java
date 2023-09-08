@@ -8,17 +8,21 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request to update some documents. That means you can't change their type, id, index, or anything like that. This implements
@@ -183,5 +187,17 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
         getSearchRequest().source().innerToXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException e = super.validate();
+
+        FetchSourceContext fetchSourceContext = getSearchRequest().source().fetchSource();
+        if (fetchSourceContext != null) {
+            e = addValidationError("source is not supported in this context", e);
+        }
+        return e;
     }
 }

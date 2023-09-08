@@ -17,10 +17,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Left}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Right}.
  * This class is generated. Do not edit it.
  */
-public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   private final BytesRef out;
 
   private final UnicodeUtil.UTF8CodePoint cp;
@@ -29,7 +29,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator length;
 
-  public LeftEvaluator(BytesRef out, UnicodeUtil.UTF8CodePoint cp,
+  public RightEvaluator(BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length) {
     this.out = out;
     this.cp = cp;
@@ -72,7 +72,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
         result.appendNull();
         continue position;
       }
-      result.appendBytesRef(Left.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+      result.appendBytesRef(Right.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
     }
     return result.build();
   }
@@ -81,13 +81,13 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     BytesRef strScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+      result.appendBytesRef(Right.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "LeftEvaluator[" + "str=" + str + ", length=" + length + "]";
+    return "RightEvaluator[" + "str=" + str + ", length=" + length + "]";
   }
 }

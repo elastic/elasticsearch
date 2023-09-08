@@ -20,6 +20,8 @@ dependencies {
   api project(path: ':modules:transport-netty4')
 
   testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('downsample'))
+  testImplementation project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('wildcard'))

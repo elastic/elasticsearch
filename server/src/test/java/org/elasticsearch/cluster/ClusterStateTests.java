@@ -22,20 +22,25 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -55,6 +60,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -133,12 +139,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        writeChunks(
-            clusterState,
-            builder,
-            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)),
-            44
-        );
+        writeChunks(clusterState, builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
         builder.endObject();
 
         assertEquals(
@@ -401,7 +402,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 44);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(
@@ -659,7 +660,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams), 44);
+        writeChunks(clusterState, builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
         assertEquals(
@@ -941,7 +942,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS, 29);
+        writeChunks(clusterState, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
         assertEquals(Strings.format("""
@@ -1136,15 +1137,14 @@ public class ClusterStateTests extends ESTestCase {
         assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
     }
 
-    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params, int expectedChunks)
-        throws IOException {
+    private static void writeChunks(ClusterState clusterState, XContentBuilder builder, ToXContent.Params params) throws IOException {
         final var iterator = clusterState.toXContentChunked(params);
         int chunks = 0;
         while (iterator.hasNext()) {
             iterator.next().toXContent(builder, params);
             chunks += 1;
         }
-        assertEquals(expectedChunks, chunks);
+        assertEquals(expectedChunkCount(params, clusterState), chunks);
     }
 
     public void testGetMinTransportVersion() throws IOException {
@@ -1170,5 +1170,75 @@ public class ClusterStateTests extends ESTestCase {
                 .build()
                 .getMinTransportVersion()
         );
+    }
+
+    public static int expectedChunkCount(ToXContent.Params params, ClusterState clusterState) {
+        final var metrics = ClusterState.Metric.parseString(params.param("metric", "_all"), true);
+
+        int chunkCount = 0;
+
+        // header chunk
+        chunkCount += 1;
+
+        // blocks
+        if (metrics.contains(ClusterState.Metric.BLOCKS)) {
+            chunkCount += 2 + clusterState.blocks().indices().size();
+        }
+
+        // nodes, transport_versions, nodes_versions
+        if (metrics.contains(ClusterState.Metric.NODES)) {
+            chunkCount += 6 + clusterState.nodes().size() + 2 * clusterState.compatibilityVersions().size();
+        }
+
+        // metadata
+        if (metrics.contains(ClusterState.Metric.METADATA)) {
+            chunkCount += MetadataTests.expectedChunkCount(params, clusterState.metadata());
+        }
+
+        // routing table
+        if (metrics.contains(ClusterState.Metric.ROUTING_TABLE)) {
+            chunkCount += 2;
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                chunkCount += 2;
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    chunkCount += 2 + indexRoutingTable.shard(shardId).size();
+                }
+            }
+        }
+
+        // routing nodes
+        if (metrics.contains(ClusterState.Metric.ROUTING_NODES)) {
+            final var routingNodes = clusterState.getRoutingNodes();
+            chunkCount += 4 + routingNodes.unassigned().size();
+            for (RoutingNode routingNode : routingNodes) {
+                chunkCount += 2 + routingNode.size();
+            }
+        }
+
+        // customs
+        if (metrics.contains(ClusterState.Metric.CUSTOMS)) {
+            for (ClusterState.Custom custom : clusterState.customs().values()) {
+                chunkCount += 2;
+
+                if (custom instanceof HealthMetadata) {
+                    chunkCount += 1;
+                } else if (custom instanceof RepositoryCleanupInProgress repositoryCleanupInProgress) {
+                    chunkCount += 2 + repositoryCleanupInProgress.entries().size();
+                } else if (custom instanceof RestoreInProgress restoreInProgress) {
+                    chunkCount += 2 + Iterables.size(restoreInProgress);
+                } else if (custom instanceof SnapshotDeletionsInProgress snapshotDeletionsInProgress) {
+                    chunkCount += 2 + snapshotDeletionsInProgress.getEntries().size();
+                } else if (custom instanceof SnapshotsInProgress snapshotsInProgress) {
+                    chunkCount += 2 + snapshotsInProgress.asStream().count();
+                } else {
+                    // could be anything, we have to just try it
+                    chunkCount += Iterables.size(
+                        (Iterable<ToXContent>) (() -> Iterators.map(custom.toXContentChunked(params), Function.identity()))
+                    );
+                }
+            }
+        }
+
+        return chunkCount;
     }
 }

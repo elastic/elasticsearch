@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -22,13 +23,13 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
         "Alfredo",
-        new CompatibilityVersions(TransportVersion.V_7_0_0),
+        new CompatibilityVersions(TransportVersions.V_7_0_0),
         "Bertram",
-        new CompatibilityVersions(TransportVersion.V_7_0_1),
+        new CompatibilityVersions(TransportVersions.V_7_0_1),
         "Charles",
-        new CompatibilityVersions(TransportVersion.V_8_500_020),
+        new CompatibilityVersions(TransportVersions.V_8_500_020),
         "Dominic",
-        new CompatibilityVersions(TransportVersion.V_8_0_0)
+        new CompatibilityVersions(TransportVersions.V_8_0_0)
     );
 
     private static final ClusterState state = new ClusterState(
@@ -46,7 +47,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     );
 
     public void testGetMinTransportVersion() {
-        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersion.V_7_0_0));
+        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_7_0_0));
     }
 
     public void testIsMinTransformVersionSameAsCurrent() {
@@ -72,7 +73,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     }
 
     public void testIsMinTransportVersionOnOrAfter() {
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_7_0_0), equalTo(true));
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersion.V_8_500_020), equalTo(false));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_7_0_0), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_500_020), equalTo(false));
     }
 }

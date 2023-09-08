@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -38,8 +39,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersion.V_8_5_0;
-    private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersion.V_8_6_0;
+    private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersions.V_8_5_0;
+    private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -352,7 +353,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             role = Role.readFrom(in);
         } else {
             role = Role.DEFAULT;
@@ -389,7 +390,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             out.writeLong(expectedShardSize);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
             throw new IllegalStateException(

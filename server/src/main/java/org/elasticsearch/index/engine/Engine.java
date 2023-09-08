@@ -283,10 +283,9 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
-         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
-         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
-         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
-         * reference as soon as it is done with it.
+         * This method is invoked each time a new Lucene commit is created through this engine. Note that commits are notified in order. The
+         * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
+         * the listener must close the reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
          * @param store           the index shard store

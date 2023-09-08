@@ -110,7 +110,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
                     nullValue.getValue()
                 ),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 positiveScoreImpact.getValue(),
                 nullValue.getValue()
             );

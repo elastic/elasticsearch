@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,7 +128,7 @@ public record ScriptStats(
         TimeSeries cacheEvictionsHistory;
         long compilations;
         long cacheEvictions;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
             compilations = compilationsHistory.total;
@@ -153,7 +153,7 @@ public record ScriptStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
         } else {

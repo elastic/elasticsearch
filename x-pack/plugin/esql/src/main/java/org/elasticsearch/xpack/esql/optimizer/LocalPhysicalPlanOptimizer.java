@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAn
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-    private static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
+    public static final QlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = new PhysicalVerifier();
 
@@ -180,7 +180,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         }
     }
 
-    private static class PushFiltersToSource extends OptimizerRule<FilterExec> {
+    public static class PushFiltersToSource extends OptimizerRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec filterExec) {
             PhysicalPlan plan = filterExec;
@@ -213,7 +213,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private static boolean canPushToSource(Expression exp) {
+        public static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
                 return isAttributePushable(bc.left(), bc) && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {

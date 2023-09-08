@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Block view of a BooleanVector.
  * This class is generated. Do not edit it.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanVectorBlock.class);
 
     private final BooleanVector vector;
 
@@ -43,6 +47,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public BooleanBlock filter(int... positions) {
         return new FilterBooleanVector(vector, positions).asBlock();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
     }
 
     @Override

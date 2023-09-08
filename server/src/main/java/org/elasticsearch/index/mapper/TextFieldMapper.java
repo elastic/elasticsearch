@@ -450,25 +450,6 @@ public class TextFieldMapper extends FieldMapper {
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
-        public Map<String, NamedAnalyzer> indexAnalyzers(String name, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
-            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
-            analyzers.put(name, main);
-            if (phraseFieldInfo != null) {
-                analyzers.put(
-                    phraseFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
-                );
-            }
-            if (prefixFieldInfo != null) {
-                analyzers.put(
-                    prefixFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
-                );
-            }
-            return analyzers;
-        }
-
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
@@ -488,17 +469,7 @@ public class TextFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
                 }
             }
-            return new TextFieldMapper(
-                name,
-                fieldType,
-                tft,
-                indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
-                prefixFieldInfo,
-                phraseFieldInfo,
-                multiFields,
-                copyTo.build(),
-                this
-            );
+            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
         }
     }
 
@@ -1151,13 +1122,10 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    private final Map<String, NamedAnalyzer> indexAnalyzerMap;
-
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,
         MultiFields multiFields,
@@ -1188,12 +1156,25 @@ public class TextFieldMapper extends FieldMapper {
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
         this.indexPhrases = builder.indexPhrases.getValue();
-        this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return indexAnalyzerMap;
+        Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
+        analyzersMap.put(name(), indexAnalyzer);
+        if (phraseFieldInfo != null) {
+            analyzersMap.put(
+                phraseFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
+            );
+        }
+        if (prefixFieldInfo != null) {
+            analyzersMap.put(
+                prefixFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
+            );
+        }
+        return analyzersMap;
     }
 
     @Override

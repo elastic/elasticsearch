@@ -41,18 +41,18 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.size = in.readInt();
         this.samplingRate = in.readDouble();
         this.totalSeconds = in.readDouble();
-        this.edges = in.readList(i -> i.readMap(StreamInput::readInt));
-        this.fileIds = in.readStringList();
-        this.frameTypes = in.readList(StreamInput::readInt);
-        this.inlineFrames = in.readList(StreamInput::readBoolean);
-        this.fileNames = in.readStringList();
-        this.addressOrLines = in.readList(StreamInput::readInt);
-        this.functionNames = in.readStringList();
-        this.functionOffsets = in.readList(StreamInput::readInt);
-        this.sourceFileNames = in.readStringList();
-        this.sourceLines = in.readList(StreamInput::readInt);
-        this.countInclusive = in.readList(StreamInput::readInt);
-        this.countExclusive = in.readList(StreamInput::readInt);
+        this.edges = in.readCollectionAsList(i -> i.readMap(StreamInput::readInt));
+        this.fileIds = in.readCollectionAsList(StreamInput::readString);
+        this.frameTypes = in.readCollectionAsList(StreamInput::readInt);
+        this.inlineFrames = in.readCollectionAsList(StreamInput::readBoolean);
+        this.fileNames = in.readCollectionAsList(StreamInput::readString);
+        this.addressOrLines = in.readCollectionAsList(StreamInput::readInt);
+        this.functionNames = in.readCollectionAsList(StreamInput::readString);
+        this.functionOffsets = in.readCollectionAsList(StreamInput::readInt);
+        this.sourceFileNames = in.readCollectionAsList(StreamInput::readString);
+        this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
+        this.countInclusive = in.readCollectionAsList(StreamInput::readInt);
+        this.countExclusive = in.readCollectionAsList(StreamInput::readInt);
     }
 
     public GetFlamegraphResponse(

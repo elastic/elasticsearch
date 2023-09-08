@@ -307,7 +307,7 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns the {@link Version} for the given snapshot or {@code null} if unknown.
+     * Returns the {@link IndexVersion} for the given snapshot or {@code null} if unknown.
      */
     @Nullable
     public IndexVersion getVersion(SnapshotId snapshotId) {

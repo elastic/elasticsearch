@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
@@ -50,23 +50,23 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         this.allocationService = allocationService;
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     @Override
     public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         ClusterState initialState = batchExecutionContext.initialState();
         DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(initialState.nodes());
-        Map<String, TransportVersion> transportVersions = new HashMap<>(getTransportVersions(initialState));
+        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(getCompatibilityVersions(initialState));
         boolean removed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             final var task = taskContext.getTask();
             final String reason;
             if (initialState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
-                transportVersions.remove(task.node().getId());
+                compatibilityVersions.remove(task.node().getId());
                 removed = true;
                 reason = task.reason();
             } else {
@@ -89,7 +89,7 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
         try (var ignored = batchExecutionContext.dropHeadersContext()) {
             // suppress deprecation warnings e.g. from reroute()
 
-            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, transportVersions);
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder, compatibilityVersions);
             final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
             return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
@@ -105,9 +105,9 @@ public class NodeLeftExecutor implements ClusterStateTaskExecutor<NodeLeftExecut
     protected ClusterState remainingNodesClusterState(
         ClusterState currentState,
         DiscoveryNodes.Builder remainingNodesBuilder,
-        Map<String, TransportVersion> transportVersions
+        Map<String, CompatibilityVersions> compatibilityVersions
     ) {
-        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).transportVersions(transportVersions).build();
+        return ClusterState.builder(currentState).nodes(remainingNodesBuilder).compatibilityVersions(compatibilityVersions).build();
     }
 
 }

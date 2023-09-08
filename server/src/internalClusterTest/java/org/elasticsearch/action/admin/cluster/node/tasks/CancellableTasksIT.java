@@ -434,7 +434,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super(in);
             this.id = in.readInt();
             this.node = new DiscoveryNode(in);
-            this.subRequests = in.readList(TestRequest::new);
+            this.subRequests = in.readCollectionAsList(TestRequest::new);
             this.timeout = in.readBoolean();
         }
 
@@ -538,7 +538,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     }
                     listener.onResponse(new TestResponse());
                 }
-            }, delay, ThreadPool.Names.GENERIC);
+            }, delay, transportService.getThreadPool().generic());
         }
 
         @Override

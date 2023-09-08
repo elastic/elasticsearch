@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,7 +56,7 @@ public class CompositeValuesSourceParserHelper {
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
-            if (out.getTransportVersion().before(TransportVersion.V_7_5_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_7_5_0)) {
                 throw new IOException(
                     "Attempting to serialize ["
                         + builder.getClass().getSimpleName()

@@ -34,7 +34,7 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStats::new);
+        return in.readCollectionAsList(NodeStats::new);
     }
 
     @Override

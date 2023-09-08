@@ -50,6 +50,9 @@ public class TransportGetSearchApplicationAction extends HandledTransportAction<
             if (searchApplication.hasStoredTemplate() == false) {
                 HeaderWarning.addWarning(SearchApplication.NO_TEMPLATE_STORED_WARNING);
             }
+            if (searchApplication.indices() == null || searchApplication.indices().length == 0) {
+                HeaderWarning.addWarning(SearchApplication.NO_ALIAS_WARNING);
+            }
             // Construct a new object to ensure we backfill the stored application with the default template
             return new GetSearchApplicationAction.Response(
                 searchApplication.name(),

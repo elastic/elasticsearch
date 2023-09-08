@@ -31,14 +31,17 @@ public class DataStreamLifecycleErrorStore {
     /**
      * Records a string representation of the provided exception for the provided index.
      * If an error was already recorded for the provided index this will override that error.
+     *
+     * Returns the previously recorded error for the provided index, or null otherwise.
      */
-    public void recordError(String indexName, Exception e) {
+    @Nullable
+    public String recordError(String indexName, Exception e) {
         String exceptionToString = Strings.toString(((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
         }));
         String recordedError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
-        indexNameToError.put(indexName, recordedError);
+        return indexNameToError.put(indexName, recordedError);
     }
 
     /**

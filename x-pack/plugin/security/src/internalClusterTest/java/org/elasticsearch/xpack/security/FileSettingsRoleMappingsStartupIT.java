@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -23,6 +22,7 @@ import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
@@ -74,10 +74,6 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         return null;
     }
 
-    public void setupLogging() {
-        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.common.file", "DEBUG"));
-    }
-
     private void writeJSONFile(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
@@ -116,11 +112,11 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    @TestLogging(value = "org.elasticsearch.common.file:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/98391")
     public void testFailsOnStartMasterNodeWithError() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         internalCluster().startMasterOnlyNode();
-        setupLogging();
 
         logger.info("--> write some role mappings, no other file settings");
         writeJSONFile(internalCluster().getMasterName(), testJSONForFailedCase);
@@ -128,6 +124,7 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
+        fail();
     }
 
     public Collection<Class<? extends Plugin>> nodePlugins() {

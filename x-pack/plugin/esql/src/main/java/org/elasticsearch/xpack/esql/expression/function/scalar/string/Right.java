@@ -33,9 +33,9 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
- * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
+ * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
-public class Left extends ScalarFunction implements EvaluatorMapper {
+public class Right extends ScalarFunction implements EvaluatorMapper {
 
     private final Source source;
 
@@ -43,7 +43,7 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
-    public Left(Source source, @Named("string") Expression str, @Named("length") Expression length) {
+    public Right(Source source, @Named("string") Expression str, @Named("length") Expression length) {
         super(source, Arrays.asList(str, length));
         this.source = source;
         this.str = str;
@@ -60,11 +60,15 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         out.bytes = str.bytes;
         out.offset = str.offset;
         out.length = str.length;
-        int curLenStart = 0;
-        for (int i = 0; i < length && curLenStart < out.length; i++, curLenStart += cp.numBytes) {
-            UnicodeUtil.codePointAt(out.bytes, out.offset + curLenStart, cp);
+        int codeLen = UnicodeUtil.codePointCount(str);
+        // skip the first skipLen codePoint
+        int skipLen = Math.max(codeLen - length, 0);
+        int endOffset = str.offset + str.length;
+        for (int i = 0; i < skipLen && out.offset < endOffset; i++) {
+            UnicodeUtil.codePointAt(out.bytes, out.offset, cp);
+            out.offset += cp.numBytes;
+            out.length -= cp.numBytes;
         }
-        out.length = Math.min(curLenStart, out.length);
         return out;
     }
 
@@ -78,18 +82,18 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         return () -> {
             BytesRef out = new BytesRef();
             UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new LeftEvaluator(out, cp, strSupplier.get(), lengthSupplier.get());
+            return new RightEvaluator(out, cp, strSupplier.get(), lengthSupplier.get());
         };
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Left(source(), newChildren.get(0), newChildren.get(1));
+        return new Right(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Left::new, str, length);
+        return NodeInfo.create(this, Right::new, str, length);
     }
 
     @Override

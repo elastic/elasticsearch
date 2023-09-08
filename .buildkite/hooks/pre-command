@@ -71,3 +71,8 @@ if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 source .buildkite/scripts/third-party-test-credentials.sh
+
+if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
+  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  export SNYK_TOKEN
+fi

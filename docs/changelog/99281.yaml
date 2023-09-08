@@ -1,0 +1,5 @@
+pr: 99281
+summary: Fix PIT when resolving with deleted indices
+area: Search
+type: bug
+issues: []

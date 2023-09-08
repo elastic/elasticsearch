@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -35,7 +36,7 @@ public class ListenerTimeouts {
         ThreadPool threadPool,
         ActionListener<Response> listener,
         TimeValue timeout,
-        String executor,
+        Executor executor,
         String listenerName
     ) {
         return wrapWithTimeout(threadPool, timeout, executor, listener, (ignore) -> {
@@ -55,6 +56,22 @@ public class ListenerTimeouts {
      * @param onTimeout consumer will be called and the resulting wrapper will be passed to it as a parameter
      * @return the wrapped listener that will timeout
      */
+    public static <Response> ActionListener<Response> wrapWithTimeout(
+        ThreadPool threadPool,
+        TimeValue timeout,
+        Executor executor,
+        ActionListener<Response> listener,
+        Consumer<ActionListener<Response>> onTimeout
+    ) {
+        TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, onTimeout);
+        wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, executor);
+        return wrappedListener;
+    }
+
+    /**
+     * @deprecated Use {@link #wrapWithTimeout(ThreadPool, TimeValue, Executor, ActionListener, Consumer)} instead.
+     */
+    @Deprecated(forRemoval = true)
     public static <Response> ActionListener<Response> wrapWithTimeout(
         ThreadPool threadPool,
         TimeValue timeout,

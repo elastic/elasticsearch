@@ -13,7 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,7 +43,7 @@ public class RestSnapshotGlobalStateAction extends BaseRestHandler {
         snapshotGlobalStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotGlobalStateRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .snapshotGlobalState(snapshotGlobalStateRequest, new RestToXContentListener<>(channel));
+            .snapshotGlobalState(snapshotGlobalStateRequest, new RestChunkedToXContentListener<>(channel));
 
     }
 }

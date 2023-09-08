@@ -10,14 +10,17 @@ package org.elasticsearch.action.admin.cluster.snapshots.globalstate;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 
-public class SnapshotGlobalStateResponse extends ActionResponse implements ToXContentObject {
+public class SnapshotGlobalStateResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final Metadata metadata;
 
@@ -36,12 +39,11 @@ public class SnapshotGlobalStateResponse extends ActionResponse implements ToXCo
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("clusterUUID", metadata.clusterUUID());
-        builder.field("clusterCommittedUUID", metadata.clusterUUIDCommitted());
-        builder.field("indices", metadata.indices());
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            metadata.toXContentChunked(params),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 }

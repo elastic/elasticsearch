@@ -22,6 +22,7 @@ import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
@@ -111,16 +112,19 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    @TestLogging(value = "org.elasticsearch.common.file:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/98391")
     public void testFailsOnStartMasterNodeWithError() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
         internalCluster().startMasterOnlyNode();
+
         logger.info("--> write some role mappings, no other file settings");
         writeJSONFile(internalCluster().getMasterName(), testJSONForFailedCase);
         var savedClusterState = setupClusterStateListenerForError(internalCluster().getMasterName());
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
+        fail();
     }
 
     public Collection<Class<? extends Plugin>> nodePlugins() {

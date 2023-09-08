@@ -100,25 +100,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             DataTypes.DOUBLE,
             i -> expected.applyAsDouble(i),
             min.intValue(),
-            max.intValue()
-        );
+            max.intValue(),
+            List.of());
         forUnaryLong(
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
             DataTypes.DOUBLE,
             l -> expected.applyAsDouble(l),
             min.longValue(),
-            max.longValue()
-        );
+            max.longValue(),
+            List.of());
         forUnaryUnsignedLong(
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
             DataTypes.DOUBLE,
             ul -> expected.applyAsDouble(ul.doubleValue()),
             BigInteger.valueOf((int) Math.ceil(min)),
-            BigInteger.valueOf((int) Math.floor(max))
-        );
-        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max);
+            BigInteger.valueOf((int) Math.floor(max)),
+            List.of());
+        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max, List.of());
         return suppliers;
     }
 
@@ -183,16 +183,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         IntFunction<Object> expectedValue,
         int lowerBound,
-        int upperBound
-    ) {
+        int upperBound,
+        List<String> warnings) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
             DataTypes.INTEGER,
             intCases(lowerBound, upperBound),
             expectedType,
-            n -> expectedValue.apply(n.intValue())
-        );
+            n -> expectedValue.apply(n.intValue()),
+            warnings);
     }
 
     /**
@@ -204,16 +204,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         LongFunction<Object> expectedValue,
         long lowerBound,
-        long upperBound
-    ) {
+        long upperBound,
+        List<String> warnings) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
             DataTypes.LONG,
             longCases(lowerBound, upperBound),
             expectedType,
-            n -> expectedValue.apply(n.longValue())
-        );
+            n -> expectedValue.apply(n.longValue()),
+            warnings);
     }
 
     /**
@@ -225,16 +225,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         Function<BigInteger, Object> expectedValue,
         BigInteger lowerBound,
-        BigInteger upperBound
-    ) {
+        BigInteger upperBound,
+        List<String> warnings) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
             DataTypes.UNSIGNED_LONG,
             ulongCases(lowerBound, upperBound),
             expectedType,
-            n -> expectedValue.apply((BigInteger) n)
-        );
+            n -> expectedValue.apply((BigInteger) n),
+            warnings);
     }
 
     /**
@@ -246,16 +246,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         DoubleFunction<Object> expectedValue,
         double lowerBound,
-        double upperBound
-    ) {
+        double upperBound,
+        List<String> warnings) {
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
             DataTypes.DOUBLE,
             doubleCases(lowerBound, upperBound),
             expectedType,
-            n -> expectedValue.apply(n.doubleValue())
-        );
+            n -> expectedValue.apply(n.doubleValue()),
+            warnings);
     }
 
     private static void unaryNumeric(
@@ -264,8 +264,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType inputType,
         List<Map.Entry<String, Supplier<Object>>> valueSuppliers,
         DataType expectedOutputType,
-        Function<Number, Object> expected
-    ) {
+        Function<Number, Object> expected,
+        List<String> warnings) {
         for (Map.Entry<String, Supplier<Object>> supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
                 Number value = (Number) supplier.getValue().get();
@@ -275,7 +275,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     inputType,
                     "value"
                 );
-                return new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
+                TestCase testCase = new TestCase(List.of(typed), expectedEvaluatorToString, expectedOutputType, equalTo(expected.apply(value)));
+                for (String warning : warnings) {
+                    testCase = testCase.withWarning(warning);
+                }
+                return testCase;
             }));
         }
     }

@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -35,13 +33,15 @@ public class Log10Tests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // Cases in valid range
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "Log10IntEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
             Math::log10,
             1,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            List.of()
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
@@ -49,7 +49,8 @@ public class Log10Tests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::log10,
             1L,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            List.of()
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
@@ -57,7 +58,8 @@ public class Log10Tests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             ul -> Math.log10(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ONE,
-            MAX_UNSIGNED_LONG
+            MAX_UNSIGNED_LONG,
+            List.of()
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -65,9 +67,64 @@ public class Log10Tests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::log10,
             Double.MIN_VALUE,
-            Double.POSITIVE_INFINITY
+            Double.POSITIVE_INFINITY,
+            List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+
+        // Add in null cases here; the out of range cases won't set the right warnings on a null input.
+        suppliers = anyNullIsNull(true, suppliers);
+
+        // Cases with invalid inputs
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "Log10IntEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Integer.MIN_VALUE,
+            0,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Log of non-positive number"
+            )
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "Log10LongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Long.MIN_VALUE,
+            0L,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Log of non-positive number"
+            )
+        );
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "Log10UnsignedLongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            BigInteger.ZERO,
+            BigInteger.ZERO,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Log of non-positive number"
+            )
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "Log10DoubleEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Double.NEGATIVE_INFINITY,
+            0d,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Log of non-positive number"
+            )
+        );
+
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

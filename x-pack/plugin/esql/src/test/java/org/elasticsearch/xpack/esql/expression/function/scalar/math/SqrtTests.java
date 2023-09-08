@@ -38,32 +38,32 @@ public class SqrtTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::sqrt,
             Integer.MIN_VALUE,
-            Integer.MAX_VALUE
-        );
+            Integer.MAX_VALUE,
+            List.of());
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SqrtLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
             Math::sqrt,
             Long.MIN_VALUE,
-            Long.MAX_VALUE
-        );
+            Long.MAX_VALUE,
+            List.of());
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
             ul -> Math.sqrt(ul.doubleValue()),
             BigInteger.ZERO,
-            MAX_UNSIGNED_LONG
-        );
+            MAX_UNSIGNED_LONG,
+            List.of());
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SqrtDoubleEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
             Math::sqrt,
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
-        );
+            Double.POSITIVE_INFINITY,
+            List.of());
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

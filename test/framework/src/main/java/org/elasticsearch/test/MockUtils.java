@@ -30,8 +30,9 @@ public class MockUtils {
     public static TransportService setupTransportServiceWithThreadpoolExecutor() {
         TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        setMockReturns(transportService, threadPool);
+
         return transportService;
     }
 
@@ -44,10 +45,9 @@ public class MockUtils {
      */
     public static TransportService setupTransportServiceWithThreadpoolExecutor(ThreadPool threadPool) {
         assert mockingDetails(threadPool).isMock();
-
         TransportService transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        setMockReturns(transportService, threadPool);
 
         return transportService;
     }
@@ -59,8 +59,12 @@ public class MockUtils {
      */
     public static void setupTransportServiceWithThreadpoolExecutor(TransportService transportService) {
         assert mockingDetails(transportService).isMock();
-
         ThreadPool threadPool = mock(ThreadPool.class);
+
+        setMockReturns(transportService, threadPool);
+    }
+
+    private static void setMockReturns(TransportService transportService, ThreadPool threadPool) {
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }

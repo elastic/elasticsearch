@@ -242,7 +242,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 nullValue.get(),
                 indexVersionCreated
             );

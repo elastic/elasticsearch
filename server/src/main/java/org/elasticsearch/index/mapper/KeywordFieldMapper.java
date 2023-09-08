@@ -323,7 +323,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 context.isSourceSynthetic(),
                 this
             );

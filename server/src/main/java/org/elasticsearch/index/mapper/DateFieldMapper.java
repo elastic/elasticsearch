@@ -358,7 +358,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
         }
     }
 

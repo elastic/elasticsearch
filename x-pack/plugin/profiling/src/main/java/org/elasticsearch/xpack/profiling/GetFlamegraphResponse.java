@@ -112,26 +112,17 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.array("edges", Iterators.flatMap(edges.iterator(), perNodeEdges -> {
-                // returns the full map but looking at the loop at the end of createBaseFlameGraph() we're actually only interested in
-                // the values anyway. Ask Joseph why we need the intermediary map anyway.
-                return Iterators.concat(
-                    ChunkedToXContentHelper.startArray(),
-                    Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> {
-                        return b.value(edge.getValue());
-                    }),
-                    ChunkedToXContentHelper.endArray()
-                );
-                /*
-                return Iterators.concat(
-                    ChunkedToXContentHelper.startObject(),
-                    Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> {
-                        return b.field(edge.getKey(), edge.getValue());
-                    }),
-                    ChunkedToXContentHelper.endObject()
-                );
-                 */
-            })),
+            ChunkedToXContentHelper.array(
+                "edges",
+                Iterators.flatMap(
+                    edges.iterator(),
+                    perNodeEdges -> Iterators.concat(
+                        ChunkedToXContentHelper.startArray(),
+                        Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> b.value(edge.getValue())),
+                        ChunkedToXContentHelper.endArray()
+                    )
+                )
+            ),
             ChunkedToXContentHelper.array("fileIds", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("frameTypes", Iterators.map(frameTypes.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("inlineFrames", Iterators.map(inlineFrames.iterator(), e -> (b, p) -> b.value(e))),

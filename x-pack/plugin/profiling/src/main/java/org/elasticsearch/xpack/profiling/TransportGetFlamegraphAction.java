@@ -25,7 +25,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -103,7 +102,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 String executable = response.getExecutables().getOrDefault(fileId, "");
 
                 for (Frame frame : stackFrame.frames()) {
-                    String frameGroupId = createFrameGroupID(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
+                    String frameGroupId = createFrameGroupId(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
                     int nodeId;
                     if (builder.isExists(frameGroupId)) {
@@ -144,21 +143,34 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         return lastSeparatorIdx == -1 ? fullPath : fullPath.substring(lastSeparatorIdx + 1);
     }
 
-    private static String createFrameGroupID(
-        String fileID,
+    private static String createFrameGroupId(
+        String fileId,
         Integer addressOrLine,
         String exeFilename,
         String sourceFilename,
         String functionName
     ) {
+        // TODO: Does the prefix really matter? We can probably just concatenate all components as in the implementation below
+        /*
         if (functionName.isEmpty()) {
-            return String.format(Locale.ROOT, "empty;%s;%d", fileID, addressOrLine);
+            return String.format(Locale.ROOT, "empty;%s;%d", fileId, addressOrLine);
         }
 
         if (sourceFilename.isEmpty()) {
             return String.format(Locale.ROOT, "elf;%s;%s", exeFilename, functionName);
         }
         return String.format(Locale.ROOT, "full;%s;%s;%s", exeFilename, functionName, getFilename(sourceFilename));
+         */
+        StringBuilder sb = new StringBuilder();
+        if (functionName.isEmpty()) {
+            sb.append(fileId);
+            sb.append(addressOrLine);
+        } else {
+            sb.append(exeFilename);
+            sb.append(functionName);
+            sb.append(getFilename(sourceFilename));
+        }
+        return sb.toString();
     }
 
     private static class FlamegraphBuilder {

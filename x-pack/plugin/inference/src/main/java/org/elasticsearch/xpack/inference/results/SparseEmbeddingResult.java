@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.results;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,7 +54,7 @@ public class SparseEmbeddingResult implements InferenceResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_070;
+        return TransportVersions.V_8_500_072;
     }
 
     @Override

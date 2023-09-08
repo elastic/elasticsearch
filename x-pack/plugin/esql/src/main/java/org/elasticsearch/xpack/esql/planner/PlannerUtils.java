@@ -24,14 +24,24 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.Queries;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
+import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
 public class PlannerUtils {
 
@@ -72,7 +82,7 @@ public class PlannerUtils {
         plan.forEachUp(
             FragmentExec.class,
             f -> f.fragment()
-                .forEachUp(EsRelation.class, r -> indices.addAll(Arrays.asList(Strings.commaDelimitedListToStringArray(r.index().name()))))
+                .forEachUp(EsRelation.class, r -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(r.index().name()))))
         );
         return indices.toArray(String[]::new);
     }
@@ -116,8 +126,41 @@ public class PlannerUtils {
      * Extracts the ES query provided by the filter parameter
      */
     public static QueryBuilder requestFilter(PhysicalPlan plan) {
-        var filter = new Holder<QueryBuilder>(null);
-        plan.forEachDown(FragmentExec.class, es -> filter.set(es.esFilter()));
-        return filter.get();
+        return detectFilter(plan, "@timestamp");
+    }
+
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+        // first position is the REST filter, the second the query filter
+        var requestFilter = new QueryBuilder[] { null, null };
+
+        plan.forEachDown(FragmentExec.class, fe -> {
+            requestFilter[0] = fe.esFilter();
+            // detect filter inside the query
+            fe.fragment().forEachUp(Filter.class, f -> {
+                // the only filter that can be pushed down is that on top of the relation
+                // reuses the logic from LocalPhysicalPlanOptimizer#PushFiltersToSource
+                // but get executed on the logical plan
+                List<Expression> matches = new ArrayList<>();
+                if (f.child() instanceof EsRelation) {
+                    var conjunctions = Predicates.splitAnd(f.condition());
+                    // look only at expressions that contain literals and the target field
+                    for (var exp : conjunctions) {
+                        var refs = new AttributeSet(exp.references());
+                        // remove literals or attributes that match by name
+                        boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
+                        // the expression only contains the target reference
+                        // and the expression is pushable (functions can be fully translated)
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
+                            matches.add(exp);
+                        }
+                    }
+                }
+                if (matches.size() > 0) {
+                    requestFilter[1] = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder();
+                }
+            });
+        });
+
+        return Queries.combine(FILTER, asList(requestFilter));
     }
 }

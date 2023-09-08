@@ -155,6 +155,15 @@ public class MetadataDataStreamsService {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
+            if (dataStream.isSystem()) {
+                if (lifecycle != null && lifecycle.getDownsamplingRounds() != null) {
+                    throw new IllegalArgumentException(
+                        "System data streams do not support downsampling as part of their lifecycle configuration. Encountered ["
+                            + dataStream.getName()
+                            + "] in the request"
+                    );
+                }
+            }
             builder.put(
                 new DataStream(
                     dataStream.getName(),

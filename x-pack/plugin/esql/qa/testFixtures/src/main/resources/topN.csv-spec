@@ -42,29 +42,29 @@ epsilon        |eth2           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 complexMultiSortingFields_SameFieldAscAndDesc
-from employees | sort job_positions asc, languages nulls first, gender desc, job_positions desc | limit 20 | keep job_positions, languages, gender;
+from employees | sort job_positions asc, languages nulls first, gender desc, job_positions desc, emp_no | limit 20 | keep job_positions, languages, gender, emp_no;
 
-                       job_positions:keyword                                |languages:integer|gender:keyword     
-[Accountant, Internship, Python Developer, Tech Lead]                       |null             |M              
-Accountant                                                                  |null             |M              
-[Accountant, Purchase Manager, Support Engineer]                            |null             |F              
-[Accountant, Business Analyst, Data Scientist, Python Developer]            |1                |M              
-[Accountant, Principal Support Engineer, Support Engineer, Tech Lead]       |1                |F              
-[Accountant, Junior Developer]                                              |1                |F              
-[Accountant, Purchase Manager, Python Developer, Reporting Analyst]         |2                |null           
-[Accountant, Senior Python Developer, Tech Lead]                            |2                |M              
-[Accountant, Junior Developer, Reporting Analyst, Support Engineer]         |2                |M              
-[Accountant, Senior Python Developer]                                       |2                |M              
-[Accountant, Internship]                                                    |2                |M              
-[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|3                |M              
-[Accountant, Business Analyst, Purchase Manager]                            |3                |M              
-[Accountant, Junior Developer]                                              |4                |F              
-[Accountant, Head Human Resources]                                          |5                |null           
-[Accountant, Business Analyst, Senior Python Developer, Tech Lead]          |5                |M              
-[Accountant, Data Scientist, Internship, Senior Python Developer]           |5                |M              
-[Accountant, Principal Support Engineer, Senior Python Developer]           |5                |F              
-[Architect, Principal Support Engineer, Purchase Manager, Senior Team Lead] |2                |F              
-[Architect, Internship, Principal Support Engineer]                         |2                |F
+                       job_positions:keyword                                |languages:integer|gender:keyword | emp_no:integer    
+[Accountant, Internship, Python Developer, Tech Lead]                       |null             |M              |10028          
+Accountant                                                                  |null             |M              |10025          
+[Accountant, Purchase Manager, Support Engineer]                            |null             |F              |10023          
+[Accountant, Business Analyst, Data Scientist, Python Developer]            |1                |M              |10034          
+[Accountant, Principal Support Engineer, Support Engineer, Tech Lead]       |1                |F              |10044          
+[Accountant, Junior Developer]                                              |1                |F              |10092          
+[Accountant, Purchase Manager, Python Developer, Reporting Analyst]         |2                |null           |10016          
+[Accountant, Senior Python Developer, Tech Lead]                            |2                |M              |10037          
+[Accountant, Junior Developer, Reporting Analyst, Support Engineer]         |2                |M              |10050          
+[Accountant, Senior Python Developer]                                       |2                |M              |10001          
+[Accountant, Internship]                                                    |2                |M              |10081          
+[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|3                |M              |10045          
+[Accountant, Business Analyst, Purchase Manager]                            |3                |M              |10051          
+[Accountant, Junior Developer]                                              |4                |F              |10089          
+[Accountant, Head Human Resources]                                          |5                |null           |10012          
+[Accountant, Business Analyst, Senior Python Developer, Tech Lead]          |5                |M              |10085          
+[Accountant, Data Scientist, Internship, Senior Python Developer]           |5                |M              |10066          
+[Accountant, Principal Support Engineer, Senior Python Developer]           |5                |F              |10094          
+[Architect, Principal Support Engineer, Purchase Manager, Senior Team Lead] |2                |F              |10059          
+[Architect, Internship, Principal Support Engineer]                         |2                |F              |10078 
 ;
 
 sortingOnMVDoubles

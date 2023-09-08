@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,119 +19,109 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Maintains the mapping from attribute ids to channels (block index).
  *
  * An attribute can only be mapped to exactly one channel but one channel can be mapped to multiple attributes.
  */
-public class Layout {
+public interface Layout {
+    /**
+     * The values stored in the {@link Layout}, a channel id and a {@link DataType}.
+     */
+    record ChannelAndType(int channel, DataType type) {}
 
-    private final Map<NameId, Integer> layout;
-    private final int numberOfChannels;
-
-    Layout(Map<NameId, Integer> layout, int numberOfChannels) {
-        this.layout = layout;
-        this.numberOfChannels = numberOfChannels;
-    }
+    /**
+     * A part of an "inverse" layout, a {@link Set} or {@link NameId}s and a {@link DataType}.
+     */
+    record ChannelSet(Set<NameId> nameIds, DataType type) {}
 
     /**
      * @param id the attribute id
      * @return the channel to which the specific attribute id is mapped or `null` if the attribute id does not exist in the layout.
      */
-    public Integer getChannel(NameId id) {
-        return layout.get(id);
-    }
-
-    /**
-     * @return the total number of ids in the layout.
-     */
-    public int numberOfIds() {
-        return layout.size();
-    }
+    ChannelAndType get(NameId id);
 
     /**
      * @return the total number of channels in the layout.
      */
-    public int numberOfChannels() {
-        return numberOfChannels;
-    }
-
-    Map<NameId, Integer> internalLayout() {
-        return layout;
-    }
+    int numberOfChannels();
 
     /**
      * @return creates a builder to append to this layout.
      */
-    public Layout.Builder builder() {
-        return new Layout.Builder(this);
-    }
+    Layout.Builder builder();
 
-    @Override
-    public String toString() {
-        return "BlockLayout{" + "layout=" + layout + ", numberOfChannels=" + numberOfChannels + '}';
-    }
+    Map<Integer, Set<NameId>> inverse();
 
     /**
      * Builder class for Layout. The builder ensures that layouts cannot be altered after creation (through references to the underlying
      * map).
      */
-    public static class Builder {
+    class Builder {
+        private final List<ChannelSet> channels = new ArrayList<>();
 
-        private final List<Set<NameId>> channels;
+        public Builder() {}
 
-        public Builder() {
-            this.channels = new ArrayList<>();
-        }
-
-        private Builder(Layout layout) {
-            channels = IntStream.range(0, layout.numberOfChannels).<Set<NameId>>mapToObj(i -> new HashSet<>()).collect(Collectors.toList());
-            for (Map.Entry<NameId, Integer> entry : layout.layout.entrySet()) {
-                channels.get(entry.getValue()).add(entry.getKey());
+        Builder(int numberOfChannels, Map<NameId, ChannelAndType> layout) {
+            for (int i = 0; i < numberOfChannels; i++) {
+                channels.add(null);
             }
-        }
-
-        /**
-         * Appends a new channel to the layout. The channel is mapped to a single attribute id.
-         * @param id the attribute id
-         */
-        public Builder appendChannel(NameId id) {
-            channels.add(Set.of(id));
-            return this;
+            for (Map.Entry<NameId, ChannelAndType> entry : layout.entrySet()) {
+                ChannelSet set = channels.get(entry.getValue().channel);
+                if (set == null) {
+                    set = new ChannelSet(new HashSet<>(), entry.getValue().type());
+                    channels.set(entry.getValue().channel, set);
+                } else {
+                    if (set.type != entry.getValue().type()) {
+                        throw new IllegalArgumentException();
+                    }
+                }
+                set.nameIds.add(entry.getKey());
+            }
         }
 
         /**
          * Appends a new channel to the layout. The channel is mapped to one or more attribute ids.
-         * @param ids the attribute ids
          */
-        public Builder appendChannel(Set<NameId> ids) {
-            if (ids.size() < 1) {
+        public Builder append(ChannelSet set) {
+            if (set.nameIds.size() < 1) {
                 throw new IllegalArgumentException("Channel must be mapped to at least one id.");
             }
-            channels.add(ids);
+            channels.add(set);
             return this;
         }
 
-        public Builder appendChannels(Collection<? extends NamedExpression> attributes) {
-            for (var attribute : attributes) {
-                appendChannel(attribute.id());
+        /**
+         * Appends a new channel to the layout. The channel is mapped to a single attribute id.
+         */
+        public Builder append(NamedExpression attribute) {
+            return append(new ChannelSet(Set.of(attribute.id()), attribute.dataType()));
+        }
+
+        /**
+         * Appends many new channels to the layout. Each channel is mapped to a single attribute id.
+         */
+        public Builder append(Collection<? extends NamedExpression> attributes) {
+            for (NamedExpression attribute : attributes) {
+                append(new ChannelSet(Set.of(attribute.id()), attribute.dataType()));
             }
             return this;
         }
 
+        /**
+         * Build a new {@link Layout}.
+         */
         public Layout build() {
-            Map<NameId, Integer> layout = new HashMap<>();
+            Map<NameId, ChannelAndType> layout = new HashMap<>();
             int numberOfChannels = 0;
-            for (Set<NameId> ids : this.channels) {
+            for (ChannelSet set : channels) {
                 int channel = numberOfChannels++;
-                for (NameId id : ids) {
-                    layout.putIfAbsent(id, channel);
+                for (NameId id : set.nameIds) {
+                    layout.putIfAbsent(id, new ChannelAndType(channel, set.type));
                 }
             }
-            return new Layout(Collections.unmodifiableMap(layout), numberOfChannels);
+            return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);
         }
     }
 }

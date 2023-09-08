@@ -486,7 +486,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 // to be available so that and data deletion can succeed.
                 TimeValue.timeValueMinutes(15),
                 listener,
-                MachineLearning.UTILITY_THREAD_POOL_NAME
+                client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
             );
             this.jobTask = Objects.requireNonNull(jobTask);
         }

@@ -39,7 +39,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Math::sqrt,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
-            List.of());
+            List.of()
+        );
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SqrtLongEvaluator[val=" + read + "]",
@@ -47,7 +48,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Math::sqrt,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
-            List.of());
+            List.of()
+        );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
@@ -55,7 +57,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             ul -> Math.sqrt(ul.doubleValue()),
             BigInteger.ZERO,
             MAX_UNSIGNED_LONG,
-            List.of());
+            List.of()
+        );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SqrtDoubleEvaluator[val=" + read + "]",
@@ -63,7 +66,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Math::sqrt,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-            List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

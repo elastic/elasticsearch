@@ -42,7 +42,8 @@ public class FloorTests extends AbstractFunctionTestCase {
             ul -> NumericUtils.asLongUnsigned(ul),
             BigInteger.ZERO,
             MAX_UNSIGNED_LONG,
-            List.of());
+            List.of()
+        );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "FloorDoubleEvaluator[val=" + read + "]",
@@ -50,7 +51,8 @@ public class FloorTests extends AbstractFunctionTestCase {
             Math::floor,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-            List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 

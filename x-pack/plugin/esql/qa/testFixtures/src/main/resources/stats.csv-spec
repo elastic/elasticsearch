@@ -356,21 +356,21 @@ c:long | languages.long:long | trunk_worked_seconds:long
 ;
 
 byUnmentionedIntAndLong
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc, trunk_worked_seconds;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc, languages, trunk_worked_seconds;
 
 c:long | languages:integer | trunk_worked_seconds:long
 13             |5              |300000000           
 10             |2              |300000000           
 9              |3              |200000000           
 9              |4              |300000000           
-8              |4              |200000000           
 8              |3              |300000000           
+8              |4              |200000000           
 7              |1              |200000000           
+6              |1              |300000000           
 6              |2              |200000000           
 6              |null           |300000000           
-6              |1              |300000000           
-4              |null           |200000000           
 4              |5              |200000000       
+4              |null           |200000000           
 ;
 
 byUnmentionedIntAndBoolean

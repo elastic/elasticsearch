@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndi
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -925,6 +927,7 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -941,7 +944,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                compatibilityVersions
             );
             this.nodeService = new NodeService(
                 settings,

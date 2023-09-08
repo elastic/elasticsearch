@@ -159,6 +159,7 @@ from employees | keep emp_no | eval sum = emp_no + 1
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no
 | limit 3 
+| sort emp_no
 ;
 
 emp_no:i | sum:i

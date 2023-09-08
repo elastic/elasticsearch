@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
@@ -181,6 +182,14 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             Map<String, Object> source = (Map<String, Object>) ((Map) map.get("doc")).get("_source");
             assertThat(source.get("key"), is(Arrays.asList("value")));
         }
+    }
+
+    public void testCopiesTheIngestDocument() {
+        IngestDocument document = createRandomIngestDoc();
+        WriteableIngestDocument wid = new WriteableIngestDocument(document);
+
+        assertThat(wid.getIngestDocument(), equalTo(document));
+        assertThat(wid.getIngestDocument(), not(sameInstance(document)));
     }
 
     static IngestDocument createRandomIngestDoc() {

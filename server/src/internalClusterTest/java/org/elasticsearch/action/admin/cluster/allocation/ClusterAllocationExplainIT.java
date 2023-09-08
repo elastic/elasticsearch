@@ -30,8 +30,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,6 +80,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
         ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+        AbstractChunkedSerializingTestCase.assertChunkCount(explanation, ignored -> 6);
 
         ShardId shardId = explanation.getShard();
         boolean isPrimary = explanation.isPrimary();
@@ -1239,7 +1242,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.prettyPrint();
             builder.humanReadable(true);
-            logger.debug("--> explain json output: \n{}", Strings.toString(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS)));
+            logger.debug(
+                "--> explain json output: \n{}",
+                Strings.toString(ChunkedToXContent.wrapAsToXContent(explanation).toXContent(builder, ToXContent.EMPTY_PARAMS))
+            );
         }
         return explanation;
     }
@@ -1304,7 +1310,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     private XContentParser getParser(ClusterAllocationExplanation explanation) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        return createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        return createParser(ChunkedToXContent.wrapAsToXContent(explanation).toXContent(builder, ToXContent.EMPTY_PARAMS));
     }
 
     private void verifyShardInfo(XContentParser parser, boolean primary, boolean includeDiskInfo, ShardRoutingState state)

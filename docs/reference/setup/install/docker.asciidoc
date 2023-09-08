@@ -269,7 +269,7 @@ STACK_VERSION={version}
 ...
 ----
 
-. By default, the Docker Compose condiguration exposes port `9200` on all network interfaces.
+. By default, the Docker Compose configuration exposes port `9200` on all network interfaces.
 +
 To avoid exposing port `9200` to external hosts, set `ES_PORT` to `127.0.0.1:9200`
 in the `.env` file. This ensures {es} is only accessible from the host

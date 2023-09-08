@@ -105,6 +105,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
+        private final boolean usesSecureSecretsFile;
 
         private Path distributionDir;
         private Version currentVersion;
@@ -112,10 +113,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private DistributionDescriptor distributionDescriptor;
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null);
+            this(baseWorkingDir, distributionResolver, spec, null, false);
         }
 
-        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
+        public Node(
+            Path baseWorkingDir,
+            DistributionResolver distributionResolver,
+            LocalNodeSpec spec,
+            String suffix,
+            boolean usesSecureSecretsFile
+        ) {
+            this.usesSecureSecretsFile = usesSecureSecretsFile;
             this.objectMapper = new ObjectMapper();
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
@@ -154,10 +162,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            createKeystore();
-            addKeystoreSettings();
-            addKeystoreFiles();
-            writeSecureSecretsFile();
+            if (usesSecureSecretsFile) {
+                writeSecureSecretsFile();
+            } else {
+                createKeystore();
+                addKeystoreSettings();
+                addKeystoreFiles();
+            }
             configureSecurity();
 
             startElasticsearch();
@@ -475,12 +486,19 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void writeSecureSecretsFile() {
-            if (spec.getSecrets().isEmpty() == false) {
+            if (spec.getKeystoreFiles().isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Non-string secure secrets are not supported in serverless. Secrets: ["
+                        + spec.getKeystoreFiles().keySet().stream().collect(Collectors.joining(","))
+                        + "]"
+                );
+            }
+            if (spec.resolveKeystore().isEmpty() == false) {
                 try {
                     Path secretsFile = configDir.resolve("secrets/secrets.json");
                     Files.createDirectories(secretsFile.getParent());
                     Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", spec.getSecrets());
+                    secretsFileContent.put("secrets", spec.resolveKeystore());
                     secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
                     Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
                 } catch (IOException e) {

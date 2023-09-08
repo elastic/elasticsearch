@@ -161,8 +161,7 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 getKeystorePassword(),
                 getExtraConfigFiles(),
                 getSystemProperties(),
-                getJvmArgs(),
-                getSecrets()
+                getJvmArgs()
             );
         }
     }

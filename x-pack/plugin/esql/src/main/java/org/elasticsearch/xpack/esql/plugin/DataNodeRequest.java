@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.NameId;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,8 +59,6 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         this.configuration = new EsqlConfiguration(in);
         this.shardIds = in.readCollectionAsList(ShardId::new);
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        // TODO: remove this shared local counter
-        NameId.advanceGlobalId(in.readVLong());
         this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
     }
 
@@ -72,8 +69,6 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         configuration.writeTo(out);
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
-        // TODO: remove this shared local counter
-        out.writeVLong(new NameId().getId());
         new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
     }
 

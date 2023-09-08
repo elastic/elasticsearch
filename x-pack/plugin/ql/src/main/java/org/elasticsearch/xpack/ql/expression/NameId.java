@@ -30,23 +30,6 @@ public class NameId {
         this.id = id;
     }
 
-    /**
-     * TODO:
-     * This is a workaround to prevent NameId conflicts in multi-node environments. Currently, when a NameId is serialized,
-     * its local ID is also serialized to the remote node. If the remote node generates a new NameId, it could potentially
-     * have the same ID as an existing one that was deserialized, leading to an incorrect local plan on the remote node.
-     * <p>
-     * It's important to note that while conflicts might still occur between multiple computations with this approach, there
-     * is no conflicts within a single computation. We only need to ensure no conflict in a single computation to ensure the correctness.
-     */
-    public static void advanceGlobalId(long other) {
-        COUNTER.accumulateAndGet(other, Math::max);
-    }
-
-    public long getId() {
-        return id;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(id);

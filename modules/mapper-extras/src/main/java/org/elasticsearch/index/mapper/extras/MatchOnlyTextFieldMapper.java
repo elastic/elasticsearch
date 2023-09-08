@@ -76,15 +76,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "match_only_text";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
+            final FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
     }
@@ -375,7 +376,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();

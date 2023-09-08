@@ -37,10 +37,11 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "murmur3";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
     }
 

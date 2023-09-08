@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -1484,7 +1485,7 @@ public class TransportSearchActionTests extends ESTestCase {
             true
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
         assertTrue(anotherShardIterator.isPresent());
-        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
+        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(0));
     }
 
     public void testCCSCompatibilityCheck() throws Exception {
@@ -1494,7 +1495,7 @@ public class TransportSearchActionTests extends ESTestCase {
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.MINIMUM_CCS_VERSION, true);
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         ThreadPool threadPool = new ThreadPool(settings);
         try {
             TransportService transportService = MockTransportService.createNewService(

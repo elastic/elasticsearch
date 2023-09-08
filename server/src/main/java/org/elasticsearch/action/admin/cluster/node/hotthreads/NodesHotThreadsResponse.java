@@ -47,7 +47,7 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
     @Override
     protected List<NodeHotThreads> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeHotThreads::new);
+        return in.readCollectionAsList(NodeHotThreads::new);
     }
 
     @Override

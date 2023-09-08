@@ -40,7 +40,7 @@ public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
 
     protected NodeFindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.danglingIndexInfo = in.readList(IndexMetadata::readFrom);
+        this.danglingIndexInfo = in.readCollectionAsList(IndexMetadata::readFrom);
     }
 
     @Override

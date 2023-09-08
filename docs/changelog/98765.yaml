@@ -1,6 +1,0 @@
-pr: 98765
-summary: Fix mvt error when returning partial results
-area: Geo
-type: bug
-issues:
- - 98730

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -49,8 +50,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
-    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersion.V_7_15_0;
-    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersion.V_8_7_0;
+    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersions.V_7_15_0;
+    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
@@ -306,7 +307,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        this.failedNodeIds = in.readImmutableSet(StreamInput::readString);
+        this.failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             this.lastAllocatedNodeId = in.readOptionalString();
         } else {
@@ -329,7 +330,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        out.writeStringCollection(failedNodeIds);
         if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }

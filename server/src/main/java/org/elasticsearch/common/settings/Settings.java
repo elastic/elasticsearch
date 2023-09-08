@@ -645,7 +645,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        out.writeMap(settings, StreamOutput::writeString, Settings::writeSettingValue);
+        out.writeMap(settings, Settings::writeSettingValue);
     }
 
     private static void writeSettingValue(StreamOutput streamOutput, Object value) throws IOException {

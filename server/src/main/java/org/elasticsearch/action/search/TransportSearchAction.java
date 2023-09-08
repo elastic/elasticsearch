@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -691,7 +691,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     final String[] indices = entry.getValue().indices();
                     final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
                     // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                         SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                             indices,
                             indicesOptions,
@@ -1543,12 +1543,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
                 final List<String> targetNodes = new ArrayList<>(2);
-                // Prefer executing shard requests on nodes that are part of PIT first.
-                if (clusterState.nodes().nodeExists(perNode.getNode())) {
-                    targetNodes.add(perNode.getNode());
-                }
                 try {
                     final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                    // Prefer executing shard requests on nodes that are part of PIT first.
+                    if (clusterState.nodes().nodeExists(perNode.getNode())) {
+                        targetNodes.add(perNode.getNode());
+                    }
                     if (perNode.getSearchContextId().getSearcherId() != null) {
                         for (ShardRouting shard : shards) {
                             if (shard.currentNodeId().equals(perNode.getNode()) == false) {

@@ -83,7 +83,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskSta
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
-import static org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask.REPLACEMENT_SOURCE_INDEX;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a data stream lifecycle
@@ -128,7 +127,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /*
      * This is the key for data stream lifecycle related custom index metadata.
      */
-    static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
+    public static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
     private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
@@ -396,42 +395,24 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             String indexName = index.getName();
             IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndexMeta.getSettings());
-            String backingIndexDownsamplingSource = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndexMeta.getSettings());
+            String downsamplingSourceIndex = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndexMeta.getSettings());
 
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
-            if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource) == false
+            if (org.elasticsearch.common.Strings.hasText(downsamplingSourceIndex) == false
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
-            } else if (org.elasticsearch.common.Strings.hasText(backingIndexDownsamplingSource)
+            } else if (org.elasticsearch.common.Strings.hasText(downsamplingSourceIndex)
                 && backingIndexDownsamplingStatus.equals(SUCCESS)) {
                     // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
-                    Map<String, String> lifecycleMetadata = backingIndexMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-
-                    // TODO document that we don't handle downsample indices that were added to the data stream manually (because we
-                    // TODO currently can't reliably identify the source index to delete when multiple rounds of donwsampling are
-                    // TODO involved unless DSL stores the needed metadata in the index metadata)
-                    if (lifecycleMetadata != null && lifecycleMetadata.containsKey(REPLACEMENT_SOURCE_INDEX)) {
-                        String actualDownsamplingSource = lifecycleMetadata.get(REPLACEMENT_SOURCE_INDEX);
-                        IndexMetadata downsampleSourceIndex = metadata.index(actualDownsamplingSource);
-                        if (downsampleSourceIndex != null) {
-                            // we mark the backing index as affected as we don't want subsequent operations that might change its state to
-                            // be performed, as we might lose the way to identify that we must delete its replacement source index
-                            affectedIndices.add(index);
-                            // delete downsampling source index (that's not part of the data stream anymore) before doing any more
-                            // downsampling
-                            deleteIndexOnce(backingIndexDownsamplingSource, "replacement with its downsampled index in the data stream");
-                        }
-                    } else {
-                        logger.trace(
-                            "Data stream lifecycle encountered managed index [{}] as part of data stream [{}] which was "
-                                + "downsampled from source [{} ]. This index was manually downsampled but data stream lifecycle service "
-                                + "only supports downsampled indices through the data stream lifecycle. This index will be ignored from "
-                                + "lifecycle donwsampling",
-                            indexName,
-                            dataStream,
-                            backingIndexDownsamplingSource
-                        );
+                    IndexMetadata downsampleSourceIndex = metadata.index(downsamplingSourceIndex);
+                    if (downsampleSourceIndex != null) {
+                        // we mark the backing index as affected as we don't want subsequent operations that might change its state to
+                        // be performed, as we might lose the way to identify that we must delete its replacement source index
+                        affectedIndices.add(index);
+                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
+                        // downsampling
+                        deleteIndexOnce(downsamplingSourceIndex, "replacement with its downsampled index in the data stream");
                     }
                 }
 
@@ -993,6 +974,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
+                    logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
                     errorStore.clearRecordedError(targetIndex);
                     listener.onResponse(null);

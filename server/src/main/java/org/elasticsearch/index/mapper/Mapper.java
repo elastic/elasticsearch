@@ -126,6 +126,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             // don't deduplicate subclasses or types with non-empty attribute maps to avoid memory leaks
             return fieldType;
         }
+        if (fieldTypeDeduplicator.size() > 1000) {
+            // guard against the case where we run up too many combinations via (vector-)dimensions combinations
+            fieldTypeDeduplicator.clear();
+        }
         return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
     }
 }

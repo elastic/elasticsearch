@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 
 import java.util.BitSet;
@@ -18,6 +19,8 @@ import java.util.stream.IntStream;
  * This class is generated. Do not edit it.
  */
 public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
     private final BytesRefArray values;
 
@@ -57,6 +60,16 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
         return new BytesRefArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+    }
+
+    public static long ramBytesEstimated(BytesRefArray values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
     }
 
     @Override

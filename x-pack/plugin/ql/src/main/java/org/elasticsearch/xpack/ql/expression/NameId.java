@@ -26,10 +26,6 @@ public class NameId {
         this.id = COUNTER.incrementAndGet();
     }
 
-    public NameId(long id) {
-        this.id = id;
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(id);

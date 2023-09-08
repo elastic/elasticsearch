@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Filter vector for IntVectors.
  * This class is generated. Do not edit it.
  */
 public final class FilterIntVector extends AbstractFilterVector implements IntVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterIntVector.class);
 
     private final IntVector vector;
 
@@ -43,6 +47,13 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
     @Override
     public IntVector filter(int... positions) {
         return new FilterIntVector(this, positions);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter vectors encapsulate
+        // their inner vector, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override

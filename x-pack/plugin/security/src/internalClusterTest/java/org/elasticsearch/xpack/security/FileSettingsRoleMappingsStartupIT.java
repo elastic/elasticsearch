@@ -124,7 +124,6 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
-        fail();
     }
 
     public Collection<Class<? extends Plugin>> nodePlugins() {

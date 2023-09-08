@@ -596,7 +596,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 threadPool,
                 responseListener,
                 ccrSettings.getRecoveryActionTimeout(),
-                chunkResponseExecutor,
+                threadPool.generic(), // TODO should be the remote-client response executor to match the non-timeout case
                 PutCcrRestoreSessionAction.INTERNAL_NAME
             )
         );

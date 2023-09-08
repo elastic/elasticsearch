@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -14,6 +16,8 @@ import java.util.Arrays;
  * This class is generated. Do not edit it.
  */
 public final class LongArrayVector extends AbstractVector implements LongVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
 
     private final long[] values;
 
@@ -45,6 +49,15 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     @Override
     public LongVector filter(int... positions) {
         return new FilterLongVector(this, positions);
+    }
+
+    public static long ramBytesEstimated(long[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override

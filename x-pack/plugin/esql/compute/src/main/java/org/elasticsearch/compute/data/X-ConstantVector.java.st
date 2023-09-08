@@ -10,12 +10,15 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
  */
 public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
 
     private final $type$ value;
 
@@ -51,6 +54,11 @@ $endif$
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance($type$.class);
     }
 
     @Override

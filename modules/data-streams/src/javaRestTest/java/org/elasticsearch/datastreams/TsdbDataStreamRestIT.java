@@ -10,7 +10,9 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -616,6 +618,69 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         client().performRequest(request);
+    }
+
+    public void testLookBackTime() throws IOException {
+        // Create template that uses index.look_back_time index setting:
+        String template = """
+            {
+                "index_patterns": ["test*"],
+                "template": {
+                    "settings":{
+                        "index": {
+                            "look_back_time": "24h",
+                            "number_of_replicas": 0,
+                            "mode": "time_series"
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "field": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            }
+                        }
+                    }
+                },
+                "data_stream": {}
+            }""";
+        var putIndexTemplateRequest = new Request("PUT", "/_index_template/2");
+        putIndexTemplateRequest.setJsonEntity(template);
+        assertOK(client().performRequest(putIndexTemplateRequest));
+
+        // Create data stream:
+        var createDataStreamRequest = new Request("PUT", "/_data_stream/test123");
+        assertOK(client().performRequest(createDataStreamRequest));
+
+        // Check data stream has been created:
+        var getDataStreamsRequest = new Request("GET", "/_data_stream");
+        var response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        var dataStreams = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("test123"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("2"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+        assertThat(firstBackingIndex, backingIndexEqualTo("test123", 1));
+
+        // Check the backing index:
+        // 2023-08-15T04:35:50.000Z
+        var indices = getIndex(firstBackingIndex);
+        var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("test123"));
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
+        String startTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+        assertThat(startTimeFirstBackingIndex, notNullValue());
+        Instant now = Instant.now();
+        Instant startTime = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(startTimeFirstBackingIndex)).toInstant();
+        assertTrue(now.minus(24, ChronoUnit.HOURS).isAfter(startTime));
+        String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+        assertThat(endTimeFirstBackingIndex, notNullValue());
     }
 
     private static Map<?, ?> getIndex(String indexName) throws IOException {

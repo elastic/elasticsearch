@@ -169,6 +169,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");

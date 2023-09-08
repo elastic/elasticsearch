@@ -276,6 +276,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     );
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
+    private static final int WATCHES_INDEX_MAPPINGS_VERSION = 1;
+    private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 1;
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -876,6 +878,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT);
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
                 {
@@ -967,6 +970,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT);
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
                 {

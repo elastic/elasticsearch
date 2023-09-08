@@ -94,12 +94,12 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     @Override
     protected List<NodeListDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeListDanglingIndicesResponse::new);
+        return in.readCollectionAsList(NodeListDanglingIndicesResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     // visible for testing

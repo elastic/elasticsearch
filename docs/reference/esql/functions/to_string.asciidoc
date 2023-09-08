@@ -1,0 +1,25 @@
+[[esql-to_string]]
+=== `TO_STRING`
+Converts a field into a string. For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=to_string]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=to_string-result]
+|===
+
+It also works fine on multivalued fields:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=to_string_multivalue-result]
+|===
+
+Alias: TO_STR

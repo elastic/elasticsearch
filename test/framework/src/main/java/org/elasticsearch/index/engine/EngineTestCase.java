@@ -1513,7 +1513,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
                     try {
-                        final IndexSearcher searcher = new IndexSearcher(leaf);
+                        final IndexSearcher searcher = newSearcher(leaf, false);
                         searcher.setQueryCache(null);
                         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                         final Scorer scorer = weight.scorer(leaf.getContext());

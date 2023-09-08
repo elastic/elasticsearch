@@ -697,6 +697,12 @@ public class SystemIndices {
         return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMappingsVersions() {
+        return getSystemIndexDescriptors().stream()
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getPrimaryIndex, SystemIndexDescriptor::getMappingsVersion));
+    }
+
     /**
      * Check that a feature name is not reserved
      * @param name Name of feature

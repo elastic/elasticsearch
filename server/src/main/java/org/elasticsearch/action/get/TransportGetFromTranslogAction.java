@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +43,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
     TransportGetFromTranslogAction.Request,
     TransportGetFromTranslogAction.Response> {
 
-    public static final String NAME = "internal:data/read/get_from_translog";
+    public static final String NAME = "indices:data/read/get_from_translog";
     public static final Logger logger = LogManager.getLogger(TransportGetFromTranslogAction.class);
 
     private final IndicesService indicesService;
@@ -83,7 +85,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         });
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
 
         private final GetRequest getRequest;
         private final ShardId shardId;
@@ -122,6 +124,16 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         @Override
         public String toString() {
             return "GetFromTranslogRequest{" + "getRequest=" + getRequest + ", shardId=" + shardId + "}";
+        }
+
+        @Override
+        public String[] indices() {
+            return getRequest.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return getRequest.indicesOptions();
         }
     }
 

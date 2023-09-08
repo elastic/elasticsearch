@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +64,14 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                         .setPrimaryIndex(MANAGED_SYSTEM_INDEX_NAME + "-primary")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
                         .setSettings(SystemIndexDescriptor.DEFAULT_SETTINGS)
-                        .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\"}}")
+                        .setMappings(String.format(Locale.ROOT, """
+                            {
+                              "_meta": {
+                                "version": "1.0.0",
+                                "%s": 0
+                              }
+                            }"
+                            """, SystemIndexDescriptor.VERSION_META_KEY))
                         .setVersionMetaKey("version")
                         .setOrigin("origin")
                         .build()

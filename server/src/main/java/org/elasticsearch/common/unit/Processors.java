@@ -9,6 +9,7 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +32,9 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
     public static final Processors MAX_PROCESSORS = new Processors(Double.MAX_VALUE);
 
     public static final Version FLOAT_PROCESSORS_SUPPORT_VERSION = Version.V_8_3_0;
-    public static final TransportVersion FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
     public static final Version DOUBLE_PROCESSORS_SUPPORT_VERSION = Version.V_8_5_0;
-    public static final TransportVersion DOUBLE_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersion.V_8_5_0;
+    public static final TransportVersion DOUBLE_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_5_0;
     static final int NUMBER_OF_DECIMAL_PLACES = 5;
     private static final double MIN_REPRESENTABLE_PROCESSORS = 1E-5;
 

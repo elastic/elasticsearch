@@ -264,7 +264,7 @@ public class SecurityIndexManager implements ClusterStateListener {
          *
          * ...which is true if the mappings have been updated.
          */
-        return checkIndexMappingVersionMatches(clusterState, descriptor.getMappingVersion()::onOrBefore);
+        return checkIndexMappingVersionMatches(clusterState, descriptor.getMappingsNodeVersion()::onOrBefore);
     }
 
     private boolean checkIndexMappingVersionMatches(ClusterState clusterState, Predicate<Version> predicate) {

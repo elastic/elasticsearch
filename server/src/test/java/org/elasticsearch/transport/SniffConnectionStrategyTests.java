@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -375,7 +376,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -454,7 +455,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",
@@ -1085,7 +1086,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
         Version version = VersionUtils.randomVersion(random());
-        DiscoveryNode node = DiscoveryNodeUtils.builder("id").address(address).version(version).build();
+        DiscoveryNode node = DiscoveryNodeUtils.builder("id")
+            .address(address)
+            .version(version, IndexVersion.ZERO, IndexVersion.current())
+            .build();
         assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
     }
 

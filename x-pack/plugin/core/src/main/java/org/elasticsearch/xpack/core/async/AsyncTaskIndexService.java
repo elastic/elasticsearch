@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -88,6 +89,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
+    private static final int ASYNC_TASK_INDEX_MAPPINGS_VERSION = 0;
 
     // Usually the settings, mappings and system index descriptor below
     // would be co-located with the SystemIndexPlugin implementation,
@@ -110,6 +112,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, ASYNC_TASK_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -567,7 +570,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         os = Streams.noCloseStream(os);
         TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
         TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
+        if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
@@ -592,7 +595,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
-        if (version.onOrAfter(TransportVersion.V_7_15_0)) {
+        if (version.onOrAfter(TransportVersions.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {

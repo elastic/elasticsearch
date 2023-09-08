@@ -481,7 +481,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert collator.isFrozen();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;

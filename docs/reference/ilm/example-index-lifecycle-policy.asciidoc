@@ -77,6 +77,7 @@ backing indices for these data streams.
 To view the `logs` policy in {kib}:
 
 . Open the menu and go to **Stack Management > Index Lifecycle Policies**.
+. Select **Include managed system policies**.
 . Select the `logs` policy.
 
 The `logs` policy uses the recommended rollover defaults: Start writing to a new
@@ -88,6 +89,10 @@ settings.
 
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]
+
+Note that {kib} displays a warning that editing a managed policy can break
+Kibana. For this tutorial, you can ignore that warning and proceed with
+modifying the policy.
 
 [discrete]
 [[ilm-ex-modify-policy]]

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -51,7 +51,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             indexStateMap = in.readMap(IndexMetadata.State::readFrom);
         } else {
@@ -171,9 +171,9 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
-            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
     }
 
@@ -184,7 +184,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             return Iterators.concat(Iterators.single(((builder, p) -> {
                 commonStats(builder, p);
                 return builder.startObject(Fields.INDICES);
-            })), getIndices().values().stream().<ToXContent>map(indexStats -> (builder, p) -> {
+            })), Iterators.map(getIndices().values().iterator(), indexStats -> (builder, p) -> {
                 builder.startObject(indexStats.getIndex());
                 builder.field("uuid", indexStats.getUuid());
                 if (indexStats.getHealth() != null) {
@@ -215,7 +215,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                     builder.endObject();
                 }
                 return builder.endObject();
-            }).iterator(), Iterators.single((b, p) -> b.endObject()));
+            }), Iterators.single((b, p) -> b.endObject()));
         }
         return Iterators.single((b, p) -> {
             commonStats(b, p);

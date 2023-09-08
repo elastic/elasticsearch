@@ -78,19 +78,19 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.root(false);
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.CURRENT).build(context).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.CURRENT, null).build(context)
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.CURRENT, null).build(context)
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.CURRENT, null).build(context)
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
                 .fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.CURRENT, null).build(context)
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, IndexVersion.current(), null).build(context)
                 .fieldType()
         )) {
             ifdService.clear();
@@ -104,7 +104,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -117,7 +117,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             null
         ).build(context).fieldType();
         ifdService.clear();
@@ -280,28 +280,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
         // set it the first time...
         shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-            }
         });
         // now set it again and make sure we fail
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-
-                }
             });
             fail("listener already set");
         } catch (IllegalStateException ex) {

@@ -554,9 +554,5 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
         }
 
-        @Override
-        public float[] vectorValue() throws IOException {
-            return in.vectorValue();
-        }
     }
 }

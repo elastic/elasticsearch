@@ -16,15 +16,15 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
     public void testHumanReadableSettings() {
-        IndexVersion versionCreated = randomVersion(random()).indexVersion;
+        IndexVersion versionCreated = randomVersion(random());
         long created = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated)
             .put(IndexMetadata.SETTING_CREATION_DATE, created)
             .build();
 

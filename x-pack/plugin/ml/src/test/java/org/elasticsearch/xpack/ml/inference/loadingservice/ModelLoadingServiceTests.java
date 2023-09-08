@@ -414,7 +414,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
-            modelLoadingService.getModelForSearch(modelId, future);
+            modelLoadingService.getModelForAggregation(modelId, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 

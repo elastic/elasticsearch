@@ -1,6 +1,0 @@
-pr: 96843
-summary: Uses `ClusterSettings` instead of Node `Settings` in `HealthMetadataService`
-area: Health
-type: bug
-issues:
- - 96219

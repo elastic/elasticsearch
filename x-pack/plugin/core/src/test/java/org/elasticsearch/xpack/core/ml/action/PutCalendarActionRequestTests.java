@@ -32,11 +32,6 @@ public class PutCalendarActionRequestTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected PutCalendarAction.Request doParseInstance(XContentParser parser) {
         return PutCalendarAction.Request.parseRequest(calendarId, parser);
     }

@@ -25,7 +25,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
@@ -136,6 +138,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         }
     }
 
+    @SuppressForbidden(reason = "exposing ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
+    }
+
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
@@ -144,7 +151,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
-            builder.transportVersions(currentState.transportVersions());
+            builder.compatibilityVersions(getCompatibilityVersions(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

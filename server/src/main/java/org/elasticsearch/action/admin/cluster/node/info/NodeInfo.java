@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,8 +33,6 @@ import org.elasticsearch.transport.TransportInfo;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 
 /**
  * Node information (static, does not change over time).
@@ -60,7 +59,7 @@ public class NodeInfo extends BaseNodeResponse {
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
         version = Version.readVersion(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             transportVersion = TransportVersion.readVersion(in);
         } else {
             transportVersion = TransportVersion.fromId(version.id);
@@ -84,10 +83,10 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
         }
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
         }
     }
@@ -198,7 +197,7 @@ public class NodeInfo extends BaseNodeResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         Version.writeVersion(version, out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
         }
         Build.writeBuild(build, out);
@@ -222,10 +221,10 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
         }
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
         }
     }

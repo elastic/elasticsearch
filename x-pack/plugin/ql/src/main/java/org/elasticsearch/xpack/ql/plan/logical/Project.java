@@ -43,6 +43,10 @@ public class Project extends UnaryPlan {
         return projections;
     }
 
+    public Project withProjections(List<? extends NamedExpression> projections) {
+        return new Project(source(), child(), projections);
+    }
+
     @Override
     public boolean resolved() {
         return super.resolved() && Expressions.anyMatch(projections, Functions::isAggregate) == false;

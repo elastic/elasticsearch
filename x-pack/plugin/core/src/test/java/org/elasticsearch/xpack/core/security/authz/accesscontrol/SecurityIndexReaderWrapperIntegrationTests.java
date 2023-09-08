@@ -26,7 +26,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
@@ -90,7 +89,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             shardId.id(),
             0,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,
@@ -248,7 +246,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             shardId.id(),
             0,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             null,
             null,

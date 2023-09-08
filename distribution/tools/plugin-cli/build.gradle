@@ -8,7 +8,9 @@
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-plugin-cli'
+base {
+  archivesName = 'elasticsearch-plugin-cli'
+}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -19,8 +21,8 @@ dependencies {
   compileOnly project(":libs:elasticsearch-cli")
   implementation project(":libs:elasticsearch-plugin-api")
   implementation project(":libs:elasticsearch-plugin-scanner")
-  implementation 'org.ow2.asm:asm:9.4'
-  implementation 'org.ow2.asm:asm-tree:9.4'
+  implementation 'org.ow2.asm:asm:9.5'
+  implementation 'org.ow2.asm:asm-tree:9.5'
 
   api "org.bouncycastle:bcpg-fips:1.0.4"
   api "org.bouncycastle:bc-fips:1.0.2"

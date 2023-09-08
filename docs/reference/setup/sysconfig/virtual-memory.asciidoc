@@ -18,3 +18,11 @@ To set this value permanently, update the `vm.max_map_count` setting in
 
 The RPM and Debian packages will configure this setting automatically. No
 further configuration is required.
+
+You can find out the current mmap count of a running Elasticsearch process
+using the following command, where `$PID` is the process ID of the running
+Elasticsearch process:
+[source,sh]
+----------------------------
+wc -l /proc/$PID/maps
+----------------------------

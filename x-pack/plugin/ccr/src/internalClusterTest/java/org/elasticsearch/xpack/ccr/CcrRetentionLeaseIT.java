@@ -263,9 +263,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final RestoreInfo restoreInfo = future.actionGet();
 
-        assertEquals(restoreInfo.totalShards(), restoreInfo.
-
-            successfulShards());
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
 
         assertEquals(0, restoreInfo.failedShards());
         for (int i = 0; i < numberOfDocuments; i++) {

@@ -10,7 +10,6 @@ package org.elasticsearch.legacygeo;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -34,7 +33,7 @@ import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.test.RandomShapeGenerator;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -293,7 +292,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", IndexVersion.CURRENT, false, true)
+        final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", IndexVersion.current(), false, true)
             .build(MapperBuilderContext.root(false));
 
         // test store z disabled
@@ -324,7 +323,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
             MapperBuilderContext.root(false)
         );
@@ -348,7 +347,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
             MapperBuilderContext.root(false)
         );
@@ -364,7 +363,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).coerce(
             false
         ).build(MapperBuilderContext.root(false));
@@ -376,7 +375,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder = new LegacyGeoShapeFieldMapper.Builder(
             "test",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             false,
             true
         ).coerce(true).build(MapperBuilderContext.root(false));

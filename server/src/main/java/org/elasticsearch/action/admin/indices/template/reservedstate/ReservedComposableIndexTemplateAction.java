@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -166,10 +165,10 @@ public class ReservedComposableIndexTemplateAction
         }
 
         Set<String> composableEntities = composables.stream().map(r -> reservedComposableIndexName(r.name())).collect(Collectors.toSet());
-        Set<String> composablesToDelete = new HashSet<>(
-            prevState.keys().stream().filter(k -> k.startsWith(COMPOSABLE_PREFIX)).collect(Collectors.toSet())
-        );
-        composablesToDelete.removeAll(composableEntities);
+        Set<String> composablesToDelete = prevState.keys()
+            .stream()
+            .filter(k -> k.startsWith(COMPOSABLE_PREFIX) && composableEntities.contains(k) == false)
+            .collect(Collectors.toSet());
 
         // 3. delete composable index templates (this will fail on attached data streams, unless we added a higher priority one)
         if (composablesToDelete.isEmpty() == false) {
@@ -183,9 +182,7 @@ public class ReservedComposableIndexTemplateAction
         }
 
         Set<String> componentEntities = components.stream().map(r -> reservedComponentName(r.name())).collect(Collectors.toSet());
-        Set<String> componentsToDelete = new HashSet<>(
-            prevState.keys().stream().filter(k -> k.startsWith(COMPONENT_PREFIX)).collect(Collectors.toSet())
-        );
+        Set<String> componentsToDelete = prevState.keys().stream().filter(k -> k.startsWith(COMPONENT_PREFIX)).collect(Collectors.toSet());
         componentsToDelete.removeAll(componentEntities);
 
         // 5. delete component templates (this will check if there are any related composable index templates and fail)

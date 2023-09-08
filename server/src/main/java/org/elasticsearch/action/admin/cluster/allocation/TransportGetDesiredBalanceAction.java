@@ -138,14 +138,14 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
                     shardId,
                     new DesiredBalanceResponse.DesiredShards(
                         shardViews,
-                        shardAssignment != null
-                            ? new DesiredBalanceResponse.ShardAssignmentView(
+                        shardAssignment == null
+                            ? DesiredBalanceResponse.ShardAssignmentView.EMPTY
+                            : new DesiredBalanceResponse.ShardAssignmentView(
                                 shardAssignment.nodeIds(),
                                 shardAssignment.total(),
                                 shardAssignment.unassigned(),
                                 shardAssignment.ignored()
                             )
-                            : null
                     )
                 );
             }

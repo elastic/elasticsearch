@@ -57,7 +57,6 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
@@ -96,15 +95,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
-    private final boolean serverlessEnabled;
+    private final ServerlessApiProtections apiProtections;
 
     public RestController(
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        boolean serverlessEnabled
+        Tracer tracer
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
@@ -115,7 +113,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.serverlessEnabled = serverlessEnabled;
+        this.apiProtections = new ServerlessApiProtections(false);
+    }
+
+    public ServerlessApiProtections getApiProtections() {
+        return apiProtections;
     }
 
     /**
@@ -374,7 +376,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (serverlessEnabled) {
+        if (apiProtections.isEnabled()) {
             Scope scope = handler.getServerlessScope();
             if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
@@ -661,17 +663,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
         throws IOException {
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
-            builder.startObject();
-            {
-                builder.field(
-                    "error",
-                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
-                );
-            }
-            builder.endObject();
-            channel.sendResponse(new RestResponse(NOT_FOUND, builder));
-        }
+        String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
+        channel.sendResponse(new RestResponse(channel, new ApiNotAvailableException(msg)));
     }
 
     /**

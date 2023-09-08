@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.CancellableTask;
@@ -205,7 +205,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
             final var routingTable = RoutingTable.builder();
             for (int i = 0; i < indexCount; i++) {
                 final var indexMetadata = IndexMetadata.builder("index-" + i)
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(between(1, 3))
                     .numberOfReplicas(between(0, 2))
                     .build();

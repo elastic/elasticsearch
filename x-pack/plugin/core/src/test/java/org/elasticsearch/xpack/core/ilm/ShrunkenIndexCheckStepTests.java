@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -48,12 +48,12 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetadata indexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(indexMetadata))
             .build();
 
@@ -67,12 +67,12 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetadata shrinkIndexMetadata = IndexMetadata.builder(sourceIndex + "hello")
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(shrinkIndexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
@@ -85,17 +85,17 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(sourceIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(100)
             .numberOfReplicas(0)
             .build();
         IndexMetadata shrinkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
             .put(IndexMetadata.builder(shrinkIndexMetadata))
             .build();
@@ -108,12 +108,12 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
     public void testIllegalState() {
         ShrunkenIndexCheckStep step = createRandomInstance();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(indexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();

@@ -60,6 +60,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
@@ -418,7 +423,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
         );
         IndexSettings settings = createIndexSettings(
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
@@ -436,7 +441,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             )
         );
         IndexSettings settings = createIndexSettings(
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
@@ -452,7 +457,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
         );
         IndexSettings settings = createIndexSettings(
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2", "field.key3"))
@@ -483,7 +488,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         IndexSettings settings = createIndexSettings(
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("flattened_field.key1", "keyword_field"))

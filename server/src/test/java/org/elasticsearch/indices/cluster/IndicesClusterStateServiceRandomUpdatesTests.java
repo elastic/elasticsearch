@@ -532,7 +532,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             threadPool,
             List.of()
         );
+        final NodeClient client = mock(NodeClient.class);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
+            client,
             threadPool,
             transportService,
             null,
@@ -541,7 +543,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
-        final NodeClient client = mock(NodeClient.class);
         return new IndicesClusterStateService(
             settings,
             indicesService,

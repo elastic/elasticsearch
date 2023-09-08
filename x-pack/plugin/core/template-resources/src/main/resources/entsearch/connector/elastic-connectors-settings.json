@@ -1,0 +1,15 @@
+{
+  "template": {
+    "settings": {
+      "hidden": true,
+      "number_of_shards": "1",
+      "auto_expand_replicas": "0-3",
+      "number_of_replicas": "0"
+    }
+  },
+  "_meta": {
+    "description": "Built-in settings applied by default to connector management indices",
+    "managed": true
+  },
+  "version": ${xpack.application.connector.template.version}
+}

@@ -92,11 +92,6 @@ public class MinScoreScorerTests extends ESTestCase {
             }
 
             @Override
-            public TwoPhaseIterator twoPhaseIterator() {
-                return null;
-            }
-
-            @Override
             public float getMaxScore(int upTo) throws IOException {
                 return in.getMaxScore(upTo);
             }

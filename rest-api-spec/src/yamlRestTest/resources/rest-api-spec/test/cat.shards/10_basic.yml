@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-      version: " - 7.99.99"
-      reason:  bulk stats were added in 8.0.0
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
   - do:
       cat.shards:
         help: true
@@ -15,6 +15,7 @@
                     state                            .+   \n
                     docs                             .+   \n
                     store                            .+   \n
+                    dataset                          .+   \n
                     ip                               .+   \n
                     id                               .+   \n
                     node                             .+   \n
@@ -85,9 +86,13 @@
                     bulk.total_size_in_bytes         .+   \n
                     bulk.avg_time                    .+   \n
                     bulk.avg_size_in_bytes           .+   \n
+                    dense_vector.value_count         .+   \n
                $/
 ---
 "Test cat shards output":
+  - skip:
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
 
   - do:
       cat.shards:
@@ -109,7 +114,7 @@
 
   - match:
       $body: |
-               /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
+               /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
 
   - do:
       indices.create:
@@ -124,14 +129,14 @@
         index: i*
   - match:
       $body: |
-               /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
+               /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
 
   - do:
       cat.shards:
         index: index2
   - match:
       $body: |
-               /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
+               /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/
 
 ---
 "Test cat shards using wildcards":
@@ -182,6 +187,10 @@
 
 ---
 "Test cat shards sort":
+  - skip:
+      version: " - 8.10.99"
+      reason:  dataset size was added in 8.11.0
+
   - do:
       indices.create:
         index: foo
@@ -217,6 +226,17 @@
                bar \s+ 1\n
             $/
 
+  - do:
+      cat.shards:
+        h: [index, dataset]
+        s: [docs]
+        index: "foo,bar"
+
+  - match:
+      $body: |
+            /^ foo \s+ (\d+|\d+[.]\d+)(kb|b)\n
+               bar \s+ (\d+|\d+[.]\d+)(kb|b)\n
+            $/
 
 ---
 "Test cat shards with hidden indices":

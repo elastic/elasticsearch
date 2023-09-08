@@ -368,7 +368,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             ScoreMode.None
         );
         LateParsingQuery query = (LateParsingQuery) hasChildQueryBuilder.toQuery(searchExecutionContext);
-        Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, IndexVersion.CURRENT, null);
+        Similarity expected = SimilarityService.BUILT_IN.get(similarity).apply(Settings.EMPTY, IndexVersion.current(), null);
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 

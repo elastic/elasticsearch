@@ -1,0 +1,5 @@
+pr: 97281
+summary: Improve iterating over many field producers during downsample operation
+area: Downsampling
+type: enhancement
+issues: []

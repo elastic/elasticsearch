@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -102,15 +103,16 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationService allocationService
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
-        service.set(s3Service(environment));
+        service.set(s3Service(environment, clusterService.getSettings()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment) {
-        return new S3Service(environment);
+    S3Service s3Service(Environment environment, Settings nodeSettings) {
+        return new S3Service(environment, nodeSettings);
     }
 
     @Override

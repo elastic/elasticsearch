@@ -11,6 +11,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -57,6 +58,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
@@ -71,7 +73,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     "ScriptedConditionTokenFilter [" + name() + "] refers to undefined token filter [" + filter + "]"
                 );
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+            tff = tff.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
             filters.add(tff);
             existingChain.add(tff);
         }

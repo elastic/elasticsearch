@@ -67,7 +67,7 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        for (IndexVersion indexVersion : List.of(IndexVersion.V_7_4_0, IndexVersion.CURRENT)) {
+        for (IndexVersion indexVersion : List.of(IndexVersion.V_7_4_0, IndexVersion.current())) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
             BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
 
@@ -113,7 +113,7 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, IndexVersion.CURRENT);
+        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, IndexVersion.current());
         byte[] byteVectorValue = new byte[dims];
         System.arraycopy(value.bytes, value.offset, byteVectorValue, 0, dims);
         ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(byteVectorValue, value, dims);
@@ -220,7 +220,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
         assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
 
-        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, IndexVersion.CURRENT);
+        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, IndexVersion.current());
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
         assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");

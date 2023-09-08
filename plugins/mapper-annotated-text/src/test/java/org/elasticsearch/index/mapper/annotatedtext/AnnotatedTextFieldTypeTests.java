@@ -29,7 +29,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", IndexVersion.CURRENT, createDefaultIndexAnalyzers())
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", IndexVersion.current(), createDefaultIndexAnalyzers())
             .build(MapperBuilderContext.root(false))
             .fieldType();
 

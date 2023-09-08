@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -132,9 +131,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
      */
     public Predicate<SnapshotInfo> getSnapshotDeletionPredicate(final List<SnapshotInfo> allSnapshots) {
         final int totalSnapshotCount = allSnapshots.size();
-        final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream()
-            .sorted(Comparator.comparingLong(SnapshotInfo::startTime))
-            .collect(Collectors.toList());
+        final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream().sorted(Comparator.comparingLong(SnapshotInfo::startTime)).toList();
         int successCount = 0;
         long latestSuccessfulTimestamp = Long.MIN_VALUE;
         for (SnapshotInfo snapshot : allSnapshots) {

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -29,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -182,7 +182,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "task_id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 
@@ -278,7 +278,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "job-id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 

@@ -16,14 +16,10 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -42,12 +38,6 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
     @Override
     protected String fieldTypeName() {
         return "geo_shape";
-    }
-
-    @SuppressWarnings("deprecation")
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override

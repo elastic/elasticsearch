@@ -44,14 +44,14 @@ public class ClusterStateUpdaters {
 
         metadataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.persistentSettings()),
+                metadataBuilder.persistentSettings(),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)
             )
         );
         metadataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.transientSettings()),
+                metadataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)
             )

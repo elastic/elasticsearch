@@ -1,0 +1,9 @@
+[[esql-limit]]
+=== `LIMIT`
+
+The `LIMIT` processing command enables you to limit the number of rows:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=limit]
+----

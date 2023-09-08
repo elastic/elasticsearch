@@ -177,48 +177,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return true;
     }
 
-    @Override
-    public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0 && "new".equals(currentPhaseName) == false) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the next phase after `index` that exists in `phases` and return it
-            while (++index < ORDERED_VALID_PHASES.size()) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no next phase
-            // available
-            return null;
-        }
-    }
-
-    public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        if ("new".equals(currentPhaseName)) {
-            return null;
-        }
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the previous phase before `index` that exists in `phases` and return it
-            while (--index >= 0) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no previous phase
-            // available
-            return null;
-        }
-    }
-
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
         return switch (phase.getName()) {
@@ -229,37 +187,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
             case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).collect(toList());
             default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
         };
-    }
-
-    @Override
-    public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames = switch (phase.getName()) {
-            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS;
-            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS;
-            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS;
-            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS;
-            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS;
-            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        };
-
-        int index = orderedActionNames.indexOf(currentActionName);
-        if (index < 0) {
-            throw new IllegalArgumentException(
-                "[" + currentActionName + "] is not a valid action for phase [" + phase.getName() + "] in lifecycle type [" + TYPE + "]"
-            );
-        } else {
-            // Find the next action after `index` that exists in the phase and return it
-            while (++index < orderedActionNames.size()) {
-                String actionName = orderedActionNames.get(index);
-                if (phase.getActions().containsKey(actionName)) {
-                    return actionName;
-                }
-            }
-            // if we have exhausted `validActions` and haven't found a matching
-            // action in the Phase return null indicating there is no next
-            // action available
-            return null;
-        }
     }
 
     @Override

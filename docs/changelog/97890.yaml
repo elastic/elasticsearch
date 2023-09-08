@@ -1,0 +1,5 @@
+pr: 97890
+summary: "[Profiling] Consider static settings in status"
+area: Application
+type: bug
+issues: []

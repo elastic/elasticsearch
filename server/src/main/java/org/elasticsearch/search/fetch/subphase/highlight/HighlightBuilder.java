@@ -128,7 +128,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         super(in);
         encoder(in.readOptionalString());
         useExplicitFieldOrder(in.readBoolean());
-        this.fields = in.readList(Field::new);
+        this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
     }
 
@@ -136,7 +136,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(encoder);
         out.writeBoolean(useExplicitFieldOrder);
-        out.writeList(fields);
+        out.writeCollection(fields);
     }
 
     /**

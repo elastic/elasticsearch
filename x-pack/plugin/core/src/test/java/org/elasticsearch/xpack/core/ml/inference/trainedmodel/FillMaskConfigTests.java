@@ -75,4 +75,78 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
             randomBoolean() ? null : randomAlphaOfLength(5)
         );
     }
+
+    public void testCreateBuilder() {
+
+        VocabularyConfig vocabularyConfig = randomBoolean() ? null : VocabularyConfigTests.createRandom();
+
+        Tokenization tokenization = randomBoolean()
+            ? null
+            : randomFrom(
+                BertTokenizationTests.createRandom(),
+                MPNetTokenizationTests.createRandom(),
+                RobertaTokenizationTests.createRandom()
+            );
+
+        Integer numTopClasses = randomBoolean() ? null : randomInt();
+
+        String resultsField = randomBoolean() ? null : randomAlphaOfLength(5);
+
+        new FillMaskConfig.Builder().setVocabularyConfig(vocabularyConfig)
+            .setTokenization(tokenization)
+            .setNumTopClasses(numTopClasses)
+            .setResultsField(resultsField)
+            .setMaskToken(tokenization == null ? null : tokenization.getMaskToken())
+            .build();
+    }
+
+    public void testCreateBuilderWithException() throws Exception {
+
+        VocabularyConfig vocabularyConfig = randomBoolean() ? null : VocabularyConfigTests.createRandom();
+
+        Tokenization tokenization = randomBoolean()
+            ? null
+            : randomFrom(
+                BertTokenizationTests.createRandom(),
+                MPNetTokenizationTests.createRandom(),
+                RobertaTokenizationTests.createRandom()
+            );
+
+        Integer numTopClasses = randomBoolean() ? null : randomInt();
+
+        String resultsField = randomBoolean() ? null : randomAlphaOfLength(5);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            FillMaskConfig fmc = new FillMaskConfig.Builder().setVocabularyConfig(vocabularyConfig)
+                .setTokenization(tokenization)
+                .setNumTopClasses(numTopClasses)
+                .setResultsField(resultsField)
+                .setMaskToken("not a real mask token")
+                .build();
+        });
+
+    }
+
+    public void testCreateBuilderWithNullMaskToken() {
+
+        VocabularyConfig vocabularyConfig = randomBoolean() ? null : VocabularyConfigTests.createRandom();
+
+        Tokenization tokenization = randomBoolean()
+            ? null
+            : randomFrom(
+                BertTokenizationTests.createRandom(),
+                MPNetTokenizationTests.createRandom(),
+                RobertaTokenizationTests.createRandom()
+            );
+
+        Integer numTopClasses = randomBoolean() ? null : randomInt();
+
+        String resultsField = randomBoolean() ? null : randomAlphaOfLength(5);
+
+        new FillMaskConfig.Builder().setVocabularyConfig(vocabularyConfig)
+            .setTokenization(tokenization)
+            .setNumTopClasses(numTopClasses)
+            .setResultsField(resultsField)
+            .build();
+    }
+
 }

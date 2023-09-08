@@ -85,10 +85,6 @@ public class MonitoringServiceTests extends ESTestCase {
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
 
-        monitoringService.start();
-        assertBusy(() -> assertTrue(monitoringService.isStarted()));
-        assertTrue(monitoringService.isMonitoringActive());
-
         monitoringService.close();
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
@@ -168,8 +164,6 @@ public class MonitoringServiceTests extends ESTestCase {
         @Override
         protected void doStop() {}
 
-        @Override
-        protected void doClose() {}
     }
 
     class BlockingExporter extends CountingExporter {
@@ -193,13 +187,5 @@ public class MonitoringServiceTests extends ESTestCase {
 
         }
 
-        @Override
-        protected void doStart() {}
-
-        @Override
-        protected void doStop() {}
-
-        @Override
-        protected void doClose() {}
     }
 }

@@ -80,7 +80,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((builder, p) -> builder.startObject(Fields.INDICES)),
-            getIndices().values().stream().map(indexSegments -> (ToXContent) (builder, p) -> {
+            Iterators.map(getIndices().values().iterator(), indexSegments -> (builder, p) -> {
                 builder.startObject(indexSegments.getIndex());
 
                 builder.startObject(Fields.SHARDS);
@@ -140,7 +140,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, p) -> builder.endObject())
         );
     }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -68,7 +67,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
         protected Bucket(StreamInput in, List<DocValueFormat> formats, List<KeyConverter> keyConverters, boolean showDocCountError)
             throws IOException {
-            terms = in.readList(StreamInput::readGenericValue);
+            terms = in.readCollectionAsList(StreamInput::readGenericValue);
             docCount = in.readVLong();
             aggregations = InternalAggregations.readFrom(in);
             this.showDocCountError = showDocCountError;
@@ -330,9 +329,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
-        formats = in.readList(in1 -> in1.readNamedWriteable(DocValueFormat.class));
-        keyConverters = in.readList(in1 -> in1.readEnum(KeyConverter.class));
-        buckets = in.readList(stream -> new Bucket(stream, formats, keyConverters, showTermDocCountError));
+        formats = in.readCollectionAsList(in1 -> in1.readNamedWriteable(DocValueFormat.class));
+        keyConverters = in.readCollectionAsList(in1 -> in1.readEnum(KeyConverter.class));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, formats, keyConverters, showTermDocCountError));
     }
 
     @Override
@@ -345,9 +344,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeCollection(formats, StreamOutput::writeNamedWriteable);
+        out.writeNamedWriteableCollection(formats);
         out.writeCollection(keyConverters, StreamOutput::writeEnum);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override
@@ -627,8 +626,4 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
 }

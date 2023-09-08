@@ -110,7 +110,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         getMultipleReposSnapshotInfo(
             request.isSingleRepositoryRequest() == false,
-            state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
+            SnapshotsInProgress.get(state),
             TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -465,10 +465,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             snapshotInfos = Collections.synchronizedList(new ArrayList<>());
         }
-        final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
+        final ActionListener<Void> allDoneListener = listener.safeMap(v -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order));
+            return sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order);
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);

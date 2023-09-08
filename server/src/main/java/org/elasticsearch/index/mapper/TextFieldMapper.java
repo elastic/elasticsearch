@@ -277,7 +277,7 @@ public class TextFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.CURRENT, indexAnalyzers);
+            this(name, IndexVersion.current(), indexAnalyzers);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
@@ -610,7 +610,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             List<Automaton> automata = new ArrayList<>();
             if (caseInsensitive) {
-                automata.add(AutomatonQueries.toCaseInsensitiveString(value, Integer.MAX_VALUE));
+                automata.add(AutomatonQueries.toCaseInsensitiveString(value));
             } else {
                 automata.add(Automata.makeString(value));
             }

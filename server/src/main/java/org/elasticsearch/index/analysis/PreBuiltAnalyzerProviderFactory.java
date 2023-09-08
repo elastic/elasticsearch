@@ -9,7 +9,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -27,7 +26,7 @@ import java.util.function.Supplier;
 
 public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisComponent<AnalyzerProvider<?>> implements Closeable {
 
-    private final Function<Version, Analyzer> create;
+    private final Function<IndexVersion, Analyzer> create;
     private final PreBuiltAnalyzerProvider current;
 
     /**
@@ -36,7 +35,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     PreBuiltAnalyzerProviderFactory(String name, PreBuiltAnalyzers preBuiltAnalyzer) {
         super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
         this.create = preBuiltAnalyzer::getAnalyzer;
-        Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(Version.CURRENT);
+        Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(IndexVersion.current());
         current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
     }
 
@@ -51,7 +50,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
         throws IOException {
         IndexVersion versionCreated = indexSettings.getIndexVersionCreated();
-        if (IndexVersion.CURRENT.equals(versionCreated) == false) {
+        if (IndexVersion.current().equals(versionCreated) == false) {
             return super.get(indexSettings, environment, name, settings);
         } else {
             return current;
@@ -59,8 +58,8 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     }
 
     @Override
-    protected AnalyzerProvider<?> create(Version version) {
-        assert Version.CURRENT.equals(version) == false;
+    protected AnalyzerProvider<?> create(IndexVersion version) {
+        assert IndexVersion.current().equals(version) == false;
         Analyzer analyzer = create.apply(version);
         return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);
     }
@@ -88,12 +87,12 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         }
 
         @Override
-        public AnalyzerProvider<?> get(Version version) {
+        public AnalyzerProvider<?> get(IndexVersion version) {
             return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, preBuiltAnalyzer.getAnalyzer(version));
         }
 
         @Override
-        public void put(Version version, AnalyzerProvider<?> analyzerProvider) {
+        public void put(IndexVersion version, AnalyzerProvider<?> analyzerProvider) {
             // No need to put, because we delegate in get() directly to PreBuiltAnalyzers which already caches.
         }
 

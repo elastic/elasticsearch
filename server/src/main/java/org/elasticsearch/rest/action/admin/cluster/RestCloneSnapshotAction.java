@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Clones indices from one snapshot into another snapshot in the same repository
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override

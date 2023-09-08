@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,8 +35,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD;
 
 public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<GeoLineAggregationBuilder> {
 
@@ -158,7 +158,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
         ValuesSourceConfig sourceConfig = configs.get(SORT_FIELD.getPreferredName());
         if (context.isInSortOrderExecutionRequired()) {
             if (sourceConfig == null) {
-                var fieldConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(TIMESTAMP_FIELD.getName()).build();
+                var fieldConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(DataStream.TIMESTAMP_FIELD_NAME).build();
                 sourceConfig = ValuesSourceConfig.resolveUnregistered(
                     context,
                     null,
@@ -170,7 +170,7 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
                     defaultValueSourceType()
                 );
                 configs.put(SORT_FIELD.getPreferredName(), sourceConfig);
-            } else if (sourceConfig.fieldContext().field().equals(TIMESTAMP_FIELD.getName()) == false) {
+            } else if (sourceConfig.fieldContext().field().equals(DataStream.TIMESTAMP_FIELD_NAME) == false) {
                 throw new IllegalArgumentException(
                     "invalid field ["
                         + SORT_FIELD.getPreferredName()
@@ -212,6 +212,6 @@ public class GeoLineAggregationBuilder extends MultiValuesSourceAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_11_0;
+        return TransportVersions.V_7_11_0;
     }
 }

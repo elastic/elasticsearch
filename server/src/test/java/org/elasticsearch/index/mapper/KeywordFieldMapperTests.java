@@ -602,7 +602,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testDimensionInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
         IndexSettings settings = createIndexSettings(
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")

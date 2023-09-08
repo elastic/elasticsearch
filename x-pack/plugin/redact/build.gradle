@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.redact.RedactPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-redact'
+base {
+  archivesName = 'x-pack-redact'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

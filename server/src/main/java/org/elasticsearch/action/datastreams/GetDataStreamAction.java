@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -71,7 +71,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                 this.includeDefaults = in.readBoolean();
             } else {
                 this.includeDefaults = false;
@@ -83,7 +83,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super.writeTo(out);
             out.writeOptionalStringArray(names);
             indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -188,7 +188,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null
                 );
             }
 
@@ -221,7 +221,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
             }
@@ -238,7 +238,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
-                builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
+                builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName())
+                    .startObject()
+                    .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
+                    .endObject();
                 builder.xContentList(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
@@ -298,7 +301,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
             TimeSeries(StreamInput in) throws IOException {
-                this(in.readList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
+                this(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
             }
 
             @Override
@@ -338,8 +341,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Response(StreamInput in) throws IOException {
             this(
-                in.readList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)
+                in.readCollectionAsList(DataStreamInfo::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)
                     ? in.readOptionalWriteable(RolloverConfiguration::new)
                     : null
             );
@@ -356,8 +359,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreams);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_007)) {
+            out.writeCollection(dataStreams);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
         }

@@ -8,16 +8,4 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-
-import java.util.Collection;
-import java.util.Collections;
-
-public class GeoShapeQueryTests extends GeoShapeQueryTestCase {
-    @SuppressWarnings("deprecation")
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(TestGeoShapeFieldMapperPlugin.class);
-    }
-}
+public class GeoShapeQueryTests extends GeoShapeQueryTestCase {}

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,8 +48,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.ROLE_DESCRIPTOR_NAME;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -489,7 +496,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
@@ -509,12 +516,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
-        );
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeRemoteIndices
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -556,7 +561,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeWorkflowsRestriction
         );
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -607,7 +612,6 @@ public class RoleDescriptorTests extends ESTestCase {
                 "test_role_with_restriction",
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
                 randomBoolean(),
-                randomBoolean(),
                 false
             )
         );
@@ -629,7 +633,6 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor role = RoleDescriptor.parse(
             "test_role_with_restriction",
             XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-            randomBoolean(),
             randomBoolean(),
             true
         );
@@ -798,33 +801,6 @@ public class RoleDescriptorTests extends ESTestCase {
             TestMatchers.throwableWithMessage(
                 containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
             )
-        );
-    }
-
-    public void testParseRemoteIndicesPrivilegesFailsWhenUntrustedRemoteClusterEnabledFlagIsFalse() {
-        final String json = """
-            {
-              "remote_indices": [
-                {
-                  "names": [ "idx1", "idx2" ],
-                  "privileges": [ "all" ],
-                  "clusters": ["rmt"]
-                }
-              ]
-            }""";
-        final ElasticsearchParseException epe = expectThrows(
-            ElasticsearchParseException.class,
-            () -> RoleDescriptor.parse(
-                "test",
-                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
-                false,
-                false,
-                false
-            )
-        );
-        assertThat(
-            epe,
-            TestMatchers.throwableWithMessage(containsString("failed to parse role [test]. unexpected field [remote_indices]"))
         );
     }
 
@@ -1234,6 +1210,11 @@ public class RoleDescriptorTests extends ESTestCase {
             .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
             .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
             .allowRestrictedIndices(randomBoolean());
+        randomDlsFls(builder);
+        return builder;
+    }
+
+    private static void randomDlsFls(RoleDescriptor.IndicesPrivileges.Builder builder) {
         if (randomBoolean()) {
             builder.query(
                 randomBoolean()
@@ -1249,10 +1230,49 @@ public class RoleDescriptorTests extends ESTestCase {
                 builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
             }
         }
-        return builder;
     }
 
     private static void resetFieldPermssionsCache() {
         RoleDescriptor.setFieldPermissionsCache(new FieldPermissionsCache(Settings.EMPTY));
     }
+
+    public static RoleDescriptor randomCrossClusterAccessRoleDescriptor() {
+        final int searchSize = randomIntBetween(0, 3);
+        final int replicationSize = randomIntBetween(searchSize == 0 ? 1 : 0, 3);
+        assert searchSize + replicationSize > 0;
+
+        final String[] clusterPrivileges;
+        if (searchSize > 0 && replicationSize > 0) {
+            clusterPrivileges = CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+        } else if (searchSize > 0) {
+            clusterPrivileges = CCS_CLUSTER_PRIVILEGE_NAMES;
+        } else {
+            clusterPrivileges = CCR_CLUSTER_PRIVILEGE_NAMES;
+        }
+
+        final List<RoleDescriptor.IndicesPrivileges> indexPrivileges = new ArrayList<>();
+        for (int i = 0; i < searchSize; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(CCS_INDICES_PRIVILEGE_NAMES)
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            randomDlsFls(builder);
+            indexPrivileges.add(builder.build());
+        }
+        for (int i = 0; i < replicationSize; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(CCR_INDICES_PRIVILEGE_NAMES)
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            indexPrivileges.add(builder.build());
+        }
+
+        return new RoleDescriptor(
+            ROLE_DESCRIPTOR_NAME,
+            clusterPrivileges,
+            indexPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            null
+        );
+    }
+
 }

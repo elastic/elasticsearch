@@ -17,8 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.stream.Collectors.toList;
-
 public class SuggestingErrorOnUnknown implements ErrorOnUnknown {
     @Override
     public String errorMessage(String parserName, String unknownField, Iterable<String> candidates) {
@@ -55,7 +53,7 @@ public class SuggestingErrorOnUnknown implements ErrorOnUnknown {
             }
             return a.v2().compareTo(b.v2());
         });
-        List<String> keys = scored.stream().map(Tuple::v2).collect(toList());
+        List<String> keys = scored.stream().map(Tuple::v2).toList();
         StringBuilder builder = new StringBuilder(" did you mean ");
         if (keys.size() == 1) {
             builder.append("[").append(keys.get(0)).append("]");

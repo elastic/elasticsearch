@@ -82,14 +82,6 @@ public class RangeIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("Math.random()", vars -> RangeIT.randomDouble());
-
-            return scripts;
-        }
     }
 
     @Override

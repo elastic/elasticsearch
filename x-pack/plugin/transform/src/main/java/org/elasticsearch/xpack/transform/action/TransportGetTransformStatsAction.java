@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -102,9 +103,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         List<TransformStats> responses = tasks.stream()
             .flatMap(r -> r.getTransformsStats().stream())
             .sorted(Comparator.comparing(TransformStats::getId))
-            .collect(Collectors.toList());
+            .toList();
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
-        allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
+        tasks.stream().map(BaseTasksResponse::getNodeFailures).forEach(allFailedNodeExceptions::addAll);
         return new Response(responses, responses.size(), taskOperationFailures, allFailedNodeExceptions);
     }
 
@@ -117,9 +118,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             task.getCheckpointingInfo(
                 transformCheckpointService,
                 ActionListener.wrap(
-                    checkpointingInfo -> listener.onResponse(
-                        new Response(Collections.singletonList(deriveStats(task, checkpointingInfo)), 1L)
-                    ),
+                    checkpointingInfo -> listener.onResponse(new Response(Collections.singletonList(deriveStats(task, checkpointingInfo)))),
                     e -> {
                         logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
                         listener.onResponse(
@@ -134,7 +133,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 )
             );
         } else {
-            listener.onResponse(new Response(Collections.emptyList(), 0L));
+            listener.onResponse(new Response(Collections.emptyList()));
         }
     }
 
@@ -203,12 +202,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                     request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
                     super.doExecute(task, request, doExecuteListener);
                 } else {
-                    doExecuteListener.onResponse(new Response(Collections.emptyList(), 0L));
+                    doExecuteListener.onResponse(new Response(Collections.emptyList()));
                 }
             }, e -> {
                 // If the index to search, or the individual config is not there, just return empty
                 if (e instanceof ResourceNotFoundException) {
-                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
+                    finalListener.onResponse(new Response(Collections.emptyList()));
                 } else {
                     finalListener.onFailure(e);
                 }
@@ -265,7 +264,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             return;
         }
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
-        transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
+        response.getTransformsStats().stream().map(TransformStats::getId).forEach(transformsWithoutTasks::remove);
 
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;

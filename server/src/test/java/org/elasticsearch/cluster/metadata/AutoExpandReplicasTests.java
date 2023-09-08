@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -186,7 +187,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             buildNewFakeTransportAddress(),
                             n.getAttributes(),
                             n.getRoles(),
-                            n.getVersion()
+                            n.getVersionInformation()
                         )
                     )
                     .collect(Collectors.toCollection(ArrayList::new));
@@ -237,7 +238,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 localNode,
                 localNode,
                 allNodes.toArray(new DiscoveryNode[0]),
-                TransportVersion.V_7_0_0
+                TransportVersions.V_7_0_0
             );
 
             CreateIndexRequest request = new CreateIndexRequest(
@@ -259,7 +260,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNode(state, newNode, TransportVersion.V_7_6_0);
+            state = cluster.addNode(state, newNode, TransportVersions.V_7_6_0);
 
             // use allocation filtering
             state = cluster.updateSettings(

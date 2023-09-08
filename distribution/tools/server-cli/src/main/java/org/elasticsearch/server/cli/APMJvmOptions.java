@@ -306,7 +306,7 @@ class APMJvmOptions {
         final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 
         if (Files.notExists(apmModule)) {
-            if (Build.CURRENT.isProductionRelease()) {
+            if (Build.current().isProductionRelease()) {
                 throw new UserException(
                     ExitCodes.CODE_ERROR,
                     "Expected to find [apm] module in [" + apmModule + "]! Installation is corrupt"

@@ -37,7 +37,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     @Before
     public void setup() {
-        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.CURRENT);
+        WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldMapper = builder.build(MapperBuilderContext.root(false));
 

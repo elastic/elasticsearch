@@ -88,7 +88,7 @@ public class MetadataDataStreamsService {
      */
     public void setLifecycle(
         final List<String> dataStreamNames,
-        DataLifecycle lifecycle,
+        DataStreamLifecycle lifecycle,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
@@ -143,18 +143,27 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Creates an updated cluster state in which the requested data streams have the data lifecycle provided.
+     * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
     static ClusterState updateDataLifecycle(
         ClusterState currentState,
         List<String> dataStreamNames,
-        @Nullable DataLifecycle dataLifecycle
+        @Nullable DataStreamLifecycle lifecycle
     ) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
+            if (dataStream.isSystem()) {
+                if (lifecycle != null && lifecycle.getDownsamplingRounds() != null) {
+                    throw new IllegalArgumentException(
+                        "System data streams do not support downsampling as part of their lifecycle configuration. Encountered ["
+                            + dataStream.getName()
+                            + "] in the request"
+                    );
+                }
+            }
             builder.put(
                 new DataStream(
                     dataStream.getName(),
@@ -166,7 +175,7 @@ public class MetadataDataStreamsService {
                     dataStream.isSystem(),
                     dataStream.isAllowCustomRouting(),
                     dataStream.getIndexMode(),
-                    dataLifecycle
+                    lifecycle
                 )
             );
         }
@@ -247,25 +256,25 @@ public class MetadataDataStreamsService {
     static class UpdateLifecycleTask extends AckedBatchedClusterStateUpdateTask {
 
         private final List<String> dataStreamNames;
-        private final DataLifecycle dataLifecycle;
+        private final DataStreamLifecycle lifecycle;
 
         UpdateLifecycleTask(
             List<String> dataStreamNames,
-            @Nullable DataLifecycle dataLifecycle,
+            @Nullable DataStreamLifecycle lifecycle,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
             this.dataStreamNames = dataStreamNames;
-            this.dataLifecycle = dataLifecycle;
+            this.lifecycle = lifecycle;
         }
 
         public List<String> getDataStreamNames() {
             return dataStreamNames;
         }
 
-        public DataLifecycle getDataLifecycle() {
-            return dataLifecycle;
+        public DataStreamLifecycle getDataLifecycle() {
+            return lifecycle;
         }
     }
 }

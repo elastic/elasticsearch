@@ -61,7 +61,7 @@ public enum ReferenceDocs {
     }
 
     static final String UNRELEASED_VERSION_COMPONENT = "master";
-    static final String VERSION_COMPONENT = getVersionComponent(Version.CURRENT, Build.CURRENT.isSnapshot());
+    static final String VERSION_COMPONENT = getVersionComponent(Version.CURRENT, Build.current().isSnapshot());
 
     static Map<String, String> readLinksBySymbol(InputStream inputStream) throws Exception {
         try (var parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, inputStream)) {

@@ -304,15 +304,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-            try {
-                // this might still throw an exception ie. if the shard is CLOSED due to some other event.
-                // it's safer to decrement the reference in a try finally here.
-                indexShard.postRecovery("peer recovery done");
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-            listener.onRecoveryDone(state(), indexShard.getTimestampRange());
+            indexShard.postRecovery("peer recovery done", ActionListener.runBefore(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    listener.onRecoveryDone(state(), indexShard.getTimestampRange());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug("recovery failed after being marked as done", e);
+                    notifyListener(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
+                }
+            }, this::decRef));
         }
     }
 

@@ -389,12 +389,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream()
-                .forEach(
-                    type -> currentDistros.add(
-                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-                    )
-                );
+            ALL_INTERNAL.forEach(
+                type -> currentDistros.add(
+                    createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                )
+            );
         }
 
         for (Architecture architecture : Architecture.values()) {

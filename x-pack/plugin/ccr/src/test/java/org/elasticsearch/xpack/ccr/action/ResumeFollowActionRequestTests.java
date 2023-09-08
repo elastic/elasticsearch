@@ -58,11 +58,6 @@ public class ResumeFollowActionRequestTests extends AbstractXContentSerializingT
         return ResumeFollowAction.Request.fromXContent(parser, null);
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
     static void generateFollowParameters(FollowParameters followParameters) {
         if (randomBoolean()) {
             followParameters.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));

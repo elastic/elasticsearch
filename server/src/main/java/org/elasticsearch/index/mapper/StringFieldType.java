@@ -168,10 +168,10 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         if (caseInsensitive) {
             return method == null
-                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE))
+                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term))
                 : new AutomatonQuery(
                     term,
-                    toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE),
+                    toCaseInsensitiveWildcardAutomaton(term),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
                     false,
                     method

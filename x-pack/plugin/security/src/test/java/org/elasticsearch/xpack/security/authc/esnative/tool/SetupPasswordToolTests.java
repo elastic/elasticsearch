@@ -13,7 +13,6 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
@@ -487,11 +486,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         httpResponse = new HttpResponse(
             HttpURLConnection.HTTP_OK,
-            MapBuilder.<String, Object>newMapBuilder()
-                .put("cluster_name", "elasticsearch")
-                .put("status", "red")
-                .put("number_of_nodes", 1)
-                .map()
+            Map.of("cluster_name", "elasticsearch", "status", "red", "number_of_nodes", 1)
         );
         when(
             httpClient.execute(
@@ -672,19 +667,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     private Command getSetupPasswordCommandWithKeyStore(KeyStoreWrapper keyStore) {
-        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore) {
-
-            @Override
-            protected AutoSetup newAutoSetup() {
-                return new AutoSetup();
-            }
-
-            @Override
-            protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup();
-            }
-
-        };
+        return new SetupPasswordTool(env -> httpClient, (e) -> keyStore);
 
     }
 

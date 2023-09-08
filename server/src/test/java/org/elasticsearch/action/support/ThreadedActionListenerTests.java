@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -33,8 +34,22 @@ public class ThreadedActionListenerTests extends ESTestCase {
         final var threadPool = new TestThreadPool(
             "test",
             Settings.EMPTY,
-            new FixedExecutorBuilder(Settings.EMPTY, "fixed-bounded-queue", between(1, 3), 10, "fbq", randomBoolean()),
-            new FixedExecutorBuilder(Settings.EMPTY, "fixed-unbounded-queue", between(1, 3), -1, "fnq", randomBoolean()),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "fixed-bounded-queue",
+                between(1, 3),
+                10,
+                "fbq",
+                randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+            ),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                "fixed-unbounded-queue",
+                between(1, 3),
+                -1,
+                "fnq",
+                randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+            ),
             new ScalingExecutorBuilder("scaling-drop-if-shutdown", between(1, 3), between(3, 5), TimeValue.timeValueSeconds(1), false),
             new ScalingExecutorBuilder("scaling-reject-if-shutdown", between(1, 3), between(3, 5), TimeValue.timeValueSeconds(1), true)
         );

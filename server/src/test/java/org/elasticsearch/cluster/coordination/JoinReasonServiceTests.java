@@ -92,7 +92,7 @@ public class JoinReasonServiceTests extends ESTestCase {
             discoveryNode.getAddress(),
             discoveryNode.getAttributes(),
             discoveryNode.getRoles(),
-            discoveryNode.getVersion()
+            discoveryNode.getVersionInformation()
         );
 
         assertThat(

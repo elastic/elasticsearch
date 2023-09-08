@@ -12,9 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -22,26 +20,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -51,9 +40,6 @@ import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.downsample.RestDownsampleAction;
-import org.elasticsearch.xpack.downsample.TransportDownsampleAction;
-import org.elasticsearch.xpack.downsample.TransportDownsampleIndexerAction;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction;
@@ -74,12 +60,8 @@ import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
 
 import java.time.Clock;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static java.util.Collections.emptyList;
 
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -91,8 +73,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
-    public static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -101,25 +81,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     public Rollup(Settings settings) {
         this.settings = settings;
-    }
-
-    @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        return emptyList();
     }
 
     @Override
@@ -140,8 +101,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new RestDeleteRollupJobAction(),
             new RestGetRollupJobsAction(),
             new RestGetRollupCapsAction(),
-            new RestGetRollupIndexCapsAction(),
-            new RestDownsampleAction() // TSDB Downsampling
+            new RestGetRollupIndexCapsAction()
         );
     }
 
@@ -157,9 +117,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
             new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
-            new ActionHandler<>(DownsampleIndexerAction.INSTANCE, TransportDownsampleIndexerAction.class),
-            new ActionHandler<>(DownsampleAction.INSTANCE, TransportDownsampleAction.class)
+            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
         );
     }
 
@@ -171,19 +129,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             1,
             -1,
             "xpack.rollup.task_thread_pool",
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-
-        final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
-            settingsToUse,
-            Rollup.DOWSAMPLE_TASK_THREAD_POOL_NAME,
-            ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(settingsToUse)),
-            Rollup.DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
-            "xpack.downsample.thread_pool",
-            false
-        );
-
-        return List.of(rollup, downsample);
+        return List.of(rollup);
     }
 
     @Override
@@ -195,7 +143,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver expressionResolver
     ) {
         schedulerEngine.set(new SchedulerEngine(settings, getClock()));
-        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
+        return List.of(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }
 
     // overridable by tests

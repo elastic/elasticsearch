@@ -688,7 +688,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
-                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", dateType)
                         .field("index", indexed)
                         .field("format", "strict_date_optional_time_nanos")
@@ -706,7 +706,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexRequestBuilders.add(
                 client().prepareIndex(indexName)
                     .setSource(
-                        DataStream.TimestampField.FIXED_TIMESTAMP_FIELD,
+                        DataStream.TIMESTAMP_FIELD_NAME,
                         String.format(
                             Locale.ROOT,
                             "2020-11-26T%02d:%02d:%02d.%09dZ",
@@ -1017,12 +1017,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         });
 
         assertBusy(() -> {
-            final RestoreInProgress restoreInProgress = clusterAdmin().prepareState()
-                .clear()
-                .setCustoms(true)
-                .get()
-                .getState()
-                .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            final RestoreInProgress restoreInProgress = RestoreInProgress.get(
+                clusterAdmin().prepareState().clear().setCustoms(true).get().getState()
+            );
             assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
         });
 

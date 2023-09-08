@@ -12,10 +12,12 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.notNullValue;
@@ -36,8 +38,11 @@ public class NodeInfoTests extends ESTestCase {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
-            DiscoveryNodeUtils.builder("test_node").roles(emptySet()).version(VersionUtils.randomVersion(random())).build(),
+            Build.current(),
+            DiscoveryNodeUtils.builder("test_node")
+                .roles(emptySet())
+                .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomCompatibleVersion(random()))
+                .build(),
             null,
             null,
             null,

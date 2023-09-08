@@ -74,8 +74,8 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getPreviousVersion() {
-        IndexVersion version = getPreviousVersion(IndexVersion.CURRENT);
-        assert version.before(IndexVersion.CURRENT);
+        IndexVersion version = getPreviousVersion(IndexVersion.current());
+        assert version.before(IndexVersion.current());
         return version;
     }
 
@@ -90,6 +90,10 @@ public class IndexVersionUtils {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
         return ALL_VERSIONS.get(place - 1);
+    }
+
+    public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
+        return IndexVersion.getMinimumCompatibleIndexVersion(version.id());
     }
 
     public static IndexVersion getNextVersion(IndexVersion version) {
@@ -108,9 +112,9 @@ public class IndexVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#CURRENT} */
+    /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
     public static IndexVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+        return randomVersionBetween(random, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} */

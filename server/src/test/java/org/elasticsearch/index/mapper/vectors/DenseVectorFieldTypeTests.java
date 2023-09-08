@@ -36,7 +36,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private DenseVectorFieldType createFloatFieldType() {
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             5,
             indexed,
@@ -48,7 +48,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private DenseVectorFieldType createByteFieldType() {
         return new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             5,
             true,
@@ -113,7 +113,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFloatCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             false,
@@ -128,7 +128,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
@@ -137,13 +137,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null, null)
+            () -> dotProductField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null, null)
         );
-        assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
+        assertThat(e.getMessage(), containsString("The [dot_product] similarity does not support vectors with zero magnitude."));
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.FLOAT,
             3,
             true,
@@ -161,7 +161,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         {   // float type with 2048 dims
             DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
                 "f",
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 2048,
                 true,
@@ -179,7 +179,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         {   // byte type with 2048 dims
             DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
                 "f",
-                IndexVersion.CURRENT,
+                IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.BYTE,
                 2048,
                 true,
@@ -198,7 +198,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testByteCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             false,
@@ -213,7 +213,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
-            IndexVersion.CURRENT,
+            IndexVersion.current(),
             DenseVectorFieldMapper.ElementType.BYTE,
             3,
             true,

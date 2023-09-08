@@ -33,7 +33,7 @@ public class SynonymUpdateResponse extends ActionResponse implements StatusToXCo
         this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
     }
 
-    public SynonymUpdateResponse(SynonymsReloadResult<UpdateSynonymsResultStatus> synonymsReloadResult) {
+    public SynonymUpdateResponse(SynonymsReloadResult synonymsReloadResult) {
         super();
         UpdateSynonymsResultStatus updateStatus = synonymsReloadResult.synonymsOperationResult();
         Objects.requireNonNull(updateStatus, "Update status must not be null");

@@ -278,7 +278,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
-            return createRuntimeField(scriptFactory, IndexVersion.CURRENT);
+            return createRuntimeField(scriptFactory, IndexVersion.current());
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, IndexVersion indexVersion) {

@@ -450,7 +450,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
+            Build.current(),
             node,
             null,
             osInfo,
@@ -567,6 +567,13 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
+        return new DiscoveryNode(
+            node.getName(),
+            node.getId(),
+            node.getAddress(),
+            node.getAttributes(),
+            node.getRoles(),
+            node.getVersionInformation()
+        );
     }
 }

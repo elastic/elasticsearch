@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -188,7 +188,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             }
 
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
-            Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
+            IndexVersion version = this.version == -1 ? IndexVersion.current() : IndexVersion.fromId(this.version);
 
             int totalShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getTotalShards();
             int successfulShards = shardStatsBuilder == null ? 0 : shardStatsBuilder.getSuccessfulShards();
@@ -313,7 +313,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     private final Map<String, Object> userMetadata;
 
     @Nullable
-    private final Version version;
+    private final IndexVersion version;
 
     private final List<SnapshotShardFailure> shardFailures;
 
@@ -350,7 +350,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         List<String> indices,
         List<String> dataStreams,
         List<SnapshotFeatureInfo> featureStates,
-        Version version,
+        IndexVersion version,
         SnapshotState state
     ) {
         this(
@@ -389,7 +389,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             entry.dataStreams(),
             entry.featureStates(),
             null,
-            Version.CURRENT,
+            IndexVersion.current(),
             entry.startTime(),
             0L,
             totalShards,
@@ -422,7 +422,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             dataStreams,
             featureStates,
             reason,
-            Version.CURRENT,
+            IndexVersion.current(),
             startTime,
             endTime,
             totalShards,
@@ -441,7 +441,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         List<String> dataStreams,
         List<SnapshotFeatureInfo> featureStates,
         String reason,
-        Version version,
+        IndexVersion version,
         long startTime,
         long endTime,
         int totalShards,
@@ -502,19 +502,19 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         } else {
             snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
-        final List<String> indices = in.readImmutableStringList();
+        final List<String> indices = in.readStringCollectionAsImmutableList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
         final long startTime = in.readVLong();
         final long endTime = in.readVLong();
         final int totalShards = in.readVInt();
         final int successfulShards = in.readVInt();
-        final List<SnapshotShardFailure> shardFailures = in.readImmutableList(SnapshotShardFailure::new);
-        final Version version = in.readBoolean() ? Version.readVersion(in) : null;
+        final List<SnapshotShardFailure> shardFailures = in.readCollectionAsImmutableList(SnapshotShardFailure::new);
+        final IndexVersion version = in.readBoolean() ? IndexVersion.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
         final Map<String, Object> userMetadata = in.readMap();
-        final List<String> dataStreams = in.readImmutableStringList();
-        final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
+        final List<String> dataStreams = in.readStringCollectionAsImmutableList();
+        final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
         return new SnapshotInfo(
             snapshot,
@@ -666,7 +666,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      * @return version of elasticsearch that the snapshot was created with
      */
     @Nullable
-    public Version version() {
+    public IndexVersion version() {
         return version;
     }
 
@@ -769,7 +769,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         }
 
         if (version != null) {
-            builder.field(VERSION_ID, version.id);
+            builder.field(VERSION_ID, version.id());
             builder.field(VERSION, version.toString());
         }
 
@@ -848,7 +848,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
         assert version != null : "version must always be known when writing a snapshot metadata blob";
-        builder.field(VERSION_ID, version.id);
+        builder.field(VERSION_ID, version.id());
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -903,7 +903,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo fromXContentInternal(final String repoName, final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
-        Version version = Version.CURRENT;
+        IndexVersion version = IndexVersion.current();
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
         List<String> indices = Collections.emptyList();
@@ -954,7 +954,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
                     successfulShards = parser.intValue();
                     break;
                 case VERSION_ID:
-                    version = Version.fromId(parser.intValue());
+                    version = IndexVersion.fromId(parser.intValue());
                     break;
                 case INCLUDE_GLOBAL_STATE:
                     includeGlobalState = parser.booleanValue();
@@ -1032,19 +1032,19 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         out.writeVLong(endTime);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-        out.writeList(shardFailures);
+        out.writeCollection(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            IndexVersion.writeVersion(version, out);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
         out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
-        out.writeList(featureStates);
+        out.writeCollection(featureStates);
 
-        out.writeMap(indexSnapshotDetails, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        out.writeMap(indexSnapshotDetails, StreamOutput::writeWriteable);
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -669,7 +670,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
 
@@ -931,10 +932,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         @Override
         public void accept(final IndexShard.ShardFailure shardFailure) {
             final ShardRouting shardRouting = shardFailure.routing();
-            if (shardRouting.initializing()) {
-                // no need to fail the shard here during recovery, the recovery code will take care of failing it
-                return;
-            }
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
                     failAndRemoveShard(

@@ -14,6 +14,7 @@ import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -210,8 +211,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         TransportVersion beforeFilterVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_0_0,
-            TransportVersion.V_8_1_0
+            TransportVersions.V_8_0_0,
+            TransportVersions.V_8_1_0
         );
 
         assertBWCSerialization(query, queryNoFilters, beforeFilterVersion);
@@ -226,7 +227,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             query.numCands(),
             null
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
-        assertBWCSerialization(query, queryNoSimilarity, TransportVersion.V_8_7_0);
+        assertBWCSerialization(query, queryNoSimilarity, TransportVersions.V_8_7_0);
     }
 
     public void testBWCVersionSerializationByteQuery() throws IOException {
@@ -246,8 +247,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         TransportVersion beforeByteQueryVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_2_0,
-            TransportVersion.V_8_6_0
+            TransportVersions.V_8_2_0,
+            TransportVersions.V_8_6_0
         );
         assertBWCSerialization(query, queryNoByteQuery, beforeByteQueryVersion);
     }

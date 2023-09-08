@@ -88,7 +88,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -109,7 +109,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -134,7 +134,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
         Explanation explanation = weight.explain(leafReaderContext, 0);
@@ -157,7 +157,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
             null,
             "index",
             0,
-            IndexVersion.CURRENT
+            IndexVersion.current()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertTrue(e.getMessage().contains("Must be a non-negative score!"));

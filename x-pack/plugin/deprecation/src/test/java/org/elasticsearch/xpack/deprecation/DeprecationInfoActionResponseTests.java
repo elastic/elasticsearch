@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -91,7 +91,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .put(
                 IndexMetadata.builder("test")
                     .putMapping(Strings.toString(mapping))
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
@@ -170,7 +170,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .put(
                 IndexMetadata.builder("test")
                     .putMapping(Strings.toString(mapping))
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
@@ -246,7 +246,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
     public void testRemoveSkippedSettings() throws IOException {
 
-        Settings.Builder settingsBuilder = settings(Version.CURRENT);
+        Settings.Builder settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.put("some.undeprecated.property", "someValue3");
@@ -288,7 +288,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             List.of("some.deprecated.property", "some.other.*.deprecated.property")
         );
 
-        settingsBuilder = settings(Version.CURRENT);
+        settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         Settings expectedSettings = settingsBuilder.build();

@@ -146,7 +146,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
         List<ParsedRollupCaps> validIntervalCaps = rollupCapsSet.stream()
             .filter(rollupCaps -> validInterval(datafeedInterval, rollupCaps))
-            .collect(Collectors.toList());
+            .toList();
 
         if (validIntervalCaps.isEmpty()) {
             listener.onFailure(

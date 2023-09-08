@@ -100,7 +100,7 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, IndexVersion.CURRENT);
+        return forPattern(input, IndexVersion.current());
     }
 
     static DateFormatter forPattern(String input, IndexVersion supportedVersion) {

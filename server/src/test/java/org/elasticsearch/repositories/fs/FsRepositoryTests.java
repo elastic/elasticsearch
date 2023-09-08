@@ -23,7 +23,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -111,7 +111,7 @@ public class FsRepositoryTests extends ESTestCase {
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> {})),
                     null,
                     snapshotStatus,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot1Future
                 )
@@ -125,7 +125,7 @@ public class FsRepositoryTests extends ESTestCase {
             ShardRouting routing = ShardRouting.newUnassigned(
                 shardId,
                 true,
-                new RecoverySource.SnapshotRecoverySource("test", new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
+                new RecoverySource.SnapshotRecoverySource("test", new Snapshot("foo", snapshotId), IndexVersion.current(), indexId),
                 new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""),
                 ShardRouting.Role.DEFAULT
             );
@@ -154,7 +154,7 @@ public class FsRepositoryTests extends ESTestCase {
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(incIndexCommit, () -> {})),
                     null,
                     snapshotStatus2,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot2future
                 )

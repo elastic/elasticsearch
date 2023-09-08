@@ -81,6 +81,9 @@ Which field to match
 The string to match at the start of indexed terms. If not provided, all terms in the field
 are considered.
 
+NOTE: The prefix string cannot be larger than the larges possible keyword value, which is
+Lucene's term byte-length limit of `32766`
+
 [[terms-enum-size-param]]
 `size`::
 (Optional, integer)

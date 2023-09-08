@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -129,12 +130,9 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
             ReindexPlugin.class,
             CommonAnalysisPlugin.class,
             InternalSettingsPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
-    @Override
-    protected boolean addMockTransportService() {
-        return false; // security has its own transport service
-    }
 }

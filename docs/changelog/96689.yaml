@@ -1,0 +1,5 @@
+pr: 96689
+summary: Use a collector manager in DfsPhase Knn Search
+area: Search
+type: enhancement
+issues: []

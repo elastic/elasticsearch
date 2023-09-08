@@ -28,12 +28,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -55,6 +57,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     private final Settings settings;
     private final Client client;
     private final TransformAuditor auditor;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportUpgradeTransformsAction(
@@ -65,7 +68,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         Client client,
-        Settings settings
+        Settings settings,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             UpgradeTransformsAction.NAME,
@@ -87,6 +91,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -95,13 +100,9 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         TransformNodes.warnIfNoTransformNodes(state);
 
         // do not allow in mixed clusters
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Cannot upgrade transforms. All nodes must be the same version [{}]",
-                    RestStatus.CONFLICT,
-                    state.nodes().getMaxNodeVersion().toString()
-                )
+                new ElasticsearchStatusException("Cannot upgrade transforms while cluster upgrade is in progress.", RestStatus.CONFLICT)
             );
             return;
         }
@@ -166,6 +167,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 dryRun,
                 false, // check access,
                 timeout,
+                destIndexSettings,
                 listener
             );
         }, failure -> {

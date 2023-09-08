@@ -13,8 +13,10 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseSyncAction.getExceptionLogLevel;
@@ -192,21 +196,17 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         assertEquals(Level.WARN, getExceptionLogLevel(new RuntimeException("simulated")));
         assertEquals(Level.WARN, getExceptionLogLevel(new RuntimeException("simulated", new RuntimeException("simulated"))));
 
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new IndexNotFoundException("index")));
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new RuntimeException("simulated", new IndexNotFoundException("index"))));
-
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new AlreadyClosedException("index")));
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new RuntimeException("simulated", new AlreadyClosedException("index"))));
-
         final var shardId = new ShardId("test", "_na_", 0);
-
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new IndexShardClosedException(shardId)));
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new RuntimeException("simulated", new IndexShardClosedException(shardId))));
-
-        assertEquals(Level.DEBUG, getExceptionLogLevel(new ShardNotInPrimaryModeException(shardId, IndexShardState.CLOSED)));
-        assertEquals(
-            Level.DEBUG,
-            getExceptionLogLevel(new RuntimeException("simulated", new ShardNotInPrimaryModeException(shardId, IndexShardState.CLOSED)))
-        );
+        for (final var exception : List.of(
+            new NodeClosedException(DiscoveryNodeUtils.create("node")),
+            new IndexNotFoundException(shardId.getIndexName()),
+            new AlreadyClosedException(shardId.getIndexName()),
+            new IndexShardClosedException(shardId),
+            new ShardNotInPrimaryModeException(shardId, IndexShardState.CLOSED),
+            new ReplicationOperation.RetryOnPrimaryException(shardId, "test")
+        )) {
+            assertEquals(Level.DEBUG, getExceptionLogLevel(exception));
+            assertEquals(Level.DEBUG, getExceptionLogLevel(new RuntimeException("wrapper", exception)));
+        }
     }
 }

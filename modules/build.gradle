@@ -13,7 +13,7 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
-    name project.name
+    name = project.name
   }
 
   if (project.file('src/main/packaging').exists()) {

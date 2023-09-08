@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
@@ -394,6 +395,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         );
     }
 
+    @TestLogging(
+        reason = "Debugging https://github.com/elastic/elasticsearch/issues/96764",
+        value = "org.elasticsearch.cluster.InternalClusterInfoService:TRACE"
+            + ",org.elasticsearch.xpack.autoscaling.action:TRACE"
+            + ",org.elasticsearch.cluster.routing.allocation:DEBUG"
+    )
     public void testScaleDuringSplitOrClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -529,12 +536,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
     public void setTotalSpace(String dataNodeName, long totalSpace) {
         getTestFileStore(dataNodeName).setTotalSpace(totalSpace);
         refreshClusterInfo();
-    }
-
-    public GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
-        GetAutoscalingCapacityAction.Response response = client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
-        return response;
     }
 
     private void putAutoscalingPolicy(String policyName, String role) {

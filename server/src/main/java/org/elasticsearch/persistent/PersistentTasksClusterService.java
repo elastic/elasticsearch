@@ -26,6 +26,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -524,7 +525,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
-            super(logger, threadPool, recheckInterval, false);
+            super(logger, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE, recheckInterval, false);
         }
 
         @Override
@@ -535,6 +536,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         @Override
         public void runInternal() {
             if (clusterService.localNode().isMasterNode()) {
+                // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
                 if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {

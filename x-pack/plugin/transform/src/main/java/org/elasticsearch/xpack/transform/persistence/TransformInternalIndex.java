@@ -87,6 +87,7 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
     public static final String FLATTENED = "flattened";
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 1;
 
     public static SystemIndexDescriptor getSystemIndexDescriptor(Settings transformInternalIndexAdditionalSettings) throws IOException {
         return SystemIndexDescriptor.builder()
@@ -357,7 +358,10 @@ public final class TransformInternalIndex {
      * @throws IOException On write error
      */
     private static XContentBuilder addMetaInformation(XContentBuilder builder) throws IOException {
-        return builder.startObject("_meta").field("version", Version.CURRENT).endObject();
+        return builder.startObject("_meta")
+            .field("version", Version.CURRENT)
+            .field(SystemIndexDescriptor.VERSION_META_KEY, TRANSFORM_INDEX_MAPPINGS_VERSION)
+            .endObject();
     }
 
     protected static boolean hasLatestVersionedIndex(ClusterState state) {

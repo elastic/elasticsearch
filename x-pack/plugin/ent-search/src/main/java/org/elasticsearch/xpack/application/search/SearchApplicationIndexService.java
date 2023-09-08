@@ -94,6 +94,7 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
+    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 1;
 
     // The client to perform any operations on user indices (alias, ...).
     private final Client client;
@@ -152,6 +153,7 @@ public class SearchApplicationIndexService {
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -199,9 +201,18 @@ public class SearchApplicationIndexService {
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            l.onResponse(res);
+            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source, getAliasIndices(resourceName));
+            l.onResponse(searchApplication);
         }));
+    }
+
+    private String[] getAliasIndices(String searchApplicationName) {
+        return clusterService.state()
+            .metadata()
+            .aliasedIndices(searchApplicationName)
+            .stream()
+            .map(index -> index.getName())
+            .toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -419,7 +430,7 @@ public class SearchApplicationIndexService {
         );
     }
 
-    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
+    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source, String[] indices) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -440,7 +451,7 @@ public class SearchApplicationIndexService {
                     try (
                         StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
                     ) {
-                        return parseSearchApplicationBinaryWithVersion(in);
+                        return parseSearchApplicationBinaryWithVersion(in, indices);
                     }
                 } else {
                     XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -454,11 +465,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
-        return new SearchApplication(in);
+        return new SearchApplication(in, indices);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)

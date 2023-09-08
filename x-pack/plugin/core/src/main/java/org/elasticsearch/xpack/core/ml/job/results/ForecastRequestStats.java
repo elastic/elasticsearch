@@ -152,7 +152,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         forecastId = in.readString();
         recordCount = in.readLong();
         if (in.readBoolean()) {
-            messages = in.readStringList();
+            messages = in.readStringCollectionAsList();
         } else {
             messages = null;
         }

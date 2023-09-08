@@ -31,13 +31,13 @@ class FieldValueFetcher {
     protected final String name;
     protected final MappedFieldType fieldType;
     protected final IndexFieldData<?> fieldData;
-    protected final AbstractDownsampleFieldProducer rollupFieldProducer;
+    protected final AbstractDownsampleFieldProducer fieldProducer;
 
     protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.name = name;
         this.fieldType = fieldType;
         this.fieldData = fieldData;
-        this.rollupFieldProducer = createRollupFieldProducer();
+        this.fieldProducer = createieldProducer();
     }
 
     public String name() {
@@ -49,11 +49,11 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
-    public AbstractDownsampleFieldProducer rollupFieldProducer() {
-        return rollupFieldProducer;
+    public AbstractDownsampleFieldProducer fieldProducer() {
+        return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createRollupFieldProducer() {
+    private AbstractDownsampleFieldProducer createieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
@@ -81,7 +81,7 @@ class FieldValueFetcher {
 
             if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
                 // If the field is an aggregate_metric_double field, we should load all its subfields
-                // This is a rollup-of-rollup case
+                // This is a downsample-of-downsample case
                 for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
                     if (context.fieldExistsInIndex(metricSubField.name())) {
                         IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);

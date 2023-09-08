@@ -37,8 +37,11 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
+    private static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
+    private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
+    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 1;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
@@ -142,6 +145,7 @@ public class SecuritySystemIndices {
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -627,6 +631,7 @@ public class SecuritySystemIndices {
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -838,6 +843,7 @@ public class SecuritySystemIndices {
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

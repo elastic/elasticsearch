@@ -232,8 +232,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             new AddVotingConfigExclusionsRequest("other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
-                assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(otherNode1Exclusion));
-                assertAllExclusionsApplied(state);
+                final var finalState = clusterService.getClusterApplierService().state();
+                assertThat(finalState.getVotingConfigExclusions(), contains(otherNode1Exclusion));
+                assertAllExclusionsApplied(finalState);
                 countDownLatch.countDown();
             })
         );

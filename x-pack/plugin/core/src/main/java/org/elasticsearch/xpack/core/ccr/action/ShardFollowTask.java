@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -152,7 +153,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         super.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public static ShardFollowTask fromXContent(XContentParser parser) {
@@ -197,6 +198,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 }

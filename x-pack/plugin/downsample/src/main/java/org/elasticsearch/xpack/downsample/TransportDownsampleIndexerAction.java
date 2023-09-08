@@ -29,16 +29,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardIndexerStatus;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * A {@link TransportBroadcastAction} that rollups all the shards of a source index into a new rollup index.
+ * A {@link TransportBroadcastAction} that downsamples all the shards of a source index into a new downsample index.
  *
  * TODO: Enforce that we don't retry on another replica if we throw an error after sending some buckets.
  */
@@ -135,16 +135,16 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         Task task
     ) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        RollupShardIndexer indexer = new RollupShardIndexer(
-            (RollupShardTask) task,
+        DownsampleShardIndexer indexer = new DownsampleShardIndexer(
+            (DownsampleShardTask) task,
             client,
             indexService,
             request.shardId(),
-            request.getRollupIndex(),
+            request.getDownsampleIndex(),
             request.getRollupConfig(),
             request.getMetricFields(),
             request.getLabelFields(),
-            new RollupShardPersistentTaskState(RollupShardIndexerStatus.INITIALIZED, null)
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         return indexer.execute();
     }

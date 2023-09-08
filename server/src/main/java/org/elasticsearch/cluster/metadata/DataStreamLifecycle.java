@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.Diff;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -47,7 +47,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
     // Versions over the wire
-    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersion.V_8_500_057;
+    public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_500_057;
 
     public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.lifecycle.default.rollover",
@@ -58,8 +58,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     );
 
     public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
-
-    private static final FeatureFlag DATA_STREAM_LIFECYCLE_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
@@ -91,10 +89,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
-    }
-
-    public static boolean isFeatureEnabled() {
-        return DATA_STREAM_LIFECYCLE_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable
@@ -179,10 +173,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(dataRetention);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_026)) {
             out.writeOptionalWriteable(downsampling);
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
@@ -191,12 +185,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             dataRetention = in.readOptionalWriteable(Retention::read);
         } else {
             dataRetention = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_026)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_026)) {
             downsampling = in.readOptionalWriteable(Downsampling::read);
         } else {
             downsampling = null;
@@ -421,12 +415,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalList(Round::read));
+            return new Downsampling(in.readOptionalCollectionAsList(Round::read));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, (o, v) -> v.writeTo(o));
+            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
         }
 
         @Override

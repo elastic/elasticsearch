@@ -191,7 +191,7 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
         }
 
         public Response(StreamInput in) throws IOException {
-            this(in.readList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
+            this(in.readCollectionAsList(Response.DataStreamLifecycle::new), in.readOptionalWriteable(RolloverConfiguration::new));
         }
 
         public List<DataStreamLifecycle> getDataStreamLifecycles() {
@@ -205,7 +205,7 @@ public class GetDataStreamLifecycleAction extends ActionType<GetDataStreamLifecy
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(dataStreamLifecycles);
+            out.writeCollection(dataStreamLifecycles);
             out.writeOptionalWriteable(rolloverConfiguration);
         }
 

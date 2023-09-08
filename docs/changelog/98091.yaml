@@ -1,6 +1,0 @@
-pr: 98091
-summary: '`GlobalAggregator` should call rewrite() before `createWeight()`'
-area: Aggregations
-type: bug
-issues:
- - 98076

@@ -469,7 +469,7 @@ public class TextFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
                 }
             }
-            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo.build(), this);
+            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
         }
     }
 

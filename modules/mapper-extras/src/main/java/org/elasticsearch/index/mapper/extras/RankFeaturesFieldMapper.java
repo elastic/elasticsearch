@@ -67,7 +67,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 name,
                 new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 positiveScoreImpact.getValue()
             );
         }

@@ -68,7 +68,7 @@ public class Murmur3FieldMapper extends FieldMapper {
                 name,
                 new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo
             );
         }
     }

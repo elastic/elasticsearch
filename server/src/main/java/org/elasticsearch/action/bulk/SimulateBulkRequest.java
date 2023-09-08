@@ -41,15 +41,17 @@ public class SimulateBulkRequest extends BulkRequest {
     @SuppressWarnings("unchecked")
     public Map<String, Pipeline> getPipelineSubstitutions(IngestService ingestService) throws Exception {
         Map<String, Pipeline> parsedPipelineSubstitutions = new HashMap<>();
-        for (Map.Entry<String, Object> entry : pipelineSubstitutions.entrySet()) {
-            String pipelineId = entry.getKey();
-            Pipeline pipeline = Pipeline.create(
-                pipelineId,
-                (Map<String, Object>) entry.getValue(),
-                ingestService.getProcessorFactories(),
-                ingestService.getScriptService()
-            );
-            parsedPipelineSubstitutions.put(pipelineId, pipeline);
+        if (pipelineSubstitutions != null) {
+            for (Map.Entry<String, Object> entry : pipelineSubstitutions.entrySet()) {
+                String pipelineId = entry.getKey();
+                Pipeline pipeline = Pipeline.create(
+                    pipelineId,
+                    (Map<String, Object>) entry.getValue(),
+                    ingestService.getProcessorFactories(),
+                    ingestService.getScriptService()
+                );
+                parsedPipelineSubstitutions.put(pipelineId, pipeline);
+            }
         }
         return parsedPipelineSubstitutions;
     }

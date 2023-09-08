@@ -255,6 +255,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var from = as(agg.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * EsqlProject[[x{r}#3, y{r}#6]]
+     * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testCombineEvals() {
+        var plan = plan("""
+            from test
+            | eval x = emp_no + 2
+            | eval y = salary + 3
+            | keep x, y
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     public void testCombineLimits() {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
@@ -777,9 +799,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("z", "emp_no"));
         var eval = as(topN.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("z"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
         as(eval.child(), EsRelation.class);
     }
 
@@ -1599,8 +1619,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var eval = as(plan, Eval.class);
-        eval = as(eval.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
     }
@@ -1630,9 +1648,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("y"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
     }

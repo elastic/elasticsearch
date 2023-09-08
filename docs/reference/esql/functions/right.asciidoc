@@ -1,5 +1,7 @@
 [[esql-right]]
 === `RIGHT`
+[.text-center]
+image::esql/functions/signature/right.svg[Embedded,opts=inline]
 
 Return the substring that extracts 'length' chars
 from the string starting from its right end.
@@ -12,3 +14,7 @@ include::{esql-specs}/string.csv-spec[tag=right]
 |===
 include::{esql-specs}/string.csv-spec[tag=right-result]
 |===
+
+Supported types:
+
+include::types/right.asciidoc[]

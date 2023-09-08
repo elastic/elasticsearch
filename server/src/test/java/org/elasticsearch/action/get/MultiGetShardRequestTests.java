@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -102,7 +102,7 @@ public class MultiGetShardRequestTests extends AbstractWireSerializingTestCase<M
     public void testForceSyntheticUnsupported() {
         MultiGetShardRequest request = createTestInstance(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersion.V_8_3_0);
+        out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

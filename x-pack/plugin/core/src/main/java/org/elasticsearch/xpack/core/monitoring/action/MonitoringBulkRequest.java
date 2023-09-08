@@ -38,7 +38,7 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     public MonitoringBulkRequest(StreamInput in) throws IOException {
         super(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::new));
+        docs.addAll(in.readCollectionAsList(MonitoringBulkDoc::new));
     }
 
     /**

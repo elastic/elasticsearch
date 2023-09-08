@@ -15,6 +15,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -529,5 +532,83 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
         final int jwtAuthcCount = randomIntBetween(2, 3);
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
+    }
+
+    public void testConcurrentPutAndInvalidateCacheWorks() throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(
+            randomIntBetween(1, 1), // realmsRange
+            randomIntBetween(0, 0), // authzRange
+            randomIntBetween(1, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS.size()), // algsRange
+            randomIntBetween(1, 1), // audiencesRange
+            randomIntBetween(1, 1), // usersRange
+            randomIntBetween(1, 1), // rolesRange
+            randomIntBetween(1, 1), // jwtCacheSizeRange set to 1 for constant eviction that is necessary to trigger the locking when put
+            false // createHttpsServer
+        );
+
+        final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+        final User user = randomUser(jwtIssuerAndRealm.issuer());
+        final SecureString jwt = randomJwt(jwtIssuerAndRealm, user);
+        final SignedJWT parsedJwt = SignedJWT.parse(jwt.toString());
+        final JWTClaimsSet validClaimsSet = parsedJwt.getJWTClaimsSet();
+
+        final int processors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = Math.min(50, scaledRandomIntBetween((processors + 1) / 2, 4 * processors));  // up to 50 threads
+        final Thread[] threads = new Thread[numberOfThreads];
+        final CountDownLatch threadsCountDown = new CountDownLatch(numberOfThreads);
+        final CountDownLatch racingCountDown = new CountDownLatch(1);
+        final CountDownLatch completionCountDown = new CountDownLatch(numberOfThreads);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            if (randomBoolean()) {
+                threads[i] = new Thread(() -> {
+                    threadsCountDown.countDown();
+                    try {
+                        if (racingCountDown.await(10, TimeUnit.SECONDS)) {
+                            jwtIssuerAndRealm.realm().expireAll();
+                            completionCountDown.countDown();
+                        } else {
+                            throw new AssertionError("racing is not ready within the given time period");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } else {
+                threads[i] = new Thread(() -> {
+                    final BytesArray jwtCacheKey = new BytesArray(randomAlphaOfLength(10));
+                    final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+                    threadsCountDown.countDown();
+                    try {
+                        if (racingCountDown.await(10, TimeUnit.SECONDS)) {
+                            for (int j = 0; j < 10; j++) {
+                                jwtIssuerAndRealm.realm().processValidatedJwt("token-principal", jwtCacheKey, validClaimsSet, future);
+                                assertThat(future.actionGet().getValue().principal(), equalTo(user.principal()));
+                            }
+                            completionCountDown.countDown();
+                        } else {
+                            throw new AssertionError("Racing is not ready within the given time period");
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
+            threads[i].start();
+        }
+
+        if (threadsCountDown.await(10, TimeUnit.SECONDS)) {
+            racingCountDown.countDown();
+        } else {
+            throw new AssertionError("Threads are not ready within the given time period");
+        }
+
+        if (false == completionCountDown.await(30, TimeUnit.SECONDS)) {
+            throw new AssertionError("Test is not completed in time, check whether threads had deadlock");
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 }

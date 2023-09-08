@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndi
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -925,6 +927,7 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -941,7 +944,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                compatibilityVersions
             );
             this.nodeService = new NodeService(
                 settings,
@@ -1026,14 +1030,14 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
                 transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(
+            final HealthService healthService = createHealthService(
                 clusterService,
                 clusterModule,
                 coordinationDiagnosticsService,
@@ -1151,10 +1155,11 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
+                b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(newReadinessService(clusterService, environment)));
             }
 
             injector = modules.createInjector();
@@ -1474,7 +1479,8 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            injector.getInstance(CompatibilityVersions.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
         if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {
@@ -1902,7 +1908,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new SearchService. This method can be overwritten by tests to inject mock implementations.
      */
     protected SearchService newSearchService(
         ClusterService clusterService,
@@ -1931,7 +1937,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
     protected ScriptService newScriptService(
         Settings settings,
@@ -1940,6 +1946,13 @@ public class Node implements Closeable {
         LongSupplier timeProvider
     ) {
         return new ScriptService(settings, engines, contexts, timeProvider);
+    }
+
+    /**
+     * Creates a new ReadinessService. This method can be overwritten by tests to inject mock implementations.
+     */
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        return new ReadinessService(clusterService, environment);
     }
 
     /**

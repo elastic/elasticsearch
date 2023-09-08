@@ -123,6 +123,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = new DriverContext();

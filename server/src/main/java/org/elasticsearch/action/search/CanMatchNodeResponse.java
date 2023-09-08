@@ -24,7 +24,7 @@ public class CanMatchNodeResponse extends TransportResponse {
 
     public CanMatchNodeResponse(StreamInput in) throws IOException {
         super(in);
-        responses = in.readList(ResponseOrFailure::new);
+        responses = in.readCollectionAsList(ResponseOrFailure::new);
     }
 
     public CanMatchNodeResponse(List<ResponseOrFailure> responses) {

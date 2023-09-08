@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -29,7 +30,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConcatTests extends AbstractScalarFunctionTestCase {
-    public ConcatTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public ConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -38,8 +39,11 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("concat basic test", () -> {
             BytesRef first = new BytesRef(randomAlphaOfLength(3));
             BytesRef second = new BytesRef(randomAlphaOfLength(3));
-            return new TestCase(
-                List.of(new TypedData(first, DataTypes.KEYWORD, "first"), new TypedData(second, DataTypes.KEYWORD, "second")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataTypes.KEYWORD, "first"),
+                    new TestCaseSupplier.TypedData(second, DataTypes.KEYWORD, "second")
+                ),
                 "ConcatEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(first.utf8ToString() + second.utf8ToString()))
@@ -52,7 +56,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    private Matcher<Object> resultsMatcher(List<TypedData> simpleData) {
+    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> simpleData) {
         return equalTo(new BytesRef(simpleData.stream().map(o -> ((BytesRef) o.data()).utf8ToString()).collect(Collectors.joining())));
     }
 

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,7 +20,7 @@ import java.io.IOException;
 /** Request for resetting feature state */
 public class ResetFeatureStateRequest extends MasterNodeRequest<ResetFeatureStateRequest> {
 
-    private static final TransportVersion FEATURE_RESET_ON_MASTER = TransportVersion.V_7_14_0;
+    private static final TransportVersion FEATURE_RESET_ON_MASTER = TransportVersions.V_7_14_0;
 
     public static ResetFeatureStateRequest fromStream(StreamInput in) throws IOException {
         if (in.getTransportVersion().before(FEATURE_RESET_ON_MASTER)) {

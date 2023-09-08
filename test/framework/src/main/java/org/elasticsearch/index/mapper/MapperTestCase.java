@@ -441,6 +441,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return Strings.EMPTY_ARRAY;
     }
 
+    protected String[] getParseMinimalWarnings(IndexVersion indexVersion) {
+        return getParseMinimalWarnings();
+    }
+
     protected String[] getParseMaximalWarnings() {
         // Most mappers don't emit any warnings
         return Strings.EMPTY_ARRAY;
@@ -494,24 +498,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         );
     }
 
-    public final void testDeprecatedBoost() throws IOException {
+    public final void testDeprecatedBoostWarning() throws IOException {
         try {
             createMapperService(DEPRECATED_BOOST_INDEX_VERSION, fieldMapping(b -> {
                 minimalMapping(b, DEPRECATED_BOOST_INDEX_VERSION);
                 b.field("boost", 2.0);
             }));
             String[] warnings = Strings.concatStringArrays(
-                getParseMinimalWarnings(),
+                getParseMinimalWarnings(DEPRECATED_BOOST_INDEX_VERSION),
                 new String[] { "Parameter [boost] on field [field] is deprecated and has no effect" }
             );
             assertWarnings(warnings);
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
         }
+    }
 
+    public void testBoostNotAllowed() throws IOException {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(IndexVersion.V_8_0_0, fieldMapping(b -> {
+            () -> createMapperService(boostNotAllowedIndexVersion(), fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("boost", 2.0);
             }))
@@ -519,6 +525,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(e.getMessage(), anyOf(containsString("Unknown parameter [boost]"), containsString("[boost : 2.0]")));
 
         assertParseMinimalWarnings();
+    }
+
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersion.V_8_0_0;
     }
 
     /**

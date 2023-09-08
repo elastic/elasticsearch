@@ -39,11 +39,18 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         TrainedModelAssignmentNodeService nodeService = mock(TrainedModelAssignmentNodeService.class);
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCaptor = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<String> reasonCaptur = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         doAnswer(invocation -> {
-            taskCaptor.getValue().markAsStopped(reasonCaptur.getValue());
+            taskCaptor.getValue().markAsStopped(reasonCaptor.getValue());
             return null;
-        }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptur.capture(), any());
+        }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptor.capture(), any());
+
+        ArgumentCaptor<TrainedModelDeploymentTask> taskCaptorGraceful = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        ArgumentCaptor<String> reasonCaptorGraceful = ArgumentCaptor.forClass(String.class);
+        doAnswer(invocation -> {
+            taskCaptorGraceful.getValue().markAsStopped(reasonCaptorGraceful.getValue());
+            return null;
+        }).when(nodeService).gracefullyStopDeploymentAndNotify(taskCaptorGraceful.capture(), reasonCaptorGraceful.capture(), any());
 
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
@@ -79,7 +86,11 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
     }
 
     public void testOnStop() {
-        assertTrackingComplete(t -> t.stop("foo", ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.stop("foo", false, ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    public void testOnStopGracefully() {
+        assertTrackingComplete(t -> t.stop("foo", true, ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testCancelled() {

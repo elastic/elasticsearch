@@ -725,7 +725,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 return threadPool.scheduleWithFixedDelay(
                     () -> leaderGroup.renewRetentionLease(retentionLeaseId, followerGlobalCheckpoint.getAsLong(), "ccr"),
                     CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerGroup.getPrimary().indexSettings().getSettings()),
-                    ThreadPool.Names.GENERIC
+                    threadPool.generic()
                 );
             }
 

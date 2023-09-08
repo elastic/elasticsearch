@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -66,10 +66,10 @@ public class SearchHitCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(HitExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
-        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
     }
 
     @Override
@@ -77,10 +77,10 @@ public class SearchHitCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
     }

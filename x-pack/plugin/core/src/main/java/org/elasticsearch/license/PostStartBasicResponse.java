@@ -95,7 +95,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         super.writeTo(out);
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeMap(acknowledgeMessages, StreamOutput::writeString, StreamOutput::writeStringArray);
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     @Override

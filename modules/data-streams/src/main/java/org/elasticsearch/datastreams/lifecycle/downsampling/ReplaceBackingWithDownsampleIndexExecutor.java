@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -53,6 +53,11 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
         );
         task.getListener().onResponse(null);
 
+        LOGGER.trace(
+            "Issuing request to delete index [{}] as it's not part of data stream [{}] anymore",
+            task.getSourceBackingIndex(),
+            task.getDataStreamName()
+        );
         // chain an optimistic delete of the source index call here (if it fails it'll be retried by the data stream lifecycle loop)
         client.admin().indices().delete(new DeleteIndexRequest(task.getSourceBackingIndex()), new ActionListener<>() {
             @Override
@@ -78,6 +83,7 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
+                    LOGGER.trace("Did not delete index [{}] as it was already deleted", task.getSourceBackingIndex());
                     return;
                 }
 

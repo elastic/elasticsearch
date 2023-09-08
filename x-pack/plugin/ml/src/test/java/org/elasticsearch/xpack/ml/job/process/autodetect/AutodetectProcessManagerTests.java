@@ -306,7 +306,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }
 
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
-        when(threadPool.scheduleWithFixedDelay(any(), any(), anyString())).thenReturn(cancellable);
+        when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
@@ -740,7 +740,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ExecutorService executorService = mock(ExecutorService.class);
         doThrow(new EsRejectedExecutionException("")).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        when(threadPool.scheduleWithFixedDelay(any(), any(), anyString())).thenReturn(mock(ThreadPool.Cancellable.class));
+        when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
         Job job = createJobDetails("my_id");
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -812,7 +812,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createNonSpyManager(String jobId) {
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        when(threadPool.scheduleWithFixedDelay(any(), any(), anyString())).thenReturn(mock(ThreadPool.Cancellable.class));
+        when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];

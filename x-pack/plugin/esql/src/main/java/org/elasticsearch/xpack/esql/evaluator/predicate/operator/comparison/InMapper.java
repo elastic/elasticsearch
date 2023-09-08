@@ -106,7 +106,12 @@ public class InMapper extends ExpressionMapper<In> {
                         nulls.set(i);
                     } // else: leave nulls as is
                 }
-                return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+                if (nulls.isEmpty()) {
+                    // see https://github.com/elastic/elasticsearch/issues/99347
+                    return new BooleanArrayVector(values, values.length).asBlock();
+                } else {
+                    return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+                }
             }
         }
     }

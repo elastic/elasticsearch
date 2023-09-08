@@ -336,7 +336,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(sharedBytes.getFileChannel(i));
         }
-        decayTask = new CacheDecayTask(threadPool, SHARED_CACHE_DECAY_INTERVAL_SETTING.get(settings));
+        decayTask = new CacheDecayTask(threadPool, threadPool.generic(), SHARED_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
@@ -451,24 +451,33 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      * @param writer    a writer that handles writing of newly downloaded data to the shared cache
      * @param listener  listener that is called once all downloading has finished
      *
-     * @return {@code true} if there were enough free pages to start downloading
+     * @return {@code true} if there were enough free pages to start downloading the full entry
      */
     public boolean maybeFetchFullEntry(KeyType cacheKey, long length, RangeMissingHandler writer, ActionListener<Void> listener) {
         int finalRegion = getEndingRegion(length);
         if (freeRegionCount() < finalRegion) {
             // Not enough room to download a full file without evicting existing data, so abort
+            listener.onResponse(null);
             return false;
         }
         long regionLength = regionSize;
         try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
             for (int region = 0; region <= finalRegion; region++) {
-                var entry = get(cacheKey, length, region);
                 if (region == finalRegion) {
                     regionLength = length - getRegionStart(region);
                 }
                 ByteRange rangeToWrite = ByteRange.of(0, regionLength);
                 if (rangeToWrite.isEmpty()) {
                     return true;
+                }
+                final ActionListener<Integer> regionListener = refCountingListener.acquire(ignored -> {});
+                final SharedBlobCacheService.Entry<CacheFileRegion> entry;
+                try {
+                    entry = get(cacheKey, length, region);
+                } catch (AlreadyClosedException e) {
+                    // failed to grab a cache page because some other operation concurrently acquired some
+                    regionListener.onResponse(0);
+                    return false;
                 }
                 // set read range == write range so the listener completes only once all the bytes have been downloaded
                 entry.chunk.populateAndRead(
@@ -477,7 +486,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     (channel, pos, relativePos, len) -> Math.toIntExact(len),
                     writer,
                     bulkIOExecutor,
-                    refCountingListener.acquire(ignored -> {})
+                    regionListener.delegateResponse((l, e) -> {
+                        if (e instanceof AlreadyClosedException) {
+                            l.onResponse(0);
+                        } else {
+                            l.onFailure(e);
+                        }
+                    })
                 );
             }
         }
@@ -730,8 +745,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     class CacheDecayTask extends AbstractAsyncTask {
 
-        CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+        CacheDecayTask(ThreadPool threadPool, Executor executor, TimeValue interval) {
+            super(logger, Objects.requireNonNull(threadPool), executor, Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -742,11 +757,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         public void runInternal() {
             computeDecay();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

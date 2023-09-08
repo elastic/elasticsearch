@@ -162,7 +162,15 @@ teardown:
         index: test
         id: "1"
         pipeline: "my_pipeline"
-        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200", date_source_4: "1", date_source_5: "1", date_source_6: "4000000050d506482dbdf024", date_source_7: "2018-02-05T13:44:56.657+0100" }
+        body: {
+          date_source_1: "2018-02-05T13:44:56.657+0100",
+          date_source_2: "2017-04-04 13:43:09 +0200",
+          date_source_3: "10/Aug/2018:09:45:56 +0200",
+          date_source_4: "1",
+          date_source_5: "1",
+          date_source_6: "4000000050d506482dbdf024",
+          date_source_7: "2018-02-05T13:44:56.657+0100"
+      }
 
   - do:
       get:

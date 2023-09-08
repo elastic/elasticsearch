@@ -178,7 +178,7 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
             };
 
-            runUnderPrimaryPermit(retentionLeaseListener -> {
+            runUnderPrimaryPermit(threadPool, retentionLeaseListener -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
                 if (targetShardRouting == null) {
@@ -310,6 +310,7 @@ public class RecoverySourceHandler {
              * all documents up to maxSeqNo in phase2.
              */
             runUnderPrimaryPermit(
+                threadPool,
                 () -> shard.initiateTracking(request.targetAllocationId()),
                 shard,
                 cancellableThreads,
@@ -394,6 +395,7 @@ public class RecoverySourceHandler {
      * {@code action} releases the permit before passing the result through to {@code outerListener}.
      */
     static <T> void runUnderPrimaryPermit(
+        ThreadPool threadPool,
         Consumer<ActionListener<T>> action,
         IndexShard primary,
         CancellableThreads cancellableThreads,
@@ -422,16 +424,17 @@ public class RecoverySourceHandler {
             cancellableThreads.checkForCancel();
             ensureNotRelocatedPrimary(primary);
             action.accept(l2);
-        })), ThreadPool.Names.GENERIC);
+        })), threadPool.executor(ThreadPool.Names.GENERIC));
     }
 
     static void runUnderPrimaryPermit(
+        ThreadPool threadPool,
         CheckedRunnable<Exception> action,
         IndexShard primary,
         CancellableThreads cancellableThreads,
         ActionListener<Void> listener
     ) {
-        runUnderPrimaryPermit(l -> ActionListener.completeWith(l, () -> {
+        runUnderPrimaryPermit(threadPool, l -> ActionListener.completeWith(l, () -> {
             action.run();
             return null;
         }), primary, cancellableThreads, listener);
@@ -1015,6 +1018,7 @@ public class RecoverySourceHandler {
     private <R> void updateRetentionLease(Function<ActionListener<Void>, R> updateLeaseFunction, ActionListener<R> outerListener) {
         final var leasesSyncedStep = new SubscribableListener<Void>();
         runUnderPrimaryPermit(
+            threadPool,
             resultListener -> ActionListener.completeWith(
                 // NB completing resultListener releases the permit, so must do this immediately
                 resultListener,
@@ -1260,6 +1264,7 @@ public class RecoverySourceHandler {
          */
         final SubscribableListener<Void> markInSyncStep = new SubscribableListener<>();
         runUnderPrimaryPermit(
+            threadPool,
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shard,
             cancellableThreads,
@@ -1277,6 +1282,7 @@ public class RecoverySourceHandler {
         finalizeListener.addListener(
             listener.delegateFailureAndWrap(
                 (l, globalCheckpoint) -> runUnderPrimaryPermit(
+                    threadPool,
                     () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                     shard,
                     cancellableThreads,

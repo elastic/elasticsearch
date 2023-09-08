@@ -124,7 +124,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -715,7 +714,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any());
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
@@ -802,13 +801,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any());
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
             PlainActionFuture.<Void, RuntimeException>get(
                 future -> RecoverySourceHandler.runUnderPrimaryPermit(
+                    threadPool,
                     listener -> listener.onResponse(null),
                     shard,
                     cancellableThreads,

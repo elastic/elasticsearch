@@ -103,7 +103,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
+        indexShard.acquirePrimaryOperationPermit(actionListener, threadPool.executor(ThreadPool.Names.GENERIC));
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");

@@ -214,7 +214,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
+        assertEquals(
+            Sets.difference(allFields(mapping), Set.of("emp_no", "job")),
+            Sets.newHashSet(names(restExtract.attributesToExtract()))
+        );
         assertEquals(Set.of("emp_no"), Sets.newHashSet(names(extract.attributesToExtract())));
 
         var query = as(extract.child(), EsQueryExec.class);
@@ -250,7 +253,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
+        assertEquals(
+            Sets.difference(allFields(mapping), Set.of("emp_no", "job")),
+            Sets.newHashSet(names(restExtract.attributesToExtract()))
+        );
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
@@ -390,7 +396,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -420,7 +426,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -877,7 +883,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
         );
 
         var source = source(extract.child());

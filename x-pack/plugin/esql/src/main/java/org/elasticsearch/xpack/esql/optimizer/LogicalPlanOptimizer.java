@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -856,21 +857,16 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class ReplaceFieldAttributesWithExactSubfield extends OptimizerRules.OptimizerRule<LogicalPlan> {
+    private static class ReplaceFieldAttributesWithExactSubfield extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Filter || plan instanceof OrderBy || plan instanceof Aggregate) {
-                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceFieldAttributesWithExactSubfield::toExact);
-            }
-            return plan;
-        }
-
-        private static FieldAttribute toExact(FieldAttribute fa) {
-            if (fa.getExactInfo().hasExact() && fa.exactAttribute() != fa) {
-                return fa.exactAttribute();
-            }
-            return fa;
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformExpressionsUp(FieldAttribute.class, f -> {
+                if (f.dataType() == DataTypes.TEXT && f.getExactInfo().hasExact()) {
+                    f = f.exactAttribute();
+                }
+                return f;
+            });
         }
     }
 }

@@ -636,7 +636,7 @@ public class CacheService extends AbstractLifecycleComponent {
     class CacheSynchronizationTask extends AbstractAsyncTask {
 
         CacheSynchronizationTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+            super(logger, Objects.requireNonNull(threadPool), threadPool.generic(), Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -647,11 +647,6 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void runInternal() {
             synchronizeCache();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

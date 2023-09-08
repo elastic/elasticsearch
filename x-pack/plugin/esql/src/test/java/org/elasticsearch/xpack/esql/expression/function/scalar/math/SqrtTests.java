@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
-            ul -> Math.sqrt(ul.doubleValue()),
+            ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
             MAX_UNSIGNED_LONG,
             List.of()

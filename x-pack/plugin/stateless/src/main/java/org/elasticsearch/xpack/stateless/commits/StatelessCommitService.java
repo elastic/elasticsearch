@@ -231,7 +231,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-        var compoundCommitBlob = commitState.markCommitCreated(
+        var blobReference = commitState.markCommitCreated(
             reference.getPrimaryTerm(),
             generation,
             reference.getCommitFiles(),
@@ -242,11 +242,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
-        compoundCommitBlob.incRef();
+        blobReference.incRef();
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
-                commitState.sendNewCommitNotification(compoundCommitBlob, commit);
+                commitState.sendNewCommitNotification(blobReference, commit);
             }
 
             @Override
@@ -271,7 +271,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return true;
             }
 
-        }), compoundCommitBlob::decRef), reference, TimeValue.timeValueMillis(50));
+        }), blobReference::decRef), reference, TimeValue.timeValueMillis(50));
         commitUpload.run();
     }
 
@@ -504,7 +504,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong generationNotified = new AtomicLong(-1);
         private volatile boolean isClosed;
         // map generations to compound commit blob instances
-        private final Map<PrimaryTermAndGeneration, CompoundCommitBlob> compoundCommitBlobs = new ConcurrentHashMap<>();
+        private final Map<PrimaryTermAndGeneration, BlobReference> blobReferences = new ConcurrentHashMap<>();
         /**
          * Map from commit to set of search node-ids using the commit. The lifecycle of entries is like this:
          * 1. Initially added on recovery or commit created - with an empty set. Only this adds to the keys of the Map.
@@ -513,9 +513,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * 3. Remove from set of nodes when receiving commit notification response.
          * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
          * 5. Remove from map when nodes is empty, using remove(key, Set.of()) to ensure we are atomic towards a search shard registering.
-         *    When successful this dec-refs the CompoundCommitBlobs external reader ref-count.
+         *    When successful this dec-refs the BlobReference's external reader ref-count.
          */
-        private final Map<CompoundCommitBlob, Set<String>> unpromotableCommitReferences = new ConcurrentHashMap<>();
+        private final Map<BlobReference, Set<String>> unpromotableBlobReferences = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
@@ -530,7 +530,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             blobLocations.compute(fileName, (ignored, commitAndBlobLocation) -> {
                 assert commitAndBlobLocation != null : fileName;
                 assert assertBlobLocations(fileName, commitAndBlobLocation, blobLocation);
-                return new CommitAndBlobLocation(commitAndBlobLocation.compoundCommitBlob, blobLocation);
+                return new CommitAndBlobLocation(commitAndBlobLocation.blobReference, blobLocation);
             });
         }
 
@@ -541,7 +541,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     : fileName + ':' + current + " vs " + uploaded;
                 return true;
             }
-            assert current.compoundCommitBlob().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
+            assert current.blobReference().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
                 : fileName + ':' + current + " vs " + uploaded;
             return true;
         }
@@ -577,7 +577,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {
             assert recoveredCommit != null;
-            assert compoundCommitBlobs.isEmpty() : compoundCommitBlobs;
+            assert blobReferences.isEmpty() : blobReferences;
             assert blobLocations.isEmpty() : blobLocations;
 
             Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
@@ -594,13 +594,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // create a compound commit blob instance for the recovery commit
-            var recoveryCommitBlob = new CompoundCommitBlob(
+            var recoveryCommitBlob = new BlobReference(
                 recoveredCommit.primaryTerm(),
                 recoveredCommit.generation(),
                 recoveredCommit.getInternalFiles()
             );
 
-            PriorityQueue<CompoundCommitBlob> nonRecoveredCommits = new PriorityQueue<>(comparing(c -> c.primaryTermAndGeneration));
+            PriorityQueue<BlobReference> nonRecoveredCommits = new PriorityQueue<>(comparing(c -> c.primaryTermAndGeneration));
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
@@ -611,21 +611,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
 
                     // create a compound commit blob instance for the new commit
-                    var nonRecoveredCompoundCommitBlob = new CompoundCommitBlob(
+                    var nonRecoveredBlobReference = new BlobReference(
                         nonRecoveredTermGen.primaryTerm(),
                         nonRecoveredTermGen.generation(),
                         internalFiles.keySet()
                     );
-                    nonRecoveredCommits.add(nonRecoveredCompoundCommitBlob);
+                    nonRecoveredCommits.add(nonRecoveredBlobReference);
 
                     // If the recovery commit references files in this commit, ensure we increment a reference
                     if (referencedBlobs.containsKey(nonRecoveredTermGen)) {
                         assert internalFiles.isEmpty() == false;
-                        recoveryCommitBlob.incRef(nonRecoveredCompoundCommitBlob);
+                        recoveryCommitBlob.incRef(nonRecoveredBlobReference);
                     }
 
                     internalFiles.forEach((key, value) -> {
-                        var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredCompoundCommitBlob, value));
+                        var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredBlobReference, value));
                         assert previous == null : key + ':' + previous;
                     });
 
@@ -640,18 +640,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            ArrayList<CompoundCommitBlob> previousCommits = new ArrayList<>();
-            CompoundCommitBlob current;
+            ArrayList<BlobReference> previousCommits = new ArrayList<>();
+            BlobReference current;
             while ((current = nonRecoveredCommits.poll()) != null) {
-                compoundCommitBlobs.put(current.getPrimaryTermAndGeneration(), current);
-                for (CompoundCommitBlob previous : previousCommits) {
+                blobReferences.put(current.getPrimaryTermAndGeneration(), current);
+                for (BlobReference previous : previousCommits) {
                     current.incRef(previous);
                 }
 
                 previousCommits.add(current);
             }
 
-            compoundCommitBlobs.put(recoveryCommitBlob.getPrimaryTermAndGeneration(), recoveryCommitBlob);
+            blobReferences.put(recoveryCommitBlob.getPrimaryTermAndGeneration(), recoveryCommitBlob);
 
             recoveredCommit.getInternalFiles().forEach(fileName -> {
                 var existing = blobLocations.put(
@@ -667,12 +667,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
 
-            compoundCommitBlobs.values().forEach(this::initializeUnpromotableCommitReferences);
-            compoundCommitBlobs.values()
+            blobReferences.values().forEach(this::initializeUnpromotableCommitReferences);
+            blobReferences.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
             // Decrement all of the non-recovered commits since we do not reference them locally
-            compoundCommitBlobs.values()
+            blobReferences.values()
                 .stream()
                 .filter(b -> b.getPrimaryTermAndGeneration().equals(recoveryCommitBlob.getPrimaryTermAndGeneration()) == false)
                 .forEach(b -> {
@@ -687,7 +687,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             handleUploadedCommit(recoveredCommit);
         }
 
-        public CompoundCommitBlob markCommitCreated(
+        public BlobReference markCommitCreated(
             long primaryTerm,
             long generation,
             Collection<String> commitFiles,
@@ -700,45 +700,45 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return addCommitData(primaryTerm, generation, commitFiles, additionalFiles);
         }
 
-        private CompoundCommitBlob addCommitData(
+        private BlobReference addCommitData(
             long primaryTerm,
             long generation,
             Collection<String> commitFiles,
             Set<String> additionalFiles
         ) {
             // create a compound commit blob instance for the new commit
-            var compoundCommitBlob = new CompoundCommitBlob(primaryTerm, generation, additionalFiles);
-            if (compoundCommitBlobs.putIfAbsent(compoundCommitBlob.getPrimaryTermAndGeneration(), compoundCommitBlob) != null) {
-                throw new IllegalArgumentException(compoundCommitBlob + " already exists");
+            var blobReference = new BlobReference(primaryTerm, generation, additionalFiles);
+            if (blobReferences.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
+                throw new IllegalArgumentException(blobReference + " already exists");
             }
 
             // add pending blob locations for new files
             additionalFiles.forEach(fileName -> {
-                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(compoundCommitBlob, null));
-                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + compoundCommitBlob;
+                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(blobReference, null));
+                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + blobReference;
             });
 
             // if there are external files the new instance must reference the corresponding commit blob instances
             commitFiles.forEach(fileName -> {
                 if (additionalFiles.contains(fileName) == false) {
-                    var commit = blobLocations.get(fileName).compoundCommitBlob();
-                    compoundCommitBlob.incRef(commit);
+                    var commit = blobLocations.get(fileName).blobReference();
+                    blobReference.incRef(commit);
                 }
             });
-            initializeUnpromotableCommitReferences(compoundCommitBlob);
-            return compoundCommitBlob;
+            initializeUnpromotableCommitReferences(blobReference);
+            return blobReference;
         }
 
-        private void initializeUnpromotableCommitReferences(CompoundCommitBlob compoundCommitBlob) {
-            Set<String> previous = unpromotableCommitReferences.put(compoundCommitBlob, Set.of());
+        private void initializeUnpromotableCommitReferences(BlobReference blobReference) {
+            Set<String> previous = unpromotableBlobReferences.put(blobReference, Set.of());
             assert previous == null;
         }
 
         public void markCommitDeleted(long generation) {
             long primaryTerm = generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-            final var compoundCommitBlob = compoundCommitBlobs.get(new PrimaryTermAndGeneration(primaryTerm, generation));
-            assert compoundCommitBlob != null : generation;
-            compoundCommitBlob.deleted();
+            final var blobReference = blobReferences.get(new PrimaryTermAndGeneration(primaryTerm, generation));
+            assert blobReference != null : generation;
+            blobReference.deleted();
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
@@ -800,7 +800,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return latestUploadedCommit == null ? -1L : latestUploadedCommit.generation();
         }
 
-        private void sendNewCommitNotification(CompoundCommitBlob compoundCommitBlob, StatelessCompoundCommit commit) {
+        private void sendNewCommitNotification(BlobReference blobReference, StatelessCompoundCommit commit) {
             assert commit != null;
             var shardRoutingTable = shardRouting.apply(commit.shardId());
             Set<String> nodes = shardRoutingTable.unpromotableShards()
@@ -808,7 +808,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .filter(ShardRouting::assignedToNode)
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
-            trackOutstandingUnpromotableShardCommitRef(nodes, compoundCommitBlob);
+            trackOutstandingUnpromotableShardCommitRef(nodes, blobReference);
             NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewCommitNotificationResponse(commit.generation(), nodes, response.getUsedPrimaryTermAndGenerations());
@@ -826,7 +826,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void resendLatestNewCommitNotification() {
             StatelessCompoundCommit latestStatelessCompoundCommitUploaded = null;
-            ShardCommitState.CompoundCommitBlob latestCompoundCommitBlob = null;
+            BlobReference latestBlobReference = null;
 
             // Get latest uploaded stateless compound commit and the respective compound commit blob
             synchronized (this) {
@@ -838,11 +838,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     latestStatelessCompoundCommitUploaded.primaryTerm(),
                     latestStatelessCompoundCommitUploaded.generation()
                 );
-                latestCompoundCommitBlob = compoundCommitBlobs.get(termGen);
-                assert latestCompoundCommitBlob != null : "could not find latest " + termGen + " in compound commit blobs";
+                latestBlobReference = blobReferences.get(termGen);
+                assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
             }
 
-            sendNewCommitNotification(latestCompoundCommitBlob, latestStatelessCompoundCommitUploaded);
+            sendNewCommitNotification(latestBlobReference, latestStatelessCompoundCommitUploaded);
         }
 
         /**
@@ -930,14 +930,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             // TODO: provide Map<nodeId, Set<PrimaryTermAndGeneration>>
 
-            for (CompoundCommitBlob commit : unpromotableCommitReferences.keySet()) {
+            for (BlobReference commit : unpromotableBlobReferences.keySet()) {
                 // we are allowed to shrink the set of unpromotable nodes for any generation <= notificationGeneration, since after the
                 // notification generation has
                 // been refreshed on the search shard, we know that the shard will never add more use of any earlier generations.
                 if (commit.getPrimaryTermAndGeneration().generation() <= notificationGeneration
                     && usedPrimaryTermAndGenerations.contains(commit.getPrimaryTermAndGeneration()) == false) {
                     // remove nodes from the set. Any search shard registered during initialization will be left until it starts responding.
-                    Set<String> result = unpromotableCommitReferences.computeIfPresent(commit, (k, v) -> Sets.difference(v, nodes));
+                    Set<String> result = unpromotableBlobReferences.computeIfPresent(commit, (k, v) -> Sets.difference(v, nodes));
                     // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
                     // least that commit (relevant only in case there are no search shards currently).
                     maybeRemoveAndCloseExternalReaders(notificationGeneration, commit, result);
@@ -947,8 +947,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
             long generationNotified = this.generationNotified.get();
-            for (Map.Entry<CompoundCommitBlob, Set<String>> entry : unpromotableCommitReferences.entrySet()) {
-                Set<String> result = unpromotableCommitReferences.computeIfPresent(
+            for (Map.Entry<BlobReference, Set<String>> entry : unpromotableBlobReferences.entrySet()) {
+                Set<String> result = unpromotableBlobReferences.computeIfPresent(
                     entry.getKey(),
                     (k, v) -> Sets.intersection(v, currentUnpromotableNodes)
                 );
@@ -956,25 +956,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void maybeRemoveAndCloseExternalReaders(long notificationGeneration, CompoundCommitBlob commit, Set<String> result) {
+        private void maybeRemoveAndCloseExternalReaders(long notificationGeneration, BlobReference commit, Set<String> result) {
             if (result != null && result.isEmpty() && notificationGeneration > commit.getPrimaryTermAndGeneration().generation()) {
-                if (unpromotableCommitReferences.remove(commit, Set.of())) {
+                if (unpromotableBlobReferences.remove(commit, Set.of())) {
                     commit.closedExternalReaders();
                 }
             }
         }
 
-        void trackOutstandingUnpromotableShardCommitRef(Set<String> nodes, CompoundCommitBlob compoundCommitBlob) {
-            boolean success = registerUnpromoteableCommitRefs(nodes, compoundCommitBlob);
-            // it is fine if a newer commit notification removed the registration, since then compoundCommitBlob cannot be used
+        void trackOutstandingUnpromotableShardCommitRef(Set<String> nodes, BlobReference blobReference) {
+            boolean success = registerUnpromoteableCommitRefs(nodes, blobReference);
+            // it is fine if a newer commit notification removed the registration, since then blobReference cannot be used
             // by search shard readers anymore.
-            assert success || compoundCommitBlob.getPrimaryTermAndGeneration().generation() < generationNotified.get();
+            assert success || blobReference.getPrimaryTermAndGeneration().generation() < generationNotified.get();
         }
 
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
-        CompoundCommitBlob registerCommitForUnpromotableRecovery(String nodeId, CompoundCommitBlob compoundCommit) {
+        BlobReference registerCommitForUnpromotableRecovery(String nodeId, BlobReference compoundCommit) {
             long previousGenerationUploaded = -1;
             while (true) {
                 if (compoundCommit != null && registerUnpromoteableCommitRefs(Set.of(nodeId), compoundCommit)) {
@@ -984,41 +984,41 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     long generation = getMaxUploadedGeneration();
                     assert generation > previousGenerationUploaded;
                     previousGenerationUploaded = generation;
-                    compoundCommit = compoundCommitBlobs.get(new PrimaryTermAndGeneration(allocationPrimaryTerm, generation));
+                    compoundCommit = blobReferences.get(new PrimaryTermAndGeneration(allocationPrimaryTerm, generation));
                     assert compoundCommit != null || getMaxUploadedGeneration() > generation;
                 }
             }
         }
 
-        boolean registerUnpromoteableCommitRefs(Set<String> nodes, CompoundCommitBlob compoundCommit) {
+        boolean registerUnpromoteableCommitRefs(Set<String> nodes, BlobReference compoundCommit) {
             Set<String> immutableNodes = Set.copyOf(nodes);
-            Set<String> result = unpromotableCommitReferences.computeIfPresent(compoundCommit, (k, v) -> Sets.union(v, immutableNodes));
+            Set<String> result = unpromotableBlobReferences.computeIfPresent(compoundCommit, (k, v) -> Sets.union(v, immutableNodes));
             return result != null;
         }
 
         public LongConsumer closedLocalReadersForGeneration() {
             return generation -> {
                 long primaryTerm = generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-                CompoundCommitBlob compoundCommitBlob = compoundCommitBlobs.get(new PrimaryTermAndGeneration(primaryTerm, generation));
-                if (compoundCommitBlob != null) {
-                    compoundCommitBlob.closedLocalReaders();
+                BlobReference blobReference = blobReferences.get(new PrimaryTermAndGeneration(primaryTerm, generation));
+                if (blobReference != null) {
+                    blobReference.closedLocalReaders();
                 } // else assume an idempotent call when already deleted.
             };
         }
 
         /**
-         * A ref counted instance representing a compound commit blob in the object store. It can reference some other previous compound
-         * commit blob instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
+         * A ref counted instance representing a (compound commit) blob reference to the object store. It can reference some other previous
+         * blob reference instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
          */
-        private class CompoundCommitBlob extends AbstractRefCounted {
+        private class BlobReference extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<String> internalFiles;
-            private final Set<CompoundCommitBlob> references;
+            private final Set<BlobReference> references;
             private final AtomicBoolean deleted = Assertions.ENABLED ? new AtomicBoolean() : null;
             private final AtomicBoolean readersClosed = new AtomicBoolean();
             private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
 
-            CompoundCommitBlob(long primaryTerm, long generation, Set<String> internalFiles) {
+            BlobReference(long primaryTerm, long generation, Set<String> internalFiles) {
                 this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
@@ -1032,7 +1032,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return primaryTermAndGeneration;
             }
 
-            public void incRef(CompoundCommitBlob other) {
+            public void incRef(BlobReference other) {
                 assert hasReferences() : this;
                 assert other.hasReferences() : other;
                 // incRef three times since we expect all commits to be both deleted, locally unused and externally unused
@@ -1071,10 +1071,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             protected void closeInternal() {
-                final CompoundCommitBlob released = this;
+                final BlobReference released = this;
                 internalFiles.forEach(fileName -> {
                     blobLocations.compute(fileName, (file, commitAndBlobLocation) -> {
-                        var existing = commitAndBlobLocation.compoundCommitBlob();
+                        var existing = commitAndBlobLocation.blobReference();
                         if (released != existing) {
                             assert isGenerationalFile(file) : file;
                             assert released.primaryTermAndGeneration.generation() < existing.primaryTermAndGeneration.generation()
@@ -1085,7 +1085,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     });
                 });
                 commitCleaner.deleteCommit(new StaleCompoundCommit(shardId, primaryTermAndGeneration, allocationPrimaryTerm));
-                var removed = compoundCommitBlobs.remove(primaryTermAndGeneration);
+                var removed = blobReferences.remove(primaryTermAndGeneration);
                 assert removed == this;
             }
 
@@ -1093,7 +1093,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public boolean equals(Object o) {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
-                CompoundCommitBlob that = (CompoundCommitBlob) o;
+                BlobReference that = (BlobReference) o;
                 return Objects.equals(primaryTermAndGeneration, that.primaryTermAndGeneration);
             }
 
@@ -1193,7 +1193,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ActionListener.completeWith(listener, () -> {
 
                 var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-                var compoundCommit = shardCommitsState.compoundCommitBlobs.get(commit);
+                var compoundCommit = shardCommitsState.blobReferences.get(commit);
                 // todo: this should be moved to registerCommitForUnpromotableRecovery, noting that we'd need to ensure the loop still
                 // terminates possibly with some of the errors here.
                 if (compoundCommit == null) {
@@ -1204,7 +1204,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     long primaryTerm = lastUploadedGeneration == shardCommitsState.recoveredGeneration
                         ? shardCommitsState.recoveredPrimaryTerm
                         : shardCommitsState.allocationPrimaryTerm;
-                    compoundCommit = shardCommitsState.compoundCommitBlobs.get(
+                    compoundCommit = shardCommitsState.blobReferences.get(
                         new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration)
                     );
 
@@ -1232,10 +1232,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         });
     }
 
-    private record CommitAndBlobLocation(ShardCommitState.CompoundCommitBlob compoundCommitBlob, @Nullable BlobLocation blobLocation) {
+    private record CommitAndBlobLocation(ShardCommitState.BlobReference blobReference, @Nullable BlobLocation blobLocation) {
         @Override
         public String toString() {
-            return "CommitAndBlobLocation [compoundCommitBlob=" + compoundCommitBlob + ", blobLocation=" + blobLocation + ']';
+            return "CommitAndBlobLocation [blobReference=" + blobReference + ", blobLocation=" + blobLocation + ']';
         }
     }
 

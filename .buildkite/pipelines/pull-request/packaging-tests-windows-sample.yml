@@ -1,0 +1,5 @@
+# Include nojdk sample here as well
+config:
+  skip-labels:
+    - ">test-mute"
+    - ":Delivery/Packaging"

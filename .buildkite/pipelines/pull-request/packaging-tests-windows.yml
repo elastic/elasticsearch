@@ -1,0 +1,3 @@
+# Include windows-nojdk as well
+config:
+  allow-labels: ":Delivery/Packaging"

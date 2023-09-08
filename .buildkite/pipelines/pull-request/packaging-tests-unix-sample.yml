@@ -1,0 +1,4 @@
+config:
+  skip-labels:
+    - ">test-mute"
+    - ":Delivery/Packaging"

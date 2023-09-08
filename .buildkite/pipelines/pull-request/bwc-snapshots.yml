@@ -1,0 +1,6 @@
+config:
+  trigger-phase: '.*run\W+elasticsearch-ci/bwc.*'
+  skip-labels:
+    - ">test-mute"
+    - "test-full-bwc"
+steps: []

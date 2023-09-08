@@ -1,0 +1,2 @@
+config:
+  allow-labels: "test-windows"

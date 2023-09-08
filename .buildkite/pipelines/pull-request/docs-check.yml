@@ -1,0 +1,6 @@
+config:
+  included-regions:
+    - ^docs/.*
+    - ^x-pack/docs/.*
+  excluded-regions: []
+steps: []

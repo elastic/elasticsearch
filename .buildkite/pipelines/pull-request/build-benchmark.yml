@@ -1,0 +1,4 @@
+config:
+  allow-labels: build-benchmark
+  trigger-phase: '.*run\W+elasticsearch-ci/build-bench.*'
+steps: []

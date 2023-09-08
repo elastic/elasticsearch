@@ -1,0 +1,3 @@
+config:
+  allow-labels: ">test-mute"
+  skip-labels: []

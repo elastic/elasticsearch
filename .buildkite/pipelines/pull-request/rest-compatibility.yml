@@ -1,0 +1,2 @@
+config:
+  skip-target-branches: "7.17"

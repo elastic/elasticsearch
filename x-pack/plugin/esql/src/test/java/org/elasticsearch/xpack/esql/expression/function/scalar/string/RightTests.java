@@ -51,7 +51,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("ascii", () -> {
-            String text = randomAlphaOfLengthBetween(1,64);
+            String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -64,7 +64,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("ascii longer than string", () -> {
-            String text = randomAlphaOfLengthBetween(1,64);
+            String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -77,7 +77,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("ascii zero length", () -> {
-            String text = randomAlphaOfLengthBetween(1,64);
+            String text = randomAlphaOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
@@ -89,7 +89,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("ascii negative length", () -> {
-            String text = randomAlphaOfLengthBetween(1,64);
+            String text = randomAlphaOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -103,7 +103,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier("unicode", () -> {
-            String text = randomUnicodeOfLengthBetween(1,64);
+            String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(1, text.length());
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -116,7 +116,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("unicode longer than string", () -> {
-            String text = randomUnicodeOfLengthBetween(1,64);
+            String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(text.length(), 128);
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -129,7 +129,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("unicode zero length", () -> {
-            String text = randomUnicodeOfLengthBetween(1,64);
+            String text = randomUnicodeOfLengthBetween(1, 64);
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
@@ -141,7 +141,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("unicode negative length", () -> {
-            String text = randomUnicodeOfLengthBetween(1,64);
+            String text = randomUnicodeOfLengthBetween(1, 64);
             int length = between(-128, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(

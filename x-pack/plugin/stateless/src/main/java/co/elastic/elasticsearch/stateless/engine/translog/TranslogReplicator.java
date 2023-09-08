@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -355,7 +356,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 flushRetryInitialDelay,
                 TimeValue.timeValueSeconds(5),
                 TimeValue.MAX_VALUE,
-                listener
+                listener,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.translog = translog;
             this.bytesToClose = new AbstractRefCounted() {
@@ -458,7 +460,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         // We only fully fail when the translog replicator is shutting down
                         logger.info(() -> "Failed to validate cluster state due to translog replicator shutdown", e);
                     }
-                }
+                },
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.validateGeneration = validateGeneration;
             this.completedSyncs = completedSyncs;
@@ -501,7 +504,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         logger.info(() -> "Failed to validate cluster state due to translog replicator shutdown", e);
                     }
                 },
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 

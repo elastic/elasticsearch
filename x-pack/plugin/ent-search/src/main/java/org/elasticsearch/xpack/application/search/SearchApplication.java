@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -54,7 +55,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         + "We recommend storing a template to avoid breaking changes.";
 
     public static final String NO_ALIAS_WARNING = "Alias is missing for the search application";
-    private static final TransportVersion INDICES_REMOVED_TRANSPORT_VERSION = TransportVersion.V_8_500_069;
+    private static final TransportVersion INDICES_REMOVED_TRANSPORT_VERSION = TransportVersions.V_8_500_069;
     private final String name;
 
     @Nullable

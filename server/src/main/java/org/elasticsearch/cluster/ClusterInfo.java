@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,8 +49,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;

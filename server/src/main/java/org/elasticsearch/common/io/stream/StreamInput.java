@@ -13,6 +13,8 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -762,10 +764,10 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readCollection(StreamInput::readGenericValue, ArrayList::new, Collections.emptyList());
             case 8 -> readArray();
-            case 9 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+            case 9 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
                 ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
-            case 10 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+            case 10 -> getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)
                 ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
                 : readMap(StreamInput::readGenericValue);
             case 11 -> readByte();
@@ -790,6 +792,7 @@ public abstract class StreamInput extends InputStream {
             case 27 -> readOffsetTime();
             case 28 -> readDuration();
             case 29 -> readPeriod();
+            case 30 -> readNamedWriteable(GenericNamedWriteable.class);
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -1130,7 +1133,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set of objects which was written using {@link StreamOutput#writeCollection}}. If the returned set contains any entries it
+     * Reads a set of objects which was written using {@link StreamOutput#writeCollection}. If the returned set contains any entries it
      * will a (mutable) {@link HashSet}. If it is empty it might be immutable. The collection that was originally written should also have
      * been a set.
      */
@@ -1167,6 +1170,20 @@ public abstract class StreamInput extends InputStream {
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a collection which was written using {@link StreamOutput#writeCollection}, accumulating the results using the provided
+     * consumer.
+     */
+    public <C> C readCollection(IntFunction<C> constructor, CheckedBiConsumer<StreamInput, C, IOException> itemConsumer)
+        throws IOException {
+        int count = readArraySize();
+        var result = constructor.apply(count);
+        for (int i = 0; i < count; i++) {
+            itemConsumer.accept(this, result);
+        }
+        return result;
     }
 
     /**

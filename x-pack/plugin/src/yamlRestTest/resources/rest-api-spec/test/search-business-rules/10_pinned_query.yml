@@ -78,3 +78,49 @@ setup:
   - match: { hits.hits.2._index: "test1" }
   - match: { hits.hits.3._id: "b" }
 
+---
+"Test pinned query with docs":
+  - skip:
+      version: " - 8.10.99"
+      reason: "'_index' was made optional in 8.11"
+  - do:
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a }
+                - { _id: c, _index: test2 }
+              organic:
+                match:
+                  title:
+                    query: "title"
+
+  - match: { hits.total.value: 4 }
+
+  - match: { hits.hits.0._id: "a" }
+  - match: { hits.hits.1._id: "a" }
+  - match: { hits.hits.2._id: "c" }
+  - match: { hits.hits.2._index: "test2" }
+  - match: { hits.hits.3._id: "b" }
+
+---
+"Test pinned query with docs and no index fail in previous versions":
+  - skip:
+      version: "8.10.99 - "
+      reason: "'_index' was made optional in 8.11, this test is for explicit failure tests"
+  - do:
+      catch: bad_request
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a }
+                - { _id: c, _index: test2 }
+              organic:
+                match:
+                  title:
+                    query: "title"

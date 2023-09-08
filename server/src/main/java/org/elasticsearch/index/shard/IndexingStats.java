@@ -9,6 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
-        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersion.V_8_6_0;
+        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersions.V_8_6_0;
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -268,7 +269,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readBoolean()) {
                 Map<String, Stats> typeStats = in.readMap(Stats::new);
                 assert typeStats.size() == 1;
@@ -349,7 +350,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeBoolean(false);
         }
     }

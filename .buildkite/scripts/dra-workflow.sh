@@ -71,6 +71,8 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 echo --- Running release-manager
 
+exit 0
+
 # Artifacts should be generated
 docker run --rm \
   --name release-manager \

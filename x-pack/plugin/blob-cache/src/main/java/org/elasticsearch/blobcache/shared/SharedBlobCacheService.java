@@ -336,7 +336,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(sharedBytes.getFileChannel(i));
         }
-        decayTask = new CacheDecayTask(threadPool, SHARED_CACHE_DECAY_INTERVAL_SETTING.get(settings));
+        decayTask = new CacheDecayTask(threadPool, threadPool.generic(), SHARED_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
@@ -745,8 +745,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     class CacheDecayTask extends AbstractAsyncTask {
 
-        CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+        CacheDecayTask(ThreadPool threadPool, Executor executor, TimeValue interval) {
+            super(logger, Objects.requireNonNull(threadPool), executor, Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -757,11 +757,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         @Override
         public void runInternal() {
             computeDecay();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

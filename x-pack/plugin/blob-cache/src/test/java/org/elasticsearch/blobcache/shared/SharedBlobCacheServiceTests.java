@@ -336,7 +336,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99217")
     public void testFetchFullCacheEntry() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -370,11 +369,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             {
                 final var cacheKey = generateCacheKey();
                 assertEquals(5, cacheService.freeRegionCount());
-                AtomicLong bytesRead = new AtomicLong(size(250));
+                final long size = size(250);
+                AtomicLong bytesRead = new AtomicLong(size);
                 final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                cacheService.maybeFetchFullEntry(cacheKey, size(250), (channel, channelPos, relativePos, length, progressUpdater) -> {
-                    progressUpdater.accept(length);
+                cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(-length);
+                    progressUpdater.accept(length);
                 }, future);
 
                 future.get(10, TimeUnit.SECONDS);
@@ -395,6 +395,62 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
 
         threadPool.shutdown();
+    }
+
+    public void testFetchFullCacheEntryConcurrently() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+
+        ThreadPool threadPool = new TestThreadPool("test") {
+            @Override
+            public ExecutorService executor(String name) {
+                ExecutorService generic = super.executor(Names.GENERIC);
+                if (Objects.equals(name, "bulk")) {
+                    return new StoppableExecutorServiceWrapper(generic);
+                }
+                return generic;
+            }
+        };
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(environment, settings, threadPool, ThreadPool.Names.GENERIC, "bulk")
+        ) {
+
+            final long size = size(randomIntBetween(1, 100));
+            final Thread[] threads = new Thread[10];
+            for (int i = 0; i < threads.length; i++) {
+                threads[i] = new Thread(() -> {
+                    for (int j = 0; j < 1000; j++) {
+                        final var cacheKey = generateCacheKey();
+                        try {
+                            PlainActionFuture.<Void, Exception>get(
+                                f -> cacheService.maybeFetchFullEntry(
+                                    cacheKey,
+                                    size,
+                                    (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
+                                    f
+                                )
+                            );
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+            }
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
     }
 
     public void testCacheSizeRejectedOnNonFrozenNodes() {

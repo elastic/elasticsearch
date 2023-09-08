@@ -125,6 +125,7 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(0L, parseLowerRangeTerm(0L, true).longValue());
         assertEquals(0L, parseLowerRangeTerm("0", true).longValue());
         assertEquals(0L, parseLowerRangeTerm("0.0", true).longValue());
+        assertEquals(1L, parseLowerRangeTerm("0", false).longValue());
         assertEquals(1L, parseLowerRangeTerm("0.5", true).longValue());
         assertEquals(9223372036854775807L, parseLowerRangeTerm(9223372036854775806L, false).longValue());
         assertEquals(9223372036854775807L, parseLowerRangeTerm(9223372036854775807L, true).longValue());

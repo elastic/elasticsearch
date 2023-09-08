@@ -9,8 +9,6 @@
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 text:
@@ -112,8 +110,6 @@
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               text:
@@ -126,15 +122,15 @@
 ---
 "Sparse vector in 8.x":
   - skip:
-      version: " - 7.99.99, 8.11.0 - "
-      reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+      # version: " - 7.99.99, 8.11.0 - "
+      # reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/99318"
   - do:
       catch: /The \[sparse_vector\] field type is no longer supported/
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               text:

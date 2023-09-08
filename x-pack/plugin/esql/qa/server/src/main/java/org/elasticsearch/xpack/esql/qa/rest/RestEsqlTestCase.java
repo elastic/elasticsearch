@@ -16,6 +16,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -72,6 +73,11 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder columnar(boolean columnar) throws IOException {
             builder.field("columnar", columnar);
+            return this;
+        }
+
+        public RequestObjectBuilder params(String rawParams) throws IOException {
+            builder.rawField("params", new BytesArray(rawParams).streamInput(), XContentType.JSON);
             return this;
         }
 
@@ -291,6 +297,59 @@ public class RestEsqlTestCase extends ESRestTestCase {
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
         assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+    }
+
+    public void testErrorMessageForEmptyParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[]").build())
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
+    }
+
+    public void testErrorMessageForInvalidParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[{\"x\":\"y\"}]").build())
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value, type]"));
+    }
+
+    public void testErrorMessageForMissingTypeInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]").build())
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [type]"));
+    }
+
+    public void testErrorMessageForMissingValueInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]").build())
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value]"));
+    }
+
+    public void testErrorMessageForInvalidTypeInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]").build())
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("illegal data type [byte]"));
+    }
+
+    public void testErrorMessageForArrayValuesInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(
+                new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"integer\", \"value\": [5, 6, 7]}]").build()
+            )
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("[params] value doesn't support values of type: START_ARRAY")
+        );
     }
 
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.queries;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,7 +90,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
+        return TransportVersions.V_8_8_0;
     }
 
     @Override

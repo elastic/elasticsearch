@@ -234,9 +234,13 @@ public class SearchEngine extends Engine {
                 for (int i = batchSize; i > 0; i--) {
                     StatelessCompoundCommit commit = commitNotifications.poll();
                     assert commit != null;
-                    if (commit.primaryTerm() < currentPrimaryTerm || commit.generation() < current.getGeneration()) {
+                    if (commit.primaryTerm() < currentPrimaryTerm
+                        || (commit.primaryTerm() == currentPrimaryTerm && commit.generation() <= current.getGeneration())) {
+                        assert commit.primaryTerm() < currentPrimaryTerm
+                            || commit.generation() < current.getGeneration()
+                            || current.files(true).equals(commit.commitFiles().keySet());
                         logger.trace(
-                            "notification for commit generation [{}] is older than current generation [{}], ignoring",
+                            "notification for commit generation [{}] is older or same than current generation [{}], ignoring",
                             commit.generation(),
                             current.getGeneration()
                         );
@@ -696,8 +700,8 @@ public class SearchEngine extends Engine {
                 final var listeners = segmentGenerationListeners.remove(minGeneration);
                 if (listeners != null) {
                     listeners.onResponse(currentGeneration);
-                    return false;
-                }
+                } // else someone else executed it for us.
+                return false;
             }
             return true;
         } catch (Exception e) {

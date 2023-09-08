@@ -42,7 +42,7 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         transportCaCert = in.readString();
         transportKey = in.readString();
         transportCert = in.readString();
-        nodesAddresses = in.readStringList();
+        nodesAddresses = in.readStringCollectionAsList();
     }
 
     public NodeEnrollmentResponse(

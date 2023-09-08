@@ -1285,7 +1285,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             boolean hasRecentMasters = in.readBoolean();
             List<DiscoveryNode> recentMasters;
             if (hasRecentMasters) {
-                recentMasters = in.readImmutableList(DiscoveryNode::new);
+                recentMasters = in.readCollectionAsImmutableList(DiscoveryNode::new);
             } else {
                 recentMasters = null;
             }

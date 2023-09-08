@@ -161,7 +161,7 @@ public final class EvalMapper {
                     return page.getBlock(channel);
                 }
             }
-            int channel = layout.getChannel(attr.id());
+            int channel = layout.get(attr.id()).channel();
             return () -> new Attribute(channel);
         }
     }

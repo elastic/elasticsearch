@@ -31,7 +31,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
 
     public MonitoringMigrateAlertsResponse(StreamInput in) throws IOException {
         super(in);
-        this.exporters = in.readList(ExporterMigrationResult::new);
+        this.exporters = in.readCollectionAsList(ExporterMigrationResult::new);
     }
 
     @Override

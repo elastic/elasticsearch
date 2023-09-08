@@ -16,9 +16,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,9 +23,9 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Get snapshot status request
+ * Get snapshot global state status request
  */
-public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobalStateRequest> implements ToXContentObject {
+public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobalStateRequest> {
 
     private String repository = "_all";
 
@@ -120,8 +117,4 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
         return "repository[" + repository + "], snapshot[" + snapshot + "]";
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return null;
-    }
 }

@@ -16,15 +16,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportSnapshotGlobalStateAction extends TransportMasterNodeAction<SnapshotGlobalStateRequest, SnapshotGlobalStateResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportSnapshotGlobalStateAction.class);
+    private final SnapshotsService snapshotsService;
 
     @Inject
     public TransportSnapshotGlobalStateAction(
@@ -32,7 +30,8 @@ public class TransportSnapshotGlobalStateAction extends TransportMasterNodeActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SnapshotsService snapshotsService
     ) {
         super(
             SnapshotGlobalStateAction.NAME,
@@ -43,8 +42,9 @@ public class TransportSnapshotGlobalStateAction extends TransportMasterNodeActio
             SnapshotGlobalStateRequest::new,
             indexNameExpressionResolver,
             SnapshotGlobalStateResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.SNAPSHOT_META
         );
+        this.snapshotsService = snapshotsService;
     }
 
     @Override
@@ -54,7 +54,7 @@ public class TransportSnapshotGlobalStateAction extends TransportMasterNodeActio
         final ClusterState state,
         final ActionListener<SnapshotGlobalStateResponse> listener
     ) throws Exception {
-        listener.onResponse(new SnapshotGlobalStateResponse(new SnapshotId("test", "4321")));
+        snapshotsService.globalStateMetaData(request, listener);
     }
 
     @Override

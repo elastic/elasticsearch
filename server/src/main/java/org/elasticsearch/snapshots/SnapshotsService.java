@@ -20,6 +20,8 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -265,6 +267,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         submitCreateSnapshotRequest(request, listener, repository, new Snapshot(repositoryName, snapshotId), repository.getMetadata());
+    }
+
+    public void globalStateMetaData(final SnapshotGlobalStateRequest request, final ActionListener<SnapshotGlobalStateResponse> listener) {
+        String repositoryName = request.repository();
+        Repository repository = repositoriesService.repository(repositoryName);
+
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
+        repository.getRepositoryData(repositoryDataListener);
+
+        final List<SnapshotId> snapshotIdsToLoad = new ArrayList<>();
+        repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
+
+            final String snapshotName = request.snapshot();
+            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds()
+                .stream()
+                .filter(s -> snapshotName.equals(s.getName()))
+                .findFirst();
+            if (matchingSnapshotId.isPresent() == false) {
+                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+            }
+
+            snapshotIdsToLoad.add(matchingSnapshotId.get());
+        }));
+
+        Metadata globalMetadata = repository.getSnapshotGlobalMetadata(snapshotIdsToLoad.get(0));
+
+        listener.onResponse(new SnapshotGlobalStateResponse(globalMetadata));
     }
 
     private void submitCreateSnapshotRequest(

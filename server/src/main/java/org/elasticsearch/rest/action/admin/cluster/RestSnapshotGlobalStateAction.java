@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
- * Restores a snapshot
+ * Returns global state of a snapshot
  */
 public class RestSnapshotGlobalStateAction extends BaseRestHandler {
 
@@ -41,8 +41,6 @@ public class RestSnapshotGlobalStateAction extends BaseRestHandler {
         String snapshot = request.param("snapshot");
         SnapshotGlobalStateRequest snapshotGlobalStateRequest = new SnapshotGlobalStateRequest(repository, snapshot);
         snapshotGlobalStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotGlobalStateRequest.masterNodeTimeout()));
-        // return channel -> client.admin().cluster().snapshotGlobalState(snapshotGlobalStateRequest, new
-        // RestToXContentListener<>(channel));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .snapshotGlobalState(snapshotGlobalStateRequest, new RestToXContentListener<>(channel));

@@ -170,6 +170,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
   task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
   task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
+  task.skipTest("security/authz/14_cat_indices/Test empty request while single authorized index", "not supported for compatibility")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
@@ -225,7 +226,6 @@ testClusters.configureEach {
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
-  requiresFeature 'es.dlm_feature_flag_enabled', Version.fromString("8.9.0")
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

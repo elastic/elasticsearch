@@ -1,0 +1,5 @@
+pr: 99111
+summary: '`_health_report` slm indicator should use the policy id (not the name)'
+area: Health
+type: bug
+issues: []

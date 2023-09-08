@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -47,7 +48,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
-    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersion.V_8_8_0;
+    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersions.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -317,7 +318,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 waitForCompletion = in.readBoolean();
             } else {
                 waitForCompletion = false;
@@ -332,7 +333,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }

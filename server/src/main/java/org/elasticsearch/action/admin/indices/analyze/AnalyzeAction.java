@@ -78,8 +78,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             text = in.readStringArray();
             analyzer = in.readOptionalString();
             tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
+            tokenFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
+            charFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
             field = in.readOptionalString();
             explain = in.readBoolean();
             attributes = in.readStringArray();
@@ -251,8 +251,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             out.writeStringArray(text);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(tokenizer);
-            out.writeList(tokenFilters);
-            out.writeList(charFilters);
+            out.writeCollection(tokenFilters);
+            out.writeCollection(charFilters);
             out.writeOptionalString(field);
             out.writeBoolean(explain);
             out.writeStringArray(attributes);

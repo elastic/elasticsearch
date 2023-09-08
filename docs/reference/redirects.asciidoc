@@ -111,12 +111,12 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -1885,46 +1885,22 @@ Refer to <<fix-watermark-errors>>.
 [role="exclude",id="dlm-delete-lifecycle"]
 === Delete the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-explain-lifecycle"]
 === Explain the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-get-lifecycle"]
 === Get the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="dlm-put-lifecycle"]
 === Update the lifecycle of a data stream
 
-ifeval::["{release-state}"=="unreleased"]
 Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
-
-endif::[]
-ifeval::["{release-state}"=="unreleased"]
-This feature has not been released yet
-endif::[]
 
 [role="exclude",id="get-synonyms"]
 === Get synonyms set API
@@ -1941,12 +1917,12 @@ See <<delete-synonyms-set>>
 
 See <<put-synonyms-set>>
 
-[role="exclude",id="remote-clusters-api-key"]
-=== Add remote clusters using API key authentication
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
 
-coming::[8.10]
+Refer to <<remote-clusters>>
 
-[role="exclude",id="remote-clusters-cert"]
-=== Add remote clusters using TLS certificate authentication
+[role="exclude",id="remote-clusters-privileges"]
+=== Configure roles and users for remote clusters
 
-coming::[8.10]
+Refer to <<remote-clusters>>

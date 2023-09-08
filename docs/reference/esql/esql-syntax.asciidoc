@@ -126,7 +126,7 @@ include::{esql-specs}/null.csv-spec[tag=is-null]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/null.csv-spec[tag=is-not-null-result]
+include::{esql-specs}/null.csv-spec[tag=is-null-result]
 |===
 
 [source.merge.styled,esql]

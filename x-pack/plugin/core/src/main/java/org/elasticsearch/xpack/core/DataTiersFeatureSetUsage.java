@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +43,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_10_0;
+        return TransportVersions.V_7_10_0;
     }
 
     public Map<String, TierSpecificStats> getTierStats() {
@@ -52,7 +53,7 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(tierStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(tierStats, StreamOutput::writeWriteable);
     }
 
     @Override

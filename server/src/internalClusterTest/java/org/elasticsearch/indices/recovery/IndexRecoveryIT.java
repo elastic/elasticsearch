@@ -1677,7 +1677,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // be > than the safe commit local checkpoint, since that's checked and updated in
         // InternalEngine#restoreVersionMapAndCheckpointTracker
         try (DirectoryReader directoryReader = DirectoryReader.open(safeIndexCommit)) {
-            final IndexSearcher searcher = new IndexSearcher(directoryReader);
+            final IndexSearcher searcher = newSearcher(directoryReader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
                 LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, commitLocalCheckpoint + 1, Long.MAX_VALUE),

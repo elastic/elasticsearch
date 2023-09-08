@@ -7,6 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * Vector that stores boolean values.
  * This class is generated. Do not edit it.
@@ -64,6 +69,35 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
             result = 31 * result + Boolean.hashCode(vector.getBoolean(pos));
         }
         return result;
+    }
+
+    /** Deserializes a Vector from the given stream input. */
+    static BooleanVector of(StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return new ConstantBooleanVector(in.readBoolean(), positions);
+        } else {
+            var builder = BooleanVector.newVectorBuilder(positions);
+            for (int i = 0; i < positions; i++) {
+                builder.appendBoolean(in.readBoolean());
+            }
+            return builder.build();
+        }
+    }
+
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+            out.writeBoolean(getBoolean(0));
+        } else {
+            for (int i = 0; i < positions; i++) {
+                out.writeBoolean(getBoolean(i));
+            }
+        }
     }
 
     static Builder newVectorBuilder(int estimatedSize) {

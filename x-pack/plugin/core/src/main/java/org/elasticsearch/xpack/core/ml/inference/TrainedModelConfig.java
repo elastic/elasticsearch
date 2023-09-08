@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -100,7 +101,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField LOCATION = new ParseField("location");
     public static final ParseField MODEL_PACKAGE = new ParseField("model_package");
 
-    public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
+    public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
+    public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
+
+    public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
+    public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_500_064;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -163,6 +168,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             (p, c) -> ignoreUnknownFields ? ModelPackageConfig.fromXContentLenient(p) : ModelPackageConfig.fromXContentStrict(p),
             MODEL_PACKAGE
         );
+
         return parser;
     }
 
@@ -250,7 +256,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         description = in.readOptionalString();
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
-        tags = in.readImmutableList(StreamInput::readString);
+        tags = in.readCollectionAsImmutableList(StreamInput::readString);
         metadata = in.readMap();
         input = new TrainedModelInput(in);
         modelSize = in.readVLong();
@@ -266,7 +272,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.modelType = null;
             this.location = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
             fullDefinition = in.readOptionalBoolean();
         } else {
@@ -403,6 +409,18 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.fullDefinition = fullDefinition;
     }
 
+    public long getPerDeploymentMemoryBytes() {
+        return metadata != null && metadata.containsKey(PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName())
+            ? ((Number) metadata.get(PER_DEPLOYMENT_MEMORY_BYTES.getPreferredName())).longValue()
+            : 0L;
+    }
+
+    public long getPerAllocationMemoryBytes() {
+        return metadata != null && metadata.containsKey(PER_ALLOCATION_MEMORY_BYTES.getPreferredName())
+            ? ((Number) metadata.get(PER_ALLOCATION_MEMORY_BYTES.getPreferredName())).longValue()
+            : 0L;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -411,7 +429,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(description);
         out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
-        out.writeCollection(tags, StreamOutput::writeString);
+        out.writeStringCollection(tags);
         out.writeGenericMap(metadata);
         input.writeTo(out);
         out.writeVLong(modelSize);
@@ -419,7 +437,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeString(licenseLevel.description());
         if (defaultFieldMap != null) {
             out.writeBoolean(true);
-            out.writeMap(defaultFieldMap, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(defaultFieldMap, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
@@ -429,7 +447,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalNamedWriteable(location);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalWriteable(modelPackageConfig);
             out.writeOptionalBoolean(fullDefinition);
         }
@@ -570,6 +588,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private InferenceConfig inferenceConfig;
         private TrainedModelLocation location;
         private ModelPackageConfig modelPackageConfig;
+        private Long perDeploymentMemoryBytes;
+        private Long perAllocationMemoryBytes;
 
         public Builder() {}
 
@@ -1026,7 +1046,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 return new LazyModelDefinition(input.readBytesReference(), null);
             } else {
                 return fromBase64String(input.readString());
@@ -1090,7 +1110,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 out.writeBytesReference(getCompressedDefinition());
             } else {
                 out.writeString(getBase64CompressedDefinition());

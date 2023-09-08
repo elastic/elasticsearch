@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -293,7 +294,8 @@ public class ReplicationOperation<
             threadPool,
             initialRetryBackoffBound,
             retryTimeout,
-            replicationListener
+            replicationListener,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override

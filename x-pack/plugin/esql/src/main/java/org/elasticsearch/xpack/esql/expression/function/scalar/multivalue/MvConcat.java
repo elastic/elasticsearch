@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
-public class MvConcat extends BinaryScalarFunction implements Mappable {
+public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     public MvConcat(Source source, Expression field, Expression delim) {
         super(source, field, delim);
     }
@@ -65,7 +65,7 @@ public class MvConcat extends BinaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

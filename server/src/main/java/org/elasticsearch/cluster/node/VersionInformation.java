@@ -35,7 +35,7 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
         } else if (nodeVersion.onOrBefore(Version.V_8_10_0)) {
             return new VersionInformation(
                 nodeVersion,
-                IndexVersion.fromId(nodeVersion.minimumIndexCompatibilityVersion().id),
+                IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id),
                 IndexVersion.fromId(nodeVersion.id)
             );
         } else {

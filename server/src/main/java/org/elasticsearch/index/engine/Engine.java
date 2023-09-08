@@ -48,6 +48,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -145,6 +146,20 @@ public abstract class Engine implements Closeable {
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
+    }
+
+    /**
+     * Reads an {@code IndexVersion} from an {@code es_version} metadata string
+     */
+    public static IndexVersion readIndexVersion(String esVersion) {
+        if (esVersion.contains(".")) {
+            // backwards-compatible Version-style
+            org.elasticsearch.Version v = org.elasticsearch.Version.fromString(esVersion);
+            assert v.onOrBefore(org.elasticsearch.Version.V_8_11_0);
+            return IndexVersion.fromId(v.id);
+        } else {
+            return IndexVersion.fromId(Integer.parseInt(esVersion));
+        }
     }
 
     public final EngineConfig config() {
@@ -268,10 +283,9 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
-         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
-         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
-         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
-         * reference as soon as it is done with it.
+         * This method is invoked each time a new Lucene commit is created through this engine. Note that commits are notified in order. The
+         * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
+         * the listener must close the reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
          * @param store           the index shard store
@@ -1112,7 +1126,7 @@ public abstract class Engine implements Closeable {
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     // NOTE: do NOT rename this to something containing flush or refresh!
-    public abstract void writeIndexingBuffer() throws EngineException;
+    public abstract void writeIndexingBuffer() throws IOException;
 
     /**
      * Checks if this engine should be flushed periodically.

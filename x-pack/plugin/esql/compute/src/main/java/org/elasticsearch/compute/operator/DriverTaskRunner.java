@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -37,22 +36,22 @@ public class DriverTaskRunner {
     public static final String ACTION_NAME = "internal:data/read/esql/compute";
     private final TransportService transportService;
 
-    public DriverTaskRunner(TransportService transportService, Executor executor) {
+    public DriverTaskRunner(TransportService transportService, String executorName) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, DriverRequest::new, new DriverRequestHandler(executor));
+        transportService.registerRequestHandler(ACTION_NAME, executorName, DriverRequest::new, new DriverRequestHandler());
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,
-                    new DriverRequest(driver),
+                    new DriverRequest(driver, executor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    TransportResponseHandler.empty(TransportResponseHandler.TRANSPORT_WORKER, driverListener)
+                    TransportResponseHandler.empty(executor, driverListener)
                 );
             }
         };
@@ -61,9 +60,11 @@ public class DriverTaskRunner {
 
     private static class DriverRequest extends ActionRequest {
         private final Driver driver;
+        private final Executor executor;
 
-        DriverRequest(Driver driver) {
+        DriverRequest(Driver driver, Executor executor) {
             this.driver = driver;
+            this.executor = executor;
         }
 
         DriverRequest(StreamInput in) {
@@ -106,11 +107,16 @@ public class DriverTaskRunner {
         }
     }
 
-    private record DriverRequestHandler(Executor executor) implements TransportRequestHandler<DriverRequest> {
+    private record DriverRequestHandler() implements TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
             var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
-            Driver.start(executor, request.driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(unused -> TransportResponse.Empty.INSTANCE));
+            Driver.start(
+                request.executor,
+                request.driver,
+                Driver.DEFAULT_MAX_ITERATIONS,
+                listener.map(unused -> TransportResponse.Empty.INSTANCE)
+            );
         }
     }
 }

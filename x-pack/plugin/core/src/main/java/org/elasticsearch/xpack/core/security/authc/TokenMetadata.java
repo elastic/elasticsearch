@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -46,13 +47,13 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     public TokenMetadata(StreamInput input) throws IOException {
         currentKeyHash = input.readByteArray();
-        keys = input.readImmutableList(KeyAndTimestamp::new);
+        keys = input.readCollectionAsImmutableList(KeyAndTimestamp::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByteArray(currentKeyHash);
-        out.writeList(keys);
+        out.writeCollection(keys);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -93,7 +94,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

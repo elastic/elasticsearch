@@ -365,6 +365,31 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeStringArray(String[] array) throws IOException {
+        try {
+            if (isFiltered()) {
+                // filtered serialization does not work correctly with the bulk array serializer, so we need to fall back to serializing
+                // the array one-by-one
+                // TODO: this can probably be removed after upgrading Jackson to 2.15.1 or later, see
+                // https://github.com/FasterXML/jackson-core/issues/1023
+                writeStringArrayFiltered(array);
+            } else {
+                generator.writeArray(array, 0, array.length);
+            }
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    private void writeStringArrayFiltered(String[] array) throws IOException {
+        writeStartArray();
+        for (String s : array) {
+            writeString(s);
+        }
+        writeEndArray();
+    }
+
+    @Override
     public void writeString(char[] value, int offset, int len) throws IOException {
         try {
             generator.writeString(value, offset, len);

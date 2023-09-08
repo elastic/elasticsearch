@@ -267,7 +267,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        return in.readNamedWriteableList(QueryBuilder.class);
+        return in.readNamedWriteableCollectionAsList(QueryBuilder.class);
     }
 
     @Override

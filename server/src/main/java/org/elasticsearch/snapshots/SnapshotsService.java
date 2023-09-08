@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
@@ -134,7 +134,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.V_7_9_0;
 
     public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersion.V_7_12_0;
-    public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersion.V_7_12_0;
+    public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersion.V_7_16_0;
 
@@ -2115,8 +2115,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Determines the minimum {@link Version} that the snapshot repository must be compatible with from the current nodes in the cluster
-     * and the contents of the repository. The minimum version is determined as the lowest version found across all snapshots in the
+     * Determines the minimum {@link IndexVersion} that the snapshot repository must be compatible with
+     * from the current nodes in the cluster and the contents of the repository.
+     * The minimum version is determined as the lowest version found across all snapshots in the
      * repository and all nodes in the cluster.
      *
      * @param minNodeVersion minimum node version in the cluster

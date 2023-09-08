@@ -33,12 +33,12 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
 
     @Override
     protected List<NodeStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStatsResponse::readNodeResponse);
+        return in.readCollectionAsList(NodeStatsResponse::readNodeResponse);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

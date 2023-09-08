@@ -17,6 +17,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -36,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -65,23 +73,16 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
@@ -168,20 +169,19 @@ public class PlanNamedTypesTests extends ESTestCase {
             "foo",
             new UnsupportedEsField("foo", "keyword"),
             "field not supported",
-            new NameId(53)
+            new NameId()
         );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeUnsupportedAttr(out, orig);
-        var deser = PlanNamedTypes.readUnsupportedAttr(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(orig.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
-        Stream.generate(PlanNamedTypesTests::randomUnsupportedAttribute)
-            .limit(100)
-            .forEach(PlanNamedTypesTests::assertNamedExpressionAndId);
+        Stream.generate(PlanNamedTypesTests::randomUnsupportedAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
     }
 
     public void testFieldAttributeSimple() throws IOException {
@@ -193,19 +193,20 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomEsField(),
             null, // qualifier, can be null
             Nullability.TRUE,
-            new NameId(53),
+            new NameId(),
             true // synthetic
         );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeFieldAttribute(out, orig);
-        var deser = PlanNamedTypes.readFieldAttribute(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(orig.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
-        Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpressionAndId);
+        Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
     }
 
     public void testKeywordEsFieldSimple() throws IOException {
@@ -244,6 +245,19 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     public void testTextEsField() {
         Stream.generate(PlanNamedTypesTests::randomTextEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
+    }
+
+    public void testInvalidMappedFieldSimple() throws IOException {
+        var orig = new InvalidMappedField("foo", "bar");
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeInvalidMappedField(out, orig);
+        var deser = PlanNamedTypes.readInvalidMappedField(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testInvalidMappedField() {
+        Stream.generate(PlanNamedTypesTests::randomInvalidMappedField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
     }
 
     public void testEsDateFieldSimple() throws IOException {
@@ -339,9 +353,10 @@ public class PlanNamedTypesTests extends ESTestCase {
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeAlias(out, orig);
-        var deser = PlanNamedTypes.readAlias(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(orig.id(), equalTo(deser.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {
@@ -358,7 +373,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeOrder(out, orig);
-        var deser = PlanNamedTypes.readOrder(planStreamInput(bso));
+        var deser = (Order) PlanNamedTypes.readOrder(planStreamInput(bso));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
@@ -390,10 +405,9 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    private static void assertNamedExpressionAndId(NamedExpression origObj) {
+    private static void assertNamedExpression(NamedExpression origObj) {
         var deserObj = serializeDeserialize(origObj, PlanStreamOutput::writeExpression, PlanStreamInput::readNamedExpression);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
-        assertThat(deserObj.id(), equalTo(origObj.id()));
     }
 
     private static <T> void assertNamedType(Class<T> type, T origObj) {
@@ -451,6 +465,13 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomProperties(),
             randomBoolean(), // hasDocValues
             randomBoolean() // alias
+        );
+    }
+
+    static InvalidMappedField randomInvalidMappedField() {
+        return new InvalidMappedField(
+            randomAlphaOfLength(randomIntBetween(1, 25)), // name
+            randomAlphaOfLength(randomIntBetween(1, 25)) // error message
         );
     }
 

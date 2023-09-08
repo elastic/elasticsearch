@@ -65,13 +65,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     public RolloverConfiguration(StreamInput in) throws IOException {
-        this(new RolloverConditions(in), in.readSet(StreamInput::readString));
+        this(new RolloverConditions(in), in.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(concreteConditions);
-        out.writeCollection(automaticConditions, StreamOutput::writeString);
+        out.writeStringCollection(automaticConditions);
     }
 
     @Override

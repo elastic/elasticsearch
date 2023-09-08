@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasable;
 
@@ -15,6 +16,8 @@ import org.elasticsearch.core.Releasable;
  * This class is generated. Do not edit it.
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleBigArrayVector.class);
 
     private final DoubleArray values;
 
@@ -41,6 +44,11 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     @Override
     public boolean isConstant() {
         return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
     @Override

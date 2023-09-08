@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -802,7 +802,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWritePermitted = in.readBoolean();
             } else {
                 abortWritePermitted = false;
@@ -829,7 +829,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
                 throw new IllegalStateException(
@@ -1082,7 +1082,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
             summary = new RepositoryPerformanceSummary(in);
-            blobResponses = in.readList(BlobAnalyzeAction.Response::new);
+            blobResponses = in.readCollectionAsList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
         }
@@ -1102,7 +1102,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeDouble(rareActionProbability);
             out.writeString(blobPath);
             summary.writeTo(out);
-            out.writeList(blobResponses);
+            out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
         }

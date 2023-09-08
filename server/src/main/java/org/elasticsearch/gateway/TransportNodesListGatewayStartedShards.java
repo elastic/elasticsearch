@@ -11,7 +11,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -190,7 +190,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -221,7 +221,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 out.writeString(customDataPath);
             }
         }
@@ -243,12 +243,12 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
 
         @Override
         protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeGatewayStartedShards::new);
+            return in.readCollectionAsList(NodeGatewayStartedShards::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 
@@ -261,7 +261,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 customDataPath = in.readString();
             } else {
                 customDataPath = null;
@@ -277,7 +277,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
                 assert customDataPath != null;
                 out.writeString(customDataPath);
             }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
@@ -30,7 +31,7 @@ import java.util.List;
  *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends NamedWriteable {
+public interface Block extends Accountable, NamedWriteable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -176,11 +177,6 @@ public interface Block extends NamedWriteable {
             DoubleBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
-            IntVectorBlock.ENTRY,
-            LongVectorBlock.ENTRY,
-            DoubleVectorBlock.ENTRY,
-            BytesRefVectorBlock.ENTRY,
-            BooleanVectorBlock.ENTRY,
             ConstantNullBlock.ENTRY
         );
     }

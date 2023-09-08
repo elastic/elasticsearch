@@ -8,17 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Block view of a BytesRefVector.
  * This class is generated. Do not edit it.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class);
 
     private final BytesRefVector vector;
 
@@ -52,44 +50,9 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
         return new FilterBytesRefVector(vector, positions).asBlock();
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "BytesRefVectorBlock",
-        BytesRefVectorBlock::of
-    );
-
     @Override
-    public String getWriteableName() {
-        return "BytesRefVectorBlock";
-    }
-
-    static BytesRefVectorBlock of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new BytesRefVectorBlock(new ConstantBytesRefVector(in.readBytesRef(), positions));
-        } else {
-            var builder = BytesRefVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBytesRef(in.readBytesRef());
-            }
-            return new BytesRefVectorBlock(builder.build());
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final BytesRefVector vector = this.vector;
-        final int positions = vector.getPositionCount();
-        out.writeVInt(positions);
-        out.writeBoolean(vector.isConstant());
-        if (vector.isConstant() && positions > 0) {
-            out.writeBytesRef(getBytesRef(0, new BytesRef()));
-        } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeBytesRef(getBytesRef(i, new BytesRef()));
-            }
-        }
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
     }
 
     @Override

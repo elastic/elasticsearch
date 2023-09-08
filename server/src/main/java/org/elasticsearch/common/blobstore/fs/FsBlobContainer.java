@@ -181,32 +181,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        IOException ioe = null;
-        long suppressedExceptions = 0;
-        while (blobNames.hasNext()) {
-            try {
-                Path resolve = path.resolve(blobNames.next());
-                IOUtils.rm(resolve);
-            } catch (IOException e) {
-                // IOUtils.rm puts the original exception as a string in the IOException message. Ignore no such file exception.
-                if (e.getMessage().contains("NoSuchFileException") == false) {
-                    // track up to 10 delete exceptions and try to continue deleting on exceptions
-                    if (ioe == null) {
-                        ioe = e;
-                    } else if (ioe.getSuppressed().length < 10) {
-                        ioe.addSuppressed(e);
-                    } else {
-                        ++suppressedExceptions;
-                    }
-                }
-            }
-        }
-        if (ioe != null) {
-            if (suppressedExceptions > 0) {
-                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
-            }
-            throw ioe;
-        }
+        blobStore.deleteBlobsIgnoringIfNotExists(Iterators.map(blobNames, blobName -> path.resolve(blobName).toString()));
     }
 
     @Override

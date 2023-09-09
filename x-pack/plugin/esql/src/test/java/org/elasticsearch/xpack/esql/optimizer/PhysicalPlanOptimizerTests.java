@@ -157,9 +157,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         allFieldRowSize = mapping.values()
             .stream()
-            .mapToInt(
-                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())))
-            )
+            .mapToInt(f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType()))))
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);

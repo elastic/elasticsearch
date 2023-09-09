@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeExecutor;
 import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeTask;
 import org.junit.Before;
@@ -61,7 +61,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         MockitoAnnotations.openMocks(this);
         // TODO: it takes almost 2 seconds to create these mocks....WHY?!?
         var threadPool = mock(ThreadPool.class);
-        var transportService = mock(TransportService.class);
+        var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);

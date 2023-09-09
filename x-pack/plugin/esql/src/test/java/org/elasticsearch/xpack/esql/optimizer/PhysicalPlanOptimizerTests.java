@@ -366,14 +366,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     *
-     * EvalExec[[emp_no{f}#538 + 1[INTEGER] AS emp_no]]
-     * \_EvalExec[[emp_no{f}#538 + 1[INTEGER] AS e]]
-     *   \_LimitExec[10000[INTEGER]]
-     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
-     *       \_ProjectExec[[_meta_field{f}#537, emp_no{f}#538, first_name{f}#539, languages{f}#540, last_name{f}#541, salary{f}#542]]
-     *         \_FieldExtractExec[_meta_field{f}#537, emp_no{f}#538, first_name{f}#53..]
-     *           \_EsQueryExec[test], query[][_doc{f}#543], limit[10000]
+     * EvalExec[[emp_no{f}#7 + 1[INTEGER] AS e, emp_no{f}#7 + 1[INTEGER] AS emp_no]]
+     * \_LimitExec[10000[INTEGER]]
+     *   \_ExchangeExec[[],false]
+     *     \_ProjectExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, job{f}#14, job.raw{f}#15, languages{f}#10, last
+     * _name{f}#11, salary{f}#12]]
+     *       \_FieldExtractExec[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *         \_EsQueryExec[test], query[][_doc{f}#16], limit[10000], sort[] estimatedRowSize[324]
      */
     public void testExtractorMultiEvalWithDifferentNames() {
         var plan = physicalPlan("""
@@ -383,8 +382,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
+
         var eval = as(optimized, EvalExec.class);
-        eval = as(eval.child(), EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
         var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
@@ -397,13 +396,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * EvalExec[[emp_no{r}#120 + 1[INTEGER] AS emp_no]]
-     * \_EvalExec[[emp_no{f}#125 + 1[INTEGER] AS emp_no]]
-     *   \_LimitExec[10000[INTEGER]]
-     *     \_ExchangeExec[GATHER,SINGLE_DISTRIBUTION]
-     *       \_ProjectExec[[_meta_field{f}#124, emp_no{f}#125, first_name{f}#126, languages{f}#127, last_name{f}#128, salary{f}#129]]
-     *         \_FieldExtractExec[_meta_field{f}#124, emp_no{f}#125, first_name{f}#12..]
-     *           \_EsQueryExec[test], query[][_doc{f}#130], limit[10000]
+     * EvalExec[[emp_no{f}#7 + 1[INTEGER] AS emp_no, emp_no{r}#3 + 1[INTEGER] AS emp_no]]
+     * \_LimitExec[10000[INTEGER]]
+     *   \_ExchangeExec[[],false]
+     *     \_ProjectExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, job{f}#14, job.raw{f}#15, languages{f}#10, last
+     * _name{f}#11, salary{f}#12]]
+     *       \_FieldExtractExec[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *         \_EsQueryExec[test], query[][_doc{f}#16], limit[10000], sort[] estimatedRowSize[324]
      */
     public void testExtractorMultiEvalWithSameName() {
         var plan = physicalPlan("""
@@ -413,8 +412,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var optimized = optimizedPlan(plan);
+
         var eval = as(optimized, EvalExec.class);
-        eval = as(eval.child(), EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
         var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);

@@ -87,7 +87,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 

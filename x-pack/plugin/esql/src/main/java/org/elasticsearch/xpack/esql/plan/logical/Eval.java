@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Eval extends UnaryPlan {
 
     private final List<Alias> fields;
+    private List<Attribute> lazyOutput;
 
     public Eval(Source source, LogicalPlan child, List<Alias> fields) {
         super(source, child);
@@ -35,7 +36,11 @@ public class Eval extends UnaryPlan {
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(fields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(fields, child().output());
+        }
+
+        return lazyOutput;
     }
 
     @Override

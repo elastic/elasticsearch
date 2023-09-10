@@ -221,7 +221,7 @@ serious development or go into production with {es}, review the
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
 
-Use Docker Compose to start a multi-node {es} cluster with {kib}. Docker Compose
+Use Docker Compose to start a three-node {es} cluster with {kib}. Docker Compose
 lets you start multiple containers with a single command.
 
 ===== Configure and start the cluster

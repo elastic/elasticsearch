@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.UUIDs;
@@ -37,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.ENROLLMENT_ENABLED;
 
@@ -75,7 +75,8 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             if (null == transportInfo || null == httpInfo) {
                 if (backoff.hasNext()) {
                     LOGGER.debug("Local node's HTTP/transport info is not yet available, will retry...");
-                    client.threadPool().schedule(() -> maybeCreateNodeEnrollmentToken(consumer, backoff), backoff.next(), GENERIC);
+                    client.threadPool()
+                        .schedule(() -> maybeCreateNodeEnrollmentToken(consumer, backoff), backoff.next(), client.threadPool().generic());
                 } else {
                     LOGGER.warn("Unable to get local node's HTTP/transport info after all retries.");
                     consumer.accept(null);
@@ -140,7 +141,8 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             if (null == httpInfo) {
                 if (backoff.hasNext()) {
                     LOGGER.info("Local node's HTTP info is not yet available, will retry...");
-                    client.threadPool().schedule(() -> createKibanaEnrollmentToken(consumer, backoff), backoff.next(), GENERIC);
+                    client.threadPool()
+                        .schedule(() -> createKibanaEnrollmentToken(consumer, backoff), backoff.next(), client.threadPool().generic());
                 } else {
                     LOGGER.warn("Unable to get local node's HTTP info after all retries.");
                     consumer.accept(null);
@@ -192,6 +194,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             List.of(new RoleDescriptor("create_enrollment_token", new String[] { enrollTokenType.toString() }, null, null)),
             TimeValue.timeValueMinutes(ENROLL_API_KEY_EXPIRATION_MINUTES)
         );
+        apiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {
             final String apiKey = createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString();
             final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, Version.CURRENT.toString(), tokenAddresses);

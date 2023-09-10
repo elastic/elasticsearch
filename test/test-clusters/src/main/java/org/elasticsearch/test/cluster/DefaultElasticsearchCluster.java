@@ -12,6 +12,7 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import java.io.InputStream;
 import java.util.function.Supplier;
 
 public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
@@ -54,9 +55,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public void stopNode(int index) {
+    public void stopNode(int index, boolean forcibly) {
         checkHandle();
-        handle.stopNode(index);
+        handle.stopNode(index, forcibly);
     }
 
     @Override
@@ -114,9 +115,9 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
-    public String getRemoteClusterServerEndpoint() {
+    public String getRemoteClusterServerEndpoints() {
         checkHandle();
-        return handle.getRemoteClusterServerEndpoint();
+        return handle.getRemoteClusterServerEndpoints();
     }
 
     @Override
@@ -137,7 +138,17 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
         handle.upgradeToVersion(version);
     }
 
-    private void checkHandle() {
+    @Override
+    public InputStream getNodeLog(int index, LogType logType) {
+        checkHandle();
+        return handle.getNodeLog(index, logType);
+    }
+
+    protected H getHandle() {
+        return handle;
+    }
+
+    protected void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");
         }

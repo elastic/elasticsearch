@@ -64,7 +64,7 @@ public class TextExpansionResults extends NlpInferenceResults {
     public TextExpansionResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
-        this.weightedTokens = in.readList(WeightedToken::new);
+        this.weightedTokens = in.readCollectionAsList(WeightedToken::new);
     }
 
     public List<WeightedToken> getWeightedTokens() {
@@ -112,7 +112,7 @@ public class TextExpansionResults extends NlpInferenceResults {
     @Override
     void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
-        out.writeList(weightedTokens);
+        out.writeCollection(weightedTokens);
     }
 
     @Override

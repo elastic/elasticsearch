@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -87,9 +86,9 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         VersionStats stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats(), equalTo(Collections.emptySet()));
 
-        metadata = new Metadata.Builder().put(indexMeta("foo", Version.CURRENT, 4), true)
-            .put(indexMeta("bar", Version.CURRENT, 3), true)
-            .put(indexMeta("baz", Version.V_7_0_0, 2), true)
+        metadata = new Metadata.Builder().put(indexMeta("foo", IndexVersion.current(), 4), true)
+            .put(indexMeta("bar", IndexVersion.current(), 3), true)
+            .put(indexMeta("baz", IndexVersion.V_7_0_0, 2), true)
             .build();
         stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats().size(), equalTo(2));
@@ -137,7 +136,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
     }
 
-    private static IndexMetadata indexMeta(String name, Version version, int primaryShards) {
+    private static IndexMetadata indexMeta(String name, IndexVersion version, int primaryShards) {
         return new IndexMetadata.Builder(name).settings(indexSettings(version, primaryShards, randomIntBetween(0, 3))).build();
     }
 

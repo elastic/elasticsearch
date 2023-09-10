@@ -68,7 +68,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -665,10 +664,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/96618",
-        value = "org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.xpack.snapshotbasedrecoveries:TRACE"
-    )
     public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {
         updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
 
@@ -740,7 +735,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                             private boolean assertShardClosedException(Exception e) {
                                 if (e instanceof CancellableThreads.ExecutionCancelledException cancelledException) {
-                                    assert cancelledException.getMessage().contains("shard closed") : e;
+                                    assert cancelledException.getMessage().contains("shard is closed") : e;
                                 } else {
                                     assert e instanceof IndexShardClosedException : e;
                                 }

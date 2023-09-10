@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -62,7 +62,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         );
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,
-            ThreadPool.Names.FLUSH,
+            threadPool.executor(ThreadPool.Names.FLUSH),
             PreShardSyncedFlushRequest::new,
             new PreSyncedFlushTransportHandler(indicesService)
         );
@@ -103,7 +103,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
         private PreShardSyncedFlushRequest(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().before(TransportVersion.V_8_0_0) : "received pre_sync request from a new node";
+            assert in.getTransportVersion().before(TransportVersions.V_8_0_0) : "received pre_sync request from a new node";
             this.shardId = new ShardId(in);
         }
 

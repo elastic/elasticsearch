@@ -17,7 +17,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
 public class IteratorsTests extends ESTestCase {
@@ -154,6 +157,21 @@ public class IteratorsTests extends ESTestCase {
         expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
     }
 
+    public void testForRange() {
+        String[] array = generateRandomStringArray(20, 20, false, true);
+        Iterator<String> iterator = Iterators.forRange(0, array.length, i -> array[i]);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+        assertEquals(array.length, i);
+    }
+
+    public void testForRangeOnNull() {
+        expectThrows(NullPointerException.class, () -> Iterators.forRange(0, 1, null));
+    }
+
     public void testFlatMap() {
         final var array = randomIntegerArray();
         assertEmptyIterator(Iterators.flatMap(Iterators.forArray(array), i -> Iterators.concat()));
@@ -181,6 +199,58 @@ public class IteratorsTests extends ESTestCase {
         Iterators.flatMap(input.listIterator(), i -> IntStream.range(0, (int) i).iterator())
             .forEachRemaining(i -> assertEquals(expectedArray[(index.getAndIncrement())], i));
         assertEquals(expectedArray.length, index.get());
+    }
+
+    public void testMap() {
+        assertEmptyIterator(Iterators.map(Iterators.concat(), i -> "foo"));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.map(Iterators.forArray(array), i -> i * 2)
+            .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testEquals() {
+        final BiPredicate<Object, Object> notCalled = (a, b) -> { throw new AssertionError("not called"); };
+
+        assertTrue(Iterators.equals(null, null, notCalled));
+        assertFalse(Iterators.equals(Collections.emptyIterator(), null, notCalled));
+        assertFalse(Iterators.equals(null, Collections.emptyIterator(), notCalled));
+        assertTrue(Iterators.equals(Collections.emptyIterator(), Collections.emptyIterator(), notCalled));
+
+        assertFalse(Iterators.equals(Collections.emptyIterator(), List.of(1).iterator(), notCalled));
+        assertFalse(Iterators.equals(List.of(1).iterator(), Collections.emptyIterator(), notCalled));
+        assertTrue(Iterators.equals(List.of(1).iterator(), List.of(1).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1).iterator(), List.of(2).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1, 2).iterator(), List.of(1).iterator(), Objects::equals));
+        assertFalse(Iterators.equals(List.of(1).iterator(), List.of(1, 2).iterator(), Objects::equals));
+
+        final var strings1 = randomList(10, () -> randomAlphaOfLength(10));
+        final var strings2 = new ArrayList<>(strings1);
+
+        assertTrue(Iterators.equals(strings1.iterator(), strings2.iterator(), Objects::equals));
+
+        if (strings2.size() == 0 || randomBoolean()) {
+            strings2.add(randomAlphaOfLength(10));
+        } else {
+            final var index = between(0, strings2.size() - 1);
+            if (randomBoolean()) {
+                strings2.remove(index);
+            } else {
+                strings2.set(index, randomValueOtherThan(strings2.get(index), () -> randomAlphaOfLength(10)));
+            }
+        }
+        assertFalse(Iterators.equals(strings1.iterator(), strings2.iterator(), Objects::equals));
+    }
+
+    public void testHashCode() {
+        final ToIntFunction<Object> notCalled = (a) -> { throw new AssertionError("not called"); };
+        assertEquals(0, Iterators.hashCode(null, notCalled));
+        assertEquals(1, Iterators.hashCode(Collections.emptyIterator(), notCalled));
+
+        final var numbers = randomIntegerArray();
+        assertEquals(Arrays.hashCode(numbers), Iterators.hashCode(Arrays.stream(numbers).iterator(), Objects::hashCode));
     }
 
     private static Integer[] randomIntegerArray() {

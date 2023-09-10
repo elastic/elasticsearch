@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.lucene.bwc;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.PostStartTrialAction;
@@ -92,7 +92,11 @@ public abstract class AbstractArchiveTestCase extends AbstractSnapshotIntegTestC
                             .put(
                                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 metadata.settings()
-                                    .getAsVersion("version", randomBoolean() ? Version.fromString("5.0.0") : Version.fromString("6.0.0"))
+                                    .getAsVersionId(
+                                        "version",
+                                        IndexVersion::fromId,
+                                        IndexVersion.fromId(randomBoolean() ? 5000099 : 6000099)
+                                    )
                             )
                     )
                     .build();

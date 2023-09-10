@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -53,6 +54,7 @@ public class ClusterFormationFailureHelper {
 
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
+    private final Executor clusterCoordinationExecutor;
     private final TimeValue clusterFormationWarningTimeout;
     private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
@@ -66,6 +68,7 @@ public class ClusterFormationFailureHelper {
     ) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
+        this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
         this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
@@ -91,7 +94,7 @@ public class ClusterFormationFailureHelper {
         }
 
         void scheduleNextWarning() {
-            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.CLUSTER_COORDINATION, new AbstractRunnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, clusterCoordinationExecutor, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception scheduling cluster formation warning", e);
@@ -204,19 +207,19 @@ public class ClusterFormationFailureHelper {
 
         public ClusterFormationState(StreamInput in) throws IOException {
             this(
-                in.readStringList(),
+                in.readStringCollectionAsList(),
                 new DiscoveryNode(in),
                 in.readMap(DiscoveryNode::new),
                 in.readLong(),
                 in.readLong(),
                 new VotingConfiguration(in),
                 new VotingConfiguration(in),
-                in.readImmutableList(TransportAddress::new),
-                in.readImmutableList(DiscoveryNode::new),
+                in.readCollectionAsImmutableList(TransportAddress::new),
+                in.readCollectionAsImmutableList(DiscoveryNode::new),
                 in.readLong(),
                 in.readBoolean(),
                 new StatusInfo(in),
-                in.readList(JoinStatus::new)
+                in.readCollectionAsList(JoinStatus::new)
             );
         }
 
@@ -378,13 +381,13 @@ public class ClusterFormationFailureHelper {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(initialMasterNodesSetting);
             localNode.writeTo(out);
-            out.writeMap(masterEligibleNodes, StreamOutput::writeString, (streamOutput, node) -> node.writeTo(streamOutput));
+            out.writeMap(masterEligibleNodes, StreamOutput::writeWriteable);
             out.writeLong(clusterStateVersion);
             out.writeLong(acceptedTerm);
             lastAcceptedConfiguration.writeTo(out);
             lastCommittedConfiguration.writeTo(out);
-            out.writeList(resolvedAddresses);
-            out.writeList(foundPeers);
+            out.writeCollection(resolvedAddresses);
+            out.writeCollection(foundPeers);
             out.writeLong(currentTerm);
             out.writeBoolean(hasDiscoveredQuorum);
             statusInfo.writeTo(out);

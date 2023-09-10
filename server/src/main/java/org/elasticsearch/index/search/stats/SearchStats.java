@@ -398,7 +398,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+            out.writeMap(groupStats, StreamOutput::writeWriteable);
         }
     }
 

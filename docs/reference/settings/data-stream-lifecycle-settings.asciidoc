@@ -15,7 +15,7 @@ These are the settings available for configuring <<data-stream-lifecycle, data s
 [[data-streams-lifecycle-poll-interval]]
 `data_streams.lifecycle.poll_interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
-How often {es} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `10m`.
+How often {es} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `5m`.
 
 [[cluster-lifecycle-default-rollover]]
 `cluster.lifecycle.default.rollover`::

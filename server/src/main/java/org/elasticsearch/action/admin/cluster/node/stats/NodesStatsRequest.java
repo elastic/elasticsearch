@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -42,7 +43,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        requestedMetrics.addAll(in.readStringCollectionAsList());
     }
 
     /**
@@ -149,15 +150,30 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     @Override
+    public String getDescription() {
+        return Strings.format(
+            "nodes=%s, metrics=%s, flags=%s",
+            Arrays.toString(nodesIds()),
+            requestedMetrics.toString(),
+            Arrays.toString(indices.getFlags())
+        );
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return NodesStatsRequest.this.getDescription();
+            }
+        };
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**

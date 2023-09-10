@@ -31,7 +31,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
         super(in);
         clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
-        failures = in.readList(FailedNodeException::new);
+        failures = in.readCollectionAsList(FailedNodeException::new);
     }
 
     protected BaseNodesResponse(ClusterName clusterName, List<TNodeResponse> nodes, List<FailedNodeException> failures) {
@@ -97,7 +97,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     /**

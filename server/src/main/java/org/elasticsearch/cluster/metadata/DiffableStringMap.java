@@ -88,7 +88,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     }
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
-        final List<String> deletes = in.readStringList();
+        final List<String> deletes = in.readStringCollectionAsList();
         final Map<String, String> upserts = in.readMap(StreamInput::readString);
         return getDiff(deletes, upserts);
     }
@@ -135,7 +135,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(deletes);
-            out.writeMap(upserts, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(upserts, StreamOutput::writeString);
         }
 
         @Override

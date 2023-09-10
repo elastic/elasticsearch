@@ -469,7 +469,7 @@ public class ResultsPersisterService {
                 TimeValue.timeValueMillis(MIN_RETRY_SLEEP_MILLIS),
                 TimeValue.MAX_VALUE,
                 listener,
-                UTILITY_THREAD_POOL_NAME
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
             );
             this.jobId = jobId;
             this.shouldRetry = shouldRetry;

@@ -1,0 +1,93 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+
+  - do:
+      security.put_user:
+        username: "non-synonyms-user"
+        body:
+          password: "non-synonyms-user-password"
+          roles : [ "non-synonyms-role" ]
+
+  - do:
+      security.put_role:
+        name: "non-synonyms-role"
+        body:
+          indices:
+            - names: ["*"]
+              privileges: [ "manage", "write", "read" ]
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "non-synonyms-user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "non-synonyms-role"
+        ignore: 404
+
+---
+"Create synonyms set - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.put_synonym:
+        id: test-synonyms
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "test-id"
+
+---
+"Get synonyms set - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.get_synonym:
+        id: test-synonyms
+
+---
+"Delete synonyms set - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.delete_synonym:
+        id: test-synonyms
+---
+"List synonyms sets - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.get_synonyms_sets: { }
+
+---
+"Update a synonyms rule - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.put_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
+        body:
+          synonyms: "bye, goodbye, seeya"
+
+---
+"Get a synonym rule - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.get_synonym_rule:
+        set_id: "test-synonyms"
+        rule_id: "test-id-2"
+
+---
+"Delete synonym rule - no manage_search_synonyms privilege":
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic bm9uLXN5bm9ueW1zLXVzZXI6bm9uLXN5bm9ueW1zLXVzZXItcGFzc3dvcmQ=" }  # non-synonyms-user
+      synonyms.delete_synonym_rule:
+        set_id: test-synonyms
+        rule_id: test-id-2

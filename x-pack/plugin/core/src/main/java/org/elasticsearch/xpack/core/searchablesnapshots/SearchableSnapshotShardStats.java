@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +48,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         this.shardRouting = new ShardRouting(in);
         this.snapshotId = new SnapshotId(in);
         this.indexId = new IndexId(in);
-        this.inputStats = in.readList(CacheIndexInputStats::new);
+        this.inputStats = in.readCollectionAsList(CacheIndexInputStats::new);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         shardRouting.writeTo(out);
         snapshotId.writeTo(out);
         indexId.writeTo(out);
-        out.writeList(inputStats);
+        out.writeCollection(inputStats);
     }
 
     public ShardRouting getShardRouting() {
@@ -199,7 +199,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersion.V_7_12_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_7_12_0)) {
                 // This API is currently only used internally for testing, so BWC breaking changes are OK.
                 // We just throw an exception here to get a better error message in case this would be called
                 // in a mixed version cluster
@@ -207,7 +207,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
-            if (in.getTransportVersion().before(TransportVersion.V_7_13_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_7_13_0)) {
                 this.totalSize = ByteSizeValue.ofBytes(in.readVLong());
                 this.minSize = ByteSizeValue.ZERO;
                 this.maxSize = ByteSizeValue.ZERO;
@@ -230,7 +230,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
             this.blobStoreBytesRequested = new Counter(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
                 this.luceneBytesRead = new Counter(in);
             } else {
                 this.luceneBytesRead = new Counter(0, 0, 0, 0);
@@ -272,7 +272,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersion.V_7_12_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_7_12_0)) {
                 // This API is currently only used internally for testing, so BWC breaking changes are OK.
                 // We just throw an exception here to get a better error message in case this would be called
                 // in a mixed version cluster
@@ -280,7 +280,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
-            if (out.getTransportVersion().before(TransportVersion.V_7_13_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_7_13_0)) {
                 out.writeVLong(totalSize.getBytes());
             } else {
                 totalSize.writeTo(out);
@@ -302,7 +302,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
             blobStoreBytesRequested.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
                 luceneBytesRead.writeTo(out);
             }
             out.writeVLong(currentIndexCacheFills);

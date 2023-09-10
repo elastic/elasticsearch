@@ -175,6 +175,14 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
             this.node = in.readOptionalString();
         }
 
+        public boolean isCompleted() {
+            return completed;
+        }
+
+        public String getNode() {
+            return node;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(completed);

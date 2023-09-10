@@ -343,7 +343,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
               "password": "%s",
               "grant_type": "password"
             }""", username, password));
-        Response response = client().performRequest(createTokenRequest);
+        Response response = client.performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
     }

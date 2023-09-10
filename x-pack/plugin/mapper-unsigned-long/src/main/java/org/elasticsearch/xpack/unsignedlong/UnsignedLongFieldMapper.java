@@ -203,7 +203,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -460,8 +460,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
-            if (bigDecimalValue.compareTo(BigDecimal.ZERO) <= 0) {
-                return 0L; // for values <=0, set lowerTerm to 0
+            if (bigDecimalValue.compareTo(BigDecimal.ZERO) < 0) {
+                return 0L; // for values < 0, set lowerTerm to 0
             }
             int c = bigDecimalValue.compareTo(BIGDECIMAL_2_64_MINUS_ONE);
             if (c > 0 || (c == 0 && include == false)) {

@@ -74,14 +74,14 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
 
     public RegressionInferenceResults(StreamInput in) throws IOException {
         super(in);
-        this.featureImportance = in.readList(RegressionFeatureImportance::new);
+        this.featureImportance = in.readCollectionAsList(RegressionFeatureImportance::new);
         this.resultsField = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(featureImportance);
+        out.writeCollection(featureImportance);
         out.writeString(resultsField);
     }
 

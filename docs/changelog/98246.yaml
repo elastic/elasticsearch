@@ -1,0 +1,5 @@
+pr: 98246
+summary: Read operator privs enabled from Env settings
+area: Authorization
+type: enhancement
+issues: []

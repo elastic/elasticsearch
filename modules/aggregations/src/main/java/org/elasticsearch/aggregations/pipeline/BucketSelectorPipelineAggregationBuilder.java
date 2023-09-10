@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +56,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString);
         script.writeTo(out);
         gapPolicy.writeTo(out);
     }
@@ -215,6 +216,6 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

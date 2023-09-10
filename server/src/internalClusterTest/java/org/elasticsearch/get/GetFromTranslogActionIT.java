@@ -96,7 +96,7 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
             node,
             TransportGetFromTranslogAction.NAME,
             request,
-            new ActionListenerResponseHandler<>(response, Response::new, ThreadPool.Names.GET)
+            new ActionListenerResponseHandler<>(response, Response::new, transportService.getThreadPool().executor(ThreadPool.Names.GET))
         );
         return response.get();
     }

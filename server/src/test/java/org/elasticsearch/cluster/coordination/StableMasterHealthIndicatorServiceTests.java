@@ -275,9 +275,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
      * Creates a mocked MasterHistoryService with a non-mocked local master history (which can be updated with clusterChanged calls). The
      * remote master history is mocked.
      */
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
+    private MasterHistoryService createMasterHistoryService() throws Exception {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenReturn(nullMasterClusterState);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
@@ -301,6 +302,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         return new StableMasterHealthIndicatorService(
             new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService),
             clusterService

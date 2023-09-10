@@ -33,19 +33,24 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -84,6 +89,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final ExecuteEnrichPolicyTask task;
     private final ActionListener<ExecuteEnrichPolicyStatus> listener;
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final String enrichIndexName;
@@ -96,6 +102,7 @@ public class EnrichPolicyRunner implements Runnable {
         ExecuteEnrichPolicyTask task,
         ActionListener<ExecuteEnrichPolicyStatus> listener,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
         String enrichIndexName,
@@ -107,6 +114,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.task = Objects.requireNonNull(task);
         this.listener = Objects.requireNonNull(listener);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.indicesService = indicesService;
         this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.enrichIndexName = enrichIndexName;
@@ -342,6 +350,7 @@ public class EnrichPolicyRunner implements Runnable {
     private XContentBuilder createEnrichMapping(List<Map<String, Object>> sourceMappings) {
         Map<String, Map<String, Object>> fieldMappings = new HashMap<>();
         Map<String, Object> mappingForMatchField = mappingForMatchField(policy, sourceMappings);
+        MapperService mapperService = createMapperServiceForValidation(indicesService, enrichIndexName);
         for (String enrichField : policy.getEnrichFields()) {
             if (enrichField.equals(policy.getMatchField())) {
                 mappingForMatchField = new HashMap<>(mappingForMatchField);
@@ -354,7 +363,9 @@ public class EnrichPolicyRunner implements Runnable {
                     if (typeAndFormat.format != null) {
                         mapping.put("format", typeAndFormat.format);
                     }
-                    mapping.put("index", false); // disable index
+                    if (isIndexableField(mapperService, enrichField, typeAndFormat.type, mapping)) {
+                        mapping.put("index", false);
+                    }
                     fieldMappings.put(enrichField, mapping);
                 }
             }
@@ -395,6 +406,27 @@ public class EnrichPolicyRunner implements Runnable {
         } catch (IOException ioe) {
             throw new UncheckedIOException("Could not render enrich mapping", ioe);
         }
+    }
+
+    private static MapperService createMapperServiceForValidation(IndicesService indicesService, String index) {
+        try {
+            final Settings idxSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .build();
+            IndexMetadata indexMetadata = IndexMetadata.builder(index).settings(idxSettings).numberOfShards(1).numberOfReplicas(0).build();
+            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static boolean isIndexableField(MapperService mapperService, String field, String type, Map<String, Object> properties) {
+        properties = new HashMap<>(properties);
+        properties.put("index", false);
+        Mapper.TypeParser parser = mapperService.getMapperRegistry().getMapperParser(type, IndexVersion.current());
+        parser.parse(field, properties, mapperService.parserContext());
+        return properties.containsKey("index") == false;
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {

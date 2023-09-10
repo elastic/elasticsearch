@@ -91,7 +91,7 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMapOfLists(shardRecoveryStates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(shardRecoveryStates, StreamOutput::writeCollection);
     }
 
     @Override

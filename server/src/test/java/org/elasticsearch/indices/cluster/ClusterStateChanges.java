@@ -70,6 +70,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -99,7 +101,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -403,9 +404,11 @@ public class ClusterStateChanges {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
-            List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
-                throw new AssertionError("should not complete publication");
-            }), clusterState.term()))
+            List.of(
+                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
+                    throw new AssertionError("should not complete publication");
+                }), clusterState.term())
+            )
         );
     }
 
@@ -416,9 +419,16 @@ public class ClusterStateChanges {
             List.of(
                 JoinTask.completingElection(
                     nodes.stream()
-                        .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
-                            throw new AssertionError("should not complete publication");
-                        }))),
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                new CompatibilityVersions(transportVersion),
+                                DUMMY_REASON,
+                                ActionListener.running(() -> {
+                                    throw new AssertionError("should not complete publication");
+                                })
+                            )
+                        ),
                     clusterState.term() + between(1, 10)
                 )
             )
@@ -531,7 +541,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<TransportResponse.Empty> createTestListener() {
+    private ActionListener<Void> createTestListener() {
         return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

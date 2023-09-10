@@ -148,6 +148,11 @@ public class Reconfigurator {
         return clusterState;
     }
 
+    public void ensureVotingConfigCanBeModified() {
+        // Temporary workaround until #98055 is tackled
+        // no-op
+    }
+
     record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)
         implements
             Comparable<VotingConfigNode> {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
@@ -121,7 +120,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id1").setSource(
             watchBuilder().trigger(schedule(interval("5s")))
-                .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
+                .input(simpleInput(Map.of("key1", 10, "key2", 10)))
                 .transform(scriptTransform(script))
                 .addAction("_id", indexAction("output1"))
         ).get();
@@ -129,7 +128,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         // put a watch that has a action level transform:
         putWatchResponse = new PutWatchRequestBuilder(client(), "_id2").setSource(
             watchBuilder().trigger(schedule(interval("5s")))
-                .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
+                .input(simpleInput(Map.of("key1", 10, "key2", 10)))
                 .addAction("_id", scriptTransform(script), indexAction("output2"))
         ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -205,7 +204,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id1").setSource(
             watchBuilder().trigger(schedule(interval("5s")))
-                .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
+                .input(simpleInput(Map.of("key1", 10, "key2", 10)))
                 .transform(chainTransform(scriptTransform(script1), scriptTransform(script2)))
                 .addAction("_id", indexAction("output1"))
         ).get();
@@ -213,7 +212,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         // put a watch that has a action level transform:
         putWatchResponse = new PutWatchRequestBuilder(client(), "_id2").setSource(
             watchBuilder().trigger(schedule(interval("5s")))
-                .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
+                .input(simpleInput(Map.of("key1", 10, "key2", 10)))
                 .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)), indexAction("output2"))
         ).get();
         assertThat(putWatchResponse.isCreated(), is(true));

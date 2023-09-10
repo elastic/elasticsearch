@@ -42,6 +42,6 @@ public class GetSearchApplicationActionRequestBWCSerializingTests extends Abstra
         GetSearchApplicationAction.Request instance,
         TransportVersion version
     ) {
-        return new GetSearchApplicationAction.Request(instance.getName());
+        return instance;
     }
 }

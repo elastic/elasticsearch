@@ -110,7 +110,8 @@ true               | false                | false              | true           
 ;
 
 
-repetitiveEval
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/99394
+repetitiveEval-Ignore
 from employees | keep emp_no | eval sum = emp_no + 1 
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no  
 | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 

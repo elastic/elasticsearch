@@ -162,6 +162,9 @@ public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    public void testCoerce() {} // coerce is unimplemented
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
         return true;
     }

@@ -1267,4 +1267,34 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected abstract IngestScriptSupport ingestScriptSupport();
 
+    protected abstract class IngestScriptSupport {
+        private <T> T compileScript(Script script, ScriptContext<T> context) {
+            switch (script.getIdOrCode()) {
+                case "empty":
+                    return context.factoryClazz.cast(emptyFieldScript());
+                case "non-empty":
+                    return context.factoryClazz.cast(nonEmptyFieldScript());
+                default:
+                    return compileOtherScript(script, context);
+            }
+        }
+
+        protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+            throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+        }
+
+        /**
+         * Create a script that can be run to produce no values for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory emptyFieldScript();
+
+        /**
+         * Create a script that can be run to produce some value value for this
+         * field or return {@link Optional#empty()} to signal that this
+         * field doesn't support fields scripts.
+         */
+        abstract ScriptFactory nonEmptyFieldScript();
+    }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest.Category;
 import org.elasticsearch.test.ESTestCase;
@@ -28,8 +29,8 @@ public class XPackInfoRequestTests extends ESTestCase {
         assertSerialization(
             TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.V_7_8_1,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_0_0)
+                TransportVersions.V_7_8_1,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_0_0)
             )
         );
     }

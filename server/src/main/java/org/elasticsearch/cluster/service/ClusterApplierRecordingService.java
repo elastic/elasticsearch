@@ -125,7 +125,7 @@ public final class ClusterApplierRecordingService {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(recordings, (out1, value) -> value.writeTo(out1));
+            out.writeMap(recordings, StreamOutput::writeWriteable);
         }
 
         @Override

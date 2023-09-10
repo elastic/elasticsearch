@@ -49,7 +49,7 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.clientOutgoingConnections, StreamOutput::writeLong);
-        out.writeMap(this.nodeComputedStats, (stream, stats) -> stats.writeTo(stream));
+        out.writeMap(this.nodeComputedStats, StreamOutput::writeWriteable);
     }
 
     @Override

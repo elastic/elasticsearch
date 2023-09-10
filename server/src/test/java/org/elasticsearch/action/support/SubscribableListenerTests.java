@@ -322,7 +322,11 @@ public class SubscribableListenerTests extends ESTestCase {
         });
         try (var ignored = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(headerName, headerValue);
-            listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            listener.addTimeout(
+                TimeValue.timeValueSeconds(30),
+                threadPool,
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+            );
         }
 
         if (randomBoolean()) {
@@ -359,7 +363,11 @@ public class SubscribableListenerTests extends ESTestCase {
                 fail("should not fail");
             }
         });
-        listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+        listener.addTimeout(
+            TimeValue.timeValueSeconds(30),
+            threadPool,
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+        );
 
         deterministicTaskQueue.scheduleAt(
             deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueSeconds(30).millis() - 1),

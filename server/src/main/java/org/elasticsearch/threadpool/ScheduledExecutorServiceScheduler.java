@@ -8,6 +8,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Executor;
@@ -15,8 +16,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A {@link Scheduler} which wraps a {@link ScheduledExecutorService}. It ignores the supplied {@code executor} or {@code executorName} and
- * instead uses the inner executor to execute the delayed commands.
+ * A {@link Scheduler} which wraps a {@link ScheduledExecutorService}. It always runs the delayed command on the scheduler thread, so the
+ * provided {@link Executor} must always be {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}.
  */
 public final class ScheduledExecutorServiceScheduler implements Scheduler {
     private final ScheduledExecutorService executor;
@@ -25,18 +26,9 @@ public final class ScheduledExecutorServiceScheduler implements Scheduler {
         this.executor = executor;
     }
 
-    private ScheduledCancellable schedule(Runnable command, TimeValue delay) {
+    @Override
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor unused) {
+        assert unused == EsExecutors.DIRECT_EXECUTOR_SERVICE : "ScheduledExecutorServiceScheduler never forks, don't even try";
         return Scheduler.wrapAsScheduledCancellable(executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
-    }
-
-    @Override
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-        return schedule(command, delay);
-    }
-
-    @SuppressWarnings("removal")
-    @Override
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executorName) {
-        return schedule(command, delay);
     }
 }

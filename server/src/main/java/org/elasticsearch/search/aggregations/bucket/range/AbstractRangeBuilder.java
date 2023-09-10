@@ -55,7 +55,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         throws IOException {
         super(in);
         this.rangeFactory = rangeFactory;
-        ranges = in.readList(rangeReader);
+        ranges = in.readCollectionAsList(rangeReader);
         keyed = in.readBoolean();
     }
 

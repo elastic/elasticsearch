@@ -8,12 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Vector implementation that stores a constant BytesRef value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class);
 
     private final BytesRef value;
 
@@ -45,6 +48,11 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
     }
 
     @Override

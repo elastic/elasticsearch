@@ -14,6 +14,7 @@ import io.netty.handler.ssl.SslHandshakeTimeoutException;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1069,7 +1070,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 super.executeHandshake(node, channel, profile, listener);
             } else {
                 assert getVersion().equals(TransportVersion.current());
-                listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
+                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
             }
         }
 

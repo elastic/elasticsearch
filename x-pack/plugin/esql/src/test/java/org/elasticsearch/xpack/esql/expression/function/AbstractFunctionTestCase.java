@@ -149,7 +149,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected void buildLayout(Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
-            builder.appendChannel(f.id());
+            builder.append(f);
             return;
         }
         for (Expression c : e.children()) {

@@ -92,7 +92,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
-        this.snapshots = in.readImmutableList(SnapshotInfo::readFrom);
+        this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
         if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readException);
             this.failures = Collections.unmodifiableMap(failedResponses);

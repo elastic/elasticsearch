@@ -40,7 +40,7 @@ public class NerResults extends NlpInferenceResults {
 
     public NerResults(StreamInput in) throws IOException {
         super(in);
-        entityGroups = in.readList(EntityGroup::new);
+        entityGroups = in.readCollectionAsList(EntityGroup::new);
         resultsField = in.readString();
         annotatedResult = in.readString();
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -179,7 +180,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             adjustedUpdate = currentUpdate;
         }
 
-        if (version.before(TransportVersion.V_8_3_0)) {
+        if (version.before(TransportVersions.V_8_3_0)) {
             return new Request(
                 instance.getId(),
                 adjustedUpdate,
@@ -188,7 +189,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 TimeValue.MAX_VALUE,
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(TransportVersion.V_8_7_0)) {
+        } else if (version.before(TransportVersions.V_8_7_0)) {
             return new Request(
                 instance.getId(),
                 adjustedUpdate,
@@ -197,7 +198,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 instance.getInferenceTimeout(),
                 instance.isPreviouslyLicensed()
             );
-        } else if (version.before(TransportVersion.V_8_8_0)) {
+        } else if (version.before(TransportVersions.V_8_8_0)) {
             var r = new Request(
                 instance.getId(),
                 adjustedUpdate,

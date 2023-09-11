@@ -11,8 +11,8 @@ steps:
         matrix:
           setup:
             image:
-              - family/elasticsearch-rhel-8
-              - family/elasticsearch-ubuntu-2004
+              - rhel-8
+              - ubuntu-2004
             PACKAGING_TASK:
               - destructiveDistroTest.docker
               - destructiveDistroTest.packages

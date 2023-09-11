@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -635,8 +634,12 @@ public class NodeTests extends ESTestCase {
         @Override
         public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
             return Optional.of(
-                (nodeEnvironment, namedXContentRegistry, clusterSettings, threadPool, compatibilityVersions) -> persistedClusterStateService =
-                    new PersistedClusterStateService(
+                (
+                    nodeEnvironment,
+                    namedXContentRegistry,
+                    clusterSettings,
+                    threadPool,
+                    compatibilityVersions) -> persistedClusterStateService = new PersistedClusterStateService(
                         nodeEnvironment,
                         namedXContentRegistry,
                         clusterSettings,

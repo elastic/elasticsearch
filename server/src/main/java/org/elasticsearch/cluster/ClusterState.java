@@ -629,21 +629,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 (builder, params) -> builder.endObject()
             ),
 
-            // transportVersions - redundant with the nodes_versions section but has to stay for backwards compatibility
-            // just use NODES again, its node-related information
-            chunkedSection(
-                metrics.contains(Metric.NODES),
-                (builder, params) -> builder.startArray("transport_versions"),
-                compatibilityVersions.entrySet().iterator(),
-                e -> Iterators.single(
-                    (builder, params) -> builder.startObject()
-                        .field("node_id", e.getKey())
-                        .field("transport_version", e.getValue().transportVersion().toString())
-                        .endObject()
-                ),
-                (builder, params) -> builder.endArray()
-            ),
-
             // per-node version information
             chunkedSection(
                 metrics.contains(Metric.NODES),

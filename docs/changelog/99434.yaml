@@ -1,0 +1,5 @@
+pr: 99434
+summary: "ESQL: Disable optimizations with bad null handling"
+area: ES|QL
+type: bug
+issues: []

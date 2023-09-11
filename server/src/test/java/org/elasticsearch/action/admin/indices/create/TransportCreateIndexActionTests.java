@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -51,12 +50,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
-        .putCompatibilityVersions("node-1", new CompatibilityVersions(
-            TransportVersion.current(),
-            Map.of(
-                MANAGED_SYSTEM_INDEX_NAME + "-primary", new SystemIndexDescriptor.MappingsVersion(1, 1)
+        .putCompatibilityVersions(
+            "node-1",
+            new CompatibilityVersions(
+                TransportVersion.current(),
+                Map.of(MANAGED_SYSTEM_INDEX_NAME + "-primary", new SystemIndexDescriptor.MappingsVersion(1, 1))
             )
-        ))
+        )
         .build();
 
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(

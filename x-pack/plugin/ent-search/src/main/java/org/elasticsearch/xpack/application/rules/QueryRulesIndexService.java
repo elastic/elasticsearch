@@ -144,6 +144,11 @@ public class QueryRulesIndexService {
                             builder.field("type", "object");
                             builder.field("enabled", false);
                             builder.endObject();
+
+                            builder.startObject(QueryRuleCriteria.PROPERTIES_FIELD.getPreferredName());
+                            builder.field("type", "object");
+                            builder.field("enabled", false);
+                            builder.endObject();
                         }
                         builder.endObject();
                         builder.endObject();
@@ -219,7 +224,8 @@ public class QueryRulesIndexService {
                 new QueryRuleCriteria(
                     QueryRuleCriteriaType.type((String) entry.get(QueryRuleCriteria.TYPE_FIELD.getPreferredName())),
                     (String) entry.get(QueryRuleCriteria.METADATA_FIELD.getPreferredName()),
-                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName())
+                    (List<Object>) entry.get(QueryRuleCriteria.VALUES_FIELD.getPreferredName()),
+                    (Map<String, Object>) entry.get(QueryRuleCriteria.PROPERTIES_FIELD.getPreferredName())
                 )
             );
         }

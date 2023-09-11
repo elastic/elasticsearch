@@ -54,7 +54,12 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
                 List<QueryRuleCriteria> newCriteria = new ArrayList<>();
                 for (QueryRuleCriteria criteria : rule.criteria()) {
                     newCriteria.add(
-                        new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), criteria.criteriaValues().subList(0, 1))
+                        new QueryRuleCriteria(
+                            criteria.criteriaType(),
+                            criteria.criteriaMetadata(),
+                            criteria.criteriaValues().subList(0, 1),
+                            null
+                        )
                     );
                 }
                 rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions()));

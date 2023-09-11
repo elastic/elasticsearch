@@ -169,7 +169,7 @@ public class QueryRuleTests extends ESTestCase {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"))),
+            List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"), null)),
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
@@ -185,7 +185,10 @@ public class QueryRuleTests extends ESTestCase {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
-            List.of(new QueryRuleCriteria(PREFIX, "query", List.of("elastic")), new QueryRuleCriteria(SUFFIX, "query", List.of("search"))),
+            List.of(
+                new QueryRuleCriteria(PREFIX, "query", List.of("elastic"), null),
+                new QueryRuleCriteria(SUFFIX, "query", List.of("search"), null)
+            ),
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();

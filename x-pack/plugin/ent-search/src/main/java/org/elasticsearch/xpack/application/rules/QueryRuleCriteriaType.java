@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Defines the different types of query rule criteria and their rules for matching input against the criteria.
@@ -18,13 +21,14 @@ import java.util.Locale;
 public enum QueryRuleCriteriaType {
     ALWAYS {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
             return true;
         }
     },
     EXACT {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             if (input instanceof String && criteriaValue instanceof String) {
                 return input.equals(criteriaValue);
             } else {
@@ -34,7 +38,8 @@ public enum QueryRuleCriteriaType {
     },
     FUZZY {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             final LevenshteinDistance ld = new LevenshteinDistance();
             if (input instanceof String && criteriaValue instanceof String) {
                 return ld.getDistance((String) input, (String) criteriaValue) > 0.5f;
@@ -44,45 +49,61 @@ public enum QueryRuleCriteriaType {
     },
     PREFIX {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return ((String) input).startsWith((String) criteriaValue);
         }
     },
     SUFFIX {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return ((String) input).endsWith((String) criteriaValue);
         }
     },
     CONTAINS {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return ((String) input).contains((String) criteriaValue);
         }
     },
     LT {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return parseDouble(input) < parseDouble(criteriaValue);
         }
     },
     LTE {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return parseDouble(input) <= parseDouble(criteriaValue);
         }
     },
     GT {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
             return parseDouble(input) > parseDouble(criteriaValue);
         }
     },
     GTE {
         @Override
-        public boolean isMatch(Object input, Object criteriaValue) {
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
             validateInput(input);
             return parseDouble(input) >= parseDouble(criteriaValue);
+        }
+    },
+    INFER {
+        @Override
+        public boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validateInput(input);
+            String modelId = criteriaProperties.getOrDefault("model_id", ".elser_model_1").toString();
+            float threshold = (Float) criteriaProperties.getOrDefault("threshold", 1.0f);
+            QueryRulesInferenceService inferenceService = new QueryRulesInferenceService(client);
+            return inferenceService.findInferenceRuleMatches(modelId, (String) input, threshold);
         }
     };
 
@@ -93,7 +114,7 @@ public enum QueryRuleCriteriaType {
         }
     }
 
-    public abstract boolean isMatch(Object input, Object criteriaValue);
+    public abstract boolean isMatch(Client client, Object input, Object criteriaValue, Map<String, Object> criteriaProperties);
 
     public static QueryRuleCriteriaType type(String criteriaType) {
         for (QueryRuleCriteriaType type : values()) {
@@ -112,7 +133,7 @@ public enum QueryRuleCriteriaType {
     private boolean isValidForInput(Object input) {
         if (this == EXACT) {
             return input instanceof String || input instanceof Number;
-        } else if (List.of(FUZZY, PREFIX, SUFFIX, CONTAINS).contains(this)) {
+        } else if (List.of(FUZZY, PREFIX, SUFFIX, CONTAINS, INFER).contains(this)) {
             return input instanceof String;
         } else if (List.of(LT, LTE, GT, GTE).contains(this)) {
             try {

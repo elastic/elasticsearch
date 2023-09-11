@@ -85,7 +85,12 @@ public final class SearchApplicationTestUtils {
     public static QueryRuleCriteria randomQueryRuleCriteria() {
         // We intentionally don't allow ALWAYS criteria in this method, since we want to test parsing metadata and values
         QueryRuleCriteriaType type = randomFrom(Arrays.stream(QueryRuleCriteriaType.values()).filter(t -> t != ALWAYS).toList());
-        return new QueryRuleCriteria(type, randomAlphaOfLengthBetween(1, 10), randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)));
+        return new QueryRuleCriteria(
+            type,
+            randomAlphaOfLengthBetween(1, 10),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)),
+            Map.of()
+        );
     }
 
     public static QueryRule randomQueryRule() {

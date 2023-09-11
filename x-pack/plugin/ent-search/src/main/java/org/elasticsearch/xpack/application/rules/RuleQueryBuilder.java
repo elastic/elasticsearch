@@ -219,7 +219,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                 }
                 QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
                 for (QueryRule rule : queryRuleset.rules()) {
-                    rule.applyRule(appliedRules, matchCriteria);
+                    rule.applyRule(client, appliedRules, matchCriteria);
                 }
                 pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
                 pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());

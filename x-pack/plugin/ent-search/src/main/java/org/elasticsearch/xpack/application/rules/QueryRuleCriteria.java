@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.application.rules;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -38,21 +41,30 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.AL
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
     public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersions.V_8_500_046;
+    // TODO update with new transport version
+    public static final TransportVersion CRITERIA_METADATA_PROPERTIES_TRANSPORT_VERSION = TransportVersions.V_8_500_071;
     private final QueryRuleCriteriaType criteriaType;
     private final String criteriaMetadata;
     private final List<Object> criteriaValues;
+    private final Map<String, Object> criteriaProperties;
 
     private static final Logger logger = LogManager.getLogger(QueryRuleCriteria.class);
 
     /**
      *
-     * @param criteriaType The {@link QueryRuleCriteriaType}, indicating how the criteria is matched
-     * @param criteriaMetadata The metadata for this identifier, indicating the criteria key of what is matched against.
-     *                         Required unless the CriteriaType is ALWAYS.
-     * @param criteriaValues The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
-     *                      Required unless the CriteriaType is ALWAYS.
+     * @param criteriaType          The {@link QueryRuleCriteriaType}, indicating how the criteria is matched
+     * @param criteriaMetadata      The metadata for this identifier, indicating the criteria key of what is matched against.
+     *                              Required unless the CriteriaType is ALWAYS.
+     * @param criteriaValues        The values to match against when evaluating {@link QueryRuleCriteria} against a {@link QueryRule}
+     *                              Required unless the CriteriaType is ALWAYS.
+     * @param criteriaProperties    Additional configuration properties for this criteria, to override default criteria configuration.
      */
-    public QueryRuleCriteria(QueryRuleCriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
+    public QueryRuleCriteria(
+        QueryRuleCriteriaType criteriaType,
+        @Nullable String criteriaMetadata,
+        @Nullable List<Object> criteriaValues,
+        @Nullable Map<String, Object> criteriaProperties
+    ) {
 
         Objects.requireNonNull(criteriaType);
 
@@ -68,6 +80,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         this.criteriaMetadata = criteriaMetadata;
         this.criteriaValues = criteriaValues;
         this.criteriaType = criteriaType;
+        this.criteriaProperties = (criteriaProperties == null) ? Map.of() : criteriaProperties;
 
     }
 
@@ -76,9 +89,15 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             this.criteriaMetadata = in.readOptionalString();
             this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
+            if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_PROPERTIES_TRANSPORT_VERSION)) {
+                this.criteriaProperties = in.readMap();
+            } else {
+                this.criteriaProperties = Map.of();
+            }
         } else {
             this.criteriaMetadata = in.readString();
             this.criteriaValues = List.of(in.readGenericValue());
+            this.criteriaProperties = Map.of();
         }
     }
 
@@ -88,6 +107,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             out.writeOptionalString(criteriaMetadata);
             out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
+            if (out.getTransportVersion().onOrAfter(CRITERIA_METADATA_PROPERTIES_TRANSPORT_VERSION)) {
+                out.writeGenericMap(criteriaProperties);
+            }
         } else {
             out.writeString(criteriaMetadata);
             out.writeGenericValue(criteriaValues().get(0));
@@ -102,18 +124,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             final String metadata = params.length >= 3 ? (String) params[1] : null;
             @SuppressWarnings("unchecked")
             final List<Object> values = params.length >= 3 ? (List<Object>) params[2] : null;
-            return new QueryRuleCriteria(type, metadata, values);
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> properties = params.length >= 4 ? (Map<String, Object>) params[3] : null;
+            return new QueryRuleCriteria(type, metadata, values, properties);
         }
     );
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
     public static final ParseField VALUES_FIELD = new ParseField("values");
+    public static final ParseField PROPERTIES_FIELD = new ParseField("properties");
 
     static {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), METADATA_FIELD);
         PARSER.declareStringArray(optionalConstructorArg(), VALUES_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), PROPERTIES_FIELD);
     }
 
     /**
@@ -153,6 +179,9 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             if (criteriaValues != null) {
                 builder.array(VALUES_FIELD.getPreferredName(), criteriaValues.toArray());
             }
+            if (criteriaProperties != null && criteriaProperties.isEmpty() == false) {
+                builder.field(PROPERTIES_FIELD.getPreferredName(), criteriaProperties);
+            }
         }
         builder.endObject();
         return builder;
@@ -170,6 +199,10 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return criteriaValues;
     }
 
+    public Map<String, Object> criteriaProperties() {
+        return criteriaProperties;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -177,12 +210,13 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         QueryRuleCriteria that = (QueryRuleCriteria) o;
         return criteriaType == that.criteriaType
             && Objects.equals(criteriaMetadata, that.criteriaMetadata)
-            && Objects.equals(criteriaValues, that.criteriaValues);
+            && Objects.equals(criteriaValues, that.criteriaValues)
+            && Objects.equals(criteriaProperties, that.criteriaProperties);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(criteriaType, criteriaMetadata, criteriaValues);
+        return Objects.hash(criteriaType, criteriaMetadata, criteriaValues, criteriaProperties);
     }
 
     @Override
@@ -190,14 +224,14 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public boolean isMatch(Object matchValue, QueryRuleCriteriaType matchType) {
+    public boolean isMatch(Client client, Object matchValue, QueryRuleCriteriaType matchType) {
         if (matchType == ALWAYS) {
             return true;
         }
         final String matchString = matchValue.toString();
         for (Object criteriaValue : criteriaValues) {
             matchType.validateInput(matchValue);
-            boolean matchFound = matchType.isMatch(matchString, criteriaValue);
+            boolean matchFound = matchType.isMatch(client, matchString, criteriaValue, criteriaProperties);
             if (matchFound) {
                 return true;
             }

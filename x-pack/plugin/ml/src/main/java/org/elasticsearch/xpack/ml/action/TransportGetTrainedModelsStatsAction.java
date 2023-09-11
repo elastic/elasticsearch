@@ -35,6 +35,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -61,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,12 +81,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     private final Client client;
     private final ClusterService clusterService;
     private final TrainedModelProvider trainedModelProvider;
+    private final Executor executor;
 
     @Inject
     public TransportGetTrainedModelsStatsAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
+        ThreadPool threadPool,
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
@@ -91,6 +96,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
+        this.executor = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
@@ -115,7 +121,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         }));
 
         ListenableFuture<GetDeploymentStatsAction.Response> deploymentStatsListener = new ListenableFuture<>();
-        deploymentStatsListener.addListener(listener.delegateFailureAndWrap((delegate, deploymentStats) -> {
+        deploymentStatsListener.addListener(listener.delegateFailureAndWrap((delegate, deploymentStats) -> executor.execute(() -> {
             // deployment stats for each matching deployment
             // not necessarily for all models
             responseBuilder.setDeploymentStatsByDeploymentId(
@@ -133,20 +139,20 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 modelSizeStatsListener,
                 numberOfAllocations
             );
-        }));
+        })));
 
         ListenableFuture<List<InferenceStats>> inferenceStatsListener = new ListenableFuture<>();
         // inference stats are per model and are only
         // persisted for boosted tree models
-        inferenceStatsListener.addListener(listener.delegateFailureAndWrap((l, inferenceStats) -> {
+        inferenceStatsListener.addListener(listener.delegateFailureAndWrap((l, inferenceStats) -> executor.execute(() -> {
             responseBuilder.setInferenceStatsByModelId(
                 inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
             );
             getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, deploymentStatsListener);
-        }));
+        })));
 
         ListenableFuture<NodesStatsResponse> nodesStatsListener = new ListenableFuture<>();
-        nodesStatsListener.addListener(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> {
+        nodesStatsListener.addListener(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> executor.execute(() -> {
             // find all pipelines whether using the model id,
             // alias or deployment id.
             Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedModelIdsWithAliases()
@@ -168,7 +174,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 parentTaskId,
                 inferenceStatsListener
             );
-        }));
+        })));
 
         ListenableFuture<Tuple<Long, Map<String, Set<String>>>> idsListener = new ListenableFuture<>();
         idsListener.addListener(listener.delegateFailureAndWrap((delegate, tuple) -> {
@@ -182,25 +188,27 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             );
         }));
 
-        // When the request resource is a deployment find the
-        // model used in that deployment for the model stats
-        String idExpression = addModelsUsedInMatchingDeployments(request.getResourceId(), assignmentMetadata);
-        logger.debug("Expanded models/deployment Ids request [{}]", idExpression);
+        executor.execute(() -> {
+            // When the request resource is a deployment find the
+            // model used in that deployment for the model stats
+            String idExpression = addModelsUsedInMatchingDeployments(request.getResourceId(), assignmentMetadata);
+            logger.debug("Expanded models/deployment Ids request [{}]", idExpression);
 
-        // the request id may contain deployment ids
-        // It is not an error if these don't match a model id but
-        // they need to be included in case the deployment id is also
-        // a model id. Hence, the `matchedDeploymentIds` parameter
-        trainedModelProvider.expandIds(
-            idExpression,
-            request.isAllowNoResources(),
-            request.getPageParams(),
-            Collections.emptySet(),
-            modelAliasMetadata,
-            parentTaskId,
-            matchedDeploymentIds,
-            idsListener
-        );
+            // the request id may contain deployment ids
+            // It is not an error if these don't match a model id but
+            // they need to be included in case the deployment id is also
+            // a model id. Hence, the `matchedDeploymentIds` parameter
+            trainedModelProvider.expandIds(
+                idExpression,
+                request.isAllowNoResources(),
+                request.getPageParams(),
+                Collections.emptySet(),
+                modelAliasMetadata,
+                parentTaskId,
+                matchedDeploymentIds,
+                idsListener
+            );
+        });
     }
 
     static String addModelsUsedInMatchingDeployments(String idExpression, TrainedModelAssignmentMetadata assignmentMetadata) {

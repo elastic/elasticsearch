@@ -15,12 +15,12 @@ template:
       error.grouping_name:
         type: keyword
         script: |
-          def logMessage = doc.error?.log?.message;
+          def logMessage = params['_source'].error?.log?.message;
           if (logMessage != null) {
             emit(logMessage);
             return;
           }
-          def exception = doc.error?.exception;
+          def exception = params['_source'].error?.exception;
           if (exception != null && exception.length > 0) {
             emit(exception[0].message);
           }

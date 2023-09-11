@@ -57,7 +57,7 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - gtw: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 

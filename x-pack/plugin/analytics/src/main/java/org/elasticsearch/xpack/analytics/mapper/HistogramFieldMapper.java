@@ -96,7 +96,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 name,
                 new HistogramFieldType(context.buildFullName(name), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }

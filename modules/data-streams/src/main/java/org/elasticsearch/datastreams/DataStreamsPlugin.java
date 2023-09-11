@@ -105,7 +105,14 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
-
+    public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
+        "index.look_back_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
@@ -141,6 +148,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> pluginSettings = new ArrayList<>();
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
+        pluginSettings.add(LOOK_BACK_TIME);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);

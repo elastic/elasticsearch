@@ -43,13 +43,14 @@ public class RankFeatureFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "rank_feature";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setIndexOptions(IndexOptions.NONE);
+            ft.setOmitNorms(true);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
     }
 
@@ -110,7 +111,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
                     nullValue.getValue()
                 ),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 positiveScoreImpact.getValue(),
                 nullValue.getValue()
             );

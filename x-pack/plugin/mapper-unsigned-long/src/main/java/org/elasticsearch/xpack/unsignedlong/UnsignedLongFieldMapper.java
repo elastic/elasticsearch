@@ -203,7 +203,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 

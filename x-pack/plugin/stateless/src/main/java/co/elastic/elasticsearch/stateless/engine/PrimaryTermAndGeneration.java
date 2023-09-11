@@ -29,6 +29,8 @@ public record PrimaryTermAndGeneration(long primaryTerm, long generation) implem
     private static final Comparator<PrimaryTermAndGeneration> COMPARATOR = Comparator.comparing(PrimaryTermAndGeneration::primaryTerm)
         .thenComparing(PrimaryTermAndGeneration::generation);
 
+    public static final PrimaryTermAndGeneration ZERO = new PrimaryTermAndGeneration(0, 0);
+
     public PrimaryTermAndGeneration(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong());
     }

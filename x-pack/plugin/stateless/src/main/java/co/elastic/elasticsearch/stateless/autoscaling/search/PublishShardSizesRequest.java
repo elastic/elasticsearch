@@ -32,27 +32,29 @@ import java.util.Objects;
 public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSizesRequest> {
 
     private final String nodeId;
-    private final long seqNo;
     private final Map<ShardId, ShardSize> shardSizes;
 
-    public PublishShardSizesRequest(String nodeId, long seqNo, Map<ShardId, ShardSize> shardSizes) {
+    public PublishShardSizesRequest(String nodeId, Map<ShardId, ShardSize> shardSizes) {
         this.nodeId = nodeId;
-        this.seqNo = seqNo;
         this.shardSizes = shardSizes;
     }
 
     public PublishShardSizesRequest(StreamInput in) throws IOException {
         super(in);
         this.nodeId = in.readString();
-        this.seqNo = in.readLong();
-        this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::new);
+        if (in.getTransportVersion().before(ShardSize.PRIMARY_TERM_GENERATION_VERSION)) {
+            in.readLong(); // seqNo
+        }
+        this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::from);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(nodeId);
-        out.writeLong(seqNo);
+        if (out.getTransportVersion().before(ShardSize.PRIMARY_TERM_GENERATION_VERSION)) {
+            out.writeLong(0); // seqNo
+        }
         out.writeMap(shardSizes);
     }
 
@@ -63,10 +65,6 @@ public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSize
 
     public String getNodeId() {
         return nodeId;
-    }
-
-    public long getSeqNo() {
-        return seqNo;
     }
 
     public Map<ShardId, ShardSize> getShardSizes() {
@@ -82,16 +80,16 @@ public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSize
             return false;
         }
         PublishShardSizesRequest that = (PublishShardSizesRequest) o;
-        return seqNo == that.seqNo && Objects.equals(nodeId, that.nodeId) && Objects.equals(shardSizes, that.shardSizes);
+        return Objects.equals(nodeId, that.nodeId) && Objects.equals(shardSizes, that.shardSizes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, seqNo, shardSizes);
+        return Objects.hash(nodeId, shardSizes);
     }
 
     @Override
     public String toString() {
-        return "PublishShardDiskUsageRequest{nodeId='" + nodeId + "', seqNo=" + seqNo + ", shardSizes=" + shardSizes + '}';
+        return "PublishShardDiskUsageRequest{nodeId='" + nodeId + ", shardSizes=" + shardSizes + '}';
     }
 }

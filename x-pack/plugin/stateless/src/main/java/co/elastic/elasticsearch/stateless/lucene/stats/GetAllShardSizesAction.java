@@ -107,7 +107,7 @@ public class GetAllShardSizesAction extends ActionType<GetAllShardSizesAction.Re
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::new);
+            this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::from);
         }
 
         @Override

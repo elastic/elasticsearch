@@ -114,7 +114,7 @@ public class GetShardSizeAction extends ActionType<GetShardSizeAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.shardSize = in.readOptionalWriteable(ShardSize::new);
+            this.shardSize = in.readOptionalWriteable(ShardSize::from);
         }
 
         @Override

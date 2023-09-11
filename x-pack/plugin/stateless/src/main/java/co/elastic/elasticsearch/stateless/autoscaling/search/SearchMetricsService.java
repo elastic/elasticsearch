@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -58,6 +59,7 @@ public class SearchMetricsService implements ClusterStateListener {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    private static final ShardSize ZERO_SHARD_SIZE = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
@@ -98,10 +100,9 @@ public class SearchMetricsService implements ClusterStateListener {
         var currentTimestampNanos = relativeTimeInNanos();
         logger.debug("Received shard sizes {}", request.getShardSizes());
         var nodeMetrics = this.nodeMetrics.computeIfAbsent(request.getNodeId(), unused -> new NodeMetrics());
-        nodeMetrics.update(currentTimestampNanos, request.getSeqNo());
+        nodeMetrics.update(currentTimestampNanos);
         for (var entry : request.getShardSizes().entrySet()) {
-            shardMetrics.computeIfAbsent(entry.getKey(), unused -> new ShardMetrics())
-                .update(request.getSeqNo(), nodeMetrics, entry.getValue());
+            shardMetrics.computeIfAbsent(entry.getKey(), unused -> new ShardMetrics()).update(nodeMetrics, entry.getValue());
         }
     }
 
@@ -159,7 +160,7 @@ public class SearchMetricsService implements ClusterStateListener {
         return shardId -> {
             var shardMetrics = new ShardMetrics();
             shardMetrics.sourceNode = nodeMetrics;
-            shardMetrics.shardSize = new ShardSize(0, 0);
+            shardMetrics.shardSize = ZERO_SHARD_SIZE;
             return shardMetrics;
         };
     }
@@ -182,17 +183,13 @@ public class SearchMetricsService implements ClusterStateListener {
                 var metrics = shardMetrics.get(new ShardId(index, i));
                 assert metrics != null : "Metric should be initialized by this point";
                 synchronized (metrics) {
-                    dataSizeExact &= metrics.shardSize != null
-                        && metrics.sourceNode != null
-                        && metrics.sourceNode.isOutdated(currentTimestampNanos) == false;
-                    if (metrics.shardSize != null) {
-                        maxInteractiveDataSizeInBytes = Math.max(
-                            maxInteractiveDataSizeInBytes,
-                            metrics.shardSize.interactiveSizeInBytes() * settings.replicas
-                        );
-                        totalInteractiveDataSizeInBytes += metrics.shardSize.interactiveSizeInBytes() * settings.replicas;
-                        totalDataSizeInBytes += metrics.shardSize.totalSizeInBytes() * settings.replicas;
-                    }
+                    dataSizeExact &= metrics.sourceNode != null && metrics.sourceNode.isOutdated(currentTimestampNanos) == false;
+                    maxInteractiveDataSizeInBytes = Math.max(
+                        maxInteractiveDataSizeInBytes,
+                        metrics.shardSize.interactiveSizeInBytes() * settings.replicas
+                    );
+                    totalInteractiveDataSizeInBytes += metrics.shardSize.interactiveSizeInBytes() * settings.replicas;
+                    totalDataSizeInBytes += metrics.shardSize.totalSizeInBytes() * settings.replicas;
                 }
             }
         }
@@ -210,14 +207,10 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     private class NodeMetrics {
-        private long seqNo = Long.MIN_VALUE;
         private long timestamp = relativeTimeInNanos() - metricTimeoutNanos - 1;
 
-        private synchronized void update(long currentTimestamp, long seqNo) {
-            if (this.seqNo < seqNo) {
-                this.seqNo = seqNo;
-                this.timestamp = currentTimestamp;
-            }
+        private synchronized void update(long currentTimestamp) {
+            this.timestamp = currentTimestamp;
         }
 
         private synchronized boolean isOutdated(long currentTimestampNanos) {
@@ -226,13 +219,11 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     private class ShardMetrics {
-        private long seqNo = Long.MIN_VALUE;
         private NodeMetrics sourceNode = null;
-        private ShardSize shardSize = null;
+        private ShardSize shardSize = ZERO_SHARD_SIZE;
 
-        private synchronized void update(long seqNo, NodeMetrics sourceNode, ShardSize shardSize) {
-            if (this.seqNo < seqNo || this.sourceNode != sourceNode) {
-                this.seqNo = seqNo;
+        private synchronized void update(NodeMetrics sourceNode, ShardSize shardSize) {
+            if (this.shardSize.primaryTermGeneration().compareTo(shardSize.primaryTermGeneration()) <= 0) {
                 this.sourceNode = sourceNode;
                 this.shardSize = shardSize;
             }

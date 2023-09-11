@@ -77,13 +77,24 @@ public interface ClusterCoordinationPlugin {
     }
 
     interface PersistedClusterStateServiceFactory {
+
+        @Deprecated(forRemoval = true)
         PersistedClusterStateService newPersistedClusterStateService(
+            NodeEnvironment nodeEnvironment,
+            NamedXContentRegistry xContentRegistry,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool
+        );
+
+        default PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
             CompatibilityVersions compatibilityVersions
-        );
+        ) {
+            return newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
+        }
     }
 
     interface ReconfiguratorFactory {

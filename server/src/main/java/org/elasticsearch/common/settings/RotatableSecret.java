@@ -18,7 +18,7 @@ import java.util.concurrent.locks.StampedLock;
  * A {@link SecureString} that can be rotated with a grace period for the secret that has been rotated out.
  * Once rotated the prior secret is available for a configured amount of time before it is invalidated.
  * This allows for secrete rotation without temporary failures or the need to tightly orchestrate
- * multiple parties. This class is threadsafe, however it is also assumes that matching secrets are frequent but rotation is a rare.
+ * multiple parties. This class is threadsafe, however it is also assumes that reading secrets are frequent but rotation is a rare.
  */
 public class RotatableSecret {
     private Secrets secrets;
@@ -103,7 +103,9 @@ public class RotatableSecret {
                 long stampUpgrade = stampedLock.tryConvertToWriteLock(stamp);
                 if (stampUpgrade == 0) {
                     // upgrade failed so we need to manually unlock the read lock and grab the write lock
-                    stampedLock.unlockRead(stamp);
+                    if (needToUnlock) {
+                        stampedLock.unlockRead(stamp);
+                    }
                     stamp = stampedLock.writeLock();
                     expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // check again since we had to unlock
                 } else {

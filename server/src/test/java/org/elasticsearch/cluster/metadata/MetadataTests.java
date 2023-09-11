@@ -2170,7 +2170,7 @@ public class MetadataTests extends ESTestCase {
         final var context = Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
 
         // 2 chunks at the beginning
-        long chunkCount = 2;
+        int chunkCount = 2;
         // 1 optional chunk for persistent settings
         if (context != Metadata.XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
             chunkCount += 1;
@@ -2216,7 +2216,7 @@ public class MetadataTests extends ESTestCase {
         // 1 chunk to close metadata
         chunkCount += 1;
 
-        return (int) chunkCount;
+        return chunkCount;
     }
 
     /**

@@ -502,6 +502,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         assertThat(stats.getAvg(), equalTo(3.0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99156")
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("text", "type=keyword").get());

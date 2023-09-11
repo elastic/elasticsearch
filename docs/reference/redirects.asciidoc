@@ -1922,7 +1922,13 @@ See <<put-synonyms-set>>
 
 Refer to <<remote-clusters>>
 
+[float]
+[[configure-remote-clusters-dynamic]]
+==== Dynamically configure remote clusters
+
+Refer to <<remote-clusters>>.
+
 [role="exclude",id="remote-clusters-privileges"]
 === Configure roles and users for remote clusters
 
-Refer to <<remote-clusters>>
+Refer to <<remote-clusters>>.

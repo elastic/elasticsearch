@@ -29,6 +29,7 @@ public final class ContentPath {
         delimiterIndexes.add(sb.length() - 1);
         sb.append(name).append(DELIMITER);
     }
+
     public void remove() {
         if (delimiterIndexes.isEmpty()) {
             throw new IllegalStateException("Content path is empty");

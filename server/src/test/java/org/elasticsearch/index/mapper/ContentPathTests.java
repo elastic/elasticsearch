@@ -10,8 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.EmptyStackException;
-
 public class ContentPathTests extends ESTestCase {
 
     public void testAddPath() {

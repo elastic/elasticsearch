@@ -4,7 +4,7 @@ steps:
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
-        command: .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+        command: .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.{{matrix.PACKAGING_TASK}}
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -22,4 +22,3 @@ steps:
           diskSizeGb: 350
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
-          GRADLE_TASK: "destructiveDistroTest.{{matrix.PACKAGING_TASK}}"

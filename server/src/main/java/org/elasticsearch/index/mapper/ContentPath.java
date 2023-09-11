@@ -30,8 +30,12 @@ public final class ContentPath {
         sb.append(name).append(DELIMITER);
     }
     public void remove() {
+        if (delimiterIndexes.isEmpty()) {
+            throw new IllegalStateException("Content path is empty");
+        }
+
         // Deletes the last node added to the stringbuilder by deleting from the 2nd last delimiter onwards
-        sb.delete(delimiterIndexes.pop() + 1, sb.length());
+        sb.setLength(delimiterIndexes.pop() + 1);
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {

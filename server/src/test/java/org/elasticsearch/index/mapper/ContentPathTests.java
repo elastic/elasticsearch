@@ -35,12 +35,13 @@ public class ContentPathTests extends ESTestCase {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.remove();
-        expectThrows(EmptyStackException.class, contentPath::remove);
+        expectThrows(IllegalStateException.class, contentPath::remove);
     }
 
     public void testRootPath() {
         ContentPath contentPath = new ContentPath();
         assertEquals("root", contentPath.pathAsText("root"));
+        assertEquals(0, contentPath.length());
     }
 
     public void testNestedPath() {

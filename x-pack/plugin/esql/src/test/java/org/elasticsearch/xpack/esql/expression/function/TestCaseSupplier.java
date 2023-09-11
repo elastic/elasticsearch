@@ -281,9 +281,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Boolean, Object> expectedValue
+        Function<Boolean, Object> expectedValue,
+        List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, DataTypes.BOOLEAN, booleanCases(), expectedType, v -> expectedValue.apply((Boolean) v));
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.BOOLEAN,
+            booleanCases(),
+            expectedType,
+            v -> expectedValue.apply((Boolean) v),
+            warnings
+        );
     }
 
     /**
@@ -293,7 +302,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Instant, Object> expectedValue
+        Function<Instant, Object> expectedValue,
+        List<String> warnings
     ) {
         unaryNumeric(
             suppliers,
@@ -301,7 +311,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             DataTypes.DATETIME,
             dateCases(),
             expectedType,
-            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue()))
+            n -> expectedValue.apply(Instant.ofEpochMilli(n.longValue())),
+            warnings
         );
     }
 
@@ -312,9 +323,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<BytesRef, Object> expectedValue
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, DataTypes.IP, ipCases(), expectedType, v -> expectedValue.apply((BytesRef) v));
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            DataTypes.IP,
+            ipCases(),
+            expectedType,
+            v -> expectedValue.apply((BytesRef) v),
+            warnings
+        );
     }
 
     /**
@@ -324,7 +344,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<BytesRef, Object> expectedValue
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
     ) {
         for (DataType type : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
             unary(
@@ -333,7 +354,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 type,
                 stringCases(type.typeName()),
                 expectedType,
-                v -> expectedValue.apply((BytesRef) v)
+                v -> expectedValue.apply((BytesRef) v),
+                warnings
             );
         }
     }
@@ -345,7 +367,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Version, Object> expectedValue
+        Function<Version, Object> expectedValue,
+        List<String> warnings
     ) {
         unary(
             suppliers,
@@ -353,7 +376,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             DataTypes.VERSION,
             versionCases(""),
             expectedType,
-            v -> expectedValue.apply(new Version((BytesRef) v))
+            v -> expectedValue.apply(new Version((BytesRef) v)),
+            warnings
         );
     }
 
@@ -366,7 +390,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<Number, Object> expected,
         List<String> warnings
     ) {
-        unary(suppliers, expectedEvaluatorToString, inputType, valueSuppliers, expectedOutputType, v -> expected.apply((Number) v));
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            inputType,
+            valueSuppliers,
+            expectedOutputType,
+            v -> expected.apply((Number) v),
+            warnings
+        );
     }
 
     private static void unary(
@@ -375,7 +407,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType inputType,
         List<Map.Entry<String, Supplier<Object>>> valueSuppliers,
         DataType expectedOutputType,
-        Function<Object, Object> expected
+        Function<Object, Object> expected,
+        List<String> warnings
     ) {
         for (Map.Entry<String, Supplier<Object>> supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.getKey(), List.of(inputType), () -> {
@@ -459,7 +492,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         // small values, less than Long.MAX_VALUE
         BigInteger lower1 = min.max(BigInteger.ONE);
-        BigInteger upper1 = max.min(BigInteger.valueOf(Integer.MAX_VALUE));
+        BigInteger upper1 = max.min(BigInteger.valueOf(Long.MAX_VALUE));
         if (lower1.compareTo(upper1) < 0) {
             cases.add(
                 Map.entry(
@@ -477,12 +510,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         if (lower2.compareTo(upper2) < 0) {
             cases.add(
                 Map.entry(
-                    "<small unsigned long>",
+                    "<big unsigned long>",
                     () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower2.longValue(), upper2.longValue()))
                 )
             );
         } else if (lower2.compareTo(upper2) == 0) {
-            cases.add(Map.entry("<small unsigned long>", () -> lower2));
+            cases.add(Map.entry("<big unsigned long>", () -> lower2));
         }
         return cases;
     }

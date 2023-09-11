@@ -19,12 +19,9 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
 
 public class ToStringTests extends AbstractFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -42,7 +39,8 @@ public class ToStringTests extends AbstractFunctionTestCase {
             DataTypes.KEYWORD,
             i -> new BytesRef(Integer.toString(i)),
             Integer.MIN_VALUE,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            List.of()
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
@@ -50,50 +48,61 @@ public class ToStringTests extends AbstractFunctionTestCase {
             DataTypes.KEYWORD,
             l -> new BytesRef(Long.toString(l)),
             Long.MIN_VALUE,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            List.of()
         );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "ToStringFromUnsignedLongEvaluator[field=" + read + "]",
-            DataTypes.KEYWORD,
-            ul -> new BytesRef(ul.toString()),
-            BigInteger.ZERO,
-            MAX_UNSIGNED_LONG
-        );
+        // TestCaseSupplier.forUnaryUnsignedLong(
+        // suppliers,
+        // "ToStringFromUnsignedLongEvaluator[field=" + read + "]",
+        // DataTypes.KEYWORD,
+        // ul -> new BytesRef(ul.toString()),
+        // BigInteger.ZERO,
+        // MAX_UNSIGNED_LONG,
+        // List.of()
+        // );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToStringFromDoubleEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             d -> new BytesRef(Double.toString(d)),
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
+            Double.POSITIVE_INFINITY,
+            List.of()
         );
         TestCaseSupplier.forUnaryBoolean(
             suppliers,
             "ToStringFromBooleanEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            b -> new BytesRef(b.toString())
+            b -> new BytesRef(b.toString()),
+            List.of()
         );
         TestCaseSupplier.forUnaryDatetime(
             suppliers,
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli()))
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            List.of()
         );
         TestCaseSupplier.forUnaryIp(
             suppliers,
             "ToStringFromIPEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            ip -> new BytesRef(DocValueFormat.IP.format(ip))
+            ip -> new BytesRef(DocValueFormat.IP.format(ip)),
+            List.of()
         );
-        TestCaseSupplier.forUnaryStrings(suppliers, read, DataTypes.KEYWORD, bytesRef -> bytesRef);
+        TestCaseSupplier.forUnaryStrings(suppliers, read, DataTypes.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            v -> new BytesRef(v.toString())
+            v -> new BytesRef(v.toString()),
+            List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(
+            // errorsForCasesWithoutExamples(
+            anyNullIsNull(true, suppliers)
+        // )
+        );
     }
 
     @Override

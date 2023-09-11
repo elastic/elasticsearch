@@ -51,8 +51,8 @@ public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
 
         for (int i = 0; i < numVectors; i++) {
             assertEquals(i, normalizedCosineFloatVectorValues.advance(i));
-            assertArrayEquals(vectors[i], normalizedCosineFloatVectorValues.vectorValue(), (float)1e-6);
-            assertEquals(magnitudes[i], normalizedCosineFloatVectorValues.magnitude(), (float)1e-6);
+            assertArrayEquals(vectors[i], normalizedCosineFloatVectorValues.vectorValue(), (float) 1e-6);
+            assertEquals(magnitudes[i], normalizedCosineFloatVectorValues.magnitude(), (float) 1e-6);
         }
 
     }
@@ -60,7 +60,7 @@ public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
     public static float[] copyAndNormalize(float[] in, float mag) {
         float[] copy = Arrays.copyOf(in, in.length);
         for (int i = 0; i < copy.length; i++) {
-            copy[i] = copy[i]/mag;
+            copy[i] = copy[i] / mag;
         }
         return copy;
     }
@@ -74,6 +74,7 @@ public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
         }
         return (float) Math.sqrt(magnitude);
     }
+
     public static BinaryDocValues wrapMagnitudes(float[] magnitudes) {
         return new BinaryDocValues() {
             private final byte[] buff = new byte[4];

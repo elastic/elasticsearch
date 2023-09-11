@@ -261,7 +261,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
-        assertEquals(similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT), vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
     }
 
     public void testNonIndexedVector() throws Exception {
@@ -314,7 +317,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             new byte[] { (byte) -1, (byte) 1, (byte) 127 },
             vectorField.vectorValue()
         );
-        assertEquals(similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE), vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
     }
 
     public void testDotProductWithInvalidNorm() throws Exception {
@@ -699,7 +705,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         assertEquals(dims, vectorField.fieldType().vectorDimension());
         assertEquals(VectorEncoding.BYTE, vectorField.fieldType().vectorEncoding());
-        assertEquals(similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE), vectorField.fieldType().vectorSimilarityFunction());
+        assertEquals(
+            similarity.vectorSimilarityFunction(IndexVersion.current(), ElementType.BYTE),
+            vectorField.fieldType().vectorSimilarityFunction()
+        );
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue());
     }
 
@@ -710,11 +719,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
         assertEquals(
             VectorSimilarityFunction.COSINE,
-            VectorSimilarity.COSINE.vectorSimilarityFunction(IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE), ElementType.FLOAT)
+            VectorSimilarity.COSINE.vectorSimilarityFunction(
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE),
+                ElementType.FLOAT
+            )
         );
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
-            VectorSimilarity.COSINE.vectorSimilarityFunction(IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()), ElementType.FLOAT)
+            VectorSimilarity.COSINE.vectorSimilarityFunction(
+                IndexVersionUtils.randomVersionBetween(random(), DenseVectorFieldMapper.NORMALIZE_COSINE, IndexVersion.current()),
+                ElementType.FLOAT
+            )
         );
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,

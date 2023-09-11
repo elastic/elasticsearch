@@ -194,7 +194,9 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                         .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
                         .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
                         .build(),
-                    nodeSettings
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
                 ),
                 translogReplicator,
                 mock(ObjectStoreService.class),

@@ -90,7 +90,7 @@ public class CryptoService {
 
     /**
      * Creates a {@link CryptoService} using the xpack.watcher.encryption_key setting. This setting points to a file and its contents is
-     * as the system key.
+     * used as the system key.
      *
      * @param settings the system settings
      * @throws IOException when failing to read the contents of the file

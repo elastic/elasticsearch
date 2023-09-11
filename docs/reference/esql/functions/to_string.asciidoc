@@ -29,4 +29,4 @@ Alias: TO_STR
 
 Supported types:
 
-include::types/to_version.asciidoc[]
+include::types/to_string.asciidoc[]

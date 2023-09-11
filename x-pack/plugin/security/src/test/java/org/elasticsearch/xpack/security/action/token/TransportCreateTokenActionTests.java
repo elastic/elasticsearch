@@ -88,6 +88,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         .build();
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
     private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
@@ -99,6 +100,11 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     @Before
     public void setupClient() {
         threadPool = new TestThreadPool(getTestName());
+
+        // TODO: temporary, remove in #97879
+        transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         client = mock(Client.class);
         idxReqReference = new AtomicReference<>();
         authenticationService = mock(AuthenticationService.class);
@@ -221,7 +227,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -262,7 +268,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -305,7 +311,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -358,7 +364,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -397,7 +403,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,

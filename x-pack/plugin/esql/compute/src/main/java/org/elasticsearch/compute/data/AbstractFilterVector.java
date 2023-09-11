@@ -15,7 +15,7 @@ package org.elasticsearch.compute.data;
  */
 abstract class AbstractFilterVector extends AbstractVector {
 
-    private final int[] positions;
+    protected final int[] positions;
 
     protected AbstractFilterVector(int[] positions) {
         super(positions.length);

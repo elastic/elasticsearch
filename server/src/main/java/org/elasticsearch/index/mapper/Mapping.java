@@ -148,7 +148,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.forMetadata());
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic(), false));
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }

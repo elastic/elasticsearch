@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -62,6 +63,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         final TransportService transportService = mock(TransportService.class);
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
+        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
             bigArrays,
             transportService,
@@ -103,6 +105,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             }
         }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
+        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
             bigArrays,
             transportService,

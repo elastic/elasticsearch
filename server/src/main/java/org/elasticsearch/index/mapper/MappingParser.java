@@ -122,8 +122,7 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext)
-                    .build(MapperBuilderContext.forMetadata());
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
 

@@ -135,7 +135,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_500_069 = def(8_500_069, "5b804027-d8a0-421b-9970-1f53d766854b");
     public static final TransportVersion V_8_500_070 = def(8_500_070, "6BADC9CD-3C9D-4381-8BD9-B305CAA93F86");
     public static final TransportVersion V_8_500_071 = def(8_500_071, "a86dfc08-3026-4f01-90ef-6d6de003e217");
-    public static final TransportVersion V_8_500_072 = def(8_500_072, "9128e16a-e4f7-41c4-b04f-842955bfc1b4");
+    public static final TransportVersion V_8_500_073 = def(8_500_073, "9128e16a-e4f7-41c4-b04f-842955bfc1b4");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

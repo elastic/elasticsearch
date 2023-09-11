@@ -79,6 +79,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     private final ArithmeticEvaluator doubles;
 
     private DataType dataType;
+    private OperationSymbol op;
 
     EsqlArithmeticOperation(
         Source source,
@@ -95,10 +96,15 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         this.longs = longs;
         this.ulongs = ulongs;
         this.doubles = doubles;
+        this.op = op;
+    }
+
+    public OperationSymbol op() {
+        return op;
     }
 
     @Override
-    public final Object fold() {
+    public Object fold() {
         return EvaluatorMapper.super.fold();
     }
 

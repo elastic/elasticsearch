@@ -614,3 +614,17 @@ birth_date:datetime
 1952-02-27T00:00:00.000Z
 1953-04-21T00:00:00.000Z
 ;
+
+dateMathAddDatePeriodsThenAddToDatetime
+row n = to_dt("1953-04-20T00:00:00.000Z") | eval then = (1 year + 1 month + 1 day) + n | keep then;
+
+then:datetime
+1954-05-21T00:00:00.000Z
+;
+
+dateMathSubtractDatePeriodsThenAddToDatetime
+row n = to_dt("1954-05-21T00:00:00.000Z") | eval then = (-1 year - 1 month - 1 day) + n | keep then;
+
+then:datetime
+1953-04-20T00:00:00.000Z
+;

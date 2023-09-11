@@ -15,13 +15,16 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
@@ -50,14 +53,37 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType rightType = right().dataType();
         // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
         if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if (argumentOfType(DataTypes::isDateTime) == null || argumentOfType(EsqlDataTypes::isTemporalAmount) == null) {
-                return new TypeResolution(
-                    format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
-                );
+            if (argumentOfType(DataTypes::isDateTime) != null && argumentOfType(EsqlDataTypes::isTemporalAmount) != null) {
+                return TypeResolution.TYPE_RESOLVED;
             }
-            return TypeResolution.TYPE_RESOLVED;
+            if (EsqlDataTypes.isTemporalAmount(leftType) && EsqlDataTypes.isTemporalAmount(rightType)) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+
+            return new TypeResolution(
+                format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
+            );
         }
         return super.resolveType();
+    }
+
+    @Override
+    public final Object fold() {
+        DataType leftDataType = left().dataType();
+        DataType rightDataType = right().dataType();
+        //TODO: handle time_durations
+        //TODO: handle mixed time_durations and date_periods
+        if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            Period l = (Period) left().fold();
+            Period r = (Period) right().fold();
+            return switch (op()) {
+                case ADD -> l.plus(r);
+                case SUB -> l.minus(r);
+                default -> throw new UnsupportedOperationException("Unsupported date math expression");
+            };
+        }
+        return super.fold();
     }
 
     @Override

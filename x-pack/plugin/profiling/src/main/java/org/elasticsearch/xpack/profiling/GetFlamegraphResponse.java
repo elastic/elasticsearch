@@ -108,6 +108,18 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         out.writeCollection(this.countExclusive, StreamOutput::writeInt);
     }
 
+    public int getSize() {
+        return size;
+    }
+
+    public double getSamplingRate() {
+        return samplingRate;
+    }
+
+    public double getTotalSeconds() {
+        return totalSeconds;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(

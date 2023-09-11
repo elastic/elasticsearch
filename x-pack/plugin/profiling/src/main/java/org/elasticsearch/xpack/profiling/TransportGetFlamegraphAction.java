@@ -31,7 +31,7 @@ import java.util.TreeMap;
 
 public class TransportGetFlamegraphAction extends HandledTransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
-    private static final StackFrame EMPTY_STACKFRAME = new StackFrame(null, null, null, null);
+    private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
 
     private final NodeClient nodeClient;
     private final TransportService transportService;
@@ -73,7 +73,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         });
     }
 
-    private GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
+    static GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
         // TODO: Are full seconds good enough? (they probably are)
         long totalSeconds = Duration.between(response.getStartTime(), response.getEndTime()).getSeconds();
         FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), totalSeconds);

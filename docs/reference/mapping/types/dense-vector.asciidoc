@@ -62,6 +62,9 @@ In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
 data structure to support fast kNN retrieval through the <<search-api-knn, `knn` option>> in the search API
 
+Unmapped array fields of float elements with size between 128 and 2048 are dynamically mapped as `dense_vector` with a default similariy of `cosine`.
+You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
+
 Indexing is enabled by default for dense vector fields.
 When indexing is enabled, you can define the vector similarity to use in kNN search:
 
@@ -128,8 +131,9 @@ trade off of lower precision. Vectors using `byte` require dimensions with
 integer values between -128 to 127, inclusive for both indexing and searching.
 
 `dims`::
-(Required, integer)
-Number of vector dimensions. Can't exceed `2048`.
+(Optional, integer)
+Number of vector dimensions. Can't exceed `2048`. If `dims` is not specified,
+it will be set to the length of the first vector added to the field.
 
 `index`::
 (Optional, Boolean)

@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -699,7 +699,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWrite = in.readBoolean();
             } else {
                 abortWrite = false;
@@ -719,7 +719,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
                 throw new IllegalStateException("cannot send abortWrite request on transport version [" + out.getTransportVersion() + "]");

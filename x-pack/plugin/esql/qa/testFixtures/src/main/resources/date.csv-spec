@@ -150,7 +150,7 @@ y:date                        | count(emp_no):long
 ;
 
 in
-from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc | limit 4;
+from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc, hire_date | limit 4;
 
 x:date                  |hire_date:date
 1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z

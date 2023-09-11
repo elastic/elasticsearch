@@ -48,8 +48,8 @@ fix problems that an {es} deployment might encounter.
 
 [discrete]
 [[troubleshooting-others]]
-=== Others
-* <<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>
+=== Other issues
+* <<troubleshooting-unstable-cluster,Troubleshooting an unstable cluster>>
 * <<discovery-troubleshooting,Troubleshooting discovery>>
 * <<monitoring-troubleshooting,Troubleshooting monitoring>>
 * <<transform-troubleshooting,Troubleshooting transforms>>
@@ -116,6 +116,8 @@ include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 include::troubleshooting/snapshot/add-repository.asciidoc[]
 
 include::troubleshooting/snapshot/repeated-snapshot-failures.asciidoc[]
+
+include::troubleshooting/troubleshooting-unstable-cluster.asciidoc[]
 
 include::troubleshooting/discovery-issues.asciidoc[]
 

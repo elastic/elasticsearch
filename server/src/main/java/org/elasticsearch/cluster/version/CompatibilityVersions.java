@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,7 +45,7 @@ public record CompatibilityVersions(TransportVersion transportVersion) implement
                 .map(CompatibilityVersions::transportVersion)
                 .min(Comparator.naturalOrder())
                 // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
-                .orElse(TransportVersion.MINIMUM_COMPATIBLE)
+                .orElse(TransportVersions.MINIMUM_COMPATIBLE)
         );
     }
 

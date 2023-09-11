@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -132,14 +132,14 @@ public final class TransportSearchHelper {
     */
     public static void checkCCSVersionCompatibility(Writeable writeableRequest) {
         try {
-            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersion.MINIMUM_CCS_VERSION));
+            writeableRequest.writeTo(new VersionCheckingStreamOutput(TransportVersions.MINIMUM_CCS_VERSION));
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(
                 "["
                     + writeableRequest.getClass()
                     + "] is not compatible with version "
-                    + TransportVersion.MINIMUM_CCS_VERSION
+                    + TransportVersions.MINIMUM_CCS_VERSION
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
                     + "' setting is enabled.",

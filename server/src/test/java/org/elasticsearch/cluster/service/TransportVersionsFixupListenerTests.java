@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -31,12 +32,14 @@ import org.mockito.ArgumentCaptor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -109,10 +112,10 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_8_0))
-            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersion.V_8_8_0)))
+            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0)))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -127,7 +130,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .compatibilityVersions(versions(new CompatibilityVersions(NEXT_TRANSPORT_VERSION)))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -140,11 +143,11 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
             .compatibilityVersions(
-                Maps.transformValues(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0), CompatibilityVersions::new)
+                Maps.transformValues(versions(TransportVersions.V_8_7_0, TransportVersions.V_8_8_0), CompatibilityVersions::new)
             )
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -159,7 +162,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -168,7 +171,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<NodeTransportVersionTask> task = ArgumentCaptor.forClass(NodeTransportVersionTask.class);
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
         verify(client).nodesInfo(
             argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
@@ -188,13 +191,13 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
         verify(client).nodesInfo(argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))), any());
         // don't send back the response yet
@@ -203,7 +206,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -218,12 +221,13 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
         Scheduler scheduler = mock(Scheduler.class);
+        Executor executor = mock(Executor.class);
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .compatibilityVersions(
                 Maps.transformValues(
-                    versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0),
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     CompatibilityVersions::new
                 )
             )
@@ -232,12 +236,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<Runnable> retry = ArgumentCaptor.forClass(Runnable.class);
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, scheduler);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, scheduler, executor);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
         verify(client, times(1)).nodesInfo(any(), action.capture());
         // do response immediately
         action.getValue().onFailure(new RuntimeException("failure"));
-        verify(scheduler).schedule(retry.capture(), any(), anyString());
+        verify(scheduler).schedule(retry.capture(), any(), same(executor));
 
         // running retry should cause another check
         retry.getValue().run();

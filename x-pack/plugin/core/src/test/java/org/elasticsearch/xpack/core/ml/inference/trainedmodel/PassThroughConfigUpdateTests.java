@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,7 +36,7 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
     }
 
     public static PassThroughConfigUpdate mutateForVersion(PassThroughConfigUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersion.V_8_1_0)) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new PassThroughConfigUpdate(instance.getResultsField(), null);
         }
         return instance;

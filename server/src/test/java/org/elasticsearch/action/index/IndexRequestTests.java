@@ -8,6 +8,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -224,8 +225,8 @@ public class IndexRequestTests extends ESTestCase {
             indexRequest.setDynamicTemplates(dynamicTemplates);
             TransportVersion ver = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_13_0)
+                TransportVersions.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_13_0)
             );
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
@@ -243,7 +244,7 @@ public class IndexRequestTests extends ESTestCase {
             indexRequest.setDynamicTemplates(dynamicTemplates);
             TransportVersion ver = TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.V_7_13_0,
+                TransportVersions.V_7_13_0,
                 TransportVersion.current()
             );
             BytesStreamOutput out = new BytesStreamOutput();

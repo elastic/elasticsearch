@@ -19,9 +19,12 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
 
 public class ToStringTests extends AbstractFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -51,15 +54,15 @@ public class ToStringTests extends AbstractFunctionTestCase {
             Long.MAX_VALUE,
             List.of()
         );
-        // TestCaseSupplier.forUnaryUnsignedLong(
-        // suppliers,
-        // "ToStringFromUnsignedLongEvaluator[field=" + read + "]",
-        // DataTypes.KEYWORD,
-        // ul -> new BytesRef(ul.toString()),
-        // BigInteger.ZERO,
-        // MAX_UNSIGNED_LONG,
-        // List.of()
-        // );
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "ToStringFromUnsignedLongEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            ul -> new BytesRef(ul.toString()),
+            BigInteger.ZERO,
+            MAX_UNSIGNED_LONG,
+            List.of()
+        );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToStringFromDoubleEvaluator[field=" + read + "]",
@@ -98,11 +101,7 @@ public class ToStringTests extends AbstractFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedData(
-            // errorsForCasesWithoutExamples(
-            anyNullIsNull(true, suppliers)
-        // )
-        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

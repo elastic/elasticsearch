@@ -506,12 +506,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         // Big values, greater than Long.MAX_VALUE
         BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
-        BigInteger upper2 = max.min(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(Integer.MAX_VALUE)));
+        BigInteger upper2 = max.min(MAX_UNSIGNED_LONG);
         if (lower2.compareTo(upper2) < 0) {
             cases.add(
                 Map.entry(
                     "<big unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower2.longValue(), upper2.longValue()))
+                    () -> lower2.add(BigInteger.valueOf(ESTestCase.randomLongBetween(0, upper2.subtract(lower2).longValue())))
                 )
             );
         } else if (lower2.compareTo(upper2) == 0) {

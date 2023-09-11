@@ -97,25 +97,31 @@ public class RotatableSecretTests extends ESTestCase {
         assertEquals(secret1, rotatableSecret.getSecrets().current());
         assertNull(rotatableSecret.getSecrets().prior());
 
+        boolean expired = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
         TimeValue mockGracePeriod = mock(TimeValue.class);  // use a mock to force a long rotation to exercise the concurrency
         when(mockGracePeriod.getMillis()).then((Answer<Long>) invocation -> {
             latch.await();
-            return Long.MAX_VALUE;
+            return expired ? 0L : Long.MAX_VALUE;
         });
 
         // start writer thread
         Thread t1 = new Thread(() -> rotatableSecret.rotate(secret2, mockGracePeriod));
         t1.start();
         assertBusy(() -> assertEquals(Thread.State.WAITING, t1.getState())); // waiting on countdown latch, holds write lock
+        assertTrue(rotatableSecret.isWriteLocked());
 
         // start reader threads
         int readers = randomIntBetween(0, 16);
         Set<Thread> readerThreads = new HashSet<>(readers);
-        for (int i = 0; i <= readers; i++) {
+        for (int i = 0; i < readers; i++) {
             Thread t = new Thread(() -> {
                 if (randomBoolean()) { // either matches or isSet can block
-                    assertTrue(rotatableSecret.matches(secret1));
+                    if (expired) {
+                        assertFalse(rotatableSecret.matches(secret1));
+                    } else {
+                        assertTrue(rotatableSecret.matches(secret1));
+                    }
                     assertTrue(rotatableSecret.matches(secret2));
                 } else {
                     assertTrue(rotatableSecret.isSet());
@@ -130,12 +136,12 @@ public class RotatableSecretTests extends ESTestCase {
         assertTrue(rotatableSecret.isWriteLocked());
         latch.countDown(); // let thread1 finish, which also unblocks the reader threads
         assertBusy(() -> assertEquals(Thread.State.TERMINATED, t1.getState())); // done with work
-        assertFalse(rotatableSecret.isWriteLocked());
         for (Thread t : readerThreads) {
             assertBusy(() -> assertEquals(Thread.State.TERMINATED, t.getState())); // done with work
             t.join();
         }
         t1.join();
+        assertFalse(rotatableSecret.isWriteLocked());
     }
 
     public void testConcurrentRotations() throws Exception {

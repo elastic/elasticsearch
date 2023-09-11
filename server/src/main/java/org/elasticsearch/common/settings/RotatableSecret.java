@@ -100,15 +100,21 @@ public class RotatableSecret {
         }
         try {
             if (expired) {
-                stamp = stampedLock.tryConvertToWriteLock(stamp);
-                if (stamp == 0) {
-                    // block until we can acquire the write lock
+                long stampUpgrade = stampedLock.tryConvertToWriteLock(stamp);
+                if (stampUpgrade == 0) {
+                    // upgrade failed so we need to manually unlock the read lock and grab the write lock
+                    stampedLock.unlockRead(stamp);
                     stamp = stampedLock.writeLock();
+                    expired = secrets.prior != null && secrets.priorValidTill.isBefore(Instant.now()); // check again since we had to unlock
+                } else {
+                    stamp = stampUpgrade;
                 }
                 needToUnlock = true;
-                SecureString prior = secrets.prior;
-                secrets = new Secrets(secrets.current, null, Instant.EPOCH);
-                prior.close(); // zero out the memory
+                if (expired) {
+                    SecureString prior = secrets.prior;
+                    secrets = new Secrets(secrets.current, null, Instant.EPOCH);
+                    prior.close(); // zero out the memory
+                }
             }
         } finally {
             if (needToUnlock) { // only unlock if we acquired a read or write lock

@@ -99,15 +99,16 @@ public class TextFieldMapper extends FieldMapper {
         public static final int INDEX_PREFIX_MIN_CHARS = 2;
         public static final int INDEX_PREFIX_MAX_CHARS = 5;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setOmitNorms(false);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         /**
@@ -450,25 +451,6 @@ public class TextFieldMapper extends FieldMapper {
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
-        public Map<String, NamedAnalyzer> indexAnalyzers(String name, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
-            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-            NamedAnalyzer main = this.analyzers.getIndexAnalyzer();
-            analyzers.put(name, main);
-            if (phraseFieldInfo != null) {
-                analyzers.put(
-                    phraseFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
-                );
-            }
-            if (prefixFieldInfo != null) {
-                analyzers.put(
-                    prefixFieldInfo.field,
-                    new NamedAnalyzer(main.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
-                );
-            }
-            return analyzers;
-        }
-
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
@@ -488,17 +470,7 @@ public class TextFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Cannot use reserved field name [" + mapper.name() + "]");
                 }
             }
-            return new TextFieldMapper(
-                name,
-                fieldType,
-                tft,
-                indexAnalyzers(tft.name(), phraseFieldInfo, prefixFieldInfo),
-                prefixFieldInfo,
-                phraseFieldInfo,
-                multiFields,
-                copyTo.build(),
-                this
-            );
+            return new TextFieldMapper(name, fieldType, tft, prefixFieldInfo, phraseFieldInfo, multiFields, copyTo, this);
         }
     }
 
@@ -664,7 +636,7 @@ public class TextFieldMapper extends FieldMapper {
         private final String field;
 
         SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
-            this.fieldType = fieldType;
+            this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
             this.analyzer = analyzer;
             this.field = field;
         }
@@ -1151,13 +1123,10 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    private final Map<String, NamedAnalyzer> indexAnalyzerMap;
-
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         SubFieldInfo prefixFieldInfo,
         SubFieldInfo phraseFieldInfo,
         MultiFields multiFields,
@@ -1170,7 +1139,7 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -1188,12 +1157,25 @@ public class TextFieldMapper extends FieldMapper {
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
         this.indexPhrases = builder.indexPhrases.getValue();
-        this.indexAnalyzerMap = Map.copyOf(indexAnalyzers);
     }
 
     @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
-        return indexAnalyzerMap;
+        Map<String, NamedAnalyzer> analyzersMap = new HashMap<>();
+        analyzersMap.put(name(), indexAnalyzer);
+        if (phraseFieldInfo != null) {
+            analyzersMap.put(
+                phraseFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_phrase", AnalyzerScope.INDEX, phraseFieldInfo.analyzer)
+            );
+        }
+        if (prefixFieldInfo != null) {
+            analyzersMap.put(
+                prefixFieldInfo.field,
+                new NamedAnalyzer(indexAnalyzer.name() + "_prefix", AnalyzerScope.INDEX, prefixFieldInfo.analyzer)
+            );
+        }
+        return analyzersMap;
     }
 
     @Override

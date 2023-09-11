@@ -1069,6 +1069,17 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
             assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
         }
+
+        {
+            // the copy constructor rejects self-references
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            List<Object> someList = new ArrayList<>();
+            someList.add("some string");
+            someList.add(someList); // the list contains itself
+            ingestDocument.setFieldValue("someList", someList);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+        }
     }
 
     public void testCopyConstructorWithZonedDateTime() {

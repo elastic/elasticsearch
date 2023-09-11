@@ -21,7 +21,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
     private final FloatVectorValues in;
     private final BinaryDocValues magnitudeIn;
     private final float[] vector;
-    private float magnitude = Float.NaN;
+    private float magnitude = 1f;
 
     public NormalizedCosineFloatVectorValues(FloatVectorValues in, BinaryDocValues magnitudeIn) {
         this.in = in;
@@ -87,7 +87,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
         }
         int currentDoc = magnitudeIn.docID();
         if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
-            magnitude = Float.NaN;
+            magnitude = 1f;
             return false;
         } else if (docId == currentDoc) {
             return true;
@@ -101,7 +101,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
                     .get();
                 return true;
             } else {
-                magnitude = Float.NaN;
+                magnitude = 1f;
                 return false;
             }
         }

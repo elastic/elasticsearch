@@ -77,7 +77,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersion.V_8_500_002;
-    public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "_magnitude";
+    public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-4f;
 
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;

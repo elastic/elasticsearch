@@ -29,7 +29,7 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
 
   @Override
   public String name() {
-    return "ToUnsignedLong";
+    return "ToUnsignedLongFromBoolean";
   }
 
   @Override

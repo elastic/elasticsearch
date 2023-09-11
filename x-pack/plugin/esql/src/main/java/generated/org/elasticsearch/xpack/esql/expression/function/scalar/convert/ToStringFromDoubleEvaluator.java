@@ -32,7 +32,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromDouble";
   }
 
   @Override

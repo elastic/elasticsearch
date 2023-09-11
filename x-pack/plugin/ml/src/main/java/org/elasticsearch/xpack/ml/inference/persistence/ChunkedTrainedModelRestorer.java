@@ -377,7 +377,6 @@ public class ChunkedTrainedModelRestorer {
                 SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
                 SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
                 searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
-                logger.info("Sleeping for 15 milliseconds");
                 TimeUnit.MILLISECONDS.sleep(15);
                 executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
             }
@@ -406,8 +405,9 @@ public class ChunkedTrainedModelRestorer {
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             // Then, sort by doc_num
-            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long"))
-            .setFetchSource(false);
+            .addSort(
+                SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long")
+            );
     }
 
     public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize, @Nullable TaskId parentTaskId) {

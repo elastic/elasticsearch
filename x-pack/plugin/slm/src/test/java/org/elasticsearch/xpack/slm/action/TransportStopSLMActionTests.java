@@ -17,6 +17,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
@@ -33,11 +34,12 @@ public class TransportStopSLMActionTests extends ESTestCase {
 
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
-
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportStopSLMAction transportStopSLMAction = new TransportStopSLMAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class)
         );

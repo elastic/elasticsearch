@@ -79,13 +79,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public void registerTransportHandler(TransportService transportService) {
         transportService.registerRequestHandler(
             EXCHANGE_ACTION_NAME,
-            requestExecutorName,
+            threadPool.executor(requestExecutorName),
             ExchangeRequest::new,
             new ExchangeTransportAction()
         );
         transportService.registerRequestHandler(
             OPEN_EXCHANGE_ACTION_NAME,
-            requestExecutorName,
+            threadPool.executor(requestExecutorName),
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );

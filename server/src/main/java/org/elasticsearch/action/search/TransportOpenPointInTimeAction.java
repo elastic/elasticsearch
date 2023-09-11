@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -68,7 +69,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchTransportService = searchTransportService;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardOpenReaderRequest::new,
             new ShardOpenReaderRequestHandler()
         );

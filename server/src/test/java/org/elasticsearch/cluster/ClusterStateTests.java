@@ -208,12 +208,6 @@ public class ClusterStateTests extends ESTestCase {
                               "max_index_version":%s
                             }
                           },
-                          "transport_versions" : [
-                            {
-                              "node_id" : "nodeId1",
-                              "transport_version" : "%s"
-                            }
-                          ],
                           "nodes_versions" : [
                             {
                               "node_id" : "nodeId1",
@@ -373,7 +367,6 @@ public class ClusterStateTests extends ESTestCase {
                     IndexVersion.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
-                    TransportVersion.current(),
                     IndexVersion.current(),
                     IndexVersion.current(),
                     allocationId,
@@ -470,12 +463,6 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
-                        {
-                          "node_id" : "nodeId1",
-                          "transport_version" : "%s"
-                        }
-                      ],
                       "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
@@ -631,7 +618,6 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersion.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
-                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -728,12 +714,6 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
-                        {
-                          "node_id" : "nodeId1",
-                          "transport_version" : "%s"
-                        }
-                      ],
                       "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
@@ -895,7 +875,6 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersion.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
-                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -953,7 +932,6 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : null,
               "blocks" : { },
               "nodes" : { },
-              "transport_versions" : [ ],
               "nodes_versions" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -1185,9 +1163,9 @@ public class ClusterStateTests extends ESTestCase {
             chunkCount += 2 + clusterState.blocks().indices().size();
         }
 
-        // nodes, transport_versions, nodes_versions
+        // nodes, nodes_versions
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 6 + clusterState.nodes().size() + 2 * clusterState.compatibilityVersions().size();
+            chunkCount += 4 + clusterState.nodes().size() + clusterState.compatibilityVersions().size();
         }
 
         // metadata

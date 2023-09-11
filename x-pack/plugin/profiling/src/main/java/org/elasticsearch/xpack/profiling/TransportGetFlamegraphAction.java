@@ -91,6 +91,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             String stackTraceId = st.getKey();
             StackTrace stackTrace = st.getValue();
             int samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0);
+            builder.setCurrentNode(0);
 
             int frameCount = stackTrace.frameIds.size();
             for (int i = 0; i < frameCount; i++) {

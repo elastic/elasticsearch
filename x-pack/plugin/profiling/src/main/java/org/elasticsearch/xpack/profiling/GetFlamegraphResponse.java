@@ -113,7 +113,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             ChunkedToXContentHelper.array(
-                "edges",
+                "Edges",
                 Iterators.flatMap(
                     edges.iterator(),
                     perNodeEdges -> Iterators.concat(
@@ -123,20 +123,20 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                     )
                 )
             ),
-            ChunkedToXContentHelper.array("fileIds", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("frameTypes", Iterators.map(frameTypes.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("inlineFrames", Iterators.map(inlineFrames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("fileNames", Iterators.map(fileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("addressOrLines", Iterators.map(addressOrLines.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("functionNames", Iterators.map(functionNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("functionOffsets", Iterators.map(functionOffsets.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("sourceFileNames", Iterators.map(sourceFileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("sourceLines", Iterators.map(sourceLines.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("countInclusive", Iterators.map(countInclusive.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("countExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
-            Iterators.single((b, p) -> b.field("size", size)),
-            Iterators.single((b, p) -> b.field("samplingRate", samplingRate)),
-            Iterators.single((b, p) -> b.field("totalSeconds", totalSeconds)),
+            ChunkedToXContentHelper.array("FileID", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("FrameType", Iterators.map(frameTypes.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("Inline", Iterators.map(inlineFrames.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("ExeFilename", Iterators.map(fileNames.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("AddressOrLine", Iterators.map(addressOrLines.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("FunctionName", Iterators.map(functionNames.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("FunctionOffset", Iterators.map(functionOffsets.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("SourceFilename", Iterators.map(sourceFileNames.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("SourceLine", Iterators.map(sourceLines.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("CountInclusive", Iterators.map(countInclusive.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array("CountExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
+            Iterators.single((b, p) -> b.field("Size", size)),
+            Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
+            Iterators.single((b, p) -> b.field("TotalSeconds", totalSeconds)),
             ChunkedToXContentHelper.endObject()
         );
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.test.cluster.local;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.cluster.ClusterHandle;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;

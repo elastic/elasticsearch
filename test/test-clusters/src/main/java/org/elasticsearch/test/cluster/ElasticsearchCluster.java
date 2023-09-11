@@ -37,7 +37,7 @@ public interface ElasticsearchCluster extends TestRule, LocalClusterHandle {
         return locateBuilderImpl();
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static LocalClusterSpecBuilder<ElasticsearchCluster> locateBuilderImpl() {
         ServiceLoader<LocalClusterSpecBuilder> loader = ServiceLoader.load(LocalClusterSpecBuilder.class);
         List<ServiceLoader.Provider<LocalClusterSpecBuilder>> providers = loader.stream().toList();

@@ -28,7 +28,9 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuil
     public ElasticsearchCluster build() {
         return new DefaultLocalElasticsearchCluster<>(
             this::buildClusterSpec,
-            new DefaultLocalClusterFactory(new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver())))
+            new DefaultLocalClusterFactory(
+                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+            )
         );
     }
 }

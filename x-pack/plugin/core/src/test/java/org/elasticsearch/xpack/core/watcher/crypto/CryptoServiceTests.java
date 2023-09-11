@@ -19,6 +19,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+
 import javax.crypto.KeyGenerator;
 
 import static org.elasticsearch.core.Strings.format;

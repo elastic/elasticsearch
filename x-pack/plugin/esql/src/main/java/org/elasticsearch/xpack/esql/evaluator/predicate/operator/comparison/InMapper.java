@@ -107,7 +107,7 @@ public class InMapper extends ExpressionMapper<In> {
                     } // else: leave nulls as is
                 }
                 if (nulls.isEmpty()) {
-                    // see https://github.com/elastic/elasticsearch/issues/99347
+                    // no nulls and no multi-values means we must use a Vector
                     return new BooleanArrayVector(values, values.length).asBlock();
                 } else {
                     return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);

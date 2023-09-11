@@ -135,6 +135,7 @@ yaml.Dumper.ignore_aliases = lambda *args: True
 
 final_pipeline = {"steps": []}
 
+# TODO should we just do a pipeline upload on each individual yaml? so that they are isolated, can use env:, etc?
 # Remove our custom attributes before outputting the Buildkite YAML
 for pipeline in pipelines:
     pipeline.pop("config", None)

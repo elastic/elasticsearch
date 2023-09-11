@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.stream.IntStream;
@@ -16,6 +18,8 @@ import java.util.stream.IntStream;
  * This class is generated. Do not edit it.
  */
 public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
     private final int[] values;
 
@@ -55,6 +59,16 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
         return new IntArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+    }
+
+    public static long ramBytesEstimated(int[] values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
     }
 
     @Override

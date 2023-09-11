@@ -146,7 +146,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             out.writeString(id);
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
-            out.writeStringArray(expandedIds.toArray(new String[0]));
+            out.writeStringCollection(expandedIds);
         }
 
         @Override

@@ -384,7 +384,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(TestNodeResponse::new);
+            return in.readCollectionAsList(TestNodeResponse::new);
         }
 
         @Override

@@ -8,12 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Filter vector for BytesRefVectors.
  * This class is generated. Do not edit it.
  */
 public final class FilterBytesRefVector extends AbstractFilterVector implements BytesRefVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBytesRefVector.class);
 
     private final BytesRefVector vector;
 
@@ -45,6 +48,13 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     @Override
     public BytesRefVector filter(int... positions) {
         return new FilterBytesRefVector(this, positions);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter vectors encapsulate
+        // their inner vector, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override

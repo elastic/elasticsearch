@@ -94,7 +94,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
-            this.headers = in.readMap(StreamInput::readStringList);
+            this.headers = in.readMap(StreamInput::readStringCollectionAsList);
             this.clientAddress = in.readOptionalString();
         }
 
@@ -187,7 +187,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             out.writeLong(eventTime);
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
+            out.writeMap(headers, StreamOutput::writeStringCollection);
             out.writeOptionalString(clientAddress);
         }
 

@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Block view of a IntVector.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
 
     private final IntVector vector;
 
@@ -43,6 +47,11 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return new FilterIntVector(vector, positions).asBlock();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
     }
 
     @Override

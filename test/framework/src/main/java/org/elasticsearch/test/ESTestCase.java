@@ -1522,7 +1522,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
+        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
     }
 
     /**
@@ -1849,7 +1849,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return MIN_PRIVATE_PORT + PORTS_PER_WORKER + effectiveWorkerId * PORTS_PER_WORKER;
     }
 
-    protected static InetAddress randomIp(boolean v4) {
+    public static InetAddress randomIp(boolean v4) {
         try {
             if (v4) {
                 byte[] ipv4 = new byte[4];

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -27,7 +28,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ToVersionTests extends AbstractFunctionTestCase {
-    public ToVersionTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public ToVersionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -49,11 +50,15 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         );
         // But strings that are shaped like versions do parse to valid versions
         for (DataType inputType : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
-            for (Map.Entry<String, Supplier<Object>> versionGen : TestCaseSupplier.versionRandomValues(inputType.typeName() + " ")) {
+            for (Map.Entry<String, Supplier<Object>> versionGen : TestCaseSupplier.versionCases(inputType.typeName() + " ")) {
                 suppliers.add(new TestCaseSupplier(versionGen.getKey(), List.of(inputType), () -> {
                     BytesRef encodedVersion = (BytesRef) versionGen.getValue().get();
-                    TypedData typed = new TypedData(new BytesRef(new Version(encodedVersion).toString()), inputType, "value");
-                    return new TestCase(List.of(typed), stringEvaluator, DataTypes.VERSION, equalTo(encodedVersion));
+                    TestCaseSupplier.TypedData typed = new TestCaseSupplier.TypedData(
+                        new BytesRef(new Version(encodedVersion).toString()),
+                        inputType,
+                        "value"
+                    );
+                    return new TestCaseSupplier.TestCase(List.of(typed), stringEvaluator, DataTypes.VERSION, equalTo(encodedVersion));
                 }));
             }
         }

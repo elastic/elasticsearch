@@ -8,12 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Filter block for BytesRefBlocks.
  * This class is generated. Do not edit it.
  */
 final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBytesRefBlock.class);
 
     private final BytesRefBlock block;
 
@@ -67,6 +70,13 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override

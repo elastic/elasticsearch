@@ -38,7 +38,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.count = in.readInt();
         this.indexCount = in.readInt();
-        this.scriptLangs = in.readSet(StreamInput::readString);
+        this.scriptLangs = in.readCollectionAsSet(StreamInput::readString);
         this.scriptLessCount = in.readLong();
         this.shadowedCount = in.readLong();
         this.fieldScriptStats = new FieldScriptStats(in);
@@ -53,7 +53,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeInt(count);
         out.writeInt(indexCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        out.writeStringCollection(scriptLangs);
         out.writeLong(scriptLessCount);
         out.writeLong(shadowedCount);
         fieldScriptStats.writeTo(out);

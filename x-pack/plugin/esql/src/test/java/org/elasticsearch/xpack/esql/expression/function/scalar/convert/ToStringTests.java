@@ -14,16 +14,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
+
 public class ToStringTests extends AbstractFunctionTestCase {
-    public ToStringTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -36,25 +40,33 @@ public class ToStringTests extends AbstractFunctionTestCase {
             suppliers,
             "ToStringFromIntEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            i -> new BytesRef(Integer.toString(i))
+            i -> new BytesRef(Integer.toString(i)),
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "ToStringFromLongEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            l -> new BytesRef(Long.toString(l))
+            l -> new BytesRef(Long.toString(l)),
+            Long.MIN_VALUE,
+            Long.MAX_VALUE
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "ToStringFromUnsignedLongEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            ul -> new BytesRef(ul.toString())
+            ul -> new BytesRef(ul.toString()),
+            BigInteger.ZERO,
+            MAX_UNSIGNED_LONG
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToStringFromDoubleEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            d -> new BytesRef(Double.toString(d))
+            d -> new BytesRef(Double.toString(d)),
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
         );
         TestCaseSupplier.forUnaryBoolean(
             suppliers,

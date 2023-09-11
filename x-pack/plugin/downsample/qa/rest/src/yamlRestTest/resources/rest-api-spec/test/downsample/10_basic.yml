@@ -1363,3 +1363,132 @@ setup:
   - match: { hits.hits.2._source.k8s.pod.value.value_count: 4 }
   - match: { hits.hits.2._source.k8s.pod.label: "xyz" }
   - match: { hits.hits.2._source.k8s.pod.unmapped: "xyz" }
+
+
+---
+"Downsample label with ignore_above":
+  - skip:
+      version: " - 8.7.99"
+      reason: "Downsample of time series index without metric allowed from version 8.8.0"
+
+  - do:
+      indices.create:
+        index: test-label-ignore-above
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      label:
+                        type: keyword
+                        ignore_above: 3
+                      gauge:
+                        type: long
+                        time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test-label-ignore-above
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "label": "foo", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "label": "foofoo", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "label": "foobar", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "label": "foo", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "fox", "uid":"7393ef8e-489c-11ee-be56-0242ac120002", "label": "foo", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "fox", "uid":"7393ef8e-489c-11ee-be56-0242ac120002", "label": "bar", "value": 20 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"a81ef23a-489c-11ee-be56-0242ac120005", "label": "foobar", "value": 10 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"a81ef23a-489c-11ee-be56-0242ac120005", "label": "barfoo", "value": 20 }}}'
+
+  - do:
+      indices.put_settings:
+        index: test-label-ignore-above
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test-label-ignore-above
+        target_index: test-downsample-label-ignore-above
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample-label-ignore-above
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: pod }
+  - match: { hits.hits.0._source.k8s.pod.name: fox }
+  - match: { hits.hits.0._source.k8s.pod.value: 20 }
+  - match: { hits.hits.0._source.k8s.pod.uid: 7393ef8e-489c-11ee-be56-0242ac120002 }
+  - match: { hits.hits.0._source.k8s.pod.label: bar }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.metricset: pod }
+  - match: { hits.hits.1._source.k8s.pod.name: cat }
+  - match: { hits.hits.1._source.k8s.pod.value: 20 }
+  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  # NOTE: when downsampling a label field we propagate the last (most-recent timestamp-wise) non-null value,
+  # ignoring/skipping null values. Here the last document has a value that hits ignore_above ("foofoo") and,
+  # as a result, we propagate the value of the previous document ("foo")
+  - match: { hits.hits.1._source.k8s.pod.label: foo }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.2._source._doc_count: 2 }
+  - match: { hits.hits.2._source.metricset: pod }
+  - match: { hits.hits.2._source.k8s.pod.name: cow }
+  - match: { hits.hits.2._source.k8s.pod.value: 20 }
+  - match: { hits.hits.2._source.k8s.pod.uid: a81ef23a-489c-11ee-be56-0242ac120005 }
+  - match: { hits.hits.2._source.k8s.pod.label: null }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - match: { hits.hits.3._source._doc_count: 2 }
+  - match: { hits.hits.3._source.metricset: pod }
+  - match: { hits.hits.3._source.k8s.pod.name: dog }
+  - match: { hits.hits.3._source.k8s.pod.value: 20 }
+  - match: { hits.hits.3._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.k8s.pod.label: foo }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:00:00.000Z }
+
+  - do:
+      indices.get_mapping:
+        index: test-downsample-label-ignore-above
+
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.type: keyword }
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.ignore_above: 3 }

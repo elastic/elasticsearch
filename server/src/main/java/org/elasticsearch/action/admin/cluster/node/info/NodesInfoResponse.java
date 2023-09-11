@@ -44,7 +44,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeInfo::new);
+        return in.readCollectionAsList(NodeInfo::new);
     }
 
     @Override

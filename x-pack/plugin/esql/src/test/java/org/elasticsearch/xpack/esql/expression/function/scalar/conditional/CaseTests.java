@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CaseTests extends AbstractFunctionTestCase {
 
-    public CaseTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -43,12 +44,12 @@ public class CaseTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("basics", () -> {
-            List<TypedData> typedData = List.of(
-                new TypedData(true, DataTypes.BOOLEAN, "cond"),
-                new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+            List<TestCaseSupplier.TypedData> typedData = List.of(
+                new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
+                new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
             );
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 typedData,
                 "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                     + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",

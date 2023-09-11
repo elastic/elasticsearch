@@ -32,7 +32,7 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
 
   @Override
   public String name() {
-    return "ToStringFromInt";
+    return "ToString";
   }
 
   @Override

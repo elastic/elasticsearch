@@ -178,7 +178,7 @@ public class IpFieldMapper extends FieldMapper {
                     dimension.getValue()
                 ),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 context.isSourceSynthetic(),
                 this
             );

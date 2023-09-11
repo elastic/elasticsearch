@@ -213,7 +213,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 indexMode
             );
             if (this.script.get() == null) {
-                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), geoParser, this);
+                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, geoParser, this);
             }
             return new GeoPointFieldMapper(name, ft, geoParser, this);
         }

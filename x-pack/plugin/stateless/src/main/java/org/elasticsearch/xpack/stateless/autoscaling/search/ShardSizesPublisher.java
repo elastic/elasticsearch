@@ -25,12 +25,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class ShardSizesPublisher {
 
     private final Client client;
-    private final AtomicLong seqNoSupplier = new AtomicLong();
 
     public ShardSizesPublisher(Client client) {
         this.client = client;
@@ -38,7 +36,7 @@ public class ShardSizesPublisher {
 
     public void publishSearchShardDiskUsage(String nodeId, Map<ShardId, ShardSize> shardSizes, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-        var request = new PublishShardSizesRequest(nodeId, seqNoSupplier.incrementAndGet(), shardSizes);
+        var request = new PublishShardSizesRequest(nodeId, shardSizes);
         client.execute(PublishShardSizesAction.INSTANCE, request, listener.map(unused -> null));
     }
 }

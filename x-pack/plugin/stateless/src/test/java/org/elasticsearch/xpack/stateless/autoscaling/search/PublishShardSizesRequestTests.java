@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
@@ -38,7 +37,7 @@ public class PublishShardSizesRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected PublishShardSizesRequest createTestInstance() {
-        return new PublishShardSizesRequest(UUIDs.randomBase64UUID(), randomNonNegativeLong(), randomShardSizes());
+        return new PublishShardSizesRequest(UUIDs.randomBase64UUID(), randomShardSizes());
     }
 
     private static ShardId randomShardId() {
@@ -51,20 +50,13 @@ public class PublishShardSizesRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected PublishShardSizesRequest mutateInstance(PublishShardSizesRequest instance) {
-        return switch (randomInt(2)) {
+        return switch (randomInt(1)) {
             case 0 -> new PublishShardSizesRequest(
                 randomValueOtherThan(instance.getNodeId(), UUIDs::randomBase64UUID),
-                instance.getSeqNo(),
-                instance.getShardSizes()
-            );
-            case 1 -> new PublishShardSizesRequest(
-                instance.getNodeId(),
-                randomValueOtherThan(instance.getSeqNo(), ESTestCase::randomNonNegativeLong),
                 instance.getShardSizes()
             );
             default -> new PublishShardSizesRequest(
                 instance.getNodeId(),
-                instance.getSeqNo(),
                 randomValueOtherThan(instance.getShardSizes(), PublishShardSizesRequestTests::randomShardSizes)
             );
         };

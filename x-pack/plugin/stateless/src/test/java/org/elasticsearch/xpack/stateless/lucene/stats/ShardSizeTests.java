@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +27,7 @@ public class ShardSizeTests extends AbstractWireSerializingTestCase<ShardSize> {
 
     @Override
     protected Writeable.Reader<ShardSize> instanceReader() {
-        return ShardSize::new;
+        return ShardSize::from;
     }
 
     @Override
@@ -38,17 +40,29 @@ public class ShardSizeTests extends AbstractWireSerializingTestCase<ShardSize> {
         return switch (randomInt(2)) {
             case 0 -> new ShardSize(
                 randomValueOtherThan(instance.interactiveSizeInBytes(), ESTestCase::randomNonNegativeLong),
-                instance.nonInteractiveSizeInBytes()
+                instance.nonInteractiveSizeInBytes(),
+                instance.primaryTermGeneration()
             );
             case 1 -> new ShardSize(
                 instance.interactiveSizeInBytes(),
-                randomValueOtherThan(instance.nonInteractiveSizeInBytes(), ESTestCase::randomNonNegativeLong)
+                randomValueOtherThan(instance.nonInteractiveSizeInBytes(), ESTestCase::randomNonNegativeLong),
+                instance.primaryTermGeneration()
+            );
+            case 2 -> new ShardSize(
+                instance.interactiveSizeInBytes(),
+                instance.nonInteractiveSizeInBytes(),
+                randomValueOtherThan(instance.primaryTermGeneration(), ShardSizeTests::randomPrimaryTermGeneration)
             );
             default -> randomValueOtherThan(instance, ShardSizeTests::randomShardSize);
         };
     }
 
     public static ShardSize randomShardSize() {
-        return new ShardSize(randomNonNegativeLong(), randomNonNegativeLong());
+        return new ShardSize(randomNonNegativeLong(), randomNonNegativeLong(), randomPrimaryTermGeneration());
     }
+
+    private static PrimaryTermAndGeneration randomPrimaryTermGeneration() {
+        return new PrimaryTermAndGeneration(randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
 }

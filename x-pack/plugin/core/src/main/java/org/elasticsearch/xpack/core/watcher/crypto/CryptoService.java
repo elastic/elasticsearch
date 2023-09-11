@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.watcher.crypto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -19,19 +20,23 @@ import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service that provides cryptographic methods based on a shared system key
@@ -73,6 +78,8 @@ public class CryptoService {
     );
     private static final Logger logger = LogManager.getLogger(CryptoService.class);
 
+    private static final String COULD_NOT_LOAD_KEY_MESSAGE = "failed to start crypto service. could not load encryption key";
+
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
     private final int ivLength;
@@ -81,15 +88,18 @@ public class CryptoService {
      */
     private final SecretKey encryptionKey;
 
+    /**
+     * Creates a {@link CryptoService} using the xpack.watcher.encryption_key setting. This setting points to a file and its contents is
+     * as the system key.
+     *
+     * @param settings the system settings
+     * @throws IOException when failing to read the contents of the file
+     */
     public CryptoService(Settings settings) throws IOException {
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
-        final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
+        final int keyLength = getKeyLength(settings);
         this.ivLength = keyLength / 8;
         String keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
-
-        if (keyLength % 8 != 0) {
-            throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
-        }
 
         try (InputStream in = WatcherField.ENCRYPTION_KEY_SETTING.get(settings)) {
             if (in == null) {
@@ -99,10 +109,81 @@ public class CryptoService {
             try {
                 encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
             } catch (NoSuchAlgorithmException nsae) {
-                throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+                throw new ElasticsearchException(COULD_NOT_LOAD_KEY_MESSAGE, nsae);
             }
         }
+
+        assertEncryptionKeyNotNull();
+    }
+
+    /**
+     * Creates a {@link CryptoService} using a secure setting as the contents of the system key.
+     *
+     * @param settings the system settings
+     * @param encryptionKeySetting the secure setting representing the system key
+     * @return a {@link CryptoService} object
+     */
+    public static CryptoService createFromEncryptionKeySetting(Settings settings, Setting<SecureString> encryptionKeySetting) {
+        if (encryptionKeySetting.exists(settings) == false) {
+            throw new ElasticsearchException(format("setting [%s] must be set in keystore", encryptionKeySetting.getKey()));
+        }
+
+        try (SecureString key = encryptionKeySetting.get(settings)) {
+            if (key == null || key.isEmpty()) {
+                throw new ElasticsearchException(
+                    format("setting [%s] contents was empty, it must be set in keystore", encryptionKeySetting.getKey())
+                );
+            }
+
+            SecretKey systemKey = createSecretKey(key.getChars());
+            return new CryptoService(settings, systemKey);
+        }
+    }
+
+    private CryptoService(Settings settings, SecretKey systemKey) {
+        this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
+        final int keyLength = getKeyLength(settings);
+        this.ivLength = keyLength / 8;
+        String keyAlgorithm = ENCRYPTION_KEY_ALGO_SETTING.get(settings);
+
+        try {
+            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+        } catch (NoSuchAlgorithmException nsae) {
+            throw new ElasticsearchException(COULD_NOT_LOAD_KEY_MESSAGE, nsae);
+        }
+
+        assertEncryptionKeyNotNull();
+    }
+
+    private static int getKeyLength(Settings settings) {
+        final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
+
+        if (keyLength % 8 != 0) {
+            throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
+        }
+
+        return keyLength;
+    }
+
+    private void assertEncryptionKeyNotNull() {
         assert encryptionKey != null : "the encryption key should never be null";
+    }
+
+    private static SecretKey createSecretKey(char[] systemKey) {
+        final int keySizeBytes = KEY_SIZE / 8;
+        final ByteBuffer byteBuffer = StandardCharsets.ISO_8859_1.encode(CharBuffer.wrap(systemKey));
+
+        // ensure we have at least enough material to produce a key of the required size
+        if (byteBuffer.limit() < keySizeBytes) {
+            throw new IllegalArgumentException(
+                "key size was less than the expected value; was the key generated with elasticsearch-syskeygen?"
+            );
+        }
+
+        // truncate to the correct key size
+        final byte[] keyBytes = Arrays.copyOf(byteBuffer.array(), keySizeBytes);
+
+        return new SecretKeySpec(keyBytes, KEY_ALGO);
     }
 
     private static SecretKey readSystemKey(InputStream in) throws IOException {

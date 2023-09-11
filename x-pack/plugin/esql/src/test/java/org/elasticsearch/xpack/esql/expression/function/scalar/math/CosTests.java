@@ -25,7 +25,13 @@ public class CosTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("CosEvaluator", "val", Math::cos);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "CosEvaluator",
+            "val",
+            Math::cos,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

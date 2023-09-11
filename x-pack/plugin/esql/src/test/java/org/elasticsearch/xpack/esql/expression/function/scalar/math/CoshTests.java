@@ -25,7 +25,13 @@ public class CoshTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("CoshEvaluator", "val", Math::cosh);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "CoshEvaluator",
+            "val",
+            Math::cosh,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

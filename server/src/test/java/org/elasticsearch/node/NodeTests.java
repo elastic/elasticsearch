@@ -654,7 +654,7 @@ public class NodeTests extends ESTestCase {
                     ThreadPool threadPool,
                     CompatibilityVersions compatibilityVersions
                 ) {
-                    return new PersistedClusterStateService(
+                    return persistedClusterStateService = new PersistedClusterStateService(
                         nodeEnvironment,
                         namedXContentRegistry,
                         clusterSettings,

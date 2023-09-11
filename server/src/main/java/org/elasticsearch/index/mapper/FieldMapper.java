@@ -528,7 +528,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public static class CopyTo {
 
-        private static final CopyTo EMPTY = new CopyTo(Collections.emptyList());
+        private static final CopyTo EMPTY = new CopyTo(List.of());
 
         public static CopyTo empty() {
             return EMPTY;
@@ -537,7 +537,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private final List<String> copyToFields;
 
         private CopyTo(List<String> copyToFields) {
-            this.copyToFields = copyToFields;
+            this.copyToFields = List.copyOf(copyToFields);
+        }
+
+        public CopyTo withAddedFields(List<String> fields) {
+            if (fields.isEmpty()) {
+                return this;
+            }
+            return new CopyTo(CollectionUtils.concatLists(copyToFields, fields));
         }
 
         public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
@@ -549,31 +556,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 builder.endArray();
             }
             return builder;
-        }
-
-        public static class Builder {
-            private final List<String> copyToBuilders = new ArrayList<>();
-
-            public Builder add(String field) {
-                copyToBuilders.add(field);
-                return this;
-            }
-
-            public boolean hasValues() {
-                return copyToBuilders.isEmpty() == false;
-            }
-
-            public CopyTo build() {
-                if (copyToBuilders.isEmpty()) {
-                    return EMPTY;
-                }
-                return new CopyTo(Collections.unmodifiableList(copyToBuilders));
-            }
-
-            public void reset(CopyTo copyTo) {
-                copyToBuilders.clear();
-                copyToBuilders.addAll(copyTo.copyToFields);
-            }
         }
 
         public List<String> copyToFields() {
@@ -1216,7 +1198,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract static class Builder extends Mapper.Builder implements ToXContentFragment {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
-        protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        protected CopyTo copyTo = CopyTo.EMPTY;
 
         /**
          * Creates a new Builder with a field name
@@ -1246,7 +1228,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
-            this.copyTo.reset(in.copyTo);
+            this.copyTo = in.copyTo;
             validate();
         }
 
@@ -1276,7 +1258,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (s != null && multiFieldsBuilder.hasMultiFields()) {
                     throw new MapperParsingException("Cannot define multifields on a field with a script");
                 }
-                if (s != null && copyTo.hasValues()) {
+                if (s != null && copyTo.copyToFields().isEmpty() == false) {
                     throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
                 }
             });
@@ -1324,7 +1306,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         continue;
                     }
                     case "copy_to" -> {
-                        TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                        copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
                         iterator.remove();
                         continue;
                     }

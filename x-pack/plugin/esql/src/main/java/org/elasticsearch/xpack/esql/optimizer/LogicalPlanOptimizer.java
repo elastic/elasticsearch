@@ -98,6 +98,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
+            new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -309,6 +310,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    /**
+     * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
+     * TODO: eliminate unnecessary fields inside the eval as well
+     */
+    static class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+
+        CombineEvals() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            LogicalPlan plan = eval;
+            if (eval.child() instanceof Eval subEval) {
+                plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
+            }
+            return plan;
         }
     }
 
@@ -584,7 +605,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();
 
-            // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {

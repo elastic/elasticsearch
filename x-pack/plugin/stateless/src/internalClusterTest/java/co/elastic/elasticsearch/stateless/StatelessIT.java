@@ -34,12 +34,14 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +49,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -57,10 +62,17 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -87,6 +99,13 @@ import static org.hamcrest.Matchers.notNullValue;
 // class verify the content of Lucene directories
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public class StatelessIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        settings.put(BlobStoreHealthIndicator.POLL_INTERVAL, "1s");
+        return settings.build();
+    }
 
     public void testCompoundCommitHasNodeEphemeralId() throws Exception {
         startMasterOnlyNode();
@@ -583,6 +602,26 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
     private static Set<String> toSet(String[] strings) throws IOException {
         return Set.of(strings);
+    }
+
+    public void testBlobStoreHealthIndicator() throws Exception {
+        startMasterOnlyNode();
+        HealthService healthService = internalCluster().getInstance(HealthService.class);
+        assertBusy(() -> {
+            PlainActionFuture<List<HealthIndicatorResult>> response = new PlainActionFuture<>();
+            healthService.getHealth(client(), "blob_store", true, randomIntBetween(1, 10), response);
+            List<HealthIndicatorResult> healthIndicatorResults = response.actionGet();
+            assertThat(healthIndicatorResults.size(), is(1));
+            HealthIndicatorResult result = healthIndicatorResults.get(0);
+            assertThat(result.status(), is(HealthStatus.GREEN));
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            result.details().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput());
+            Map<String, Object> details = parser.map();
+            // This will ensure that the check has been performed
+            assertThat(details.containsKey("time_since_last_update_millis"), is(true));
+        });
     }
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {

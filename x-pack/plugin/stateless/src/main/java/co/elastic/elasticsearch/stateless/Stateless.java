@@ -90,6 +90,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -120,11 +121,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
@@ -150,6 +153,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -165,6 +169,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -182,7 +187,14 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
-public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin, ClusterCoordinationPlugin, ExtensiblePlugin {
+public class Stateless extends Plugin
+    implements
+        EnginePlugin,
+        ActionPlugin,
+        ClusterPlugin,
+        ClusterCoordinationPlugin,
+        ExtensiblePlugin,
+        HealthPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -200,6 +212,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
+    private final SetOnce<BlobStoreHealthIndicator> blobStoreHealthIndicator = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
@@ -446,6 +459,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
         }
+        components.add(
+            setAndGet(
+                blobStoreHealthIndicator,
+                new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
+            )
+        );
         return components;
     }
 
@@ -456,6 +475,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         ClusterService clusterService
     ) {
         return new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService);
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        return List.of(blobStoreHealthIndicator.get());
     }
 
     /**
@@ -496,6 +520,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public void close() throws IOException {
         Releasables.close(sharedBlobCacheService.get());
+        try {
+            IOUtils.close(blobStoreHealthIndicator.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close the blob store health indicator service", e);
+        }
     }
 
     @Override
@@ -527,7 +556,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
-            IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING
+            IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
+            BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
+            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING
         );
     }
 
@@ -1001,5 +1032,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             assert false : e; // should never happen, none of the Lucene implementations throw this.
             throw new UncheckedIOException(e);
         }
+    }
+
+    protected Clock getClock() {
+        return Clock.systemUTC();
     }
 }

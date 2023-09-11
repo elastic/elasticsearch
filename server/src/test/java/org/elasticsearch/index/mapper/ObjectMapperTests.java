@@ -43,10 +43,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                  },
                  "value":"value"
                }""".indent(1)), XContentType.JSON)));
-        assertThat(
-            e.getMessage(),
-            containsString("can't merge a non object mapping [object.array.object] with an object mapping")
-        );
+        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.array.object] with an object mapping"));
     }
 
     public void testEmptyArrayProperties() throws Exception {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.rules;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +36,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.INFER;
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
@@ -227,11 +227,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public boolean isMatch(Client client, Object matchValue, QueryRuleCriteriaType matchType) {
         if (matchType == ALWAYS) {
             return true;
+        } else if (matchType == INFER) {
+            final String matchString = matchValue.toString();
+            for (Object criteriaValue : criteriaValues) {
+                matchType.validateInput(matchValue);
+                QueryRulesInferenceService queryRulesInferenceService = new QueryRulesInferenceService(client);
+                boolean matchFound = matchType.isMatch(queryRulesInferenceService, matchString, criteriaValue, criteriaProperties);
+                if (matchFound) {
+                    return true;
+                }
+            }
         }
+        // Default case
         final String matchString = matchValue.toString();
         for (Object criteriaValue : criteriaValues) {
             matchType.validateInput(matchValue);
-            boolean matchFound = matchType.isMatch(client, matchString, criteriaValue, criteriaProperties);
+            boolean matchFound = matchType.isMatch(matchString, criteriaValue, criteriaProperties);
             if (matchFound) {
                 return true;
             }

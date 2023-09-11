@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.rules;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -14,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,9 +35,13 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EX
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
+    private Client client;
+    private ThreadPool threadPool;
 
     @Before
     public void registerNamedObjects() {
@@ -42,6 +49,20 @@ public class QueryRuleTests extends ESTestCase {
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        client = mockClient();
+    }
+
+    private Client mockClient() {
+        Client mockClient = mock(Client.class);
+        threadPool = new TestThreadPool(getClass().getSimpleName());
+        when(mockClient.threadPool()).thenReturn(threadPool);
+        return mockClient;
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        threadPool.shutdown();
+        super.tearDown();
     }
 
     public final void testRandomSerialization() throws IOException {
@@ -173,11 +194,11 @@ public class QueryRuleTests extends ESTestCase {
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        rule.applyRule(client, appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
 
         appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
+        rule.applyRule(client, appliedQueryRules, Map.of("query", "elastic1"));
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
     }
 
@@ -192,11 +213,11 @@ public class QueryRuleTests extends ESTestCase {
             Map.of("ids", List.of("id1", "id2"))
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
+        rule.applyRule(client, appliedQueryRules, Map.of("query", "elastic - you know, for search"));
         assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
 
         appliedQueryRules = new AppliedQueryRules();
-        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        rule.applyRule(client, appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
     }
 

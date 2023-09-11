@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

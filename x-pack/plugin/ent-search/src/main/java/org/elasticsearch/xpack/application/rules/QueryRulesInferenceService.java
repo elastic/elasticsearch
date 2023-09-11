@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.logging.LogManager;
@@ -24,6 +23,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class QueryRulesInferenceService {
 
+    private static final int TIMEOUT_MS = 10000;
+
     private static final Logger logger = LogManager.getLogger(QueryRulesInferenceService.class);
     private final Client clientWithOrigin;
 
@@ -31,49 +32,39 @@ public class QueryRulesInferenceService {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
     }
 
-    public boolean findInferenceRuleMatches(String modelId, String queryString, float threshold) {
+    public boolean findInferenceRuleMatches(String modelId, String queryString, String matchValue, float threshold) {
 
         SetOnce<Boolean> inferenceRuleMatches = new SetOnce<>();
+        InferModelAction.Request request = makeRequest(modelId, queryString);
+        InferModelAction.Response response = getInferences(request);
+        List<InferenceResults> results = response.getInferenceResults();
+        for (InferenceResults result : results) {
+            @SuppressWarnings("unchecked")
+            Map<String, Float> predictedValues = (Map<String, Float>) result.asMap().get(result.getResultsField());
+            if (predictedValues.containsKey(queryString)) {
+                Float predictedValue = predictedValues.get(matchValue);
+                if (predictedValue >= threshold) {
+                    inferenceRuleMatches.set(true);
+                    break;
+                }
+            }
+        }
+        inferenceRuleMatches.trySet(false);
+        return inferenceRuleMatches.get();
+    }
 
+    private InferModelAction.Request makeRequest(String modelId, String queryString) {
         InferModelAction.Request request = InferModelAction.Request.forTextInput(
             modelId,
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             List.of(queryString)
         );
         request.setHighPriority(true);
-
-        clientWithOrigin.execute(InferModelAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(InferModelAction.Response response) {
-                List<InferenceResults> results = response.getInferenceResults();
-                for (InferenceResults result : results) {
-                    @SuppressWarnings("unchecked")
-                    Map<String,Float> predictedValues = (Map<String,Float>) result.asMap().get(result.getResultsField());
-                    if (predictedValues.containsKey(queryString)) {
-                        Float predictedValue = predictedValues.get(queryString);
-                        if (predictedValue >= threshold) {
-                            inferenceRuleMatches.set(true);
-                            break;
-                        }
-                    }
-                }
-                inferenceRuleMatches.trySet(false);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        Boolean returnValue = inferenceRuleMatches.get();
-        while (returnValue == null) {
-            returnValue = inferenceRuleMatches.get();
-        }
-        return returnValue;
+        return request;
     }
 
-
-
+    InferModelAction.Response getInferences(InferModelAction.Request request) {
+        return clientWithOrigin.execute(InferModelAction.INSTANCE, request).actionGet(TIMEOUT_MS);
+    }
 
 }

@@ -7,7 +7,7 @@ steps:
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest
         timeout_in_minutes: 300
         matrix:
           setup:

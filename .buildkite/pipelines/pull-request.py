@@ -114,22 +114,19 @@ def trigger_comment_check(pipeline):
     return False
 
 
-all_pipelines = [*pipelines]
-
-for f in [
+filters = [
     label_check_allow,
     label_check_skip,
     changed_files_excluded_check,
     changed_files_included_check,
-]:
+]
+
+# When triggering via comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
+if os.environ.get("GITHUB_PR_TRIGGER_COMMENT"):
+    filters = [trigger_comment_check]
+
+for f in filters:
     pipelines = list(filter(f, pipelines))
-
-comment_triggered_pipelines = list(filter(trigger_comment_check, all_pipelines))
-
-# Append any comment triggered pipelines that are not already in the list
-for pipeline in comment_triggered_pipelines:
-    if not any(p["name"] == pipeline["name"] for p in pipelines):
-        pipelines.append(pipeline)
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -98,7 +100,11 @@ public class ShardSizeStatsReader {
                         nonInteractiveSize += segmentSize;
                     }
                 }
-                return new ShardSize(interactiveSize, nonInteractiveSize);
+                long primaryTerm = indexShard.getOperationPrimaryTerm();
+                long generation = indexShard.getEngineOrNull() != null
+                    ? indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+                    : 0L;
+                return new ShardSize(interactiveSize, nonInteractiveSize, new PrimaryTermAndGeneration(primaryTerm, generation));
             } catch (IOException e) {
                 logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
                 return null;

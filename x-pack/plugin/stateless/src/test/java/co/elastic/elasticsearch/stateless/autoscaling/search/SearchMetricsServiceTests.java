@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.elasticsearch.Version;
@@ -60,6 +61,7 @@ import static org.mockito.Mockito.when;
 public class SearchMetricsServiceTests extends ESTestCase {
 
     private static final MemoryMetrics FIXED_MEMORY_METRICS = new MemoryMetrics(4096, 8192, MetricQuality.EXACT);
+    private static final PrimaryTermAndGeneration ZERO = PrimaryTermAndGeneration.ZERO;
 
     private AtomicLong currentRelativeTimeInNanos;
     private SearchMetricsService service;
@@ -84,7 +86,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         assertThat(
@@ -109,10 +111,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 2L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1, 2)))
+            )
         );
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512, ZERO)))
         );
 
         // sticks to the first received metric
@@ -139,8 +144,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         sendInRandomOrder(
             service,
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_2", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1025, 1025)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO))
+            ),
+            new PublishShardSizesRequest("search_node_2", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1025, 1025, ZERO)))
         );
 
         // any of the replica sizes should be accepted
@@ -167,8 +175,14 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         sendInRandomOrder(
             service,
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_1", 2L, Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(512, 512)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1L, 1L)))
+            ),
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(512, 512, new PrimaryTermAndGeneration(1L, 2L)))
+            )
         );
 
         // both messages should be accepted
@@ -195,8 +209,14 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         sendInRandomOrder(
             service,
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512))),
-            new PublishShardSizesRequest("search_node_1", 2L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512, new PrimaryTermAndGeneration(1L, 1L)))
+            ),
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1L, 2L)))
+            )
         );
 
         // only newer metric should be accepted
@@ -222,7 +242,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         // after metric becomes outdated
@@ -239,7 +259,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
 
         // metrics become exact again when receiving empty ping from the node
-        service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", currentRelativeTimeInNanos.get(), Map.of()));
+        service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
         assertThat(
             service.getSearchTierMetrics(),
             equalTo(
@@ -304,6 +324,26 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
     }
 
+    public void testInitialValueIsNotExact() {
+        var indexMetadata = createIndex(1, 1);
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .build();
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+
+        assertThat(
+            service.getSearchTierMetrics(),
+            equalTo(
+                new SearchTierMetrics(
+                    FIXED_MEMORY_METRICS,
+                    new MaxShardCopies(1, MetricQuality.EXACT),
+                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM)
+                )
+            )
+        );
+    }
+
     public void testMetricsAreExactAfterCreatingNewIndex() {
 
         var state1 = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(1)).build();
@@ -336,7 +376,10 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024, ZERO))
+            )
         );
         // index-2 stats are missing
 
@@ -363,7 +406,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
             .build();
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         // should use min replicas when computing disk sizes
@@ -389,7 +432,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         assertThat(
@@ -442,7 +485,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         var expectedSearchTierMetrics = new SearchTierMetrics(
@@ -489,7 +532,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         service.processShardSizesRequest(
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
         var newState = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).remove(indexMetadata.getIndex().getName()))
@@ -522,8 +565,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         sendInRandomOrder(
             service,
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_2", 1L, Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO))
+            ),
+            new PublishShardSizesRequest("search_node_2", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
         assertThat(service.getNodeMetrics(), allOf(aMapWithSize(2), hasKey("search_node_1"), hasKey("search_node_2")));
@@ -548,10 +594,22 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         sendInRandomOrder(
             service,
-            new PublishShardSizesRequest("search_node_1", 1L, Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_1", 2L, Map.of(new ShardId(indexMetadata1.getIndex(), 1), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_1", 3L, Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(1024, 1024))),
-            new PublishShardSizesRequest("search_node_1", 4L, Map.of(new ShardId(indexMetadata2.getIndex(), 1), new ShardSize(1024, 1024)))
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata1.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1, 1)))
+            ),
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata1.getIndex(), 1), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1, 2)))
+            ),
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1, 3)))
+            ),
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(indexMetadata2.getIndex(), 1), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1, 4)))
+            )
         );
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));

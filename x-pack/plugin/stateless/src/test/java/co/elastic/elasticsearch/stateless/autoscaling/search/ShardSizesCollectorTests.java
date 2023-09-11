@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
@@ -78,6 +79,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
     private ShardSizesCollector service;
 
+    private final PrimaryTermAndGeneration primaryTermGeneration = new PrimaryTermAndGeneration(
+        randomNonNegativeLong(),
+        randomNonNegativeLong()
+    );
+
     @Before
     @Override
     public void setUp() throws Exception {
@@ -114,7 +120,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
     public void testPushMetrics() throws Exception {
 
         var shardId = new ShardId("index-1", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         setUpShardSize(shardId, size);
         service.detectShardSize(shardId);
@@ -127,7 +133,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         setUpShardSize(shardId1, size);
         setUpShardSize(shardId2, size);
@@ -143,7 +149,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
     public void testPublishPeriodicallyEvenIfNoChanges() throws Exception {
 
         var shardId = new ShardId("index-1", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         setUpShardSize(shardId, size);
         service.detectShardSize(shardId);
@@ -171,7 +177,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         // all initial publications of single shard should fail
         doAnswer(invocation -> {
@@ -195,8 +201,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var smallSize = new ShardSize(1024, 1024);
-        var bigSize = new ShardSize(1024 * 1024, 1024);
+        var smallSize = new ShardSize(1024, 1024, primaryTermGeneration);
+        var bigSize = new ShardSize(1024 * 1024, 1024, primaryTermGeneration);
 
         // scheduling is disabled to test immediate sending
         setUpShardSize(shardId1, smallSize);
@@ -217,7 +223,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         // scheduling is disabled to test immediate sending
         setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
@@ -235,7 +241,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         var shardId1 = new ShardId("index-1", "_na_", 0);
         var shardId2 = new ShardId("index-2", "_na_", 0);
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         // scheduling is disabled to test immediate sending
         setUpAllShardSizes(Map.of(shardId1, size, shardId2, size));
@@ -264,7 +270,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         ).build();
         var state2 = ClusterState.builder(state1).metadata(Metadata.builder().put(indexMetadata1, false).build()).build();
 
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
         setUpAllShardSizes(
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), size),
@@ -336,7 +342,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
             )
             .build();
 
-        var size = new ShardSize(1024, 1024);
+        var size = new ShardSize(1024, 1024, primaryTermGeneration);
         setUpAllShardSizes(Map.of(new ShardId(indexMetadata1.getIndex(), 0), size, new ShardId(indexMetadata2.getIndex(), 0), size));
         var listenerWasCalled = new CountDownLatch(1);
         doAnswer(invocation -> {

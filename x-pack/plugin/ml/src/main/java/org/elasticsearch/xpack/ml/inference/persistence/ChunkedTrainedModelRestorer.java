@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -127,8 +128,8 @@ public class ChunkedTrainedModelRestorer {
     ) {
 
         logger.debug("[{}] restoring model", modelId);
-        // SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize, null);
-        executorService.execute(() -> initiateSearch(modelConsumer, successConsumer, errorConsumer));
+        SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize, null);
+        executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
 
     private void initiateSearch(
@@ -376,6 +377,8 @@ public class ChunkedTrainedModelRestorer {
                 SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
                 SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
                 searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
+                logger.info("Sleeping for 15 milliseconds");
+                TimeUnit.MILLISECONDS.sleep(15);
                 executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
             }
         } catch (Exception e) {

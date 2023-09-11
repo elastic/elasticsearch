@@ -17,6 +17,9 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
@@ -91,8 +94,8 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
         }
 
         if (hasTransportVersions) {
-            assertTrue(description, UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS));
-            assertTrue(description, UPGRADE_FROM_VERSION.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS));
+            assertThat(description, UPGRADE_FROM_VERSION, lessThan(VERSION_INTRODUCING_NODES_VERSIONS));
+            assertThat(description, UPGRADE_FROM_VERSION, greaterThanOrEqualTo(VERSION_INTRODUCING_TRANSPORT_VERSIONS));
             assertNotEquals(description, ClusterType.UPGRADED, CLUSTER_TYPE);
 
             assertEquals(description, nodeIds.size(), clusterState.evaluateArraySize("transport_versions"));
@@ -106,7 +109,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                 if (nodeVersion.equals(Version.CURRENT)) {
                     assertEquals(nodeDescription, TransportVersion.current(), transportVersion);
                 } else if (nodeVersion.after(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
-                    assertTrue(nodeDescription, transportVersion.after(FIRST_TRANSPORT_VERSION));
+                    assertThat(nodeDescription, transportVersion, greaterThan(FIRST_TRANSPORT_VERSION));
                 } else {
                     assertEquals(nodeDescription, FIRST_TRANSPORT_VERSION, transportVersion);
                 }
@@ -134,7 +137,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                         return false;
                     }
                 } else if (nodeVersion.after(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
-                    assertTrue(nodeDescription, transportVersion.after(FIRST_TRANSPORT_VERSION));
+                    assertThat(nodeDescription, transportVersion, greaterThan(FIRST_TRANSPORT_VERSION));
                 } else {
                     assertEquals(nodeDescription, TransportVersion.fromId(nodeVersion.id()), transportVersion);
                 }

@@ -58,5 +58,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(10, response.getSize());
         assertEquals(1.0d, response.getTotalSeconds(), 0.001d);
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
+        assertEquals(List.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1), response.getCountInclusive());
+        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 1), response.getCountExclusive());
+
     }
 }

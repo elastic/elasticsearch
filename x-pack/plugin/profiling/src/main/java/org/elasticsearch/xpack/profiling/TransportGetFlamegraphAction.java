@@ -75,7 +75,9 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     static GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
         // TODO: Are full seconds good enough? (they probably are)
-        long totalSeconds = Duration.between(response.getStartTime(), response.getEndTime()).getSeconds();
+        Duration observedDuration = Duration.between(response.getStartTime(), response.getEndTime());
+        long totalSeconds = (observedDuration.getNano() > 0) ? observedDuration.getSeconds() + 1 : observedDuration.getSeconds();
+
         FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), totalSeconds);
         if (response.getTotalFrames() == 0) {
             return builder.build();
@@ -92,6 +94,8 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             StackTrace stackTrace = st.getValue();
             int samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0);
             builder.setCurrentNode(0);
+            builder.addSamplesInclusive(0, samples);
+            builder.addSamplesExclusive(0, 0);
 
             int frameCount = stackTrace.frameIds.size();
             for (int i = 0; i < frameCount; i++) {

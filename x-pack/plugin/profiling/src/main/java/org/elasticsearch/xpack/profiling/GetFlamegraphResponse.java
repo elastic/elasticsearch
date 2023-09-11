@@ -120,6 +120,14 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalSeconds;
     }
 
+    public List<Integer> getCountInclusive() {
+        return countInclusive;
+    }
+
+    public List<Integer> getCountExclusive() {
+        return countExclusive;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(

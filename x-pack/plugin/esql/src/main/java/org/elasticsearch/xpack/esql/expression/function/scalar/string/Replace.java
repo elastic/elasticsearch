@@ -86,7 +86,7 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         }
 
         try {
-            return new BytesRef(str.utf8ToString().replaceAll(regex.pattern(), newStr.utf8ToString()));
+            return new BytesRef(regex.matcher(str.utf8ToString()).replaceAll(newStr.utf8ToString()));
         } catch (PatternSyntaxException ex) {
             // let's return the original string as if there is no match
             // we don't want to throw a runtime error

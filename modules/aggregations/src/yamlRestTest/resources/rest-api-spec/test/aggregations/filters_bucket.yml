@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -475,8 +473,6 @@ nested:
       indices.create:
           index: test_nested
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 i:
@@ -525,7 +521,6 @@ nested:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:

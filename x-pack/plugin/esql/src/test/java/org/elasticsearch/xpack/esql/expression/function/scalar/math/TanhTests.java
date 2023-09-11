@@ -25,7 +25,13 @@ public class TanhTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("TanhEvaluator", "val", Math::tanh);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "TanhEvaluator",
+            "val",
+            Math::tanh,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

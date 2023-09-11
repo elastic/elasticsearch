@@ -164,6 +164,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluate() {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        logger.info(
+            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
+        );
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());

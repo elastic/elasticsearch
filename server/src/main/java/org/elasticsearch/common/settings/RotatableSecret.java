@@ -40,7 +40,7 @@ public class RotatableSecret {
     public void rotate(SecureString newSecret, TimeValue gracePeriod) {
         long stamp = stampedLock.writeLock();
         try {
-            if (this.secrets.current.equals(newSecret) == false) {
+            if (secrets.current != null && secrets.current.equals(newSecret) == false) {
                 secrets = new Secrets(
                     Strings.hasText(newSecret) ? newSecret.clone() : null,
                     secrets.current,

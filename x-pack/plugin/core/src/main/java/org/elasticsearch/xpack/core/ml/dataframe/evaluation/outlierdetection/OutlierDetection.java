@@ -98,7 +98,7 @@ public class OutlierDetection implements Evaluation {
 
     public OutlierDetection(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString(), false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class OutlierDetection implements Evaluation {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
         out.writeString(fields.getPredictedProbabilityField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

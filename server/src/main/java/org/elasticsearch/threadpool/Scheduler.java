@@ -96,12 +96,6 @@ public interface Scheduler {
     ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor);
 
     /**
-     * @deprecated Use {@link #schedule(Runnable, TimeValue, Executor)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executorName);
-
-    /**
      * Schedules a periodic action that runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
      * to execute on a different executor, in which case blocking calls are allowed.
      *
@@ -113,16 +107,6 @@ public interface Scheduler {
      *         not be interrupted.
      */
     default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
-        runnable.start();
-        return runnable;
-    }
-
-    /**
-     * @deprecated Use {@link #scheduleWithFixedDelay(Runnable, TimeValue, Executor)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
         runnable.start();
         return runnable;
@@ -182,9 +166,10 @@ public interface Scheduler {
 
         private final Runnable runnable;
         private final TimeValue interval;
+        private final Executor executor;
+        private final Scheduler scheduler;
         private final Consumer<Exception> rejectionConsumer;
         private final Consumer<Exception> failureConsumer;
-        private final Runnable doSchedule;
 
         private volatile boolean run = true;
 
@@ -206,35 +191,17 @@ public interface Scheduler {
         ) {
             this.runnable = runnable;
             this.interval = interval;
+            this.executor = executor;
+            this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
-            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
-        }
-
-        /**
-         * @deprecated Use {@link #ReschedulingRunnable(Runnable, TimeValue, Executor, Scheduler, Consumer, Consumer)}} instead.
-         */
-        @Deprecated(forRemoval = true)
-        ReschedulingRunnable(
-            Runnable runnable,
-            TimeValue interval,
-            String executor,
-            Scheduler scheduler,
-            Consumer<Exception> rejectionConsumer,
-            Consumer<Exception> failureConsumer
-        ) {
-            this.runnable = runnable;
-            this.interval = interval;
-            this.rejectionConsumer = rejectionConsumer;
-            this.failureConsumer = failureConsumer;
-            this.doSchedule = () -> scheduler.schedule(this, interval, executor);
         }
 
         /**
          * Schedules the first execution of this runnable
          */
         void start() {
-            doSchedule.run();
+            scheduler.schedule(this, interval, executor);
         }
 
         @Override
@@ -273,7 +240,7 @@ public interface Scheduler {
             // if this has not been cancelled reschedule it to run again
             if (run) {
                 try {
-                    doSchedule.run();
+                    scheduler.schedule(this, interval, executor);
                 } catch (final EsRejectedExecutionException e) {
                     onRejection(e);
                 }

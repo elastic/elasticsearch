@@ -28,12 +28,13 @@ public record TextSearchInfo(
     NamedAnalyzer searchQuoteAnalyzer
 ) {
 
-    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE = new FieldType();
+    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE;
 
     static {
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setTokenized(false);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setOmitNorms(true);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        SIMPLE_MATCH_ONLY_FIELD_TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     /**
@@ -100,7 +101,7 @@ public record TextSearchInfo(
         NamedAnalyzer searchAnalyzer,
         NamedAnalyzer searchQuoteAnalyzer
     ) {
-        this.luceneFieldType = luceneFieldType;
+        this.luceneFieldType = Mapper.freezeAndDeduplicateFieldType(luceneFieldType);
         this.similarity = similarity;
         this.searchAnalyzer = Objects.requireNonNull(searchAnalyzer);
         this.searchQuoteAnalyzer = Objects.requireNonNull(searchQuoteAnalyzer);

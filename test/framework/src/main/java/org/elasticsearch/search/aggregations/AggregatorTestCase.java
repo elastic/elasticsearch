@@ -43,6 +43,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
@@ -586,8 +587,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     } else {
                         Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
                         subSearcher.search(weight, a.asCollector());
+                        a.postCollection();
                     }
-                    a.postCollection();
                     assertEquals(shouldBeCached, context.isCacheable());
                     internalAggs.add(a.buildTopLevel());
                 } finally {
@@ -612,7 +613,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     root.preCollection();
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
-                    root.postCollection();
                 } else {
                     CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
                         @Override
@@ -1416,7 +1416,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 

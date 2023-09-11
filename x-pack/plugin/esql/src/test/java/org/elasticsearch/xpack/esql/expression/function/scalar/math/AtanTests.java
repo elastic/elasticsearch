@@ -31,7 +31,8 @@ public class AtanTests extends AbstractFunctionTestCase {
             Math::atan,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-                List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

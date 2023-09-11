@@ -31,7 +31,8 @@ public class TanTests extends AbstractFunctionTestCase {
             Math::tan,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-                List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

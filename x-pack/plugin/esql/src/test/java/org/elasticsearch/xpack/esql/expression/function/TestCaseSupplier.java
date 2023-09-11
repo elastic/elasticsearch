@@ -94,7 +94,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DoubleUnaryOperator expected,
         Double min,
         Double max,
-        List<String> warnings) {
+        List<String> warnings
+    ) {
         String read = "Attribute[channel=0]";
         String eval = name + "[" + argName + "=";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -142,7 +143,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Double lhsMax,
         Double rhsMin,
         Double rhsMax,
-        List<String> warnings) {
+        List<String> warnings
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
         List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
@@ -157,37 +159,37 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         rhsSuppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(rhsMin)), BigInteger.valueOf((long) Math.floor(rhsMax))));
         rhsSuppliers.addAll(doubleCases(rhsMin, rhsMax));
 
-            for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
-                    for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
-                        String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
-                        suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-                            Number lhs = (Number) lhsSupplier.supplier().get();
-                            Number rhs = (Number) rhsSupplier.supplier().get();
-                            TypedData lhsTyped = new TypedData(
-                                // TODO there has to be a better way to handle unsigned long
-                                lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                                lhsSupplier.type(),
-                                "lhs"
-                            );
-                            TypedData rhsTyped = new TypedData(
-                                rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                                rhsSupplier.type(),
-                                "rhs"
-                            );
-                            String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsSupplier.type());
-                            String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsSupplier.type());
-                            TestCase testCase = new TestCase(
-                                List.of(lhsTyped, rhsTyped),
-                                name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
-                                DataTypes.DOUBLE,
-                                equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
-                            );
-                            for (String warning : warnings) {
-                                testCase = testCase.withWarning(warning);
-                            }
-                            return testCase;
-                        }));
+        for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
+            for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
+                String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
+                suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
+                    Number lhs = (Number) lhsSupplier.supplier().get();
+                    Number rhs = (Number) rhsSupplier.supplier().get();
+                    TypedData lhsTyped = new TypedData(
+                        // TODO there has to be a better way to handle unsigned long
+                        lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
+                        lhsSupplier.type(),
+                        "lhs"
+                    );
+                    TypedData rhsTyped = new TypedData(
+                        rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
+                        rhsSupplier.type(),
+                        "rhs"
+                    );
+                    String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsSupplier.type());
+                    String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsSupplier.type());
+                    TestCase testCase = new TestCase(
+                        List.of(lhsTyped, rhsTyped),
+                        name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
+                        DataTypes.DOUBLE,
+                        equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
+                    );
+                    for (String warning : warnings) {
+                        testCase = testCase.withWarning(warning);
                     }
+                    return testCase;
+                }));
+            }
         }
 
         return suppliers;

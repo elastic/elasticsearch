@@ -31,7 +31,8 @@ public class TanhTests extends AbstractFunctionTestCase {
             Math::tanh,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-                List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

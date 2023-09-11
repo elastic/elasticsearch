@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;

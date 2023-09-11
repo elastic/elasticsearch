@@ -31,7 +31,8 @@ public class CosTests extends AbstractFunctionTestCase {
             Math::cos,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-                List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

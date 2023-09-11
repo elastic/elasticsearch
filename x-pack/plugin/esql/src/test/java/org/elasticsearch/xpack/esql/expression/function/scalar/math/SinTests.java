@@ -31,7 +31,8 @@ public class SinTests extends AbstractFunctionTestCase {
             Math::sin,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
-                List.of());
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

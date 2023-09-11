@@ -24,7 +24,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
@@ -71,8 +70,8 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     public final Object fold() {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
-        //TODO: handle time_durations
-        //TODO: handle mixed time_durations and date_periods
+        // TODO: handle time_durations
+        // TODO: handle mixed time_durations and date_periods
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();

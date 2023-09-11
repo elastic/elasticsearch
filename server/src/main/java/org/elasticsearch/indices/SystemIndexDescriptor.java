@@ -594,7 +594,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * or the appropriate descriptor if the supplied version is acceptable.
      */
     public SystemIndexDescriptor getDescriptorCompatibleWith(MappingsVersion version) {
-        if (version.version() >= mappingsVersion.version()) {
+        if (Objects.requireNonNull(version).version() >= mappingsVersion.version()) {
             return this;
         }
         for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,6 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -32,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,13 +46,19 @@ import static org.mockito.Mockito.verify;
 
 public class TransportCreateIndexActionTests extends ESTestCase {
 
-    private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
-        .metadata(Metadata.builder().build())
-        .build();
-
     private static final String UNMANAGED_SYSTEM_INDEX_NAME = ".my-system";
     private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
+    private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
+        .metadata(Metadata.builder().build())
+        .putCompatibilityVersions("node-1", new CompatibilityVersions(
+            TransportVersion.current(),
+            Map.of(
+                MANAGED_SYSTEM_INDEX_NAME + "-primary", new SystemIndexDescriptor.MappingsVersion(1, 1)
+            )
+        ))
+        .build();
+
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
         List.of(
             new SystemIndices.Feature(

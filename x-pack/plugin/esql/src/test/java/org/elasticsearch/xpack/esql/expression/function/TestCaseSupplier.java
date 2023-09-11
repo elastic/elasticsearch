@@ -680,46 +680,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static final Map<DataType, List<Map.Entry<String, Supplier<Object>>>> RANDOM_VALUE_SUPPLIERS = Map.ofEntries(
-        Map.entry(
-            DataTypes.DOUBLE,
-            List.of(
-                Map.entry("<0 double>", () -> 0.0d),
-                Map.entry("<small positive double>", () -> ESTestCase.randomDouble()),
-                Map.entry("<small negative double>", () -> -ESTestCase.randomDouble()),
-                Map.entry("<big positive double>", () -> ESTestCase.randomDoubleBetween(0, Double.MAX_VALUE, false)),
-                Map.entry("<negative positive double>", () -> ESTestCase.randomDoubleBetween(Double.MIN_VALUE, 0 - Double.MIN_NORMAL, true))
-            )
-        ),
-        Map.entry(
-            DataTypes.LONG,
-            List.of(
-                Map.entry("<0 long>", () -> 0L),
-                Map.entry("<positive long>", () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE)),
-                Map.entry("<negative long>", () -> ESTestCase.randomLongBetween(Long.MIN_VALUE, -1))
-            )
-        ),
-        Map.entry(
-            DataTypes.INTEGER,
-            List.of(
-                Map.entry("<0 int>", () -> 0),
-                Map.entry("<positive long>", () -> ESTestCase.between(1, Integer.MAX_VALUE)),
-                Map.entry("<negative long>", () -> ESTestCase.between(Integer.MIN_VALUE, -1))
-            )
-        ),
-        Map.entry(
-            DataTypes.UNSIGNED_LONG,
-            List.of(
-                Map.entry("<0 unsigned long>", () -> BigInteger.ZERO),
-                Map.entry("<small unsigned long>", () -> BigInteger.valueOf(ESTestCase.randomLongBetween(1, Integer.MAX_VALUE))),
-                Map.entry(
-                    "<big unsigned long>",
-                    () -> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(ESTestCase.randomLongBetween(1, Integer.MAX_VALUE)))
-                )
-            )
-        )
-    );
-
     private static String castToDoubleEvaluator(String original, DataType current) {
         if (current == DataTypes.DOUBLE) {
             return original;

@@ -360,7 +360,7 @@ byUnmentionedLongAndLong
 FROM employees
 | EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
 | STATS c = count(gender) by languages.long, trunk_worked_seconds
-| SORT c desc, trunk_worked_seconds;
+| SORT c desc, trunk_worked_seconds, languages.long nulls first;
 
 c:long | languages.long:long | trunk_worked_seconds:long
 13     |5                    |300000000

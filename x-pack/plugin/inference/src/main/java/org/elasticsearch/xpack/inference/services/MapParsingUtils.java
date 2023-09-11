@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;
@@ -63,12 +64,7 @@ public class MapParsingUtils {
         );
     }
 
-    public static ElasticsearchStatusException missingSettingError(String settingName, String scope) {
-        return new ElasticsearchStatusException(
-            "[{}] does not contain the required setting [{}]",
-            RestStatus.BAD_REQUEST,
-            scope,
-            settingName
-        );
+    public static String missingSettingErrorMsg(String settingName, String scope) {
+        return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
 }

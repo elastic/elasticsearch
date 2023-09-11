@@ -77,12 +77,12 @@ public class ElserMlNodeService implements InferenceService {
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElserMlNodeModel == false) {
-            listener.onFailure(new IllegalStateException("not an elser model")); // TODO
+            listener.onFailure(new IllegalStateException("Error starting model, [" + model.getModelId() + "] is not an elser model"));
             return;
         }
 
         if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
-            listener.onFailure(new IllegalStateException("not an elser model")); // TODO
+            listener.onFailure(new IllegalStateException(unsupportedTaskTypeErrorMsg(model.getTaskType())));
             return;
         }
 
@@ -112,11 +112,7 @@ public class ElserMlNodeService implements InferenceService {
 
         if (taskType != TaskType.SPARSE_EMBEDDING) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    "The Elser ML Node service does not support task type [{}]",
-                    RestStatus.BAD_REQUEST,
-                    taskType
-                )
+                new ElasticsearchStatusException("The [{}] service does not support task type [{}]", RestStatus.BAD_REQUEST, NAME, taskType)
             );
             return;
         }
@@ -140,12 +136,7 @@ public class ElserMlNodeService implements InferenceService {
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
         if (taskType != TaskType.SPARSE_EMBEDDING) {
-            throw new ElasticsearchStatusException(
-                "The [{}] service does not support task type [{}]",
-                RestStatus.BAD_REQUEST,
-                NAME,
-                taskType
-            );
+            throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType), RestStatus.BAD_REQUEST);
         }
 
         // no config options yet
@@ -163,5 +154,9 @@ public class ElserMlNodeService implements InferenceService {
         if (settingsMap.isEmpty() == false) {
             throw MapParsingUtils.unknownSettingsError(settingsMap, NAME);
         }
+    }
+
+    private static String unsupportedTaskTypeErrorMsg(TaskType taskType) {
+        return "The [" + NAME + "] service does not support task type [" + taskType + "]";
     }
 }

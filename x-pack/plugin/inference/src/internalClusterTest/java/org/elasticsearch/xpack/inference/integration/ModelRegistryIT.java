@@ -7,19 +7,27 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +35,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -35,14 +44,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     private ModelRegistry modelRegistry;
 
     @Before
-    public void createComponents() throws Exception {
+    public void createComponents() {
         modelRegistry = new ModelRegistry(client());
-        // TODO wait for inference index template??
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class);
+        return pluginList(ReindexPlugin.class, InferencePlugin.class);
     }
 
     public void testStoreModel() throws Exception {
@@ -55,6 +63,25 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(storeModelHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
+    }
+
+    public void testStoreModelWithUnknownFields() throws Exception {
+        String modelId = "test-store-model-unknown-field";
+        Model model = buildModelWithUnknownField(modelId);
+        AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
+
+        assertNull(storeModelHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException statusException = (ElasticsearchStatusException) exceptionHolder.get();
+        assertThat(
+            statusException.getRootCause().getMessage(),
+            containsString("mapping set to strict, dynamic introduction of [unknown_field] within [_doc] is not allowed")
+        );
+        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference model [" + modelId + "]"));
     }
 
     public void testGetModel() throws Exception {
@@ -150,5 +177,41 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         function.accept(listener);
         latch.await();
+    }
+
+    private static ModelWithUnknownField buildModelWithUnknownField(String modelId) {
+        return new ModelWithUnknownField(
+            modelId,
+            TaskType.SPARSE_EMBEDDING,
+            ElserMlNodeService.NAME,
+            ElserMlNodeServiceSettingsTests.createRandom(),
+            ElserMlNodeTaskSettingsTests.createRandom()
+        );
+    }
+
+    private static class ModelWithUnknownField extends Model {
+
+        ModelWithUnknownField(
+            String modelId,
+            TaskType taskType,
+            String service,
+            ServiceSettings serviceSettings,
+            TaskSettings taskSettings
+        ) {
+            super(modelId, taskType, service, serviceSettings, taskSettings);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("unknown_field", "foo");
+            builder.field(MODEL_ID, getModelId());
+            builder.field(TaskType.NAME, getTaskType().toString());
+            builder.field(SERVICE, getService());
+            builder.field(SERVICE_SETTINGS, getServiceSettings());
+            builder.field(TASK_SETTINGS, getTaskSettings());
+            builder.endObject();
+            return builder;
+        }
     }
 }

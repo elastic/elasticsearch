@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elser;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -26,24 +26,33 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         var serviceSettings = ElserMlNodeServiceSettings.fromMap(
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
-
         assertEquals(new ElserMlNodeServiceSettings(1, 4), serviceSettings);
     }
 
     public void testFromMapMissingOptions() {
         var e = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> ElserMlNodeServiceSettings.fromMap(new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1)))
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_threads]"));
 
         e = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> ElserMlNodeServiceSettings.fromMap(new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_THREADS, 1)))
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+    }
+
+    public void testFromMapInvalidSettings() {
+        var settingsMap = new HashMap<String, Object>(
+            Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 0, ElserMlNodeServiceSettings.NUM_THREADS, -1)
+        );
+        var e = expectThrows(ValidationException.class, () -> ElserMlNodeServiceSettings.fromMap(settingsMap));
+
+        assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
     }
 
     @Override

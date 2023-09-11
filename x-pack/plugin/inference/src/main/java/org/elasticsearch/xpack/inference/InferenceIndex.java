@@ -21,9 +21,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class InferenceIndex {
 
-    private InferenceIndex() {
-
-    }
+    private InferenceIndex() {}
 
     public static final String INDEX_NAME = ".inference";
     public static final String INDEX_PATTERN = INDEX_NAME + "*";
@@ -39,8 +37,25 @@ public class InferenceIndex {
     }
 
     /**
-     * To prevent a mapping explosion dy
-     * @return
+     * Reject any unknown fields being added by setting dynamic mappings to
+     * {@code strict} for the top level object. A document that contains unknown
+     * fields in the document root will be rejected at index time.
+     *
+     * The {@code service_settings} and {@code task_settings} objects
+     * have dynamic mappings set to {@code false} which means all fields will
+     * be accepted without throwing an error but those fields are not indexed.
+     *
+     * The reason for mixing {@code strict} and {@code false} dynamic settings
+     * is that {@code service_settings} and {@code task_settings} are defined by
+     * the inference services and therefore are not known when creating the
+     * index. However, the top level settings are known in advance and can
+     * be strictly mapped.
+     *
+     * If the top level strict mapping changes then the no new documents should
+     * be indexed until the index mappings have been updated, this happens
+     * automatically once all nodes in the cluster are of a compatible version.
+     *
+     * @return The index mappings
      */
     public static XContentBuilder mappings() {
         try {

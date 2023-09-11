@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,15 +30,35 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     private final int numAllocations;
     private final int numThreads;
 
+    /**
+     * Parse the Elser service setting from map and validate the setting values.
+     *
+     * If required setting are missing or the values are invalid an
+     * {@link ValidationException} is thrown.
+     *
+     * @param map Source map containg the config
+     * @return The {@code ElserMlNodeServiceSettings}
+     */
     public static ElserMlNodeServiceSettings fromMap(Map<String, Object> map) {
+        ValidationException validationException = new ValidationException();
+
         Integer numAllocations = MapParsingUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = MapParsingUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
         if (numAllocations == null) {
-            throw MapParsingUtils.missingSettingError(NUM_ALLOCATIONS, Model.SERVICE_SETTINGS);
+            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, Model.SERVICE_SETTINGS));
+        } else if (numAllocations < 1) {
+            validationException.addValidationError(mustBeAPositiveNumberError(NUM_ALLOCATIONS, numAllocations));
         }
+
         if (numThreads == null) {
-            throw MapParsingUtils.missingSettingError(NUM_THREADS, Model.SERVICE_SETTINGS);
+            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(NUM_THREADS, Model.SERVICE_SETTINGS));
+        } else if (numThreads < 1) {
+            validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
         }
 
         return new ElserMlNodeServiceSettings(numAllocations, numThreads);
@@ -99,5 +120,9 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         if (o == null || getClass() != o.getClass()) return false;
         ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
         return numAllocations == that.numAllocations && numThreads == that.numThreads;
+    }
+
+    private static String mustBeAPositiveNumberError(String settingName, int value) {
+        return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
     }
 }

@@ -123,7 +123,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
     public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
     public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
-    public static final IndexVersion V_8_500_002 = registerIndexVersion(8_500_002, Version.LUCENE_9_7_0, "normalize-cosine-similarity-vectors");
+    public static final IndexVersion V_8_500_002 = registerIndexVersion(8_500_002, Version.LUCENE_9_7_0, "normalize-cosine-similarity-vectors-gh#99445");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -45,16 +47,38 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final long maxTimeout,
         final long duration
     ) {
-
         final TimeValue initialGracePeriod = randomGracePeriod();
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
+        final MockLogAppender appender = new MockLogAppender();
+
         try (
-            Releasable ignored = electionSchedulerFactory.startElectionScheduler(
+            var ignored0 = appender.capturing(ElectionSchedulerFactory.class);
+            var ignored1 = electionSchedulerFactory.startElectionScheduler(
                 initialGracePeriod,
                 () -> assertTrue(electionStarted.compareAndSet(false, true))
             )
         ) {
+
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no zero retries message",
+                    ElectionSchedulerFactory.class.getName(),
+                    Level.INFO,
+                    "retrying master election after [0] failed attempts"
+                )
+            );
+            for (int i : new int[] { 10, 20, 990 }) {
+                // the test may stop after 1000 attempts, so might not report the 1000th failure; it definitely reports the 990th tho.
+                appender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        i + " retries message",
+                        ElectionSchedulerFactory.class.getName(),
+                        Level.INFO,
+                        "retrying master election after [" + i + "] failed attempts"
+                    )
+                );
+            }
 
             long lastElectionFinishTime = deterministicTaskQueue.getCurrentTimeMillis();
             int electionCount = 0;
@@ -100,50 +124,52 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
 
                 lastElectionFinishTime = thisElectionStartTime + duration;
             }
+
+            appender.assertAllExpectationsMatched();
         }
         deterministicTaskQueue.runAllTasks();
         assertFalse(electionStarted.get());
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.cluster.coordination.ElectionSchedulerFactory:INFO")
     public void testRetriesOnCorrectSchedule() {
         final Builder settingsBuilder = Settings.builder();
 
-        final long initialTimeoutMillis;
+        final long initialTimeout;
         if (randomBoolean()) {
-            initialTimeoutMillis = randomLongBetween(1, 10000);
-            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeoutMillis + "ms");
+            initialTimeout = randomLongBetween(1, 10000);
+            settingsBuilder.put(ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), initialTimeout + "ms");
         } else {
-            initialTimeoutMillis = ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
+            initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
         }
 
+        final long backOffTime;
         if (randomBoolean()) {
-            settingsBuilder.put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), randomLongBetween(1, 60000) + "ms");
-        }
-
-        if (ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() < initialTimeoutMillis || randomBoolean()) {
-            settingsBuilder.put(
-                ELECTION_MAX_TIMEOUT_SETTING.getKey(),
-                randomLongBetween(Math.max(200, initialTimeoutMillis), 180000) + "ms"
-            );
-        }
-
-        final long electionDurationMillis;
-        if (randomBoolean()) {
-            electionDurationMillis = randomLongBetween(1, 300000);
-            settingsBuilder.put(ELECTION_DURATION_SETTING.getKey(), electionDurationMillis + "ms");
+            backOffTime = randomLongBetween(1, 60000);
+            settingsBuilder.put(ELECTION_BACK_OFF_TIME_SETTING.getKey(), backOffTime + "ms");
         } else {
-            electionDurationMillis = ELECTION_DURATION_SETTING.get(Settings.EMPTY).millis();
+            backOffTime = ELECTION_BACK_OFF_TIME_SETTING.get(Settings.EMPTY).millis();
         }
 
-        final Settings settings = settingsBuilder.put(NODE_NAME_SETTING.getKey(), "node").build();
-        final long initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings).millis();
-        final long backOffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings).millis();
-        final long maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(settings).millis();
-        final long duration = ELECTION_DURATION_SETTING.get(settings).millis();
+        final long maxTimeout;
+        if (ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis() < initialTimeout || randomBoolean()) {
+            maxTimeout = randomLongBetween(Math.max(200, initialTimeout), 180000);
+            settingsBuilder.put(ELECTION_MAX_TIMEOUT_SETTING.getKey(), maxTimeout + "ms");
+        } else {
+            maxTimeout = ELECTION_MAX_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
+        }
+
+        final long duration;
+        if (randomBoolean()) {
+            duration = randomLongBetween(1, 300000);
+            settingsBuilder.put(ELECTION_DURATION_SETTING.getKey(), duration + "ms");
+        } else {
+            duration = ELECTION_DURATION_SETTING.get(Settings.EMPTY).millis();
+        }
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ElectionSchedulerFactory electionSchedulerFactory = new ElectionSchedulerFactory(
-            settings,
+            settingsBuilder.put(NODE_NAME_SETTING.getKey(), "node").build(),
             random(),
             deterministicTaskQueue.getThreadPool()
         );
@@ -197,6 +223,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), is("failed to parse value [601s] for setting [cluster.election.max_timeout], must be <= [600s]"));
         }
 
+        final var threadPool = new DeterministicTaskQueue().getThreadPool();
+
         {
             final long initialTimeoutMillis = randomLongBetween(1, 10000);
             final long backOffMillis = randomLongBetween(1, 60000);
@@ -212,7 +240,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             assertThat(ELECTION_BACK_OFF_TIME_SETTING.get(settings), is(TimeValue.timeValueMillis(backOffMillis)));
             assertThat(ELECTION_MAX_TIMEOUT_SETTING.get(settings), is(TimeValue.timeValueMillis(maxTimeoutMillis)));
 
-            assertThat(new ElectionSchedulerFactory(settings, random(), null), not(nullValue())); // doesn't throw an IAE
+            assertThat(new ElectionSchedulerFactory(settings, random(), threadPool), not(nullValue())); // doesn't throw an IAE
         }
 
         {
@@ -226,7 +254,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new ElectionSchedulerFactory(settings, random(), null)
+                () -> new ElectionSchedulerFactory(settings, random(), threadPool)
             );
             assertThat(
                 e.getMessage(),

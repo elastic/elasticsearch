@@ -64,6 +64,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
@@ -80,6 +81,10 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(TransportProfileHasPrivilegesActionTests.class.getSimpleName());
         transportService = mock(TransportService.class);
+
+        // TODO: temporary, remove in #97879
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         actionFilters = mock(ActionFilters.class);
         authorizationService = mock(AuthorizationService.class);
         nativePrivilegeStore = mock(NativePrivilegeStore.class);

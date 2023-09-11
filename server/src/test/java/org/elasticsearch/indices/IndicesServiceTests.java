@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -437,7 +436,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // import an index with minor version incremented by one over cluster master version, it should be ignored
         final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
         final Settings idxSettingsLater = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(Version.CURRENT.id + 10000))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(IndexVersion.current().id() + 10000))
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         final IndexMetadata indexMetadataLater = new IndexMetadata.Builder(indexNameLater).settings(idxSettingsLater)

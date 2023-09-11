@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -207,7 +209,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             new VersionInformation(
                 VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()),
                 IndexVersion.MINIMUM_COMPATIBLE,
@@ -258,7 +260,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         TransportService transportServiceB = startServices(
             "TS_B",
             settings,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.MINIMUM_COMPATIBLE),
+            TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
             new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR
         );
@@ -407,7 +409,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         final TransportService transportServiceB = startServices(
             "TS_B",
             Settings.builder().put("cluster.name", "a").build(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             new VersionInformation(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()),
             transportInterceptorB
         );
@@ -426,7 +428,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
-            String executor,
+            Executor executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler
         ) {

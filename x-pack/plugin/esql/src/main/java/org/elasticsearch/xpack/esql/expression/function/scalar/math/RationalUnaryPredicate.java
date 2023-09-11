@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public abstract class RationalUnaryPredicate extends UnaryScalarFunction implements Mappable {
+public abstract class RationalUnaryPredicate extends UnaryScalarFunction implements EvaluatorMapper {
     public RationalUnaryPredicate(Source source, Expression field) {
         super(source, field);
     }
@@ -37,6 +37,6 @@ public abstract class RationalUnaryPredicate extends UnaryScalarFunction impleme
 
     @Override
     public final Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 }

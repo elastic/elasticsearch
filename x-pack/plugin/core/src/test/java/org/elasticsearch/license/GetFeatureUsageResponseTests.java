@@ -8,6 +8,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.GetFeatureUsageResponse.FeatureUsageInfo;
@@ -46,7 +47,7 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
     }
 
     public void testPre715StreamFormat() throws IOException {
-        assertStreamInputOutput(TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_15_0), null, null);
+        assertStreamInputOutput(TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_15_0), null, null);
     }
 
     public void testStreamFormat() throws IOException {

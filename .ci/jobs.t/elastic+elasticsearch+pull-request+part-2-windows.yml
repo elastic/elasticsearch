@@ -23,6 +23,7 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'test-windows'
           black-list-labels:

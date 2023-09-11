@@ -58,3 +58,19 @@ if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
 
   unset data
 fi
+
+if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
+  DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_ROLE_ID_SECRET
+
+  DRA_VAULT_SECRET_ID_SECRET=$(vault read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_SECRET_ID_SECRET
+
+  DRA_VAULT_ADDR=https://secrets.elastic.co:8200
+  export DRA_VAULT_ADDR
+fi
+
+if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
+  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  export SNYK_TOKEN
+fi

@@ -18,16 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.planner.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -44,6 +44,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -94,7 +95,7 @@ public class EvalBenchmark {
                     new EsField("timestamp", DataTypes.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
-                    new DateTrunc(Source.EMPTY, timestamp, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION)),
+                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
                 ).get();
             }
@@ -133,9 +134,7 @@ public class EvalBenchmark {
 
     private static Layout layout(FieldAttribute... fields) {
         Layout.Builder layout = new Layout.Builder();
-        for (FieldAttribute field : fields) {
-            layout.appendChannel(field.id());
-        }
+        layout.append(Arrays.asList(fields));
         return layout.build();
     }
 

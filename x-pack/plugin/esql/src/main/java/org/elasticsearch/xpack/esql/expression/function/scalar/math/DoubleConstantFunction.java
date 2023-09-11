@@ -35,7 +35,7 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
 
     @Override
     public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

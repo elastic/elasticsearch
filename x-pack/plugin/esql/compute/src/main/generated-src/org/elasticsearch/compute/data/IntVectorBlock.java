@@ -7,17 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * Block view of a IntVector.
  * This class is generated. Do not edit it.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
 
     private final IntVector vector;
 
@@ -51,44 +49,9 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
         return new FilterIntVector(vector, positions).asBlock();
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "IntVectorBlock",
-        IntVectorBlock::of
-    );
-
     @Override
-    public String getWriteableName() {
-        return "IntVectorBlock";
-    }
-
-    static IntVectorBlock of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new IntVectorBlock(new ConstantIntVector(in.readInt(), positions));
-        } else {
-            var builder = IntVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
-            }
-            return new IntVectorBlock(builder.build());
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final IntVector vector = this.vector;
-        final int positions = vector.getPositionCount();
-        out.writeVInt(positions);
-        out.writeBoolean(vector.isConstant());
-        if (vector.isConstant() && positions > 0) {
-            out.writeInt(getInt(0));
-        } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeInt(getInt(i));
-            }
-        }
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
     }
 
     @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -117,7 +118,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 searchRequest,
                 namedWriteableRegistry,
                 SearchRequest::new,
-                TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
+                TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersions.V_8_6_0)
             )
         );
 
@@ -130,30 +131,30 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             searchRequest,
             namedWriteableRegistry,
             SearchRequest::new,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_8_4_0, TransportVersions.V_8_6_0)
         );
     }
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersion.V_7_11_0) && searchRequest.source() != null) {
+        if (version.before(TransportVersions.V_7_11_0) && searchRequest.source() != null) {
             // Versions before 7.11.0 don't support runtime mappings
             searchRequest.source().runtimeMappings(emptyMap());
         }
-        if (version.before(TransportVersion.V_8_4_0)) {
+        if (version.before(TransportVersions.V_8_4_0)) {
             // Versions before 8.4.0 don't support force_synthetic_source
             searchRequest.setForceSyntheticSource(false);
         }
-        if (version.before(TransportVersion.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
+        if (version.before(TransportVersions.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
         }
-        if (version.before(TransportVersion.V_8_8_0) && searchRequest.source() != null) {
+        if (version.before(TransportVersions.V_8_8_0) && searchRequest.source() != null) {
             // Versions before 8.8 don't support rank
             searchRequest.source().rankBuilder(null);
         }
-        if (version.before(TransportVersion.V_8_500_013) && searchRequest.source() != null) {
+        if (version.before(TransportVersions.V_8_500_020) && searchRequest.source() != null) {
             // Versions before 8_500_999 don't support queries
             searchRequest.source().subSearches(new ArrayList<>());
         }
@@ -534,7 +535,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest request = new SearchRequest();
         request.setForceSyntheticSource(true);
         StreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersion.V_8_3_0);
+        out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
     }

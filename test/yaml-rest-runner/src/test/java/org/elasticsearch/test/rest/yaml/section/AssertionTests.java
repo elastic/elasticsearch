@@ -9,6 +9,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -169,5 +170,19 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+    }
+
+    public void testExists() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        ExistsAssertion existsAssertion = ExistsAssertion.parse(parser);
+
+        assertThat(existsAssertion, notNullValue());
+        assertThat(existsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existsAssertion.doAssert(randomFrom(1, "", "non-empty", List.of(), Map.of()), existsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(AssertionError.class, () -> existsAssertion.doAssert(null, existsAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
     }
 }

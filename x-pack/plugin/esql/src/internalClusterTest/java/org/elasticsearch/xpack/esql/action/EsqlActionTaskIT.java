@@ -22,6 +22,8 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.LongFieldScript;
@@ -31,6 +33,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -57,12 +60,17 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that we expose a reasonable task status.
  */
+@TestLogging(
+    value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.tasks.TaskCancellationService:TRACE",
+    reason = "These tests are failing frequently; we need logs before muting them"
+)
 public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static int PAGE_SIZE;
     private static int NUM_DOCS;
 
     private static String READ_DESCRIPTION;
     private static String MERGE_DESCRIPTION;
+    private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -196,10 +204,12 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private void cancelTask(TaskId taskId) {
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(false);
+        LOGGER.debug("--> cancelling task [{}] without waiting for completion", taskId);
         client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
         scriptPermits.release(Integer.MAX_VALUE / 2);
         request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(true);
+        LOGGER.debug("--> cancelling task [{}] with waiting for completion", taskId);
         client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
     }
 
@@ -260,7 +270,12 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         Exception e = expectThrows(Exception.class, response::actionGet);
         Throwable cancelException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
         assertNotNull(cancelException);
-        assertThat(cancelException.getMessage(), equalTo("test cancel"));
+        /*
+         * Either the task was cancelled by out request and has "test cancel"
+         * or the cancellation chained from another cancellation and has
+         * "task cancelled".
+         */
+        assertThat(cancelException.getMessage(), either(equalTo("test cancel")).or(equalTo("task cancelled")));
         assertBusy(
             () -> assertThat(
                 client().admin()
@@ -310,6 +325,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                                     } catch (Exception e) {
                                         throw new AssertionError(e);
                                     }
+                                    LOGGER.debug("--> emitting value");
                                     emit(1);
                                 }
                             };

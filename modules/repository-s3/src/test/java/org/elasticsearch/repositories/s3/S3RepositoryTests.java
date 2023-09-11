@@ -45,7 +45,7 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Service extends S3Service {
 
         DummyS3Service(Environment environment) {
-            super(environment);
+            super(environment, Settings.EMPTY);
         }
 
         @Override

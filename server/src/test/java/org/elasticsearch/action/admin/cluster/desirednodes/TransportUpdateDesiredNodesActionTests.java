@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -54,10 +55,12 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     };
 
     public void testWriteBlocks() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             NO_OP_SETTINGS_VALIDATOR,
@@ -79,10 +82,12 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     }
 
     public void testNoBlocks() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             NO_OP_SETTINGS_VALIDATOR,
@@ -103,10 +108,13 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             }
         };
         ClusterService clusterService = mock(ClusterService.class);
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             validator,

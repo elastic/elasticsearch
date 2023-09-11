@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
@@ -40,10 +41,15 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+
 /**
  * A parser for documents
  */
 public final class DocumentParser {
+
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
 
     private final XContentParserConfiguration parserConfiguration;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
@@ -244,7 +250,8 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        context.getDynamicMappers().forEach((name, builder) -> rootBuilder.addDynamic(name, null, builder, context));
+        context.getDynamicMappers()
+            .forEach((name, builders) -> builders.forEach(builder -> rootBuilder.addDynamic(name, null, builder, context)));
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
@@ -394,7 +401,15 @@ public final class DocumentParser {
             context = context.createChildContext(objectMapper);
             parseObjectOrNested(context);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
+            if (shouldFlattenObject(context, fieldMapper)) {
+                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
+                String currentFieldName = fieldMapper.simpleName();
+                context.path().remove();
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                context.path().add(currentFieldName);
+            } else {
+                fieldMapper.parse(context);
+            }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
                 if (copyToFields.isEmpty() == false) {
@@ -411,6 +426,12 @@ public final class DocumentParser {
         } else {
             throwOnUnrecognizedMapperType(mapper);
         }
+    }
+
+    private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT
+            && context.parent().subobjects() == false
+            && fieldMapper.supportsParsingObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {
@@ -463,20 +484,20 @@ public final class DocumentParser {
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
+            Mapper.Builder dynamicObjectBuilder = null;
             Mapper dynamicObjectMapper;
             if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                Mapper.Builder dynamicObjectBuilder = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
+                dynamicObjectBuilder = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
                 if (dynamicObjectBuilder == null) {
                     dynamicObjectBuilder = new ObjectMapper.Builder(currentFieldName, ObjectMapper.Defaults.SUBOBJECTS).enabled(
                         ObjectMapper.Defaults.ENABLED
                     );
                 }
                 dynamicObjectMapper = dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext());
-                context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -490,15 +511,16 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add subobject ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
-                    );
+                    // We have an ObjectMapper but subobjects are disallowed
+                    // therefore we create a new DocumentParserContext that
+                    // prepends currentFieldName to any immediate children.
+                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    return;
                 }
+
+            }
+            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME && dynamicObjectBuilder != null) {
+                context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
@@ -578,6 +600,33 @@ public final class DocumentParser {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
             }
+        }
+        postProcessDynamicArrayMapping(context, lastFieldName);
+    }
+
+    /**
+     * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
+     */
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            final String fullFieldName = builderContext.buildFullName(fieldName);
+            final List<Mapper.Builder> mappers = context.getDynamicMappers(fullFieldName);
+            if (mappers == null
+                || context.isFieldAppliedFromTemplate(fullFieldName)
+                || context.isCopyToField(fullFieldName)
+                || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || mappers.size() > MAX_DIMS_COUNT
+                || mappers.stream()
+                    .allMatch(m -> m instanceof NumberFieldMapper.Builder nb && nb.type != NumberFieldMapper.NumberType.FLOAT)) {
+                return;
+            }
+
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                fieldName,
+                context.indexSettings().getIndexVersionCreated()
+            );
+            context.updateDynamicMappers(fullFieldName, builder);
         }
     }
 
@@ -668,6 +717,7 @@ public final class DocumentParser {
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
             innerParseObject(copyToContext);
+            context.markFieldAsCopyTo(field);
         }
     }
 

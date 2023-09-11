@@ -411,7 +411,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         source.writeTo(out);
         dest.writeTo(out);
         out.writeOptionalTimeValue(frequency);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
         out.writeOptionalWriteable(latestConfig);
         out.writeOptionalString(description);

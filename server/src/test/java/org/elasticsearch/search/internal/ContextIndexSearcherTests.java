@@ -130,14 +130,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
         iw.deleteDocuments(new Term("field1", "value3"));
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
             ScoreMode.COMPLETE,
             1f
         );
 
-        LeafReaderContext leaf = directoryReader.leaves().get(0);
+        LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {

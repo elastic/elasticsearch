@@ -238,7 +238,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> new Bucket(stream, keyed, format));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
     }
 
     @Override
@@ -250,7 +250,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

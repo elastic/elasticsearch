@@ -595,12 +595,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // only one value (the last value of the counter)
             builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
         } else {
-            final List<String> supportedAggs = List.of(metricType.supportedAggs());
+            final String[] supportedAggsArray = metricType.supportedAggs();
             // We choose max as the default metric
-            final String defaultMetric = supportedAggs.contains("max") ? "max" : supportedAggs.get(0);
+            final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
             builder.startObject(field)
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggs)
+                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();
@@ -680,17 +680,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         /*
-         * Add the source index name and UUID to the downsample index metadata.
-         * If the source index is a downsample index, we will add the name and UUID
+         * Add the origin index name and UUID to the downsample index metadata.
+         * If the origin index is a downsample index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
-        if (IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
-            || IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
-            Index sourceIndex = sourceIndexMetadata.getIndex();
-            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), sourceIndex.getName())
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), sourceIndex.getUUID());
+        Index sourceIndex = sourceIndexMetadata.getIndex();
+        if (IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.exists(sourceIndexMetadata.getSettings()) == false
+            || IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
+            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), sourceIndex.getName())
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.getKey(), sourceIndex.getUUID());
         }
 
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, sourceIndex.getName());
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, sourceIndex.getUUID());
         return IndexMetadata.builder(downsampleIndexMetadata).settings(targetSettings);
     }
 

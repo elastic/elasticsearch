@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -162,6 +164,10 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = getClusterFormationState();
         when(coordinator.getClusterFormationState()).thenReturn(clusterFormationState);
+
+        // TODO: temporary, remove in #97879
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ClusterFormationInfoAction.TransportAction action = new ClusterFormationInfoAction.TransportAction(
             transportService,
             actionFilters,

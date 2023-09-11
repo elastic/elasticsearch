@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CaseTests extends AbstractFunctionTestCase {
 
-    public CaseTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -43,12 +44,12 @@ public class CaseTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("basics", () -> {
-            List<TypedData> typedData = List.of(
-                new TypedData(true, DataTypes.BOOLEAN, "cond"),
-                new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+            List<TestCaseSupplier.TypedData> typedData = List.of(
+                new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
+                new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
             );
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 typedData,
                 "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                     + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
@@ -81,7 +82,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Case(Source.EMPTY, args.stream().toList());
+        return new Case(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 
     public void testEvalCase() {
@@ -122,7 +123,6 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     public void testCaseWithInvalidCondition() {
-        assertEquals("expected at least two arguments in [<case>] but got 0", resolveCase().message());
         assertEquals("expected at least two arguments in [<case>] but got 1", resolveCase(1).message());
         assertEquals("first argument of [<case>] must be [boolean], found value [1] type [integer]", resolveCase(1, 2).message());
         assertEquals(
@@ -158,12 +158,13 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     private static Case caseExpr(Object... args) {
-        return new Case(Source.synthetic("<case>"), Stream.of(args).<Expression>map(arg -> {
+        List<Expression> exps = Stream.of(args).<Expression>map(arg -> {
             if (arg instanceof Expression e) {
                 return e;
             }
             return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
-        }).toList());
+        }).toList();
+        return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
     }
 
     private static TypeResolution resolveCase(Object... args) {

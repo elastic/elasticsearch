@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 /**
  * Common base for trigonometric functions.
  */
-abstract class AbstractTrigonometricFunction extends UnaryScalarFunction implements Mappable {
+abstract class AbstractTrigonometricFunction extends UnaryScalarFunction implements EvaluatorMapper {
     AbstractTrigonometricFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -41,7 +41,7 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
 
     @Override
     public final Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

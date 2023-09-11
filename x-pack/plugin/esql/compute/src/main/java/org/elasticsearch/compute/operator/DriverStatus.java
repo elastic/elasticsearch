@@ -59,7 +59,7 @@ public class DriverStatus implements Task.Status {
     }
 
     DriverStatus(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), Status.valueOf(in.readString()), in.readImmutableList(OperatorStatus::new));
+        this(in.readString(), in.readLong(), Status.valueOf(in.readString()), in.readCollectionAsImmutableList(OperatorStatus::new));
     }
 
     @Override
@@ -67,7 +67,7 @@ public class DriverStatus implements Task.Status {
         out.writeString(sessionId);
         out.writeLong(lastUpdated);
         out.writeString(status.toString());
-        out.writeList(activeOperators);
+        out.writeCollection(activeOperators);
     }
 
     @Override

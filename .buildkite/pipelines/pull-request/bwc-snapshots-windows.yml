@@ -1,2 +1,24 @@
 config:
   allow-labels: test-windows
+steps:
+  - group: bwc-snapshots-windows
+    steps:
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
+        command: .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+        env:
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
+          GRADLE_TASK: "v%BWC_VERSION%#bwcTest"
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: # TODO dynamic
+              - 7.17.13
+              - 8.9.2
+              - 8.10.0
+              - 8.11.0
+        agents:
+          provider: gcp
+          image: family/elasticsearch-windows-2022
+          machineType: custom-32-98304
+          diskType: pd-ssd
+          diskSizeGb: 350

@@ -1,6 +1,25 @@
 config:
-  trigger-phase: '.*run\W+elasticsearch-ci/bwc.*'
+  trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
   skip-labels:
     - ">test-mute"
     - "test-full-bwc"
-steps: []
+steps:
+  - group: bwc-snapshots
+    steps:
+      - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            BWC_VERSION: # TODO dynamic
+              - 7.17.13
+              - 8.9.2
+              - 8.10.0
+              - 8.11.0
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"

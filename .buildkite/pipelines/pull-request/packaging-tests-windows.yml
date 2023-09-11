@@ -1,3 +1,25 @@
-# Include windows-nojdk as well
 config:
   allow-labels: ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-windows
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows"
+        command: .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - family/elasticsearch-windows-2016
+              - family/elasticsearch-windows-2019
+              - family/elasticsearch-windows-2022
+            PACKAGING_TASK:
+              - default-windows-archive
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-32-98304
+          diskType: pd-ssd
+          diskSizeGb: 350
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+          GRADLE_TASK: "destructiveDistroTest.{{matrix.PACKAGING_TASK}}"

@@ -12,70 +12,135 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.rest.ObjectPath;
 
-import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
 
-    public void testReadsInferredTransportVersions() throws IOException {
-        assumeTrue("TransportVersion introduced in 8.8.0", UPGRADE_FROM_VERSION.before(Version.V_8_8_0));
-        assumeTrue(
-            "This only has visible effects when upgrading beyond 8.8.0",
-            TransportVersion.current().after(TransportVersions.V_8_8_0)
-        );
-        assumeTrue("Only runs on the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        // if the master is not upgraded, and the secondary node is, then the cluster info from the secondary
-        // should have inferred transport versions in it
-        // rely on randomisation to hit this case at some point in testing
+    private static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
+    private static final Version VERSION_INTRODUCING_NODES_VERSIONS = Version.V_8_11_0;
+    private static final TransportVersion FIRST_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
 
-        Request request = new Request("GET", "/_cluster/state/nodes");
-        Map<String, Object> masterResponse = entityAsMap(client().performRequest(request));
-        assumeFalse("Master needs to not know about transport versions", masterResponse.containsKey("transport_versions"));
+    public void testReadsInferredTransportVersions() throws Exception {
+        assertEquals(VERSION_INTRODUCING_TRANSPORT_VERSIONS.id(), FIRST_TRANSPORT_VERSION.id());
 
-        request = new Request("GET", "/_cluster/state/nodes?local=true");
-        Map<String, Object> localResponse = entityAsMap(client().performRequest(request));
-        // should either be empty, or using inferred versions
-        assumeTrue("Local node needs to know about transport versions", masterResponse.containsKey("transport_versions"));
-        Map<?, Version> vs = Maps.transformValues(
-            ((Map<?, ?>) localResponse.get("nodes")),
-            v -> Version.fromString(((Map<?, ?>) v).get("version").toString())
-        );
-        Map<?, TransportVersion> tvs = ((List<?>) localResponse.get("transport_versions")).stream()
-            .map(o -> (Map<?, ?>) o)
-            .collect(Collectors.toMap(m -> m.get("node_id"), m -> TransportVersion.fromString(m.get("transport_version").toString())));
-
-        for (var ver : vs.entrySet()) {
-            if (ver.getValue().after(Version.V_8_8_0)) {
-                assertThat(
-                    "Node " + ver.getKey() + " should have an inferred transport version",
-                    tvs.get(ver.getKey()),
-                    equalTo(TransportVersions.V_8_8_0)
-                );
+        // waitUntil because the versions fixup on upgrade happens in the background so may need a retry
+        assertTrue(waitUntil(() -> {
+            try {
+                // check several responses in order to sample from a selection of nodes
+                for (int i = getClusterHosts().size(); i > 0; i--) {
+                    if (runTransportVersionsTest() == false) {
+                        return false;
+                    }
+                }
+                return true;
+            } catch (Exception e) {
+                throw new AssertionError(e);
             }
-        }
+        }));
     }
 
-    public void testCompletesRealTransportVersions() throws IOException {
-        assumeTrue("TransportVersion introduced in 8.8.0", UPGRADE_FROM_VERSION.before(Version.V_8_8_0));
-        assumeTrue(
-            "This only has visible effects when upgrading beyond 8.8.0",
-            TransportVersion.current().after(TransportVersions.V_8_8_0)
+    private boolean runTransportVersionsTest() throws Exception {
+        final var clusterState = ObjectPath.createFromResponse(
+            client().performRequest(new Request("GET", "/_cluster/state" + randomFrom("", "/nodes") + randomFrom("", "?local")))
         );
-        assumeTrue("Only runs on the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        // once everything is upgraded, the master should fill in the real transport versions
+        final var description = clusterState.toString();
 
-        Request request = new Request("GET", "/_cluster/state/nodes");
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
-        Map<?, TransportVersion> tvs = ((List<?>) response.get("transport_versions")).stream()
-            .map(o -> (Map<?, ?>) o)
-            .collect(Collectors.toMap(m -> m.get("node_id"), m -> TransportVersion.fromString(m.get("transport_version").toString())));
+        final var nodeIds = clusterState.evaluateMapKeys("nodes");
+        final Map<String, Version> versionsByNodeId = Maps.newHashMapWithExpectedSize(nodeIds.size());
+        for (final var nodeId : nodeIds) {
+            versionsByNodeId.put(nodeId, Version.fromString(clusterState.evaluate("nodes." + nodeId + ".version")));
+        }
 
-        assertThat(tvs + " should be updated", tvs.values(), everyItem(equalTo(TransportVersion.current())));
+        final var hasTransportVersions = clusterState.evaluate("transport_versions") != null;
+        final var hasNodesVersions = clusterState.evaluate("nodes_versions") != null;
+        assertFalse(description, hasNodesVersions && hasTransportVersions);
+
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    assertFalse(description, hasTransportVersions);
+                    assertFalse(description, hasNodesVersions);
+                } else if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS)) {
+                    assertTrue(description, hasTransportVersions);
+                    assertFalse(description, hasNodesVersions);
+                } else {
+                    assertFalse(description, hasTransportVersions);
+                    assertTrue(description, hasNodesVersions);
+                }
+            }
+            case MIXED -> {
+                if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    assertFalse(description, hasTransportVersions);
+                } else if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS)) {
+                    assertTrue(description, hasNodesVersions || hasTransportVersions);
+                } else {
+                    assertFalse(description, hasTransportVersions);
+                    assertTrue(description, hasNodesVersions);
+                }
+            }
+            case UPGRADED -> {
+                assertFalse(description, hasTransportVersions);
+                assertTrue(description, hasNodesVersions);
+                assertTrue(description, versionsByNodeId.values().stream().allMatch(v -> v.equals(Version.CURRENT)));
+            }
+        }
+
+        if (hasTransportVersions) {
+            assertTrue(description, UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS));
+            assertTrue(description, UPGRADE_FROM_VERSION.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS));
+            assertNotEquals(description, ClusterType.UPGRADED, CLUSTER_TYPE);
+
+            assertEquals(description, nodeIds.size(), clusterState.evaluateArraySize("transport_versions"));
+            for (int i = 0; i < nodeIds.size(); i++) {
+                final var path = "transport_versions." + i;
+                final String nodeId = clusterState.evaluate(path + ".node_id");
+                final var nodeDescription = nodeId + "/" + description;
+                final var transportVersion = TransportVersion.fromString(clusterState.evaluate(path + ".transport_version"));
+                final var nodeVersion = versionsByNodeId.get(nodeId);
+                assertNotNull(nodeDescription, nodeVersion);
+                if (nodeVersion.equals(Version.CURRENT)) {
+                    assertEquals(nodeDescription, TransportVersion.current(), transportVersion);
+                } else if (nodeVersion.after(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    assertTrue(nodeDescription, transportVersion.after(FIRST_TRANSPORT_VERSION));
+                } else {
+                    assertEquals(nodeDescription, FIRST_TRANSPORT_VERSION, transportVersion);
+                }
+            }
+        } else if (hasNodesVersions) {
+            assertFalse(description, UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS) && CLUSTER_TYPE == ClusterType.OLD);
+            assertEquals(description, nodeIds.size(), clusterState.evaluateArraySize("nodes_versions"));
+            for (int i = 0; i < nodeIds.size(); i++) {
+                final var path = "nodes_versions." + i;
+                final String nodeId = clusterState.evaluate(path + ".node_id");
+                final var nodeDescription = nodeId + "/" + description;
+                final var transportVersion = TransportVersion.fromString(clusterState.evaluate(path + ".transport_version"));
+                final var nodeVersion = versionsByNodeId.get(nodeId);
+                assertNotNull(nodeDescription, nodeVersion);
+                if (nodeVersion.equals(Version.CURRENT)) {
+                    assertThat(
+                        nodeDescription,
+                        transportVersion,
+                        UPGRADE_FROM_VERSION.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
+                            ? equalTo(TransportVersion.current())
+                            : oneOf(TransportVersion.current(), FIRST_TRANSPORT_VERSION)
+                    );
+                    if (CLUSTER_TYPE == ClusterType.UPGRADED && transportVersion.equals(FIRST_TRANSPORT_VERSION)) {
+                        logger.info("{} - not fixed up yet, retrying", nodeDescription);
+                        return false;
+                    }
+                } else if (nodeVersion.after(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    assertTrue(nodeDescription, transportVersion.after(FIRST_TRANSPORT_VERSION));
+                } else {
+                    assertEquals(nodeDescription, TransportVersion.fromId(nodeVersion.id()), transportVersion);
+                }
+            }
+        }
+
+        return true;
     }
 }

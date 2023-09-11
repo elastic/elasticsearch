@@ -169,22 +169,32 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     public void testValidateDefaultIgnoreMalformed() throws Exception {
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
         {
-            MapperService mapperService = createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
-                b.startObject("@timestamp");
-                b.field("type", "date");
-                b.endObject();
-            }));
+            MapperService mapperService = createMapperService(
+                IndexVersion.current(),
+                indexSettings,
+                () -> true,
+                timestampMapping(true, b -> {
+                    b.startObject("@timestamp");
+                    b.field("type", "date");
+                    b.endObject();
+                })
+            );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
         }
         {
-            MapperService mapperService = createMapperService(IndexVersion.current(), indexSettings, () -> true, timestampMapping(true, b -> {
-                b.startObject("@timestamp");
-                b.field("type", "date");
-                b.field("ignore_malformed", false);
-                b.endObject();
-            }));
+            MapperService mapperService = createMapperService(
+                IndexVersion.current(),
+                indexSettings,
+                () -> true,
+                timestampMapping(true, b -> {
+                    b.startObject("@timestamp");
+                    b.field("type", "date");
+                    b.field("ignore_malformed", false);
+                    b.endObject();
+                })
+            );
             assertThat(mapperService, notNullValue());
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));

@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -89,7 +90,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
             case UPGRADED -> {
                 assertFalse(description, hasTransportVersions);
                 assertTrue(description, hasNodesVersions);
-                assertTrue(description, versionsByNodeId.values().stream().allMatch(v -> v.equals(Version.CURRENT)));
+                assertThat(description, versionsByNodeId.values(), everyItem(equalTo(Version.CURRENT)));
             }
         }
 

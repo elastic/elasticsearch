@@ -6,7 +6,7 @@ import yaml
 from pprint import pp
 
 # os.environ["GITHUB_PR_LABELS"] = "release_note:skip,:Delivery/Packaging,v8.11.0"
-# os.environ["GITHUB_PR_TARGET_BRANCH"] = "main"
+os.environ["GITHUB_PR_TARGET_BRANCH"] = "main"
 # os.environ[
 #     "GITHUB_PR_TRIGGER_COMMENT"
 # ] = "hey run elasticsearch-ci/build-benchmarks please and run elasticsearch-ci/part-2"
@@ -133,9 +133,12 @@ for pipeline in comment_triggered_pipelines:
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 
+final_pipeline = {"steps": []}
+
 # Remove our custom attributes before outputting the Buildkite YAML
 for pipeline in pipelines:
     pipeline.pop("config", None)
     pipeline.pop("name", None)
+    final_pipeline["steps"] = [*final_pipeline["steps"], *(pipeline.get("steps") or [])]
 
-print(yaml.dump(pipelines, default_flow_style=False))
+print(yaml.dump(final_pipeline, default_flow_style=False))

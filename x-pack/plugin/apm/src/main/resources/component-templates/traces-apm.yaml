@@ -6,6 +6,8 @@ template:
       default_pipeline: traces-apm
   mappings:
     properties:
+      processor.event:
+        type: keyword
       data_stream.type:
         type: constant_keyword
         value: traces
@@ -15,10 +17,9 @@ template:
       event.success_count:
         type: byte
         index: false
-      transaction.duration.us:
-        type: alias
-        path: span.duration.us
       span.duration.us:
+        type: long
+      transaction.duration.us:
         type: long
       http.response.transfer_size:
         type: long

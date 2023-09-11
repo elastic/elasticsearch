@@ -8,6 +8,9 @@ template:
     _source:
       mode: synthetic
     properties:
+      processor.event:
+        type: constant_keyword
+        value: metric
       metricset.name:
         type: constant_keyword
         value: service_transaction

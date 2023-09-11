@@ -3,6 +3,9 @@ version: ${xpack.apm.template.version}
 template:
   mappings:
     properties:
+      processor.event:
+        type: constant_keyword
+        value: error
       error.custom:
         type: flattened
       error.exception.attributes:

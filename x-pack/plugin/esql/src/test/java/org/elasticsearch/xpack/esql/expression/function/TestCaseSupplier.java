@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.DoubleUnaryOperator;
@@ -94,8 +93,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String argName,
         DoubleUnaryOperator expected,
         Double min,
-        Double max
-    ) {
+        Double max,
+        List<String> warnings) {
         String read = "Attribute[channel=0]";
         String eval = name + "[" + argName + "=";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -106,7 +105,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             i -> expected.applyAsDouble(i),
             min.intValue(),
             max.intValue(),
-            List.of()
+            warnings
         );
         forUnaryLong(
             suppliers,
@@ -115,7 +114,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             l -> expected.applyAsDouble(l),
             min.longValue(),
             max.longValue(),
-            List.of()
+            warnings
         );
         forUnaryUnsignedLong(
             suppliers,
@@ -124,9 +123,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             ul -> expected.applyAsDouble(ul.doubleValue()),
             BigInteger.valueOf((int) Math.ceil(min)),
             BigInteger.valueOf((int) Math.floor(max)),
-            List.of()
+            warnings
         );
-        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max, List.of());
+        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max, warnings);
         return suppliers;
     }
 
@@ -142,8 +141,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Double lhsMin,
         Double lhsMax,
         Double rhsMin,
-        Double rhsMax
-    ) {
+        Double rhsMax,
+        List<String> warnings) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
         List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
@@ -177,12 +176,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                             );
                             String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsSupplier.type());
                             String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsSupplier.type());
-                            return new TestCase(
+                            TestCase testCase = new TestCase(
                                 List.of(lhsTyped, rhsTyped),
                                 name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
                                 DataTypes.DOUBLE,
                                 equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
                             );
+                            for (String warning : warnings) {
+                                testCase = testCase.withWarning(warning);
+                            }
+                            return testCase;
                         }));
                     }
         }

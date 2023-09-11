@@ -30,8 +30,8 @@ public class SinhTests extends AbstractFunctionTestCase {
             "val",
             Math::sinh,
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
-        );
+            Double.POSITIVE_INFINITY,
+                List.of());
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

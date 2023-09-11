@@ -30,8 +30,8 @@ public class AcosTests extends AbstractFunctionTestCase {
             "val",
             Math::acos,
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
-        );
+            Double.POSITIVE_INFINITY,
+                List.of());
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

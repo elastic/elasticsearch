@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -23,7 +24,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PowTests extends AbstractScalarFunctionTestCase {
-    public PowTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public PowTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -32,8 +33,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("pow(<double>, <int>)", () -> {
             double base = 1 / randomDouble();
             int exponent = between(-30, 30);
-            return new TestCase(
-                List.of(new TypedData(base, DataTypes.DOUBLE, "arg"), new TypedData(exponent, DataTypes.INTEGER, "exp")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(base, DataTypes.DOUBLE, "arg"),
+                    new TestCaseSupplier.TypedData(exponent, DataTypes.INTEGER, "exp")
+                ),
                 "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                 DataTypes.DOUBLE,
                 equalTo(Math.pow(base, exponent))
@@ -41,8 +45,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         }),
             new TestCaseSupplier(
                 "pow(NaN, 1)",
-                () -> new TestCase(
-                    List.of(new TypedData(Double.NaN, DataTypes.DOUBLE, "base"), new TypedData(1.0d, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Double.NaN, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(1.0d, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(null)
@@ -51,8 +58,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(1, NaN)",
-                () -> new TestCase(
-                    List.of(new TypedData(1.0d, DataTypes.DOUBLE, "base"), new TypedData(Double.NaN, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1.0d, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(Double.NaN, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(null)
@@ -61,8 +71,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(NaN, 0)",
-                () -> new TestCase(
-                    List.of(new TypedData(Double.NaN, DataTypes.DOUBLE, "base"), new TypedData(0d, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Double.NaN, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(0d, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(1d)
@@ -70,8 +83,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(0, 0)",
-                () -> new TestCase(
-                    List.of(new TypedData(0d, DataTypes.DOUBLE, "base"), new TypedData(0d, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(0d, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(0d, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(1d)
@@ -79,8 +95,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(1, 1)",
-                () -> new TestCase(
-                    List.of(new TypedData(1, DataTypes.INTEGER, "base"), new TypedData(1, DataTypes.INTEGER, "base")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "base")
+                    ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.INTEGER,
@@ -89,10 +108,10 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(integer, 0)",
-                () -> new TestCase(
+                () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TypedData(randomValueOtherThan(0, ESTestCase::randomInt), DataTypes.INTEGER, "base"),
-                        new TypedData(0, DataTypes.INTEGER, "exp")
+                        new TestCaseSupplier.TypedData(randomValueOtherThan(0, ESTestCase::randomInt), DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(0, DataTypes.INTEGER, "exp")
                     ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
@@ -102,8 +121,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier("pow(integer, 2)", () -> {
                 int base = randomIntBetween(-1000, 1000);
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "exp")
+                    ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.INTEGER,
@@ -112,8 +134,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier(
                 "integer overflow case",
-                () -> new TestCase(
-                    List.of(new TypedData(Integer.MAX_VALUE, DataTypes.INTEGER, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Integer.MAX_VALUE, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "exp")
+                    ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.INTEGER,
@@ -123,8 +148,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "long overflow case",
-                () -> new TestCase(
-                    List.of(new TypedData(Long.MAX_VALUE, DataTypes.LONG, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(Long.MAX_VALUE, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -134,8 +162,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(2, 0.5) == sqrt(2)",
-                () -> new TestCase(
-                    List.of(new TypedData(2, DataTypes.INTEGER, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(0.5, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.sqrt(2))
@@ -143,8 +174,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(2.0, 0.5) == sqrt(2)",
-                () -> new TestCase(
-                    List.of(new TypedData(2d, DataTypes.DOUBLE, "base"), new TypedData(0.5, DataTypes.DOUBLE, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(2d, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(0.5, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.sqrt(2))
@@ -155,8 +189,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 int base = randomIntBetween(0, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
-                TestCase testCase = new TestCase(
-                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(exp, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(expected)
@@ -167,8 +204,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 // Negative numbers to a non-integer power are NaN
                 int base = randomIntBetween(-1000, -1);
                 double exp = randomDouble(); // between 0 and 1
-                TestCase testCase = new TestCase(
-                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(exp, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(null)
@@ -178,8 +218,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier(
                 "pow(123, -1)",
-                () -> new TestCase(
-                    List.of(new TypedData(123, DataTypes.INTEGER, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(123, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(-1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.INTEGER,
@@ -188,8 +231,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(123L, -1)",
-                () -> new TestCase(
-                    List.of(new TypedData(123L, DataTypes.LONG, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(123L, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(-1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -198,8 +244,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier(
                 "pow(123D, -1)",
-                () -> new TestCase(
-                    List.of(new TypedData(123.0, DataTypes.DOUBLE, "base"), new TypedData(-1, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(123.0, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(-1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.DOUBLE,
                     equalTo(1D / 123D)
@@ -207,8 +256,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             ),
             new TestCaseSupplier("pow(integer, 1)", () -> {
                 int base = randomInt();
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.INTEGER, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.INTEGER, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowIntEvaluator[base=CastIntToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.INTEGER,
@@ -217,8 +269,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier(
                 "pow(1L, 1)",
-                () -> new TestCase(
-                    List.of(new TypedData(1L, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1L, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -228,8 +283,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             new TestCaseSupplier("pow(long, 1)", () -> {
                 // Avoid double precision loss
                 long base = randomLongBetween(-1L << 51, 1L << 51);
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -239,8 +297,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             new TestCaseSupplier("long-double overflow", () -> {
                 long base = 4339622345450989181L; // Not exactly representable as a double
                 long expected = 4339622345450989056L;
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -249,8 +310,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier("pow(long, 0)", () -> {
                 long base = randomLong();
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(0, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(0, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -259,8 +323,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier("pow(long, 2)", () -> {
                 long base = randomLongBetween(-1000, 1000);
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "exp")
+                    ),
                     "PowLongEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], "
                         + "exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.LONG,
@@ -272,8 +339,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 long base = randomLongBetween(0, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
-                TestCase testCase = new TestCase(
-                    List.of(new TypedData(base, DataTypes.LONG, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.LONG, "base"),
+                        new TestCaseSupplier.TypedData(exp, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=CastLongToDoubleEvaluator[v=Attribute[channel=0]], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(expected)
@@ -282,8 +352,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier(
                 "pow(1D, 1)",
-                () -> new TestCase(
-                    List.of(new TypedData(1D, DataTypes.DOUBLE, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1D, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.DOUBLE,
                     equalTo(1D)
@@ -297,8 +370,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     // Sometimes pick a large number
                     base = 1 / randomDouble();
                 }
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(1, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.DOUBLE,
                     equalTo(base)
@@ -312,8 +388,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     // Sometimes pick a large number
                     base = 1 / randomDouble();
                 }
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(0, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(0, DataTypes.INTEGER, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.DOUBLE,
                     equalTo(1D)
@@ -321,8 +400,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier("pow(double, 2)", () -> {
                 double base = randomDoubleBetween(-1000, 1000, true);
-                return new TestCase(
-                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(2, DataTypes.INTEGER, "exp")),
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.pow(base, 2))
@@ -332,8 +414,11 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 // Negative numbers to a non-integer power are NaN
                 double base = randomDoubleBetween(0, 1000, true);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
-                TestCase testCase = new TestCase(
-                    List.of(new TypedData(base, DataTypes.DOUBLE, "base"), new TypedData(exp, DataTypes.DOUBLE, "exp")),
+                TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(base, DataTypes.DOUBLE, "base"),
+                        new TestCaseSupplier.TypedData(exp, DataTypes.DOUBLE, "exp")
+                    ),
                     "PowDoubleEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]",
                     DataTypes.DOUBLE,
                     equalTo(Math.pow(base, exp))

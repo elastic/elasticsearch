@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -151,11 +151,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            clusterSettingsIssues = in.readList(DeprecationIssue::new);
-            nodeSettingsIssues = in.readList(DeprecationIssue::new);
+            clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
+            nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             indexSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
-            if (in.getTransportVersion().before(TransportVersion.V_7_11_0)) {
-                List<DeprecationIssue> mlIssues = in.readList(DeprecationIssue::new);
+            if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
+                List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
                 pluginSettingsIssues = new HashMap<>();
                 pluginSettingsIssues.put("ml_settings", mlIssues);
             } else {
@@ -203,11 +203,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(clusterSettingsIssues);
             out.writeCollection(nodeSettingsIssues);
-            out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
+            out.writeMap(indexSettingsIssues, StreamOutput::writeCollection);
+            if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
                 out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
             } else {
-                out.writeMapOfLists(pluginSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+                out.writeMap(pluginSettingsIssues, StreamOutput::writeCollection);
             }
         }
 

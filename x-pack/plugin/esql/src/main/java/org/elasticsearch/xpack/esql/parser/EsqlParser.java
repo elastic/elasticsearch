@@ -17,8 +17,8 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenFactory;
 import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.PredictionMode;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
@@ -135,7 +135,7 @@ public class EsqlParser {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
                 if (param >= params.size()) {
-                    throw new ParsingException("Not enough actual parameters {} ", params.size());
+                    throw new ParsingException("Not enough actual parameters {}", params.size());
                 }
                 paramTokens.put(token, params.get(param));
                 param++;

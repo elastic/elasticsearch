@@ -58,8 +58,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(queries, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(sections, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(queries, StreamOutput::writeLong);
+        out.writeMap(sections, StreamOutput::writeLong);
         out.writeVLong(totalSearchCount);
     }
 

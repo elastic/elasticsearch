@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -76,12 +77,24 @@ public interface ClusterCoordinationPlugin {
     }
 
     interface PersistedClusterStateServiceFactory {
+
+        @Deprecated(forRemoval = true)
         PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
             ThreadPool threadPool
         );
+
+        default PersistedClusterStateService newPersistedClusterStateService(
+            NodeEnvironment nodeEnvironment,
+            NamedXContentRegistry xContentRegistry,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            CompatibilityVersions compatibilityVersions
+        ) {
+            return newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
+        }
     }
 
     interface ReconfiguratorFactory {

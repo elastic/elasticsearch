@@ -123,7 +123,7 @@ conflict.
 
 IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
 any reindex request to a destination data stream must have an `op_type`
-of`create`. A reindex can only add new documents to a destination data stream.
+of `create`. A reindex can only add new documents to a destination data stream.
 It cannot update existing documents in a destination data stream.
 
 By default, version conflicts abort the `_reindex` process.

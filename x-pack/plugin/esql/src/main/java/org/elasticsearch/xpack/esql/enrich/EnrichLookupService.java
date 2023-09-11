@@ -52,7 +52,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -103,12 +102,7 @@ public class EnrichLookupService {
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(
-            LOOKUP_ACTION_NAME,
-            EsqlPlugin.ESQL_THREAD_POOL_NAME,
-            LookupRequest::new,
-            new TransportHandler()
-        );
+        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
     }
 
     public void lookupAsync(
@@ -177,7 +171,7 @@ public class EnrichLookupService {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
                     yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
                 }
-                default -> throw new EsqlUnsupportedOperationException("unsupported match type " + matchType);
+                default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
@@ -293,7 +287,7 @@ public class EnrichLookupService {
             this.matchField = in.readString();
             this.inputPage = new Page(in);
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
 
         @Override

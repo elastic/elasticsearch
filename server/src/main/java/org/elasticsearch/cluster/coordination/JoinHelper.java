@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,11 +22,13 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -76,6 +77,7 @@ public class JoinHelper {
     private final JoinReasonService joinReasonService;
     private final CircuitBreakerService circuitBreakerService;
     private final ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier;
+    private final CompatibilityVersions compatibilityVersions;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -94,7 +96,8 @@ public class JoinHelper {
         JoinReasonService joinReasonService,
         CircuitBreakerService circuitBreakerService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
-        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier
+        ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
+        CompatibilityVersions compatibilityVersions
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
@@ -108,10 +111,11 @@ public class JoinHelper {
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
+        this.compatibilityVersions = compatibilityVersions;
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION),
             false,
             false,
             JoinRequest::new,
@@ -123,7 +127,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             START_JOIN_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION),
             false,
             false,
             StartJoinRequest::new,
@@ -136,7 +140,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             JOIN_PING_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             TransportRequest.Empty::new,
@@ -235,7 +239,7 @@ public class JoinHelper {
             logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
             return;
         }
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), TransportVersion.current(), term, optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), compatibilityVersions, term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
@@ -401,17 +405,21 @@ public class JoinHelper {
     }
 
     interface JoinAccumulator {
-        void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener);
+        void handleJoinRequest(DiscoveryNode sender, CompatibilityVersions compatibilityVersions, ActionListener<Void> joinListener);
 
         default void close(Mode newMode) {}
     }
 
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             final JoinTask task = JoinTask.singleNode(
                 sender,
-                transportVersion,
+                compatibilityVersions,
                 joinReasonService.getJoinReason(sender, Mode.LEADER),
                 joinListener,
                 currentTermSupplier.getAsLong()
@@ -427,7 +435,11 @@ public class JoinHelper {
 
     static class InitialJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             assert false : "unexpected join from " + sender + " during initialisation";
             joinListener.onFailure(new CoordinationStateRejectedException("join target is not initialised yet"));
         }
@@ -440,7 +452,11 @@ public class JoinHelper {
 
     static class FollowerJoinAccumulator implements JoinAccumulator {
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             joinListener.onFailure(new CoordinationStateRejectedException("join target is a follower"));
         }
 
@@ -452,13 +468,17 @@ public class JoinHelper {
 
     class CandidateJoinAccumulator implements JoinAccumulator {
 
-        private final Map<DiscoveryNode, Tuple<TransportVersion, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
+        private final Map<DiscoveryNode, Tuple<CompatibilityVersions, ActionListener<Void>>> joinRequestAccumulator = new HashMap<>();
         boolean closed;
 
         @Override
-        public void handleJoinRequest(DiscoveryNode sender, TransportVersion transportVersion, ActionListener<Void> joinListener) {
+        public void handleJoinRequest(
+            DiscoveryNode sender,
+            CompatibilityVersions compatibilityVersions,
+            ActionListener<Void> joinListener
+        ) {
             assert closed == false : "CandidateJoinAccumulator closed";
-            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(transportVersion, joinListener));
+            var prev = joinRequestAccumulator.put(sender, Tuple.tuple(compatibilityVersions, joinListener));
             if (prev != null) {
                 prev.v2().onFailure(new CoordinationStateRejectedException("received a newer join from " + sender));
             }

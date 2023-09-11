@@ -229,9 +229,9 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
     public CategorizationAnalyzerConfig(StreamInput in) throws IOException {
         analyzer = in.readOptionalString();
-        charFilters = in.readList(NameOrDefinition::new);
+        charFilters = in.readCollectionAsList(NameOrDefinition::new);
         tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-        tokenFilters = in.readList(NameOrDefinition::new);
+        tokenFilters = in.readCollectionAsList(NameOrDefinition::new);
     }
 
     @Override

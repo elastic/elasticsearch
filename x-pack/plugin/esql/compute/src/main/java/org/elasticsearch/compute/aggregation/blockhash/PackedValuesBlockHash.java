@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,6 +22,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Arrays;
 import java.util.List;

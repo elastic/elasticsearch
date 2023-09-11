@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
 
 public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
@@ -47,6 +49,13 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         true,
         objects -> new TypedParamValue((String) objects[1], objects[0])
     );
+    private static final ParseField VALUE = new ParseField("value");
+    private static final ParseField TYPE = new ParseField("type");
+
+    static {
+        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
+        PARAM_PARSER.declareString(constructorArg(), TYPE);
+    }
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
@@ -141,9 +150,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     }
 
     public static EsqlQueryRequest fromXContent(XContentParser parser) {
-        EsqlQueryRequest result = PARSER.apply(parser, null);
-        validateParams(result.params);
-        return result;
+        return PARSER.apply(parser, null);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParser(Supplier<EsqlQueryRequest> supplier) {
@@ -171,7 +178,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             Object value = null;
             String type = null;
             TypedParamValue previousParam = null;
-            TypedParamValue currentParam = null;
+            TypedParamValue currentParam;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
@@ -200,9 +207,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
                         } else if (numberType == XContentParser.NumberType.LONG) {
                             value = p.longValue();
                             type = "long";
-                        } else if (numberType == XContentParser.NumberType.FLOAT) {
-                            value = p.floatValue();
-                            type = "float";
                         } else if (numberType == XContentParser.NumberType.DOUBLE) {
                             value = p.doubleValue();
                             type = "double";
@@ -242,17 +246,6 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
-    }
-
-    protected static void validateParams(List<TypedParamValue> params) {
-        for (TypedParamValue param : params) {
-            if (param.hasExplicitType()) {
-                throw new XContentParseException(
-                    fromProto(param.tokenLocation()),
-                    "[params] must be an array where each entry is a single field (no " + "objects supported)"
-                );
-            }
-        }
     }
 
     static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {

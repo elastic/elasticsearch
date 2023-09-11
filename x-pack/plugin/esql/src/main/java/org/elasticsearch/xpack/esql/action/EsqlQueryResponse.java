@@ -29,7 +29,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -80,8 +80,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     public EsqlQueryResponse(StreamInput in) throws IOException {
         super(in);
-        this.columns = in.readList(ColumnInfo::new);
-        this.pages = in.readList(Page::new);
+        this.columns = in.readCollectionAsList(ColumnInfo::new);
+        this.pages = in.readCollectionAsList(Page::new);
         this.columnar = in.readBoolean();
     }
 
@@ -237,7 +237,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataType);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 
@@ -270,7 +270,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw EsqlUnsupportedOperationException.unsupportedDataType(dataTypes.get(c));
+                    default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }
             }
         }

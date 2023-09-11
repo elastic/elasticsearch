@@ -1,5 +1,5 @@
 projectFrom
-from employees | keep languages, emp_no, first_name, last_name | limit 10;
+from employees | sort emp_no | keep languages, emp_no, first_name, last_name | limit 10;
 
 languages:integer | emp_no:integer | first_name:keyword | last_name:keyword
 2 | 10001 | Georgi | Facello
@@ -15,7 +15,8 @@ languages:integer | emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 projectFromWithFilter
-from employees | keep languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10050 | limit 5;
+from employees | keep languages, emp_no, first_name, last_name | eval x = emp_no + 10 | where x > 10040 and x < 10046;
+ignoreOrder:true
 
 languages:integer | emp_no:integer | first_name:keyword | last_name:keyword | x:integer
 4 | 10031 | null | Joslin | 10041
@@ -41,6 +42,7 @@ c : long
 
 averageByField
 from employees | stats avg(avg_worked_seconds) by languages;
+ignoreOrder:true
 
 avg(avg_worked_seconds):double | languages:integer
           3.181719481E8        | null 
@@ -60,6 +62,7 @@ avg(avg_worked_seconds):double | languages.long:long
 
 statsBySubField
 from employees | stats avg=avg(avg_worked_seconds),min=min(avg_worked_seconds),max=max(avg_worked_seconds) by languages.long;
+ignoreOrder:true
 
           avg:double | min:long  | max:long  | languages.long:long
 3.181719481E8        | 226435054 | 374037782 | null
@@ -137,6 +140,7 @@ avg(salary):double | last_name:keyword
 
 statsOfInteger
 from employees | where starts_with(last_name, "L") | stats a=avg(salary), s=sum(salary), c=count(last_name) by last_name;
+ignoreOrder:true
 
    a:double    |    s:long     |     c:long    |last_name:keyword   
 42520.0        |85040          |2              |Lortz          
@@ -178,6 +182,7 @@ med:double | languages:integer
 
 multiConditionalWhere
 from employees | eval abc = 1+2 | where (abc + emp_no > 10100 or languages == 1) or (abc + emp_no < 10005 and gender == "F") | keep emp_no, languages, gender, first_name, abc;
+ignoreOrder:true
 
 emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:integer
 10005 | 1 | M | Kyoichi | 3
@@ -201,7 +206,7 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 ;
 
 projectFromWithStatsAfterLimit
-from employees | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
+from employees | sort emp_no | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
    m:long | gender:keyword
 315236372 | null
@@ -232,7 +237,7 @@ emp_no:integer | languages:integer | first_name:keyword | last_name:keyword
 ;
 
 sortWithLimitOne
-from employees | sort languages | limit 1;
+from employees | sort languages, emp_no | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
 244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2.14, 13.07] |[-2, 13]          |true                      
@@ -261,10 +266,10 @@ height:double | languages.long:long | still_hired:boolean
 ;
 
 simpleEvalWithSortAndLimitOne
-from employees | eval x = languages + 7 | sort x | limit 1;
+from employees | eval x = languages + 7 | sort x, avg_worked_seconds | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
-244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2.14, 13.07]         |[-2, 13]         |true           |8                            
+208374744         |1956-11-14T00:00:00.000Z|10033          |null           |M              |1.63           |1.6299999952316284|1.6298828125     |1.6300000000000001 |1987-03-18T00:00:00.000Z|true           |null           |1              |1              |1              |1              |Merlo          |70011          |null           |null             |null                 |null              |false          |8                                          
 ;
 
 evalOfAverageValue
@@ -283,6 +288,7 @@ avg(ratio):double
 
 simpleWhere
 from employees | where salary > 70000 | keep first_name, last_name, salary;
+ignoreOrder:true
 
 first_name:keyword | last_name:keyword | salary:integer
 Tzvetan | Zielinski | 74572
@@ -297,6 +303,7 @@ Valter | Sullins | 73578
 
 whereAfterProject
 from employees | keep salary | where salary > 70000;
+ignoreOrder:true
 
 salary:integer
 74572
@@ -313,6 +320,7 @@ whereWithEvalGeneratedValue
 // the result from running on ES is the one with many decimals the test that runs locally is the one rounded to 2 decimals
 // the "height" fields have the values as 1.7, 1.7000000476837158, 1.7001953125, 1.7
 from employees | eval x = salary / 2 | where x > 37000;
+ignoreOrder:true
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
 393084805         |1957-05-23T00:00:00.000Z|10007          |Tzvetan        |F              |1.7            |1.7000000476837158|1.7001953125     |1.7                |1989-02-10T00:00:00.000Z|[false, false, true, true]|null                                                                        |4              |4              |4              |4              |Zielinski      |74572          |[-7.06, 0.57, 1.99] |[-7, 0, 1]       |[-7.06, 0.57, 1.99] |[-7, 0, 1]        |true           |37286          
@@ -329,6 +337,7 @@ x:double
 
 statsByDouble
 from employees | eval abc=1+2 | where abc + languages > 4 | stats count(height) by height;
+ignoreOrder:true
 
 count(height):long | height:double
 2 | 2.03
@@ -391,7 +400,7 @@ count(height):long | h1:double
 
 
 whereNegatedCondition
-from employees | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | keep x, languages, languages.long | limit 3;
+from employees | sort emp_no | eval abc=1+2 | where abc + languages > 4 and languages.long != 1 | eval x=abc+languages | keep x, languages, languages.long | limit 3;
 
 x:integer | languages:integer | languages.long:long
 5 | 2 | 2
@@ -400,7 +409,7 @@ x:integer | languages:integer | languages.long:long
 ;
 
 evalOverride
-from employees | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | keep l*;
+from employees | sort emp_no | eval languages = languages + 1 | eval languages = languages + 1 | limit 5 | keep l*;
 
 languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | languages:integer
 2 | 2 | 2 | Facello  | 4
@@ -425,15 +434,15 @@ avg(nullsum):double | count(nullsum):long
 ;
 
 fromStatsLimit
-from employees | stats ac = avg(salary) by languages | limit 2;
+from employees | stats ac = avg(salary) by languages | sort ac | limit 2;
 
 ac:double         | languages:integer
-52519.6           | null
-48178.84210526316 | 2
+41680.76190476191 | 5              
+47733.0           | 4     
 ;
 
 fromLimit
-from employees | keep first_name | limit 2;
+from employees | sort emp_no | keep first_name | limit 2;
 
 first_name:keyword
 Georgi
@@ -470,6 +479,7 @@ x:integer
 
 filterKeyword
 from employees | where first_name != "abc" and emp_no < 10010 | keep first_name;
+ignoreOrder:true
 
 first_name:keyword 
 Georgi
@@ -484,7 +494,7 @@ Sumant
 ;
 
 projectMultiValueKeywords
-from employees | keep emp_no, job_positions, still_hired | limit 5;
+from employees | sort emp_no | keep emp_no, job_positions, still_hired | limit 5;
 
 emp_no:integer |                         job_positions:keyword                        |still_hired:boolean  
 10001          |[Accountant, Senior Python Developer]                                 |true           
@@ -495,7 +505,7 @@ emp_no:integer |                         job_positions:keyword                  
 ;
 
 projectMultiValueBooleans
-from employees | keep emp_no, is_rehired, still_hired | limit 5;
+from employees | sort emp_no | keep emp_no, is_rehired, still_hired | limit 5;
   
 emp_no:integer |     is_rehired:boolean    |still_hired:boolean
 10001          |[false, true]              |true           
@@ -506,7 +516,7 @@ emp_no:integer |     is_rehired:boolean    |still_hired:boolean
 ;
 
 projectMultiValueNumbers
-from employees | keep emp_no, salary_change, salary_change.int, salary_change.long | limit 10;
+from employees | sort emp_no | keep emp_no, salary_change, salary_change.int, salary_change.long | limit 10;
   
 emp_no:integer |   salary_change:double   |salary_change.int:integer|salary_change.long:long
 10001          |1.19                      |1                        |1                 

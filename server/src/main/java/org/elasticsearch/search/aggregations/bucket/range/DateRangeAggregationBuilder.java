@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -130,7 +131,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

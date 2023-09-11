@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -103,9 +104,9 @@ public final class Authentication implements ToXContentObject {
     private static final Logger logger = LogManager.getLogger(Authentication.class);
     private static final TransportVersion VERSION_AUTHENTICATION_TYPE = TransportVersion.fromId(6_07_00_99);
 
-    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersion.V_7_9_0;
-    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersion.V_8_2_0;
-    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersion.V_8_8_0;
+    public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
+    public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
+    public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -742,7 +743,7 @@ public final class Authentication implements ToXContentObject {
         CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,
         CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
-        in -> in.readList(RoleDescriptorsBytes::new)
+        in -> in.readCollectionAsList(RoleDescriptorsBytes::new)
     );
 
     private static Map<String, Object> readMetadata(StreamInput in) throws IOException {
@@ -767,7 +768,7 @@ public final class Authentication implements ToXContentObject {
         (out, v) -> {
             @SuppressWarnings("unchecked")
             final List<RoleDescriptorsBytes> roleDescriptorsBytesList = (List<RoleDescriptorsBytes>) v;
-            out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+            out.writeCollection(roleDescriptorsBytesList);
         }
     );
 

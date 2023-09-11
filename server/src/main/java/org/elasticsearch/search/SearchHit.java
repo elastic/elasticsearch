@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -138,11 +138,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rank = in.readVInt();
         }
         id = in.readOptionalText();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalText();
         }
         nestedIdentity = in.readOptionalWriteable(NestedIdentity::new);
@@ -156,7 +156,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (in.readBoolean()) {
             explanation = readExplanation(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
             documentFields.putAll(in.readMap(DocumentField::new));
             metaFields.putAll(in.readMap(DocumentField::new));
         } else {
@@ -186,7 +186,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
         sortValues = new SearchSortValues(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             matchedQueries = in.readOrderedMap(StreamInput::readString, StreamInput::readFloat);
         } else {
             size = in.readVInt();
@@ -243,13 +243,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(rank);
         } else if (rank != NO_RANK) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
         out.writeOptionalText(id);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
         }
         out.writeOptionalWriteable(nestedIdentity);
@@ -263,9 +263,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             out.writeBoolean(true);
             writeExplanation(out, explanation);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
-            out.writeMap(documentFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
-            out.writeMap(metaFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
+            out.writeMap(documentFields, StreamOutput::writeWriteable);
+            out.writeMap(metaFields, StreamOutput::writeWriteable);
         } else {
             writeFields(out, this.getFields());
         }
@@ -276,16 +276,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
         sortValues.writeTo(out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeMap(matchedQueries, StreamOutput::writeString, StreamOutput::writeFloat);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeMap(matchedQueries, StreamOutput::writeFloat);
         } else {
-            out.writeStringArray(matchedQueries.keySet().toArray(new String[0]));
+            out.writeStringCollection(matchedQueries.keySet());
         }
         out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
         } else {
-            out.writeMap(innerHits, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(innerHits, StreamOutput::writeWriteable);
         }
     }
 

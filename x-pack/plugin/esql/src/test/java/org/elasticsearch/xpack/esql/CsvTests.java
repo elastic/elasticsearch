@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -16,16 +18,17 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,7 +93,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -132,7 +134,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * To log the results logResults() should return "true".
  */
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -233,12 +235,12 @@ public class CsvTests extends ESTestCase {
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, log);
+        assertResults(expected, actualResults, testCase.ignoreOrder, log);
         assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
     }
 
-    protected void assertResults(ExpectedResults expected, ActualResults actual, Logger logger) {
-        CsvAssert.assertResults(expected, actual, logger);
+    protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
          * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
          * This is useful when creating a new test or trying to figure out what are the actual results.
@@ -358,7 +360,6 @@ public class CsvTests extends ESTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        Map<String, List<String>> responseHeaders;
 
         // replace fragment inside the coordinator plan
         try {
@@ -376,11 +377,21 @@ public class CsvTests extends ESTestCase {
                 drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
                 Randomness.shuffle(drivers);
             }
-            responseHeaders = runToCompletion(threadPool, between(1, 10_000), drivers);
+            // Execute the driver
+            DriverRunner runner = new DriverRunner() {
+                @Override
+                protected void start(Driver driver, ActionListener<Void> driverListener) {
+                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                }
+            };
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            runner.runToCompletion(drivers, future);
+            future.actionGet(TimeValue.timeValueSeconds(30));
+            var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+            return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }
-        return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
     }
 
     private Throwable reworkException(Throwable th) {

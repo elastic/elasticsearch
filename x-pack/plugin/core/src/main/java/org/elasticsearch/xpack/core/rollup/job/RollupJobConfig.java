@@ -148,7 +148,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         rollupIndex = in.readString();
         cron = in.readString();
         groupConfig = in.readOptionalWriteable(GroupConfig::new);
-        metricsConfig = in.readList(MetricConfig::new);
+        metricsConfig = in.readCollectionAsList(MetricConfig::new);
         timeout = in.readTimeValue();
         pageSize = in.readInt();
         indices = Strings.splitStringByCommaToArray(indexPattern);

@@ -58,6 +58,7 @@ emp_no:integer | x:keyword                     | y:keyword
 
 compareToString
 from employees | where hire_date < "1985-03-01T00:00:00Z" | keep emp_no, hire_date;
+ignoreOrder:true
 
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z
@@ -149,7 +150,7 @@ y:date                        | count(emp_no):long
 ;
 
 in
-from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc | limit 4;
+from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc, hire_date | limit 4;
 
 x:date                  |hire_date:date
 1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z
@@ -159,7 +160,7 @@ x:date                  |hire_date:date
 ;
 
 convertFromDatetime
-from employees| keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
+from employees | sort emp_no | keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
 
 birth_date:date         |bd:date
 1953-09-02T00:00:00.000Z|1953-09-02T00:00:00.000Z
@@ -438,6 +439,7 @@ dateFields
 from employees | where emp_no == 10049 or emp_no == 10050 
 | eval year = date_extract(birth_date, "year"), month = date_extract(birth_date, "month_of_year"), day = date_extract(birth_date, "day_of_month")
 | keep emp_no, year, month, day;
+ignoreOrder:true
 
 emp_no:integer | year:long    | month:long    | day:long
 10049          | null         | null          | null
@@ -448,8 +450,167 @@ emp_no:integer | year:long    | month:long    | day:long
 dateFormatLocale
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval birth_month = date_format(birth_date, "MMMM") | keep emp_no, birth_date, birth_month;
+ignoreOrder:true
 
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword
 10049           |  null                      | null
 10050           |  1958-05-21T00:00:00.000Z  | May
+;
+
+datePlusPeriod
+row dt = to_dt("2100-01-01T01:01:01.000Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day;
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.000Z |2104-04-16T01:01:01.000Z
+;
+
+datePlusDuration
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T00:00:00.000Z |2100-01-01T01:01:01.001Z
+;
+
+dateMinusPeriod
+row dt = to_dt("2104-04-16T01:01:01.000Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day;
+
+dt:datetime              |minus:datetime
+2104-04-16T01:01:01.000Z |2100-01-01T01:01:01.000Z
+;
+
+dateMinusDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |minus:datetime
+2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
+datePlusPeriodAndDuration
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T00:00:00.000Z |2104-04-16T01:01:01.001Z
+;
+
+dateMinusPeriodAndDuration
+row dt = to_dt("2104-04-16T01:01:01.001Z")
+| eval minus = dt - 4 years - 3 months - 2 weeks - 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |minus:datetime
+2104-04-16T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
+datePlusPeriodMinusDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus = dt + 4 years + 3 months + 2 weeks + 1 day - 1 hour - 1 minute - 1 second - 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.001Z |2104-04-16T00:00:00.000Z
+;
+
+datePlusDurationMinusPeriod
+row dt = to_dt("2104-04-16T00:00:00.000Z")
+| eval plus = dt - 4 years - 3 months - 2 weeks - 1 day + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2104-04-16T00:00:00.000Z |2100-01-01T01:01:01.001Z
+;
+
+dateMathArithmeticOverflow
+row dt = to_dt(9223372036854775807)
+| eval plus = dt + 1 day
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: long overflow
+
+plus:datetime
+null
+;
+
+dateMathDateException
+row dt = to_dt(0)
+| eval plus = dt + 2147483647 years
+| keep plus;
+
+warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
+warning:java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+
+plus:datetime
+null
+;
+
+dateMathNegatedPeriod
+row dt = to_dt(0)
+| eval plus = -(-1 year) + dt
+| keep plus;
+
+plus:datetime
+1971-01-01T00:00:00.000Z
+;
+
+dateMathNegatedDuration
+row dt = to_dt(0)
+| eval plus = -(-1 second) + dt
+| keep plus;
+
+plus:datetime
+1970-01-01T00:00:01.000Z
+;
+
+
+fieldDateMathSimple
+from employees
+| sort emp_no
+| eval bd = 1 year + birth_date - 1 millisecond
+| keep birth_date, bd
+| limit 5;
+
+birth_date:datetime      |bd:datetime
+1953-09-02T00:00:00.000Z |1954-09-01T23:59:59.999Z
+1964-06-02T00:00:00.000Z |1965-06-01T23:59:59.999Z
+1959-12-03T00:00:00.000Z |1960-12-02T23:59:59.999Z
+1954-05-01T00:00:00.000Z |1955-04-30T23:59:59.999Z
+1955-01-21T00:00:00.000Z |1956-01-20T23:59:59.999Z
+;
+
+fieldDateMath
+from employees
+| eval bd = -1 millisecond + birth_date + 1 year
+| eval bd = date_trunc(1 day, bd)
+| eval bd = bd + 1 day - 1 year
+| where birth_date != bd
+| stats c = count(bd);
+
+c:long
+0
+;
+
+filteringWithDateMath
+from employees
+| sort emp_no
+| where birth_date < to_dt("2023-08-25T11:25:41.052Z") - 70 years
+| keep birth_date;
+
+birth_date:datetime
+1953-04-20T00:00:00.000Z
+1952-04-19T00:00:00.000Z
+1953-01-23T00:00:00.000Z
+1952-12-24T00:00:00.000Z
+1952-07-08T00:00:00.000Z
+1953-04-03T00:00:00.000Z
+1953-02-08T00:00:00.000Z
+1953-07-28T00:00:00.000Z
+1952-08-06T00:00:00.000Z
+1952-11-13T00:00:00.000Z
+1953-01-07T00:00:00.000Z
+1952-05-15T00:00:00.000Z
+1952-06-13T00:00:00.000Z
+1952-02-27T00:00:00.000Z
+1953-04-21T00:00:00.000Z
 ;

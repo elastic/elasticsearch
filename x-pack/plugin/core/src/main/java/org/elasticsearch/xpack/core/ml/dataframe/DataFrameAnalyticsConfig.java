@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -191,7 +191,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.version = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
         this.allowLazyStart = in.readBoolean();
         this.maxNumThreads = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             Map<String, Object> readMeta = in.readMap();
             this.meta = readMeta == null ? null : Collections.unmodifiableMap(readMeta);
         } else {
@@ -309,7 +309,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeNamedWriteable(analysis);
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
         out.writeOptionalInstant(createTime);
         if (version != null) {
             out.writeBoolean(true);
@@ -319,7 +319,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         out.writeBoolean(allowLazyStart);
         out.writeVInt(maxNumThreads);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeGenericMap(meta);
         }
     }

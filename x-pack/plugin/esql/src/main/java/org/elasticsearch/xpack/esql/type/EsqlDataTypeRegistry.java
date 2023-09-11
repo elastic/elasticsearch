@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+
 public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     public static final DataTypeRegistry INSTANCE = new EsqlDataTypeRegistry();
@@ -57,6 +60,9 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType commonType(DataType left, DataType right) {
+        if (isDateTime(left) && isTemporalAmount(right) || isTemporalAmount(left) && isDateTime(right)) {
+            return DataTypes.DATETIME;
+        }
         return DataTypeConverter.commonType(left, right);
     }
 }

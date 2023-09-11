@@ -174,7 +174,7 @@ public class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }

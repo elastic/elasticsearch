@@ -29,7 +29,7 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
 
   @Override
   public String name() {
-    return "ToBoolean";
+    return "ToBooleanFromInt";
   }
 
   @Override

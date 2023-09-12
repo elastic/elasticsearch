@@ -68,22 +68,6 @@ public class ListenerTimeouts {
         return wrappedListener;
     }
 
-    /**
-     * @deprecated Use {@link #wrapWithTimeout(ThreadPool, TimeValue, Executor, ActionListener, Consumer)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static <Response> ActionListener<Response> wrapWithTimeout(
-        ThreadPool threadPool,
-        TimeValue timeout,
-        String executor,
-        ActionListener<Response> listener,
-        Consumer<ActionListener<Response>> onTimeout
-    ) {
-        TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, onTimeout);
-        wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, executor);
-        return wrappedListener;
-    }
-
     private static class TimeoutableListener<Response> implements ActionListener<Response>, Runnable {
 
         private final AtomicBoolean isDone = new AtomicBoolean(false);

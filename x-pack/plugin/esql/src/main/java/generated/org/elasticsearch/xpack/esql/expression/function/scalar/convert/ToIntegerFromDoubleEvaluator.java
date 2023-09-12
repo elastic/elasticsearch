@@ -29,7 +29,7 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToInteger";
+    return "ToIntegerFromDouble";
   }
 
   @Override

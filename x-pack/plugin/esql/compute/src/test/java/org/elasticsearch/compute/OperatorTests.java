@@ -247,7 +247,8 @@ public class OperatorTests extends MapperServiceTestCase {
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
                                 bigArrays,
-                                randomPageSize()
+                                randomPageSize(),
+                                false
                             ),
                             driverContext
                         )

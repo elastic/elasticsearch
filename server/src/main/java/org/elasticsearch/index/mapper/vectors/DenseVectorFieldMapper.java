@@ -26,6 +26,7 @@ import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -859,10 +860,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = 0.0f;
-                for (byte b : queryVector) {
-                    squaredMagnitude += b * b;
-                }
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
@@ -891,10 +889,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             elementType.checkVectorBounds(queryVector);
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = 0.0f;
-                for (float e : queryVector) {
-                    squaredMagnitude += e * e;
-                }
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = switch (elementType) {

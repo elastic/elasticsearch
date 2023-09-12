@@ -41,7 +41,7 @@ public class ElserMlNodeTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_072;
+        return TransportVersions.V_8_500_074;
     }
 
     @Override

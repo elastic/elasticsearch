@@ -144,7 +144,7 @@ setup:
   - match: { aggregations.conns.buckets.3.key: "4" }
 
   - do:
-      indices.stats: { index: test, metric: request_cache}
+      indices.stats: { index: test, metric: request_cache, level: shards}
   - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

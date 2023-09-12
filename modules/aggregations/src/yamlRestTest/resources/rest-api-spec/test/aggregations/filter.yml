@@ -63,7 +63,7 @@ setup:
 
   # The first request will miss the cache
   - do:
-      indices.stats: { index: test, metric: request_cache}
+      indices.stats: { index: test, metric: request_cache, level: shards}
   - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
@@ -98,7 +98,7 @@ setup:
 
   # The second result with hit the cache
   - do:
-      indices.stats: { index: test, metric: request_cache}
+      indices.stats: { index: test, metric: request_cache, level: shards}
   - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
@@ -135,7 +135,7 @@ setup:
 
   # The first request will miss the cache
   - do:
-      indices.stats: { index: test, metric: request_cache}
+      indices.stats: { index: test, metric: request_cache, level: shards}
   - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
@@ -169,7 +169,7 @@ setup:
 
   # The first request will miss the cache
   - do:
-      indices.stats: { index: test, metric: request_cache}
+      indices.stats: { index: test, metric: request_cache, level: shards}
   - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

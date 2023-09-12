@@ -33,7 +33,13 @@ public class QueryRulesInferenceService {
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
     }
 
-    public boolean findInferenceRuleMatches(String modelId, String inferenceConfig, String queryString, String matchValue, float threshold) {
+    public boolean findInferenceRuleMatches(
+        String modelId,
+        String inferenceConfig,
+        String queryString,
+        String matchValue,
+        float threshold
+    ) {
 
         if (inferenceConfig.equals("text_expansion")) {
             return findTextExpansionInferenceRuleMatches(modelId, queryString, matchValue, threshold);

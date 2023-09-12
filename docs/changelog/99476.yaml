@@ -1,6 +1,0 @@
-pr: 99476
-summary: Document how to reindex a TSDS
-area: Aggregations
-type: enhancement
-issues:
- - 99176

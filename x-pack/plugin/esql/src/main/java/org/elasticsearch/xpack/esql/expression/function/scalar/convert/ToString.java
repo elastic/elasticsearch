@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -29,6 +30,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -52,14 +54,16 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
             ToStringFromLongEvaluator::new,
             INTEGER,
             ToStringFromIntEvaluator::new,
+            TEXT,
+            (fieldEval, source) -> fieldEval,
             VERSION,
             ToStringFromVersionEvaluator::new,
             UNSIGNED_LONG,
             ToStringFromUnsignedLongEvaluator::new
         );
 
-    public ToString(Source source, Expression field) {
-        super(source, field);
+    public ToString(Source source, @Named("v") Expression v) {
+        super(source, v);
     }
 
     @Override

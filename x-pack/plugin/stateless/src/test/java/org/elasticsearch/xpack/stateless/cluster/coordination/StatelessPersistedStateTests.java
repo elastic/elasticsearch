@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;

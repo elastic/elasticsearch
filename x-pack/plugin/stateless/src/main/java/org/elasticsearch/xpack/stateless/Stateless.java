@@ -65,6 +65,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -639,17 +640,14 @@ public class Stateless extends Plugin
                 final Store store = indexShard.store();
                 try {
                     store.incRef();
-                    final var blobStore = objectStoreService.get().getObjectStore();
-                    final var objectStore = blobStore.blobStore();
-                    var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                    final var service = objectStoreService.get();
+                    final var blobStore = service.blobStore();
                     final ShardId shardId = indexShard.shardId();
-                    final var basePath = blobStore.basePath()
-                        .add("indices")
-                        .add(shardId.getIndex().getUUID())
-                        .add(String.valueOf(shardId.id()));
-                    final LongFunction<BlobContainer> containerSupplier = primaryTerm -> objectStore.blobContainer(
-                        basePath.add(String.valueOf(primaryTerm))
+                    final var shardBasePath = service.shardBasePath(shardId);
+                    final LongFunction<BlobContainer> containerSupplier = primaryTerm -> blobStore.blobContainer(
+                        shardBasePath.add(String.valueOf(primaryTerm))
                     );
+                    var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
                     searchDirectory.setBlobContainer(containerSupplier);
                     boolean indexingShard = indexShard.routingEntry().isPromotableToPrimary();
                     Set<BlobFile> unreferencedFiles = null;
@@ -661,13 +659,13 @@ public class Stateless extends Plugin
                         logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
                         if (indexingShard) {
                             Tuple<StatelessCompoundCommit, Set<BlobFile>> state = ObjectStoreService.readIndexingShardState(
-                                objectStore.blobContainer(basePath),
+                                blobStore.blobContainer(shardBasePath),
                                 primaryTerm
                             );
                             latestCommit = state.v1();
                             unreferencedFiles = state.v2();
                         } else {
-                            latestCommit = ObjectStoreService.readSearchShardState(objectStore.blobContainer(basePath), primaryTerm);
+                            latestCommit = ObjectStoreService.readSearchShardState(blobStore.blobContainer(shardBasePath), primaryTerm);
                         }
 
                         if (latestCommit != null) {

@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.test;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -27,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
 import org.apache.lucene.store.Directory;
@@ -81,7 +81,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.BUCKET_SETTING;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

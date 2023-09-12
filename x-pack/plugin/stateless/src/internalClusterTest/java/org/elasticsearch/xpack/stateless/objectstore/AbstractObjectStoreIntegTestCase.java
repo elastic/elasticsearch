@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless.objectstore;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponse;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;

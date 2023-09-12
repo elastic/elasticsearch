@@ -15,12 +15,12 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
@@ -49,11 +49,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.BUCKET_SETTING;
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.AZURE;
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.FS;
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.GCS;
-import static co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType.S3;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.FS;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.GCS;
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.ObjectStoreType.S3;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ObjectStoreServiceTests extends ESTestCase {

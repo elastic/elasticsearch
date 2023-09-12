@@ -26,7 +26,7 @@ public class Sinh extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new SinhEvaluator(field);
+        return new SinhEvaluator(source(), field);
     }
 
     @Override
@@ -39,8 +39,12 @@ public class Sinh extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Sinh::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        return Math.sinh(val);
+        double res = Math.sinh(val);
+        if (Double.isNaN(res) || Double.isInfinite(res)) {
+            throw new ArithmeticException("sinh overflow");
+        }
+        return res;
     }
 }

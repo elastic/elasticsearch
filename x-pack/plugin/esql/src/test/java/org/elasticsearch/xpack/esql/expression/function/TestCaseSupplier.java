@@ -28,11 +28,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleFunction;
-import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -89,7 +89,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static List<TestCaseSupplier> forUnaryCastingToDouble(
         String name,
         String argName,
-        DoubleUnaryOperator expected,
+        UnaryOperator<Double> expected,
         Double min,
         Double max,
         List<String> warnings
@@ -101,7 +101,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
             DataTypes.DOUBLE,
-            i -> expected.applyAsDouble(i),
+            i -> expected.apply(Double.valueOf(i)),
             min.intValue(),
             max.intValue(),
             warnings
@@ -110,7 +110,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
             DataTypes.DOUBLE,
-            l -> expected.applyAsDouble(l),
+            i -> expected.apply(Double.valueOf(i)),
             min.longValue(),
             max.longValue(),
             warnings
@@ -119,12 +119,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
             DataTypes.DOUBLE,
-            ul -> expected.applyAsDouble(ul.doubleValue()),
+            ul -> expected.apply(ul.doubleValue()),
             BigInteger.valueOf((int) Math.ceil(min)),
             BigInteger.valueOf((int) Math.floor(max)),
             warnings
         );
-        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max, warnings);
+        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, expected::apply, min, max, warnings);
         return suppliers;
     }
 

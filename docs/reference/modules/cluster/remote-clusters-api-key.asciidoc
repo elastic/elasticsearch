@@ -1,7 +1,6 @@
 [[remote-clusters-api-key]]
 === Add remote clusters using API key authentication
 
-coming::[8.10]
 beta::[]
 
 API key authentication enables a local cluster to authenticate itself with a

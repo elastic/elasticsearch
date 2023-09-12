@@ -301,6 +301,30 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(getResponse.getSource().get("field"), equalTo("value2"));
     }
 
+    public void testGenerationalDocValues() throws Exception {
+        startIndexNodes(numShards);
+        startSearchNodes(numShards * numReplicas);
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(numShards, numReplicas).build());
+        ensureGreen(indexName);
+
+        Set<String> docIds = indexDocsWithRefreshAndGetIds(indexName, randomIntBetween(1, 100));
+        flush(indexName);
+        assertEquals(
+            docIds.size(),
+            client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value
+        );
+
+        deleteDocsById(indexName, docIds);
+        flushAndRefresh(indexName);
+        assertEquals(0, client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value);
+
+        Set<String> newDocIds = indexDocsWithRefreshAndGetIds(indexName, randomIntBetween(1, 100));
+        flush(indexName);
+        var getResponse = client().prepareGet().setIndex(indexName).setId(randomFrom(newDocIds)).setRefresh(true).setRealtime(true).get();
+        assertTrue(getResponse.isExists());
+    }
+
     public void testRealTimeMGet() {
         startIndexNodes(numShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

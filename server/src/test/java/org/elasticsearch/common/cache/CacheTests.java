@@ -514,7 +514,7 @@ public class CacheTests extends ESTestCase {
             new Thread(() -> {
                 try {
                     barrier.await();
-                    for (int i=0; i<numberOfEntries; i++) {
+                    for (int i = 0; i < numberOfEntries; i++) {
                         cache.invalidateAll();
                         cache.put(0, 0);
                     }

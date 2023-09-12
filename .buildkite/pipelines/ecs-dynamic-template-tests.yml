@@ -8,7 +8,4 @@ steps:
       diskSizeGb: 350
       machineType: custom-32-98304
 notify:
-  - slack: "#es-delivery"
-    if: build.state == "failed"
   - email: "logs-plus@elastic.co"
-    if: build.state == "failed"

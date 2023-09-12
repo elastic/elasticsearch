@@ -1,5 +1,5 @@
 pr: 99474
-summary: Add java.net.NetPermission for apm's plugin security
+summary: Add `java.net.NetPermission` to APM module's permissions
 area: Infra/Core
 type: bug
 issues: []

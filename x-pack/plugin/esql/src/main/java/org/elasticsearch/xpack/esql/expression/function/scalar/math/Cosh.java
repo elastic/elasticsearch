@@ -41,7 +41,7 @@ public class Cosh extends AbstractTrigonometricFunction {
 
     @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        double res =  Math.cosh(val);
+        double res = Math.cosh(val);
         if (Double.isNaN(res) || Double.isInfinite(res)) {
             throw new ArithmeticException("cosh overflow");
         }

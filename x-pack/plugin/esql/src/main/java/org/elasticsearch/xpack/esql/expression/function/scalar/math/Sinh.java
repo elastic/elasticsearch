@@ -41,7 +41,7 @@ public class Sinh extends AbstractTrigonometricFunction {
 
     @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        double res =  Math.sinh(val);
+        double res = Math.sinh(val);
         if (Double.isNaN(res) || Double.isInfinite(res)) {
             throw new ArithmeticException("sinh overflow");
         }

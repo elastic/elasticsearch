@@ -56,7 +56,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testMutateDocumentWithClassification() {
         String targetField = "ml.my_processor";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -89,7 +89,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationTopNClasses() {
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, null, null);
         ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null, PredictionFieldType.STRING);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -126,7 +126,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationFeatureInfluence() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, 2, null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -180,7 +180,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops", null, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, "result", "tops", null, null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -217,7 +217,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentRegression() {
         RegressionConfig regressionConfig = new RegressionConfig("foo");
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -244,7 +244,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentRegressionWithTopFeatures() {
         RegressionConfig regressionConfig = new RegressionConfig("foo", 2);
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", 2);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -280,7 +280,7 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -320,7 +320,7 @@ public class InferenceProcessorTests extends ESTestCase {
         fieldMapping.put("categorical", "new_categorical");
         fieldMapping.put("_ingest._value", "metafield");
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -362,7 +362,7 @@ public class InferenceProcessorTests extends ESTestCase {
         fieldMapping.put("value2", "new_value2");
         fieldMapping.put("categorical.bar", "new_categorical");
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -390,7 +390,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testHandleResponseLicenseChanged() {
         String targetField = "regression_value";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -440,7 +440,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testMutateDocumentWithWarningResult() {
         String targetField = "regression_value";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -468,7 +468,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentWithModelIdResult() {
         String modelAlias = "special_model";
         String modelId = "regression-123";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",

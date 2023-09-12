@@ -57,15 +57,17 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.IngestDocument.INGEST_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -82,23 +84,33 @@ public class InferenceProcessor extends AbstractProcessor {
     );
 
     public static final String TYPE = "inference";
+    public static final String MODEL_ID = "model_id";
     public static final String INFERENCE_CONFIG = "inference_config";
+
+    // target field style mappings
     public static final String TARGET_FIELD = "target_field";
     public static final String FIELD_MAPPINGS = "field_mappings";
     public static final String FIELD_MAP = "field_map";
     private static final String DEFAULT_TARGET_FIELD = "ml.inference";
 
-    private final Client client;
-    private final String modelId;
+    // input field config
+    public static final String INPUT = "input";
+    public static final String INPUT_FIELD = "input_field";
+    public static final String OUTPUT_FIELD = "output_field";
 
-    private final String targetField;
-    private final InferenceConfigUpdate inferenceConfig;
-    private final Map<String, String> fieldMap;
-    private final InferenceAuditor auditor;
-    private volatile boolean previouslyLicensed;
-    private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
+    public static InferenceProcessor fromInputFieldConfiguration(
+        Client client,
+        InferenceAuditor auditor,
+        String tag,
+        String description,
+        String modelId,
+        InferenceConfigUpdate inferenceConfig,
+        List<Factory.InputConfig> inputs
+    ) {
+        return new InferenceProcessor(client, auditor, tag, description, null, modelId, inferenceConfig, null, inputs, true);
+    }
 
-    public InferenceProcessor(
+    public static InferenceProcessor fromTargetFieldConfiguration(
         Client client,
         InferenceAuditor auditor,
         String tag,
@@ -108,13 +120,48 @@ public class InferenceProcessor extends AbstractProcessor {
         InferenceConfigUpdate inferenceConfig,
         Map<String, String> fieldMap
     ) {
+        return new InferenceProcessor(client, auditor, tag, description, targetField, modelId, inferenceConfig, fieldMap, null, false);
+    }
+
+    private final Client client;
+    private final String modelId;
+    private final String targetField;
+    private final InferenceConfigUpdate inferenceConfig;
+    private final Map<String, String> fieldMap;
+    private final InferenceAuditor auditor;
+    private volatile boolean previouslyLicensed;
+    private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
+    private final List<Factory.InputConfig> inputs;
+    private final boolean configuredWithInputsFields;
+
+    private InferenceProcessor(
+        Client client,
+        InferenceAuditor auditor,
+        String tag,
+        String description,
+        String targetField,
+        String modelId,
+        InferenceConfigUpdate inferenceConfig,
+        Map<String, String> fieldMap,
+        List<Factory.InputConfig> inputs,
+        boolean configuredWithInputsFields
+    ) {
         super(tag, description);
+        this.configuredWithInputsFields = configuredWithInputsFields;
         this.client = ExceptionsHelper.requireNonNull(client, "client");
-        this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
-        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID_RESULTS_FIELD);
+        this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
-        this.fieldMap = ExceptionsHelper.requireNonNull(fieldMap, FIELD_MAP);
+
+        if (configuredWithInputsFields) {
+            this.inputs = ExceptionsHelper.requireNonNull(inputs, INPUT);
+            this.targetField = null;
+            this.fieldMap = null;
+        } else {
+            this.inputs = null;
+            this.targetField = ExceptionsHelper.requireNonNull(targetField, TARGET_FIELD);
+            this.fieldMap = ExceptionsHelper.requireNonNull(fieldMap, FIELD_MAP);
+        }
     }
 
     public String getModelId() {
@@ -123,11 +170,20 @@ public class InferenceProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+
+        InferModelAction.Request request;
+        try {
+            request = buildRequest(ingestDocument);
+        } catch (ElasticsearchStatusException e) {
+            handler.accept(ingestDocument, e);
+            return;
+        }
+
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
             InferModelAction.INSTANCE,
-            this.buildRequest(ingestDocument),
+            request,
             ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
         );
     }
@@ -153,8 +209,21 @@ public class InferenceProcessor extends AbstractProcessor {
         if (ingestDocument.getIngestMetadata().isEmpty() == false) {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
-        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+
+        if (configuredWithInputsFields) {
+            List<String> requestInputs = new ArrayList<>();
+            for (var inputFields : inputs) {
+                var lookup = (String)fields.get(inputFields.inputField);
+                if (lookup == null) {
+                    lookup = ""; // need to send a non-null request to the same number of results back
+                }
+                requestInputs.add(lookup);
+            }
+            return InferModelAction.Request.forTextInput(modelId, inferenceConfig, requestInputs);
+        } else {
+            LocalModel.mapFieldsIfNecessary(fields, fieldMap);
+            return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+        }
     }
 
     void auditWarningAboutLicenseIfNecessary() {
@@ -171,13 +240,36 @@ public class InferenceProcessor extends AbstractProcessor {
         if (response.getInferenceResults().isEmpty()) {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
-        assert response.getInferenceResults().size() == 1;
-        InferenceResults.writeResult(
-            response.getInferenceResults().get(0),
-            ingestDocument,
-            targetField,
-            response.getId() != null ? response.getId() : modelId
-        );
+
+        // TODO
+        // The field where the model Id is written to.
+        // If multiple inference processors are in the same pipeline, it is wise to tag them
+        // The tag will keep default value entries from stepping on each other
+        // String modelIdField = tag == null ? MODEL_ID_RESULTS_FIELD : MODEL_ID_RESULTS_FIELD + "." + tag;
+
+        if (configuredWithInputsFields) {
+            if (response.getInferenceResults().size() != inputs.size()) {
+                throw new ElasticsearchStatusException("number of results [{}] does not match the number of inputs [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR, response.getInferenceResults().size(), inputs.size());
+            }
+
+            for (int i=0; i< inputs.size(); i++) {
+                InferenceResults.writeResult(
+                    response.getInferenceResults().get(i),
+                    ingestDocument,
+                    inputs.get(i).outputField,
+                    response.getId() != null ? response.getId() : modelId
+                );
+            }
+        } else {
+            assert response.getInferenceResults().size() == 1;
+            InferenceResults.writeResult(
+                response.getInferenceResults().get(0),
+                ingestDocument,
+                targetField,
+                response.getId() != null ? response.getId() : modelId
+            );
+        }
     }
 
     @Override
@@ -188,6 +280,30 @@ public class InferenceProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    boolean isConfiguredWithInputsFields() {
+        return configuredWithInputsFields;
+    }
+
+    public List<Factory.InputConfig> getInputs() {
+        return inputs;
+    }
+
+    Map<String, String> getFieldMap() {
+        return fieldMap;
+    }
+
+    String getTargetField() {
+        return targetField;
+    }
+
+    InferenceConfigUpdate getInferenceConfig() {
+        return inferenceConfig;
+    }
+
+    InferenceAuditor getAuditor() {
+        return auditor;
     }
 
     public static final class Factory implements Processor.Factory, Consumer<ClusterState> {
@@ -237,37 +353,91 @@ public class InferenceProcessor extends AbstractProcessor {
                 );
             }
 
-            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID_RESULTS_FIELD);
-            String defaultTargetField = tag == null ? DEFAULT_TARGET_FIELD : DEFAULT_TARGET_FIELD + "." + tag;
-            // If multiple inference processors are in the same pipeline, it is wise to tag them
-            // The tag will keep default value entries from stepping on each other
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, defaultTargetField);
-            Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
-            if (fieldMap == null) {
-                fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
-                // TODO Remove in 9?.x
-                if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
-                }
-            }
-            if (fieldMap == null) {
-                fieldMap = Collections.emptyMap();
-            }
+            String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
 
             InferenceConfigUpdate inferenceConfigUpdate;
             Map<String, Object> inferenceConfigMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INFERENCE_CONFIG);
             if (inferenceConfigMap == null) {
                 if (minNodeVersion.before(EmptyConfigUpdate.minimumSupportedVersion())) {
                     // an inference config is required when the empty update is not supported
-                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
+                    throw newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
                 }
-
                 inferenceConfigUpdate = new EmptyConfigUpdate();
             } else {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
-            return new InferenceProcessor(client, auditor, tag, description, targetField, modelId, inferenceConfigUpdate, fieldMap);
+            Map<String, Object> input = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INPUT);
+            boolean configuredWithInputFields = input != null;
+            if (configuredWithInputFields) {
+                // new style input/output configuration
+                var parsedInputs = parseInputFields(tag, List.of(input));
+
+                // validate incompatible settings are not present
+                String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, TARGET_FIELD);
+                if (targetField != null) {
+                    throw newConfigurationException(
+                        TYPE,
+                        tag,
+                        TARGET_FIELD,
+                        "option is incompatible with ["
+                            + INPUT
+                            + "]."
+                            + " Use the ["
+                            + OUTPUT_FIELD
+                            + "] option to specify where to write the inference results to."
+                    );
+                }
+
+                if (inferenceConfigUpdate.getResultsField() != null) {
+                    throw newConfigurationException(
+                        TYPE,
+                        tag,
+                        null,
+                        "The ["
+                            + INFERENCE_CONFIG
+                            + "."
+                            + InferenceConfig.RESULTS_FIELD.getPreferredName()
+                            + "] setting is incompatible with using ["
+                            + INPUT
+                            + "]. Prefer to use the ["
+                            + INPUT
+                            + "."
+                            + OUTPUT_FIELD
+                            + "] option to specify where to write the inference results to."
+                    );
+                }
+
+                return fromInputFieldConfiguration(client, auditor, tag, description, modelId, inferenceConfigUpdate, parsedInputs);
+            } else {
+                // old style configuration with target field
+                String defaultTargetField = tag == null ? DEFAULT_TARGET_FIELD : DEFAULT_TARGET_FIELD + "." + tag;
+                // If multiple inference processors are in the same pipeline, it is wise to tag them
+                // The tag will keep default value entries from stepping on each other
+                String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, defaultTargetField);
+                Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
+                if (fieldMap == null) {
+                    fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
+                    // TODO Remove in 9?.x
+                    if (fieldMap != null) {
+                        LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
+                    }
+                }
+
+                if (fieldMap == null) {
+                    fieldMap = Collections.emptyMap();
+                }
+                return fromTargetFieldConfiguration(
+                    client,
+                    auditor,
+                    tag,
+                    description,
+                    targetField,
+                    modelId,
+                    inferenceConfigUpdate,
+                    fieldMap
+                );
+            }
         }
 
         // Package private for testing
@@ -374,5 +544,40 @@ public class InferenceProcessor extends AbstractProcessor {
                 );
             }
         }
+
+        List<InputConfig> parseInputFields(String tag, List<Map<String, Object>> inputs) {
+            if (inputs.isEmpty()) {
+                throw newConfigurationException(TYPE, tag, INPUT, "cannot be empty at least one is required");
+            }
+            var inputNames = new HashSet<String>();
+            var outputNames = new HashSet<String>();
+            var parsedInputs = new ArrayList<InputConfig>();
+
+            for (var input : inputs) {
+                String inputField = ConfigurationUtils.readStringProperty(TYPE, tag, input, INPUT_FIELD);
+                String outputField = ConfigurationUtils.readStringProperty(TYPE, tag, input, OUTPUT_FIELD);
+
+                if (inputNames.add(inputField) == false) {
+                    throw duplicatedFieldNameError(INPUT_FIELD, inputField, tag);
+                }
+                if (outputNames.add(outputField) == false) {
+                    throw duplicatedFieldNameError(OUTPUT_FIELD, outputField, tag);
+                }
+
+                if (input.isEmpty()) {
+                    parsedInputs.add(new InputConfig(inputField, outputField, Map.of()));
+                } else {
+                    parsedInputs.add(new InputConfig(inputField, outputField, new HashMap<>(input)));
+                }
+            }
+
+            return parsedInputs;
+        }
+
+        private ElasticsearchException duplicatedFieldNameError(String property, String fieldName, String tag) {
+            return newConfigurationException(TYPE, tag, property, "names must be unique but [" + fieldName + "] is repeated");
+        }
+
+        public record InputConfig(String inputField, String outputField, Map<String, Object> extras) {}
     }
 }

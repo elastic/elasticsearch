@@ -34,6 +34,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -68,6 +69,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -107,6 +109,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -140,6 +143,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:

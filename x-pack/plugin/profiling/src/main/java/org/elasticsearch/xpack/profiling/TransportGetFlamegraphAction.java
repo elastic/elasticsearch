@@ -75,8 +75,11 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     static GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
         // TODO: Are full seconds good enough? (they probably are)
-        Duration observedDuration = Duration.between(response.getStartTime(), response.getEndTime());
-        long totalSeconds = (observedDuration.getNano() > 0) ? observedDuration.getSeconds() + 1 : observedDuration.getSeconds();
+        long totalSeconds = 0;
+        if (response.getStartTime() != null && response.getEndTime() != null) {
+            Duration observedDuration = Duration.between(response.getStartTime(), response.getEndTime());
+            totalSeconds = (observedDuration.getNano() > 0) ? observedDuration.getSeconds() + 1 : observedDuration.getSeconds();
+        }
 
         FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), totalSeconds);
         if (response.getTotalFrames() == 0) {
@@ -84,11 +87,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         }
 
         SortedMap<String, StackTrace> sortedStacktraces = new TreeMap<>(response.getStackTraces());
-        // TODO: This has been moved to Resampler. Check that it is working as intended
-        // The inverse of the sampling rate is the number with which to multiply the number of
-        // samples to get an estimate of the actual number of samples the backend received.
-        // double scalingFactor = 1.0d / response.getSamplingRate();
-
         for (Map.Entry<String, StackTrace> st : sortedStacktraces.entrySet()) {
             String stackTraceId = st.getKey();
             StackTrace stackTrace = st.getValue();
@@ -155,17 +153,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         String sourceFilename,
         String functionName
     ) {
-        // TODO: Does the prefix really matter? We can probably just concatenate all components as in the implementation below
-        /*
-        if (functionName.isEmpty()) {
-            return String.format(Locale.ROOT, "empty;%s;%d", fileId, addressOrLine);
-        }
-
-        if (sourceFilename.isEmpty()) {
-            return String.format(Locale.ROOT, "elf;%s;%s", exeFilename, functionName);
-        }
-        return String.format(Locale.ROOT, "full;%s;%s;%s", exeFilename, functionName, getFilename(sourceFilename));
-         */
         StringBuilder sb = new StringBuilder();
         if (functionName.isEmpty()) {
             sb.append(fileId);

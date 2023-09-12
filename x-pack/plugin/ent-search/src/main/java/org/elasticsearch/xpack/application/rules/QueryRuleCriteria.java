@@ -81,6 +81,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         this.criteriaValues = criteriaValues;
         this.criteriaType = criteriaType;
         this.criteriaProperties = (criteriaProperties == null) ? Map.of() : criteriaProperties;
+        criteriaType.validateProperties(this.criteriaProperties);
 
     }
 
@@ -230,7 +231,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         } else if (matchType == INFER) {
             final String matchString = matchValue.toString();
             for (Object criteriaValue : criteriaValues) {
-                matchType.validateInput(matchValue);
+                matchType.validate(matchValue, criteriaProperties);
                 QueryRulesInferenceService queryRulesInferenceService = new QueryRulesInferenceService(client);
                 boolean matchFound = matchType.isMatch(queryRulesInferenceService, matchString, criteriaValue, criteriaProperties);
                 if (matchFound) {
@@ -241,7 +242,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             // Default case
             final String matchString = matchValue.toString();
             for (Object criteriaValue : criteriaValues) {
-                matchType.validateInput(matchValue);
+                matchType.validate(matchValue, criteriaProperties);
                 boolean matchFound = matchType.isMatch(matchString, criteriaValue, criteriaProperties);
                 if (matchFound) {
                     return true;

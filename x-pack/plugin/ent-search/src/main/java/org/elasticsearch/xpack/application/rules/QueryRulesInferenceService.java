@@ -7,18 +7,21 @@
 
 package org.elasticsearch.xpack.application.rules;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
@@ -40,67 +43,55 @@ public class QueryRulesInferenceService {
         String matchValue,
         float threshold
     ) {
-
-        if (inferenceConfig.equals("text_expansion")) {
+        if (inferenceConfig.equals(TextExpansionConfig.NAME)) {
             return findTextExpansionInferenceRuleMatches(modelId, queryString, matchValue, threshold);
-        } else if (inferenceConfig.equals("text_classification")) {
+        } else if (inferenceConfig.equals(TextClassificationConfig.NAME)) {
             return findTextClassificationInferenceRuleMatches(modelId, queryString, matchValue, threshold);
         } else {
-            throw new UnsupportedOperationException("Only [text_expansion] and [text_classification] inference configs supported");
+            throw new UnsupportedOperationException(
+                "Only " + Set.of(TextExpansionConfig.NAME, TextClassificationConfig.NAME) + "inference configurations supported"
+            );
         }
     }
 
     private boolean findTextExpansionInferenceRuleMatches(String modelId, String queryString, String matchValue, float threshold) {
-        InferModelAction.Request request = InferModelAction.Request.forTextInput(
-            modelId,
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            List.of(queryString)
-        );
-        request.setHighPriority(true);
-
-        SetOnce<Boolean> inferenceRuleMatches = new SetOnce<>();
-        InferModelAction.Response response = getInferences(request);
-        List<InferenceResults> results = response.getInferenceResults();
+        InferModelAction.Request request = createRequest(modelId, TextExpansionConfigUpdate.EMPTY_UPDATE, queryString);
+        List<InferenceResults> results = getInferences(request);
         for (InferenceResults result : results) {
             @SuppressWarnings("unchecked")
             Map<String, Float> predictedValues = (Map<String, Float>) result.asMap().get(result.getResultsField());
             if (predictedValues.containsKey(queryString)) {
                 Float predictedValue = predictedValues.get(matchValue);
                 if (predictedValue >= threshold) {
-                    inferenceRuleMatches.set(true);
-                    break;
+                    return true;
                 }
             }
         }
-        inferenceRuleMatches.trySet(false);
-        return inferenceRuleMatches.get();
+        return false;
     }
 
     private boolean findTextClassificationInferenceRuleMatches(String modelId, String queryString, String matchValue, float threshold) {
-        InferModelAction.Request request = InferModelAction.Request.forTextInput(
-            modelId,
-            TextClassificationConfigUpdate.fromMap(Map.of()),
-            List.of(queryString)
-        );
-        request.setHighPriority(true);
-
-        SetOnce<Boolean> inferenceRuleMatches = new SetOnce<>();
-        InferModelAction.Response response = getInferences(request);
-        List<InferenceResults> results = response.getInferenceResults();
+        InferModelAction.Request request = createRequest(modelId, TextClassificationConfigUpdate.fromMap(Map.of()), queryString);
+        List<InferenceResults> results = getInferences(request);
         for (InferenceResults result : results) {
             String predictedValue = result.asMap().get(result.getResultsField()).toString();
-            float predictedProbability = ((Double) result.asMap().get("prediction_probability")).floatValue();
+            float predictedProbability = ((Double) result.asMap().get(InferenceResults.PREDICTION_PROBABILITY)).floatValue();
             if (predictedValue.equals(matchValue) && predictedProbability >= threshold) {
-                inferenceRuleMatches.set(true);
-                break;
+                return true;
             }
         }
-        inferenceRuleMatches.trySet(false);
-        return inferenceRuleMatches.get();
+        return false;
     }
 
-    InferModelAction.Response getInferences(InferModelAction.Request request) {
-        return clientWithOrigin.execute(InferModelAction.INSTANCE, request).actionGet(TIMEOUT_MS);
+    private InferModelAction.Request createRequest(String modelId, InferenceConfigUpdate inferenceConfigUpdate, String queryString) {
+        InferModelAction.Request request = InferModelAction.Request.forTextInput(modelId, inferenceConfigUpdate, List.of(queryString));
+        request.setHighPriority(true);
+        return request;
+    }
+
+    List<InferenceResults> getInferences(InferModelAction.Request request) {
+        InferModelAction.Response response = clientWithOrigin.execute(InferModelAction.INSTANCE, request).actionGet(TIMEOUT_MS);
+        return response.getInferenceResults();
     }
 
 }

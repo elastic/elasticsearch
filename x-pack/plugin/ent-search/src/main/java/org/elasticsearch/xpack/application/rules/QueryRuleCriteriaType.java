@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 
 import java.util.List;
 import java.util.Locale;
@@ -21,13 +22,14 @@ public enum QueryRuleCriteriaType {
     ALWAYS {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
+            validate(input, criteriaProperties);
             return true;
         }
     },
     EXACT {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             if (input instanceof String && criteriaValue instanceof String) {
                 return input.equals(criteriaValue);
             } else {
@@ -38,7 +40,7 @@ public enum QueryRuleCriteriaType {
     FUZZY {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             final LevenshteinDistance ld = new LevenshteinDistance();
             if (input instanceof String && criteriaValue instanceof String) {
                 return ld.getDistance((String) input, (String) criteriaValue) > 0.5f;
@@ -49,53 +51,82 @@ public enum QueryRuleCriteriaType {
     PREFIX {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return ((String) input).startsWith((String) criteriaValue);
         }
     },
     SUFFIX {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return ((String) input).endsWith((String) criteriaValue);
         }
     },
     CONTAINS {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return ((String) input).contains((String) criteriaValue);
         }
     },
     LT {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return parseDouble(input) < parseDouble(criteriaValue);
         }
     },
     LTE {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return parseDouble(input) <= parseDouble(criteriaValue);
         }
     },
     GT {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return parseDouble(input) > parseDouble(criteriaValue);
         }
     },
     GTE {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
-            validateInput(input);
+            validate(input, criteriaProperties);
             return parseDouble(input) >= parseDouble(criteriaValue);
         }
     },
     INFER {
+
+        private final String PROPERTY_MODEL_ID = "model_id";
+        private final String PROPERTY_INFERENCE_CONFIG = "inference_config";
+        private final String PROPERTY_THRESHOLD = "threshold";
+        private final Map<String, Object> DEFAULTS = Map.of(
+            PROPERTY_MODEL_ID,
+            ".elser_model_1",
+            PROPERTY_INFERENCE_CONFIG,
+            TextExpansionConfig.NAME,
+            PROPERTY_THRESHOLD,
+            1.0
+        );
+
+        @Override
+        public void validateProperties(Map<String, Object> criteriaProperties) {
+            for (String propertyName : criteriaProperties.keySet()) {
+                if (DEFAULTS.containsKey(propertyName) == false) {
+                    throw new IllegalArgumentException(
+                        "Unsupported property ["
+                            + propertyName
+                            + "] for criteria type ["
+                            + this
+                            + "]. Allowed properties: "
+                            + DEFAULTS.keySet()
+                    );
+                }
+            }
+        }
+
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
             throw new UnsupportedOperationException("[" + this + "] criteria type requires inference service");
@@ -108,17 +139,18 @@ public enum QueryRuleCriteriaType {
             Object criteriaValue,
             Map<String, Object> criteriaProperties
         ) {
-            validateInput(input);
-            String modelId = criteriaProperties.getOrDefault("model_id", ".elser_model_1").toString();
-            String inferenceConfig = criteriaProperties.getOrDefault("inference_config", "text_expansion").toString();
-            float threshold = ((Double) criteriaProperties.getOrDefault("threshold", 1.0)).floatValue();
+            validate(input, criteriaProperties);
+            String modelId = criteriaProperties.getOrDefault(PROPERTY_MODEL_ID, DEFAULTS.get(PROPERTY_MODEL_ID)).toString();
+            String inferenceConfig = criteriaProperties.getOrDefault(PROPERTY_INFERENCE_CONFIG, DEFAULTS.get(PROPERTY_INFERENCE_CONFIG))
+                .toString();
+            float threshold = ((Double) criteriaProperties.getOrDefault(PROPERTY_THRESHOLD, DEFAULTS.get(PROPERTY_THRESHOLD))).floatValue();
             return inferenceService.findInferenceRuleMatches(modelId, inferenceConfig, (String) input, (String) criteriaValue, threshold);
         }
     };
 
-    public void validateInput(Object input) {
-        boolean isValid = isValidForInput(input);
-        if (isValid == false) {
+    public void validate(Object input, Map<String, Object> properties) {
+        validateProperties(properties);
+        if (isValidForInput(input) == false) {
             throw new IllegalArgumentException("Input [" + input + "] is not valid for criteria type [" + this + "]");
         }
     }
@@ -133,6 +165,14 @@ public enum QueryRuleCriteriaType {
     }
 
     public abstract boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties);
+
+    public void validateProperties(Map<String, Object> criteriaProperties) {
+        // Default case: No supported properties.
+        if (criteriaProperties.isEmpty() == false) {
+            throw new IllegalArgumentException("Criteria type [" + this + "] does not define any allowed properties");
+        }
+        ;
+    }
 
     public static QueryRuleCriteriaType type(String criteriaType) {
         for (QueryRuleCriteriaType type : values()) {

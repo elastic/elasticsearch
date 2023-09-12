@@ -79,6 +79,12 @@ setup:
                 num:
                   type: long
   - do:
+      cluster.health:
+        index: lookup
+        wait_for_no_relocating_shards: true
+        wait_for_no_initializing_shards: true
+
+  - do:
       bulk:
         index: lookup
         refresh: true
@@ -95,6 +101,7 @@ setup:
         version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:
@@ -148,6 +155,7 @@ setup:
         version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:

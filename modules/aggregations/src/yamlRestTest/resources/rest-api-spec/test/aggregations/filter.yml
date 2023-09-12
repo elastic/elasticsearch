@@ -13,6 +13,12 @@ setup:
                   type: keyword
 
   - do:
+      cluster.health:
+        index: test
+        wait_for_no_relocating_shards: true
+        wait_for_no_initializing_shards: true
+
+  - do:
       bulk:
         refresh: true
         index: test

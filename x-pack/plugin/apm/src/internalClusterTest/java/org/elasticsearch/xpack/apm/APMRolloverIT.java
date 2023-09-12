@@ -98,12 +98,17 @@ public class APMRolloverIT extends ESIntegTestCase {
 
     public void testRollover() throws Exception {
         Set<String> apmIndexTemplates = new HashSet<>(apmIndexTemplateRegistry.getComposableTemplateConfigs().keySet());
+        ClusterState state = clusterService.state();
+        apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), state, state));
+        // No need to waste the initial frequent assertBusy iterations because this takes a few seconds at least
+        Thread.sleep(3000);
         assertBusy(() -> {
             // todo - figure out why we need this synthetic cluster change event trigger to make sure the last index template is registered
             // maybe because org.elasticsearch.ingest.IngestService.putPipeline() doesn't update the cluster state and trigger state
             // change event like, for example, org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.addComponentTemplate does
-            ClusterState state = clusterService.state();
-            apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), state, state));
+            apmIndexTemplateRegistry.clusterChanged(
+                new ClusterChangedEvent(APMRolloverIT.class.getName(), clusterService.state(), clusterService.state())
+            );
             apmIndexTemplates.removeIf(apmIndexTemplate -> clusterService.state().metadata().templatesV2().containsKey(apmIndexTemplate));
             assertTrue(apmIndexTemplates.isEmpty());
         });
@@ -124,7 +129,7 @@ public class APMRolloverIT extends ESIntegTestCase {
 
         assertNumberOfBackingIndices(1);
 
-        final ClusterState state = clusterService.state();
+        state = clusterService.state();
         final Map<String, ComposableIndexTemplate> indexTemplatesWithLowerVersion = new HashMap<>();
         state.metadata()
             .templatesV2()

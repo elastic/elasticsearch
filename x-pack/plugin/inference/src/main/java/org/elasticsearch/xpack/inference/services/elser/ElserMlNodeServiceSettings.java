@@ -109,9 +109,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     @Override
     public int hashCode() {
-        // TODO Class has no members all instances are equivalent
-        // Return the hash of NAME to make the serialization tests pass
-        return Objects.hashCode(NAME);
+        return Objects.hash(numAllocations, numThreads);
     }
 
     @Override

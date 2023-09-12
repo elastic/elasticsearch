@@ -60,7 +60,18 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 );
                 return;
             }
-            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+
+            if (request.getTaskType() != unparsedModel.taskType()) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Incompatible task_type, the requested type [{}] does not match the model type [{}]",
+                        RestStatus.BAD_REQUEST,
+                        request.getTaskType(),
+                        unparsedModel.taskType()
+                    )
+                );
+                return;
+            }
 
             inferOnService(request, service.get(), listener);
         }, listener::onFailure);

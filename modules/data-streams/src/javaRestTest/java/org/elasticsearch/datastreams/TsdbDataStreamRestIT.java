@@ -820,9 +820,9 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
         // Update the start and end time of the new data stream.
         request = new Request("POST", "/_component_template/destination+_template");
-        request.setJsonEntity(CUSTOM_TEMPLATE_WITH_START_END_TIME
-            .replace("$start", formatInstantNanos(Instant.now().minusSeconds(SECONDS_PER_DAY)))
-            .replace("$end", formatInstantNanos(Instant.now().plusSeconds(SECONDS_PER_DAY)))
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().plusSeconds(SECONDS_PER_DAY)))
         );
         assertOK(client().performRequest(request));
 

@@ -125,7 +125,7 @@ include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
-include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+include::watcher/troubleshooting.asciidoc[]
 
 include::troubleshooting/troubleshooting-searches.asciidoc[]
 

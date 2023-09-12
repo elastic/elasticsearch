@@ -64,6 +64,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -179,6 +180,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
+        assertThat(result, not(equalTo(Double.NaN)));
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());

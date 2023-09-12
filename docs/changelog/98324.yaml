@@ -1,5 +1,0 @@
-pr: 98324
-summary: Avoid risk of OOM in datafeeds when memory is constrained
-area: Machine Learning
-type: bug
-issues: [89769]

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
@@ -173,7 +174,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            return new TestMapper(name(), context.buildFullName(name), multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TestMapper(name(), context.buildFullName(name), multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -533,8 +534,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
             TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_0_0)
+                TransportVersions.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_0_0)
             ),
             true
         );
@@ -548,7 +549,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersion.V_8_0_0, true)
+            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersions.V_8_0_0, true)
         );
         assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
@@ -585,7 +586,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """
             {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, IndexVersion.V_7_8_0, TransportVersion.V_7_8_0);
+        TestMapper mapper = fromMapping(mapping, IndexVersion.V_7_8_0, TransportVersions.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("""
@@ -593,7 +594,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersion.V_8_0_0)
+            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersions.V_8_0_0)
         );
         assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }

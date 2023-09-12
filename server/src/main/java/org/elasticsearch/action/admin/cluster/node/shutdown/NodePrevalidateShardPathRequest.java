@@ -31,7 +31,7 @@ public class NodePrevalidateShardPathRequest extends TransportRequest {
 
     public NodePrevalidateShardPathRequest(StreamInput in) throws IOException {
         super(in);
-        this.shardIds = in.readImmutableSet(ShardId::new);
+        this.shardIds = in.readCollectionAsImmutableSet(ShardId::new);
     }
 
     @Override

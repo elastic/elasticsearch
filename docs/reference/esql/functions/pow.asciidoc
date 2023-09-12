@@ -59,7 +59,7 @@ include::{esql-specs}/math.csv-spec[tag=powULOverrun-warning]
 include::{esql-specs}/math.csv-spec[tag=powULOverrun-result]
 |===
 
-If it is desired to protect against numerical overruns, use `to_double` on either of the arguments:
+If it is desired to protect against numerical overruns, use `TO_DOUBLE` on either of the arguments:
 
 [source.merge.styled,esql]
 ----

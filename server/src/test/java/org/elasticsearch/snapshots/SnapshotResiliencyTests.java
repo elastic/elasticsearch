@@ -120,6 +120,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -2201,7 +2202,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
-                    StatefulPreVoteCollector::new
+                    StatefulPreVoteCollector::new,
+                    CompatibilityVersionsUtils.staticCurrent()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

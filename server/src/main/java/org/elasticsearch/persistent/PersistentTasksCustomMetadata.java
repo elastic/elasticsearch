@@ -10,6 +10,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -199,7 +200,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

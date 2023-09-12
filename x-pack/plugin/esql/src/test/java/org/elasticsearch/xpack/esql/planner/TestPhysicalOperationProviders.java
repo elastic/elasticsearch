@@ -52,7 +52,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         Layout.Builder layout = source.layout.builder();
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.appendChannel(attr.id());
+            layout.append(attr);
             op = op.with(new TestFieldExtractOperatorFactory(attr.name()), layout.build());
         }
         return op;
@@ -61,9 +61,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     @Override
     public PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         Layout.Builder layout = new Layout.Builder();
-        for (int i = 0; i < esQueryExec.output().size(); i++) {
-            layout.appendChannel(esQueryExec.output().get(i).id());
-        }
+        layout.append(esQueryExec.output());
         return PhysicalOperation.fromSource(new TestSourceOperatorFactory(), layout.build());
     }
 
@@ -258,7 +256,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 () -> BlockHash.build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
                     bigArrays,
-                    pageSize
+                    pageSize,
+                    false
                 ),
                 columnName,
                 driverContext

@@ -87,7 +87,7 @@ public class Regression implements Evaluation {
 
     public Regression(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override

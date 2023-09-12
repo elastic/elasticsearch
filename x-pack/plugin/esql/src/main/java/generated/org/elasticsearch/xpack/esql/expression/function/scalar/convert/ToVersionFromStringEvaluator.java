@@ -31,7 +31,7 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToVersion";
+    return "ToVersionFromString";
   }
 
   @Override

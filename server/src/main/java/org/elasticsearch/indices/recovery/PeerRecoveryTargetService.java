@@ -122,7 +122,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         transportService.registerRequestHandler(
             Actions.FILES_INFO,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryFilesInfoRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -140,7 +140,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.RESTORE_FILE_FROM_SNAPSHOT,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoverySnapshotFileRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -151,13 +151,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryFileChunkRequest::new,
             new FileChunkTransportRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.CLEAN_FILES,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryCleanFilesRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -179,7 +179,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.PREPARE_TRANSLOG,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryPrepareForTranslogOperationsRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -194,13 +194,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.TRANSLOG_OPS,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryTranslogOperationsRequest::new,
             new TranslogOperationsRequestHandler()
         );
         transportService.registerRequestHandler(
             Actions.FINALIZE,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryFinalizeRecoveryRequest::new,
             new RecoveryRequestHandler<>() {
                 @Override
@@ -215,7 +215,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         );
         transportService.registerRequestHandler(
             Actions.HANDOFF_PRIMARY_CONTEXT,
-            ThreadPool.Names.GENERIC,
+            threadPool.executor(ThreadPool.Names.GENERIC),
             RecoveryHandoffPrimaryContextRequest::new,
             new HandoffPrimaryContextRequestHandler()
         );
@@ -257,14 +257,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
-            threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
+            threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(newTarget.recoveryId()));
         }
     }
 
     protected void reestablishRecovery(final StartRecoveryRequest request, final String reason, TimeValue retryAfter) {
         final long recoveryId = request.recoveryId();
         logger.trace("will try to reestablish recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        threadPool.scheduleUnlessShuttingDown(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId, request));
+        threadPool.scheduleUnlessShuttingDown(retryAfter, threadPool.generic(), new RecoveryRunner(recoveryId, request));
     }
 
     private void doRecovery(final long recoveryId, final StartRecoveryRequest preExistingRequest) {

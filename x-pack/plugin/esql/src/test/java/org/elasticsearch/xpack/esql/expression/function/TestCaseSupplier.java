@@ -44,8 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
-
-    public static final BigInteger MAX_UNSIGNED_LONG = NumericUtils.UNSIGNED_LONG_MAX;
     /**
      * Build a test case without types.
      *
@@ -494,26 +492,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BigInteger lower1 = min.max(BigInteger.ONE);
         BigInteger upper1 = max.min(BigInteger.valueOf(Long.MAX_VALUE));
         if (lower1.compareTo(upper1) < 0) {
-            cases.add(
-                Map.entry(
-                    "<small unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower1.longValue(), upper1.longValue()))
-                )
-            );
+            cases.add(Map.entry("<small unsigned long>", () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1)));
         } else if (lower1.compareTo(upper1) == 0) {
             cases.add(Map.entry("<small unsigned long>", () -> lower1));
         }
 
         // Big values, greater than Long.MAX_VALUE
         BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
-        BigInteger upper2 = max.min(MAX_UNSIGNED_LONG);
+        BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
         if (lower2.compareTo(upper2) < 0) {
-            cases.add(
-                Map.entry(
-                    "<big unsigned long>",
-                    () -> lower2.add(BigInteger.valueOf(ESTestCase.randomLongBetween(0, upper2.subtract(lower2).longValue())))
-                )
-            );
+            cases.add(Map.entry("<big unsigned long>", () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2)));
         } else if (lower2.compareTo(upper2) == 0) {
             cases.add(Map.entry("<big unsigned long>", () -> lower2));
         }

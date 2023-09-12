@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -22,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlDataTypeRegistryTests extends ESTestCase {
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.UNSIGNED_LONG);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.UNSUPPORTED);
     }
 
     public void testGauge() {
@@ -35,33 +34,25 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
 
     private void resolve(String esTypeName, TimeSeriesParams.MetricType metricType, DataType expected) {
         String[] indices = new String[] { "idx-" + randomAlphaOfLength(5) };
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+        FieldCapabilities fieldCap = new FieldCapabilities(
+            randomAlphaOfLength(3),
+            esTypeName,
+            false,
+            true,
+            true,
+            false,
+            metricType,
             indices,
-            Map.of(
-                "f",
-                Map.of(
-                    esTypeName,
-                    new FieldCapabilities(
-                        "c",
-                        esTypeName,
-                        false,
-                        true,
-                        true,
-                        false,
-                        metricType,
-                        indices,
-                        Strings.EMPTY_ARRAY,
-                        Strings.EMPTY_ARRAY,
-                        Strings.EMPTY_ARRAY,
-                        Strings.EMPTY_ARRAY,
-                        Map.of()
-                    )
-                )
-            )
+            null,
+            null,
+            null,
+            null,
+            Map.of()
         );
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(indices, Map.of(fieldCap.getName(), Map.of(esTypeName, fieldCap)));
         IndexResolution resolution = IndexResolver.mergedMappings(EsqlDataTypeRegistry.INSTANCE, "idx-*", caps);
 
-        EsField f = resolution.get().mapping().get("f");
+        EsField f = resolution.get().mapping().get(fieldCap.getName());
         assertThat(f.getDataType(), equalTo(expected));
     }
 }

@@ -38,7 +38,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
 

@@ -102,23 +102,16 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public void infer(
-        String modelId,
-        TaskType taskType,
-        String input,
-        Map<String, Object> config,
-        ActionListener<InferenceResult> listener
-    ) {
+    public void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener) {
+        // No task settings to override with requestTaskSettings
 
-        if (taskType != TaskType.SPARSE_EMBEDDING) {
-            listener.onFailure(
-                new ElasticsearchStatusException("The [{}] service does not support task type [{}]", RestStatus.BAD_REQUEST, NAME, taskType)
-            );
+        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(model.getTaskType()), RestStatus.BAD_REQUEST));
             return;
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            modelId,
+            model.getModelId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             List.of(input),
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request

@@ -52,5 +52,13 @@ public interface InferenceService {
      */
     void start(Model model, ActionListener<Boolean> listener);
 
-    void infer(String modelId, TaskType taskType, String input, Map<String, Object> config, ActionListener<InferenceResult> listener);
+    /**
+     * Perform inference on the model.
+     *
+     * @param model Model configuration
+     * @param input Inference input
+     * @param requestTaskSettings Settings in the request to override the model's defaults
+     * @param listener Inference result listener
+     */
+    void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener);
 }

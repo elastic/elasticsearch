@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
@@ -73,25 +74,21 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
-            inferOnService(request, service.get(), listener);
+            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+            inferOnService(model, request, service.get(), listener);
         }, listener::onFailure);
 
         modelRegistry.getUnparsedModelMap(request.getModelId(), getModelListener);
     }
 
     private void inferOnService(
+        Model model,
         InferenceAction.Request request,
         InferenceService service,
         ActionListener<InferenceAction.Response> listener
     ) {
-        service.infer(
-            request.getModelId(),
-            request.getTaskType(),
-            request.getInput(),
-            request.getTaskSettings(),
-            ActionListener.wrap(inferenceResult -> {
-                listener.onResponse(new InferenceAction.Response(inferenceResult));
-            }, listener::onFailure)
-        );
+        service.infer(model, request.getInput(), request.getTaskSettings(), ActionListener.wrap(inferenceResult -> {
+            listener.onResponse(new InferenceAction.Response(inferenceResult));
+        }, listener::onFailure));
     }
 }

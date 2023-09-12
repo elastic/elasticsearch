@@ -54,10 +54,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -91,6 +93,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
+    private final Map<Thread, Boolean> timeoutOverwrites = new ConcurrentHashMap<>();
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
@@ -489,7 +492,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // otherwise the state of the aggregation might be undefined and running post collection
             // might result in an exception
             if (success || timeExceeded) {
-                doAggregationPostCollection(collector);
+                try {
+                    // Search phase has finished, no longer need to check for timeout
+                    // otherwise the aggregation post-collection phase might get cancelled.
+                    timeoutOverwrites.put(Thread.currentThread(), true);
+                    doAggregationPostCollection(collector);
+                } finally {
+                    timeoutOverwrites.remove(Thread.currentThread());
+                }
             }
         }
     }
@@ -506,7 +516,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        throw new TimeExceededException();
+        if (timeoutOverwrites.getOrDefault(Thread.currentThread(), false) == false) {
+            throw new TimeExceededException();
+        }
     }
 
     private static class TimeExceededException extends RuntimeException {

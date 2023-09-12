@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompatibilityVersionsTests extends ESTestCase {
@@ -112,7 +113,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
             new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current()), Map.of()),
             compatibilityVersions
         );
-        expectThrows(
+
+        IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> CompatibilityVersions.ensureVersionsCompatibility(
                 new CompatibilityVersions(
@@ -126,6 +128,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
                 compatibilityVersions
             )
         );
+        assertThat(e.getMessage(), containsString("may not join a cluster with minimum transport version"));
     }
 
     public void testPreventJoinClusterWithUnsupportedMappingsVersion() {
@@ -150,7 +153,8 @@ public class CompatibilityVersionsTests extends ESTestCase {
             ),
             compatibilityVersions
         );
-        expectThrows(
+
+        IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> CompatibilityVersions.ensureVersionsCompatibility(
                 new CompatibilityVersions(
@@ -160,5 +164,6 @@ public class CompatibilityVersionsTests extends ESTestCase {
                 compatibilityVersions
             )
         );
+        assertThat(e.getMessage(), containsString("may not join a cluster with minimum system index mappings versions"));
     }
 }

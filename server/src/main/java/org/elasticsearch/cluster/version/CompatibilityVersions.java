@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,9 +80,8 @@ public record CompatibilityVersions(
         Map<String, SystemIndexDescriptor.MappingsVersion> candidateInvalid = new HashMap<>();
         Map<String, SystemIndexDescriptor.MappingsVersion> existingInvalid = new HashMap<>();
         for (Map.Entry<String, SystemIndexDescriptor.MappingsVersion> candidates : candidate.systemIndexMappingsVersion().entrySet()) {
-            if (minimumClusterVersions.systemIndexMappingsVersion().containsKey(candidates.getKey())
-                && minimumClusterVersions.systemIndexMappingsVersion().get(candidates.getKey()).version() > candidates.getValue()
-                    .version()) {
+            var mapping = minimumClusterVersions.systemIndexMappingsVersion().get(candidates.getKey());
+            if (Objects.nonNull(mapping) && mapping.version() > candidates.getValue().version()) {
                 candidateInvalid.put(candidates.getKey(), candidates.getValue());
                 existingInvalid.put(candidates.getKey(), minimumClusterVersions.systemIndexMappingsVersion().get(candidates.getKey()));
             }

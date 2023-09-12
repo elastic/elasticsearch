@@ -1,5 +1,5 @@
 pr: 99481
-summary: "[Spacetime] Add INFER query rule"
+summary: "Add an infer query rule criteria definition, allowing for query rules matching inference results for text_expansion and text_classification inference configurations."
 area: Application
 type: enhancement
 issues: []

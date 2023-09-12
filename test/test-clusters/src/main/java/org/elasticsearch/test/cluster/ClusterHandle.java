@@ -114,6 +114,14 @@ public interface ClusterHandle extends Closeable {
     String getRemoteClusterServerEndpoint(int index);
 
     /**
+     * Returns the index version used by the node at the given index. If this method is called on an unstarted cluster, the cluster
+     * will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return Index version identifier
+     */
+    int getIndexVersion(int index);
+
+    /**
      * Upgrades a single node to the given version. Method blocks until the node is back up and ready to respond to requests.
      *
      * @param index index of node ot upgrade

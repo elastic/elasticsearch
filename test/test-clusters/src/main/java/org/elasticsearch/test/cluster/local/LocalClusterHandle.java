@@ -140,6 +140,12 @@ public class LocalClusterHandle implements ClusterHandle {
     }
 
     @Override
+    public int getIndexVersion(int index) {
+        start();
+        return execute(() -> nodes.get(index).getIndexVersion());
+    }
+
+    @Override
     public void upgradeNodeToVersion(int index, Version version) {
         Node node = nodes.get(index);
         node.stop(false);

@@ -37,6 +37,11 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -205,6 +210,19 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             } else {
                 return "";
             }
+        }
+
+        public int getIndexVersion() {
+            String address = getHttpAddress();
+            try {
+                HttpClient client = HttpClient.newHttpClient();
+                client.send(HttpRequest.newBuilder(new URI(address)).GET().build(), HttpResponse.BodyHandlers.ofString());
+                // TODO: read from JSON response
+                return 0;
+            } catch (Exception e) {
+                throw new RuntimeException("Unable to read node index version", e);
+            }
+
         }
 
         public void deletePortsFiles() {

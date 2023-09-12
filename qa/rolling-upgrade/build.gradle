@@ -46,6 +46,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   }
 
   String oldVersion = bwcVersion.toString()
+  def indexVersion
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
@@ -66,6 +67,10 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
     if (excludeList.isEmpty() == false) {
       systemProperty 'tests.rest.blacklist', excludeList.join(',')
+    }
+
+    doLast {
+      indexVersion = baseCluster.map(c -> c.getIndexVersion(0)).get()
     }
   }
 

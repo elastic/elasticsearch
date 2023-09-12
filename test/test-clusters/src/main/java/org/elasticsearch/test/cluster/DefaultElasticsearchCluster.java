@@ -127,6 +127,12 @@ public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends Cluste
     }
 
     @Override
+    public int getIndexVersion(int index) {
+        checkHandle();
+        return handle.getIndexVersion(index);
+    }
+
+    @Override
     public void upgradeNodeToVersion(int index, Version version) {
         checkHandle();
         handle.upgradeNodeToVersion(index, version);

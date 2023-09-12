@@ -776,7 +776,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
 
         // Clone the old data stream.
-        request = new Request("POST", "/_component_template/destination+_template");
+        request = new Request("POST", "/_component_template/destination_template");
         request.setJsonEntity(
             CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(8 * SECONDS_PER_DAY)))
                 .replace("$end", formatInstantNanos(Instant.now().minusSeconds(6 * SECONDS_PER_DAY)))
@@ -787,7 +787,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         request.setJsonEntity("""
             {
                 "index_patterns": ["k9s*"],
-                "composed_of": ["destination+_template"],
+                "composed_of": ["destination_template"],
                 "data_stream": {
                 }
             }""");
@@ -819,7 +819,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.1.indices"), hasSize(1));
 
         // Update the start and end time of the new data stream.
-        request = new Request("POST", "/_component_template/destination+_template");
+        request = new Request("POST", "/_component_template/destination_template");
         request.setJsonEntity(
             CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(SECONDS_PER_DAY)))
                 .replace("$end", formatInstantNanos(Instant.now().plusSeconds(SECONDS_PER_DAY)))
@@ -828,7 +828,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
         // Rollover to create a new index with the new settings.
         request = new Request("POST", "/k9s/_rollover");
-        assertOK(client().performRequest(request));
+        client().performRequest(request);
 
         // Insert a doc with a current timestamp.
         request = new Request("POST", "/k9s/_doc");

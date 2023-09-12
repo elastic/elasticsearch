@@ -721,8 +721,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // if there are external files the new instance must reference the corresponding commit blob instances
             commitFiles.forEach(fileName -> {
                 if (additionalFiles.contains(fileName) == false) {
-                    var commit = blobLocations.get(fileName).blobReference();
-                    blobReference.incRef(commit);
+                    final var commitAndBlobLocation = blobLocations.get(fileName);
+                    if (commitAndBlobLocation == null) {
+                        final var message = Strings.format(
+                            """
+                                [%s] blobLocations missing [%s]; \
+                                primaryTerm=%d, generation=%d, commitFiles=%s, additionalFiles=%s, blobLocations=%s""",
+                            shardId,
+                            fileName,
+                            primaryTerm,
+                            generation,
+                            commitFiles,
+                            additionalFiles,
+                            blobLocations.keySet()
+                        );
+                        assert false : message;
+                        throw new IllegalStateException(message);
+                    }
+                    blobReference.incRef(commitAndBlobLocation.blobReference());
                 }
             });
             initializeUnpromotableCommitReferences(blobReference);

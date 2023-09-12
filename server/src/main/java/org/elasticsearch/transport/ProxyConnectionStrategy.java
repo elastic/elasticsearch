@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -315,18 +314,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 }));
             }
         } else {
-            int openConnections = connectionManager.size();
-            if (openConnections == 0) {
-                finished.onFailure(getNoSeedNodeLeftException(Set.of()));
-            } else {
-                logger.debug(
-                    "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
-                    clusterAlias,
-                    openConnections,
-                    maxNumConnections
-                );
-                finished.onResponse(null);
-            }
+            logger.debug(
+                "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
+                clusterAlias,
+                connectionManager.size(),
+                maxNumConnections
+            );
+            finished.onResponse(null);
         }
     }
 

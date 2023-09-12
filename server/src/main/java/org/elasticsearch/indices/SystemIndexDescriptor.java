@@ -654,7 +654,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * The hash is a hash of the system index descriptor's mappings so that we can warn
      * in case of inconsistencies across nodes.
      */
-    public record MappingsVersion(int version, int hash) implements Writeable, ToXContent {
+    public record MappingsVersion(int version, int hash) implements Writeable, ToXContent, Comparable<MappingsVersion> {
 
         public MappingsVersion(StreamInput in) throws IOException {
             this(in.readVInt(), in.readInt());
@@ -673,6 +673,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             builder.field("hash", hash);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public int compareTo(MappingsVersion o) {
+            Objects.requireNonNull(o, "Cannot compare null MappingsVersion");
+            return Integer.compare(this.version, o.version);
         }
     }
 

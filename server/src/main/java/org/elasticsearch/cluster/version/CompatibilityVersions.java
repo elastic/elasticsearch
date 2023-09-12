@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Wraps component version numbers for cluster state
@@ -52,11 +54,10 @@ public record CompatibilityVersions(
             // In practice transportVersions is always nonempty (except in tests) but use a conservative default anyway:
             .orElse(TransportVersions.MINIMUM_COMPATIBLE);
 
-        Map<String, SystemIndexDescriptor.MappingsVersion> minimumMappingsVersions = new HashMap<>();
-        compatibilityVersions.stream()
+        Map<String, SystemIndexDescriptor.MappingsVersion> minimumMappingsVersions = compatibilityVersions.stream()
             .flatMap(mv -> mv.systemIndexMappingsVersion().entrySet().stream())
-            .forEach(
-                entry -> minimumMappingsVersions.merge(entry.getKey(), entry.getValue(), (v1, v2) -> v1.version() < v2.version() ? v1 : v2)
+            .collect(
+                Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> Stream.of(v1, v2).min(Comparator.naturalOrder()).get())
             );
 
         return new CompatibilityVersions(minimumTransport, minimumMappingsVersions);

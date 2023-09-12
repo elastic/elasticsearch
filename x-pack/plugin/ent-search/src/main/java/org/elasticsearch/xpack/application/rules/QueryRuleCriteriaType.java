@@ -17,6 +17,7 @@ import java.util.Map;
  * Defines the different types of query rule criteria and their rules for matching input against the criteria.
  */
 public enum QueryRuleCriteriaType {
+
     ALWAYS {
         @Override
         public boolean isMatch(Object input, Object criteriaValue, Map<String, Object> criteriaProperties) {
@@ -109,8 +110,9 @@ public enum QueryRuleCriteriaType {
         ) {
             validateInput(input);
             String modelId = criteriaProperties.getOrDefault("model_id", ".elser_model_1").toString();
+            String inferenceConfig = criteriaProperties.getOrDefault("inference_config", "text_expansion").toString();
             float threshold = ((Double) criteriaProperties.getOrDefault("threshold", 1.0)).floatValue();
-            return inferenceService.findInferenceRuleMatches(modelId, (String) input, (String) criteriaValue, threshold);
+            return inferenceService.findInferenceRuleMatches(modelId, inferenceConfig, (String) input, (String) criteriaValue, threshold);
         }
     };
 

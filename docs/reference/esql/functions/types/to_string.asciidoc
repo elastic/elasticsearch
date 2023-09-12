@@ -9,5 +9,6 @@ ip | keyword
 keyword | keyword
 long | keyword
 text | keyword
+unsigned_long | keyword
 version | keyword
 |===

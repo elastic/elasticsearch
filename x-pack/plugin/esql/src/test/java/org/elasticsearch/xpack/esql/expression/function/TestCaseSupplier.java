@@ -43,8 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
-
-    public static final BigInteger MAX_UNSIGNED_LONG = NumericUtils.UNSIGNED_LONG_MAX;
     /**
      * Build a test case without types.
      *
@@ -510,7 +508,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             cases.add(
                 new TypedDataSupplier(
                     "<small unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower1.longValue(), upper1.longValue())),
+                    () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1),
                     DataTypes.UNSIGNED_LONG
                 )
             );
@@ -520,12 +518,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         // Big values, greater than Long.MAX_VALUE
         BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
-        BigInteger upper2 = max.min(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(Integer.MAX_VALUE)));
+        BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
         if (lower2.compareTo(upper2) < 0) {
             cases.add(
                 new TypedDataSupplier(
                     "<big unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower2.longValue(), upper2.longValue())),
+                    () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2),
                     DataTypes.UNSIGNED_LONG
                 )
             );

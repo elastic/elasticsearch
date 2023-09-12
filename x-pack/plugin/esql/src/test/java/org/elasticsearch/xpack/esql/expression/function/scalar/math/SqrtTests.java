@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
-
 public class SqrtTests extends AbstractFunctionTestCase {
     public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -57,7 +55,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
-            MAX_UNSIGNED_LONG,
+            UNSIGNED_LONG_MAX,
             List.of()
         );
         TestCaseSupplier.forUnaryDouble(

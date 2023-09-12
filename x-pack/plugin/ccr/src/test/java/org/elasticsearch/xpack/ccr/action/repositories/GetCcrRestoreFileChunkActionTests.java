@@ -60,10 +60,9 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
     public void testActionNames() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = mock(BigArrays.class);
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
             bigArrays,
             transportService,
@@ -84,7 +83,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
         final String sessionUUID = UUIDs.randomBase64UUID();
@@ -105,7 +104,6 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             }
         }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new GetCcrRestoreFileChunkAction.TransportAction(
             bigArrays,
             transportService,

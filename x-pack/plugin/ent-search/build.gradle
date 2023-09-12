@@ -6,7 +6,7 @@ esplugin {
   name 'x-pack-ent-search'
   description 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
   classname 'org.elasticsearch.xpack.application.EnterpriseSearch'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 base {
@@ -14,6 +14,7 @@ base {
 }
 
 dependencies {
+
   compileOnly project(path: xpackModule('core'))
   implementation project(xpackModule('search-business-rules'))
   api project(':modules:lang-mustache')
@@ -36,6 +37,10 @@ dependencies {
   javaRestTestImplementation(project(':modules:lang-mustache'))
 
   module ':modules:search-business-rules'
+
+  // painless HTML ingest processing
+  compileOnly project(path: ':modules:lang-painless:spi')
+
 }
 
 tasks.named("dependencyLicenses").configure {

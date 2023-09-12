@@ -1,0 +1,19 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# This file contains a whitelist extension for ingest scripts
+
+
+class org.elasticsearch.xpack.application.html.HTML$Element {
+  org.elasticsearch.xpack.application.html.HTML.Element getElementAt(String)
+  String getText()
+}
+
+class org.elasticsearch.xpack.application.html.HTML {
+  org.elasticsearch.xpack.application.html.HTML.Element parse(String)
+}

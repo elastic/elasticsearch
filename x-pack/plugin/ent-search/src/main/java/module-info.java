@@ -21,6 +21,7 @@ module org.elasticsearch.application {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.searchbusinessrules;
     requires org.apache.lucene.suggest;
+    requires org.elasticsearch.painless.spi;
 
     exports org.elasticsearch.xpack.application;
     exports org.elasticsearch.xpack.application.analytics;
@@ -29,6 +30,8 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.analytics.event.parser.field;
     exports org.elasticsearch.xpack.application.analytics.event.parser.event;
     exports org.elasticsearch.xpack.application.analytics.ingest;
+    exports org.elasticsearch.xpack.application.html;
+    exports org.elasticsearch.xpack.application.painless;
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;
     exports org.elasticsearch.xpack.application.rules;

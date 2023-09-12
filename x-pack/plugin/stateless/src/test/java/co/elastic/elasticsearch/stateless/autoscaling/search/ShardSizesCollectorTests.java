@@ -387,7 +387,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         builder.masterNodeId("master").localNodeId("search_node_1");
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(builder)
-            .compatibilityVersions(Maps.transformValues(transportVersions, CompatibilityVersions::new));
+            .compatibilityVersions(Maps.transformValues(transportVersions, tv -> new CompatibilityVersions(tv, Map.of())));
     }
 
     private static IndexMetadata createIndex(int shards, int replicas) {

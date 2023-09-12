@@ -382,6 +382,9 @@ public class UnsignedLongFieldMapperTests extends NumberFieldMapperTests {
     public void testAllowMultipleValuesField() {} // unimplemented
 
     @Override
+    public void testScriptableTypes() {} // unimplemented
+
+    @Override
     protected Number missingValue() {
         return 123L;
     }

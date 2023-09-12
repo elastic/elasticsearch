@@ -25,15 +25,41 @@ public class AcosTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // values in range
         List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
             "AcosEvaluator",
             "val",
             Math::acos,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
+            -1d,
+            1d,
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        suppliers = anyNullIsNull(true, suppliers);
+
+        // Values out of range
+        suppliers.addAll(TestCaseSupplier.forUnaryCastingToDouble(
+            "AcosEvaluator",
+            "val",
+            k -> null,
+            Double.NEGATIVE_INFINITY,
+            Math.nextDown(-1d),
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Acos input out of range"
+            )
+        ));
+        suppliers.addAll(TestCaseSupplier.forUnaryCastingToDouble(
+            "AcosEvaluator",
+            "val",
+            k -> null,
+            Math.nextUp(1d),
+            Double.POSITIVE_INFINITY,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Acos input out of range"
+            )
+        ));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

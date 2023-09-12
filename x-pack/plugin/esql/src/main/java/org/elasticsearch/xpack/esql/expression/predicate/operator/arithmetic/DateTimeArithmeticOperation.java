@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
@@ -23,6 +24,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
@@ -76,6 +78,16 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();
             Period r = (Period) right().fold();
+            return switch (op()) {
+                case ADD -> l.plus(r);
+                case SUB -> l.minus(r);
+                default -> throw new UnsupportedOperationException("Unsupported date math expression");
+            };
+        }
+        if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            Duration l = (Duration) left().fold();
+            Duration r = (Duration) right().fold();
             return switch (op()) {
                 case ADD -> l.plus(r);
                 case SUB -> l.minus(r);

@@ -1656,6 +1656,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 refCounted.decRef();
                 safeAwait(completeLatch);
                 cleanup.forEach(Runnable::run);
+                clusterStateBarriers.values().forEach(l -> l.onResponse(null));
             }
 
             void addCleanup(Runnable runnable) {

@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -40,7 +39,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -55,6 +53,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     private final Supplier<ObjectStoreService> objectStoreServiceSupplier;
 
     private final Supplier<StatelessElectionStrategy> electionStrategySupplier;
+    private final CompatibilityVersions compatibilityVersions;
 
     public StatelessPersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
@@ -63,7 +62,8 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         LongSupplier relativeTimeMillisSupplier,
         Supplier<StatelessElectionStrategy> electionStrategySupplier,
         Supplier<ObjectStoreService> objectStoreServiceSupplier,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        CompatibilityVersions compatibilityVersions
     ) {
         super(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier);
         this.objectStoreServiceSupplier = objectStoreServiceSupplier;
@@ -71,6 +71,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         this.nodeEnvironment = nodeEnvironment;
         this.clusterSettings = clusterSettings;
         this.electionStrategySupplier = electionStrategySupplier;
+        this.compatibilityVersions = compatibilityVersions;
     }
 
     @Override
@@ -101,7 +102,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
             objectStoreService()::getClusterStateBlobContainerForTerm,
             threadPool.executor(getDownloadsThreadPool()),
             getStateStagingPath(),
-            getInitialState(settings, localNode, clusterSettings),
+            getInitialState(settings, localNode, clusterSettings, compatibilityVersions),
             Objects.requireNonNull(electionStrategySupplier.get())
         );
         currentTermSupplier.set(persistedState::getCurrentTerm);
@@ -117,16 +118,15 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         return Objects.requireNonNull(objectStoreServiceSupplier.get());
     }
 
-    private static ClusterState getInitialState(Settings settings, DiscoveryNode localNode, ClusterSettings clusterSettings) {
+    private static ClusterState getInitialState(
+        Settings settings,
+        DiscoveryNode localNode,
+        ClusterSettings clusterSettings,
+        CompatibilityVersions compatibilityVersions
+    ) {
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(
-                state -> ClusterStateUpdaters.setLocalNode(
-                    state,
-                    localNode,
-                    new CompatibilityVersions(TransportVersion.current(), Map.of())
-                )
-            )
+            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, compatibilityVersions))
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterSettings))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .andThen(state -> addLocalNodeVotingConfig(state, localNode))

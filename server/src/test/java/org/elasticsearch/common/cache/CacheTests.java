@@ -505,23 +505,18 @@ public class CacheTests extends ESTestCase {
         final int numberOfThreads = randomIntBetween(2, 32);
         Cache<Integer, Integer> cache = CacheBuilder.<Integer, Integer>builder().build();
 
-        // set up the cache to put items in the cache
-        for (int i=0; i<numberOfEntries; i++) {
-            cache.put(i, i);
-        }
+        // hammer the same item loads of times
+        cache.put(0, 0);
 
-        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads*2);
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int t = 0; t < numberOfThreads; t++) {
             // put items, invalidate, then put again (to re-add items)
             new Thread(() -> {
                 try {
                     barrier.await();
-                    for (int i = 0; i < numberOfEntries; i++) {
-                        cache.put(i, i);
-                    }
-                    cache.invalidateAll();
-                    for (int i = 0; i < numberOfEntries; i++) {
-                        cache.put(i, i);
+                    for (int i=0; i<numberOfEntries; i++) {
+                        cache.invalidateAll();
+                        cache.put(0, 0);
                     }
                     barrier.await();
                 } catch (BrokenBarrierException | InterruptedException e) {

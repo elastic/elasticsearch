@@ -18,8 +18,8 @@
 package co.elastic.elasticsearch.stateless.lucene.stats;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.index.IndexRequestBuilder;

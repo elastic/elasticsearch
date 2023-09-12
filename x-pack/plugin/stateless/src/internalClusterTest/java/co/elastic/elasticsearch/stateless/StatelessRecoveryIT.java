@@ -18,6 +18,8 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.elasticsearch.ElasticsearchException;
@@ -364,7 +366,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3); // with master node
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
 
@@ -695,7 +697,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         logger.info("--> blocking recoveries on " + nodeB);
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeB);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setBlockOnAnyFiles();
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
@@ -802,7 +804,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("4").get().isTimedOut()); // including master node
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, nodeC);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         logger.info("--> block recoveries on " + nodeC);
         repository.setBlockOnAnyFiles();
 
@@ -1012,7 +1014,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1196,7 +1198,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureSearchable(indexName);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
@@ -1222,7 +1224,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(4);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNodeB);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
@@ -1251,7 +1253,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
@@ -1292,7 +1294,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             ObjectStoreService.class,
             failuresOnSource ? indexNodeA : indexNodeB
         );
-        MockRepository repository = (MockRepository) objectStoreService.getObjectStore();
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);

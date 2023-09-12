@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -96,7 +97,7 @@ public class StoreStatsIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, 1_000);
 
         // block index shard uploads to object store
-        var mockRepository = (MockRepository) internalCluster().getInstance(ObjectStoreService.class, indexNode).getObjectStore();
+        var mockRepository = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, indexNode));
         mockRepository.setBlockOnAnyFiles();
 
         stats = shardStoreStats(indexName, ShardRouting.Role.INDEX_ONLY);

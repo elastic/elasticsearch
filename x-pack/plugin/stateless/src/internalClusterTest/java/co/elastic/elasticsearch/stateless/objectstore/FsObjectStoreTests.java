@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryStats;
 

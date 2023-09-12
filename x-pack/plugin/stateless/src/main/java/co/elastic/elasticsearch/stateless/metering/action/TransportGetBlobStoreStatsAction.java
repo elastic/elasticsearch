@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,7 +30,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -92,10 +91,9 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
 
     @Override
     protected GetBlobStoreStatsNodeResponse nodeOperation(GetBlobStoreStatsNodeRequest request, Task task) {
-        final BlobStoreRepository blobStoreRepository = objectStoreService.getObjectStore();
         return new GetBlobStoreStatsNodeResponse(
             clusterService.localNode(),
-            blobStoreRepository.stats(),
+            objectStoreService.stats(),
             computeObsRepositoryStats(repositoriesService)
         );
     }

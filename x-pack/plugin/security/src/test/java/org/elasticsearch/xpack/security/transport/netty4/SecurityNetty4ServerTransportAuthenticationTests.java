@@ -204,9 +204,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                         fail("No connection should be available if authn fails");
                     }, e -> {
                         logger.info("Expected: no connection could not be established");
-                        connectionTestDone.countDown();
                         assertThat(e, instanceOf(RemoteTransportException.class));
                         assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        connectionTestDone.countDown();
                     }));
                 assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
             }
@@ -261,9 +261,9 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                         fail("No connection should be available if authn fails");
                     }, e -> {
                         logger.info("Expected: no connection could be established");
-                        connectionTestDone.countDown();
                         assertThat(e, instanceOf(RemoteTransportException.class));
                         assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        connectionTestDone.countDown();
                     }));
                 assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
             }

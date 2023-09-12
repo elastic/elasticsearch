@@ -180,14 +180,14 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
     public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
     public static final IndexVersion V_8_9_2 = registerIndexVersion(8_09_02_99, Version.LUCENE_9_7_0, "14c7d64c-9e25-4265-b4fa-e0c5aca67f14");
-    public static final IndexVersion V_8_9_3 = registerIndexVersion(8_09_03_99, Version.LUCENE_9_7_0, "abbd4418-1d46-4fec-8faf-758b38b205b0");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
+    public static final IndexVersion V_8_10_1 = registerIndexVersion(8_10_01_99, Version.LUCENE_9_7_0, "5f4ccc3d-3769-4aef-819d-945c47b9a08b");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_10_1);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

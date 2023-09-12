@@ -39,12 +39,12 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 @SuppressWarnings("resource")
@@ -97,15 +97,15 @@ public class APMRolloverIT extends ESIntegTestCase {
     }
 
     public void testRollover() throws Exception {
+        Set<String> apmIndexTemplates = new HashSet<>(apmIndexTemplateRegistry.getComposableTemplateConfigs().keySet());
         assertBusy(() -> {
-            ClusterState state = clusterService.state();
             // todo - figure out why we need this synthetic cluster change event trigger to make sure the last index template is registered
             // maybe because org.elasticsearch.ingest.IngestService.putPipeline() doesn't update the cluster state and trigger state
             // change event like, for example, org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.addComponentTemplate does
+            ClusterState state = clusterService.state();
             apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), state, state));
-            apmIndexTemplateRegistry.getComposableTemplateConfigs().keySet().forEach((indexTemplate -> {
-                assertThat(clusterService.state().metadata().templatesV2(), hasKey(equalTo(indexTemplate)));
-            }));
+            apmIndexTemplates.removeIf(apmIndexTemplate -> clusterService.state().metadata().templatesV2().containsKey(apmIndexTemplate));
+            assertTrue(apmIndexTemplates.isEmpty());
         });
         Map<String, ComposableIndexTemplate> composableTemplateConfigs = apmIndexTemplateRegistry.getComposableTemplateConfigs();
         List<ActionFuture<AcknowledgedResponse>> responseFutures = composableTemplateConfigs.values().stream().map(indexTemplate -> {

@@ -29,7 +29,7 @@ public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToBoolean";
+    return "ToBooleanFromDouble";
   }
 
   @Override

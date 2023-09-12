@@ -29,7 +29,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
 
   @Override
   public String name() {
-    return "ToLong";
+    return "ToLongFromBoolean";
   }
 
   @Override

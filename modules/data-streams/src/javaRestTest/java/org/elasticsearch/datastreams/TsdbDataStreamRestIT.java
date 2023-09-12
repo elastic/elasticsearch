@@ -833,7 +833,9 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         // Insert a doc with a current timestamp.
         request = new Request("POST", "/k9s/_doc");
         request.setJsonEntity(DOC.replace("$time", formatInstantNanos(Instant.now())));
-        request.addParameter("refresh", "true");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_refresh");
         assertOK(client().performRequest(request));
 
         var searchRequest = new Request("GET", "k9s/_search");

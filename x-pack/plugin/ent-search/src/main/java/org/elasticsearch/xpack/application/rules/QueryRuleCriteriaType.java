@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Defines the different types of query rule criteria and their rules for matching input against the criteria.
@@ -125,6 +126,22 @@ public enum QueryRuleCriteriaType {
                     );
                 }
             }
+            if (criteriaProperties.containsKey(PROPERTY_INFERENCE_CONFIG)) {
+                String inferenceConfig = (String) criteriaProperties.get(PROPERTY_INFERENCE_CONFIG);
+                if (QueryRulesInferenceService.SUPPORTED_INFERENCE_CONFIGS.contains(inferenceConfig) == false) {
+                    throw new IllegalArgumentException(
+                        "Unsupported inference config ["
+                            + inferenceConfig
+                            + "]. Supported inference configs: "
+                            + QueryRulesInferenceService.SUPPORTED_INFERENCE_CONFIGS
+                    );
+                }
+            }
+        }
+
+        @Override
+        public Set<String> getAllowedPropertyNames() {
+            return DEFAULTS.keySet();
         }
 
         @Override
@@ -172,6 +189,10 @@ public enum QueryRuleCriteriaType {
             throw new IllegalArgumentException("Criteria type [" + this + "] does not define any allowed properties");
         }
         ;
+    }
+
+    public Set<String> getAllowedPropertyNames() {
+        return Set.of();
     }
 
     public static QueryRuleCriteriaType type(String criteriaType) {

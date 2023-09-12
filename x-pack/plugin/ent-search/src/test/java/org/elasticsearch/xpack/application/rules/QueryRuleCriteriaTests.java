@@ -25,6 +25,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -218,6 +220,20 @@ public class QueryRuleCriteriaTests extends ESTestCase {
             QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "foo", List.of(42), null);
             expectThrows(IllegalArgumentException.class, () -> queryRuleCriteria.isMatch(client, "puggles", type));
         }
+    }
+
+    public void testInvalidCriteriaProperties() {
+        Map<String, Object> invalidProperties = Map.of("foo", "bar");
+        for (QueryRuleCriteriaType type : QueryRuleCriteriaType.values()) {
+            expectThrows(IllegalArgumentException.class, () -> new QueryRuleCriteria(type, "foo", List.of("bar"), invalidProperties));
+        }
+
+        Map<String, Object> inferProperties = QueryRuleCriteriaType.INFER.getAllowedPropertyNames()
+            .stream()
+            .map(name -> Map.entry(name, "foo"))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        inferProperties.put("inference_config", "text_expansion");
+        new QueryRuleCriteria(QueryRuleCriteriaType.INFER, "foo", List.of("bar"), inferProperties);
     }
 
     private void assertXContent(QueryRuleCriteria queryRule, boolean humanReadable) throws IOException {

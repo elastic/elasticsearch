@@ -27,6 +27,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class QueryRulesInferenceService {
 
+    public static final Set<String> SUPPORTED_INFERENCE_CONFIGS = Set.of(TextExpansionConfig.NAME, TextClassificationConfig.NAME);
+
     private static final int TIMEOUT_MS = 10000;
 
     private static final Logger logger = LogManager.getLogger(QueryRulesInferenceService.class);
@@ -48,9 +50,7 @@ public class QueryRulesInferenceService {
         } else if (inferenceConfig.equals(TextClassificationConfig.NAME)) {
             return findTextClassificationInferenceRuleMatches(modelId, queryString, matchValue, threshold);
         } else {
-            throw new UnsupportedOperationException(
-                "Only " + Set.of(TextExpansionConfig.NAME, TextClassificationConfig.NAME) + "inference configurations supported"
-            );
+            throw new UnsupportedOperationException("Only " + SUPPORTED_INFERENCE_CONFIGS + "inference configurations supported");
         }
     }
 

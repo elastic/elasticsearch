@@ -2,7 +2,8 @@
 version: ${xpack.apm.template.version}
 index_patterns: [metrics-apm.service_transaction.60m-*]
 priority: 150
-data_stream: {}
+data_stream:
+  hidden: true
 composed_of:
 - metrics-mappings
 - apm

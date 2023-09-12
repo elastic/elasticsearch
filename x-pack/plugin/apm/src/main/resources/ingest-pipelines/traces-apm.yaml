@@ -4,24 +4,28 @@ _meta:
   managed: true
 description: Built-in ingest pipeline for traces-apm-* data streams
 processors:
-- rename:
+- set:
+    if: ctx.transaction?.type != null
+    field: processor.event
+    value: transaction
+- set:
+    field: processor.event
+    value: span
+    override: false
+- script:
     # Older versions of apm-server write 'transaction.duration.us' or
     # 'span.duration.us'. Newer versions write 'event.duration', which
-    # should be rewritten. Whatever the case, write 'span.duration.us',
-    # which will be aliased as 'transaction.duration.us'.
-    field: transaction.duration.us
-    target_field: span.duration.us
-    ignore_missing: true
-- script:
-    if: 'ctx.span?.duration == null'
+    # should be rewritten.
+    if: 'ctx[ctx.processor.event]?.duration == null'
     source: |
       def eventDuration = ctx.event?.duration ?: 0;
-      def span = ctx.span;
-      if (span == null) {
-        span = [:];
-        ctx.span = span;
+      def rootObjectName = ctx.processor?.event;
+      def rootObject = ctx[rootObjectName];
+      if (rootObject == null) {
+        rootObject = [:];
+        ctx[rootObjectName] = rootObject;
       }
-      span.duration = ["us": (long)(eventDuration/1000)];
+      rootObject.duration = ["us": (long)(eventDuration/1000)];
 - remove:
     field: ["event.duration"]
     ignore_failure: true

@@ -2,4 +2,5 @@
 
 set -euo pipefail
 
-python3 .buildkite/pipelines/pull-request.py | buildkite-agent pipeline upload
+npm install -g bun
+bun .buildkite/pipelines/pull-request.ts | buildkite-agent pipeline upload

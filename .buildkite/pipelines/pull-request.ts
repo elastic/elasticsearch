@@ -9,13 +9,28 @@ process.env["GITHUB_PR_TARGET_BRANCH"] = "main";
 // process.env["GITHUB_PR_TRIGGER_COMMENT"] =
 //   "hey run elasticsearch-ci/build-benchmarks please and run elasticsearch-ci/part-2";
 
-let defaults: any = {};
-defaults = parse(
-  readFileSync(".buildkite/pipelines/pull-request/.defaults.yml").toString()
-);
-defaults["config"] = defaults.config || {};
+type PipelineConfig = {
+  config: {
+    "allow-labels"?: string | string[];
+    "skip-labels"?: string | string[];
+    "included-regions"?: string | string[];
+    "excluded-regions"?: string | string[];
+    "trigger-phrase"?: string;
+  };
+};
 
-let pipelines: any[] = [];
+type Pipeline = PipelineConfig & {
+  name: string;
+  steps: any[];
+};
+
+let defaults: PipelineConfig = { config: {} };
+defaults = parse(
+  readFileSync(".buildkite/pipelines/pull-request/.defaults.yml", "utf-8")
+);
+defaults.config = defaults.config || {};
+
+let pipelines: Pipeline[] = [];
 const files = readdirSync(".buildkite/pipelines/pull-request");
 for (const file of files) {
   if (!file.endsWith(".yml") || file.endsWith(".defaults.yml")) {
@@ -26,14 +41,17 @@ for (const file of files) {
     `.buildkite/pipelines/pull-request/${file}`,
     "utf-8"
   );
-  const pipeline: any = parse(yaml) || {};
-  pipeline["config"] = { ...defaults["config"], ...(pipeline["config"] || {}) };
-  pipelines.push(pipeline);
+  const pipeline: Pipeline = parse(yaml) || {};
+
+  pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
+
+  // '.../build-benchmark.yml' => 'build-benchmark'
   const name = basename(file).split(".", 2)[0];
-  pipeline["name"] = name;
-  pipeline["config"]["trigger-phrase"] =
-    pipeline["config"]["trigger-phrase"] ||
-    `.*run\\W+elasticsearch-ci/${name}.*`;
+  pipeline.name = name;
+  pipeline.config["trigger-phrase"] =
+    pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
+
+  pipelines.push(pipeline);
 }
 
 const labels = (process.env["GITHUB_PR_LABELS"] || "")
@@ -56,22 +74,26 @@ const changedFiles = changedFilesOutput
   .map((x) => x.trim())
   .filter((x) => x);
 
-const getArray = (strOrArray: string | string[]): string[] => {
+const getArray = (strOrArray: string | string[] | undefined): string[] => {
+  if (typeof strOrArray === "undefined") {
+    return [];
+  }
+
   return typeof strOrArray === "string" ? [strOrArray] : strOrArray;
 };
 
-const labelCheckAllow = (pipeline: any): boolean => {
-  if (pipeline["config"]["allow-labels"]) {
-    return getArray(pipeline["config"]["allow-labels"]).some((label) =>
+const labelCheckAllow = (pipeline: Pipeline): boolean => {
+  if (pipeline.config["allow-labels"]) {
+    return getArray(pipeline.config["allow-labels"]).some((label) =>
       labels.includes(label)
     );
   }
   return true;
 };
 
-const labelCheckSkip = (pipeline: any): boolean => {
-  if (pipeline["config"]["skip-labels"]) {
-    return !getArray(pipeline["config"]["skip-labels"]).some((label) =>
+const labelCheckSkip = (pipeline: Pipeline): boolean => {
+  if (pipeline.config["skip-labels"]) {
+    return !getArray(pipeline.config["skip-labels"]).some((label) =>
       labels.includes(label)
     );
   }
@@ -79,10 +101,10 @@ const labelCheckSkip = (pipeline: any): boolean => {
 };
 
 // Exclude the pipeline if all of the changed files in the PR are in at least one excluded region
-const changedFilesExcludedCheck = (pipeline: any): boolean => {
-  if (pipeline["config"]["excluded-regions"]) {
+const changedFilesExcludedCheck = (pipeline: Pipeline): boolean => {
+  if (pipeline.config["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline["config"]["excluded-regions"]).some((region) =>
+      getArray(pipeline.config["excluded-regions"]).some((region) =>
         file.match(region)
       )
     );
@@ -91,10 +113,10 @@ const changedFilesExcludedCheck = (pipeline: any): boolean => {
 };
 
 // Include the pipeline if all of the changed files in the PR are in at least one included region
-const changedFilesIncludedCheck = (pipeline: any): boolean => {
-  if (pipeline["config"]["included-regions"]) {
+const changedFilesIncludedCheck = (pipeline: Pipeline): boolean => {
+  if (pipeline.config["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline["config"]["included-regions"]).some((region) =>
+      getArray(pipeline.config["included-regions"]).some((region) =>
         file.match(region)
       )
     );
@@ -102,19 +124,19 @@ const changedFilesIncludedCheck = (pipeline: any): boolean => {
   return true;
 };
 
-const triggerCommentCheck = (pipeline: any): boolean => {
+const triggerCommentCheck = (pipeline: Pipeline): boolean => {
   if (
     process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
-    pipeline["config"]["trigger-phrase"]
+    pipeline.config["trigger-phrase"]
   ) {
     return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      pipeline["config"]["trigger-phrase"]
+      pipeline.config["trigger-phrase"]
     );
   }
   return false;
 };
 
-let filters: ((pipeline: any) => boolean)[] = [
+let filters: ((pipeline: Pipeline) => boolean)[] = [
   labelCheckAllow,
   labelCheckSkip,
   changedFilesExcludedCheck,
@@ -130,13 +152,11 @@ for (const filter of filters) {
   pipelines = pipelines.filter(filter);
 }
 
-const finalPipeline: any = { steps: [] };
+const finalPipeline: { steps: any[] } = { steps: [] };
 
 // TODO should we just do a pipeline upload on each individual yaml? so that they are isolated, can use env:, etc?
 // Remove our custom attributes before outputting the Buildkite YAML
 for (const pipeline of pipelines) {
-  delete pipeline["config"];
-  delete pipeline["name"];
   finalPipeline["steps"] = [
     ...finalPipeline["steps"],
     ...(pipeline["steps"] || []),

@@ -52,6 +52,7 @@ docker pull {docker-image}
 https://docs.sigstore.dev/system_config/installation/[Cosign] for your
 environment. Then use Cosign to verify the {es} image's signature.
 +
+[[docker-verify-signature]]
 [source,sh,subs="attributes"]
 ----
 wget https://artifacts.elastic.co/cosign.pub

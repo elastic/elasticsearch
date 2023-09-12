@@ -30,7 +30,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
 
   @Override
   public String name() {
-    return "ToDatetime";
+    return "ToDatetimeFromString";
   }
 
   @Override

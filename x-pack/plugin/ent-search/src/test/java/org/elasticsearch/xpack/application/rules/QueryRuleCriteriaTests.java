@@ -208,35 +208,6 @@ public class QueryRuleCriteriaTests extends ESTestCase {
         assertTrue(queryRuleCriteria.isMatch(client, 42, type));
     }
 
-    // public void testDefaultInferMatch() {
-    // QueryRulesInferenceService queryRulesInferenceService = mockQueryRulesInferenceService();
-    // QueryRuleCriteriaType type = INFER;
-    // QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "query", List.of("elk"), null);
-    // assertTrue(queryRuleCriteria.isMatch(client, "elk", type));
-    // assertFalse(queryRuleCriteria.isMatch(client, "puggles", type));
-    // }
-
-    // public void testInferMatchWithProperties() {
-    // QueryRulesInferenceService queryRulesInferenceService = mockQueryRulesInferenceService();
-    // QueryRuleCriteriaType type = INFER;
-    // QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(
-    // type,
-    // "query",
-    // List.of("elk"),
-    // Map.of("model_id", "my-model-id", "threshold", 2.5f)
-    // );
-    // assertTrue(queryRuleCriteria.isMatch(client, "elk", type));
-    // assertFalse(queryRuleCriteria.isMatch(client, "puggles", type));
-    // }
-
-    // private QueryRulesInferenceService mockQueryRulesInferenceService() {
-    // QueryRulesInferenceService queryRulesInferenceService = new QueryRulesInferenceService(client);
-    // when(queryRulesInferenceService.getInferences(any(InferModelAction.Request.class))).thenReturn(
-    // new InferModelAction.Response(emptyList(), null, false)
-    // );
-    // return queryRulesInferenceService;
-    // }
-
     public void testInvalidCriteriaInput() {
         for (QueryRuleCriteriaType type : List.of(FUZZY, PREFIX, SUFFIX, CONTAINS)) {
             QueryRuleCriteria queryRuleCriteria = new QueryRuleCriteria(type, "foo", List.of("bar"), null);

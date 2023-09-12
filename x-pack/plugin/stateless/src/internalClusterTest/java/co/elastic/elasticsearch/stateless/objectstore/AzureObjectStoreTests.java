@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import fixture.azure.AzureHttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;

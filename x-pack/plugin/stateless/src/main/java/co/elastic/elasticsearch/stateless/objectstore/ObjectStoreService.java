@@ -15,8 +15,9 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package co.elastic.elasticsearch.stateless.objectstore;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StaleCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -28,6 +29,8 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -49,6 +52,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -221,12 +225,23 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         this.permits = new Semaphore(0);
     }
 
-    private RepositoriesService getRepositoriesService() {
-        return Objects.requireNonNull(repositoriesServiceSupplier.get());
+    // package private for tests
+    BlobStoreRepository getObjectStore() {
+        if (objectStore == null) {
+            throw new IllegalStateException("Blob store is null");
+        }
+        if (objectStore.lifecycleState() != Lifecycle.State.STARTED) {
+            throw new IllegalStateException("Blob store is not started");
+        }
+        return objectStore;
     }
 
-    public BlobStoreRepository getObjectStore() {
-        return Objects.requireNonNull(objectStore);
+    public BlobPath shardBasePath(ShardId shardId) {
+        return getObjectStore().basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id()));
+    }
+
+    public BlobStore blobStore() {
+        return getObjectStore().blobStore();
     }
 
     // public for testing
@@ -279,6 +294,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
     }
 
+    public RepositoryStats stats() {
+        return objectStore.stats();
+    }
+
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
         ObjectStoreType type = TYPE_SETTING.get(settings);
         return new RepositoryMetadata(
@@ -290,8 +309,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        final var repositoriesService = repositoriesServiceSupplier.get();
+        if (repositoriesService == null) {
+            throw new IllegalStateException("Repositories service is not initialized");
+        }
         assert objectStore == null;
-        Repository repository = getRepositoriesService().createRepository(getRepositoryMetadata(settings));
+        Repository repository = repositoriesService.createRepository(getRepositoryMetadata(settings));
         assert repository instanceof BlobStoreRepository;
         this.objectStore = (BlobStoreRepository) repository;
         this.objectStore.start();

@@ -17,8 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine.translog;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

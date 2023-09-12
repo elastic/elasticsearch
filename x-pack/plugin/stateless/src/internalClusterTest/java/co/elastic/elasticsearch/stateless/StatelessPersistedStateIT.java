@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;

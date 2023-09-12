@@ -108,14 +108,12 @@ public class APMRolloverIT extends ESIntegTestCase {
             }));
         });
         Map<String, ComposableIndexTemplate> composableTemplateConfigs = apmIndexTemplateRegistry.getComposableTemplateConfigs();
-        List<ActionFuture<AcknowledgedResponse>> responseFutures = composableTemplateConfigs.values().stream()
-            .map(indexTemplate -> {
-                String indexPattern = indexTemplate.indexPatterns().get(0);
-                String dsName = indexPattern.replace("*", "test");
-                CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dsName);
-                return client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest);
-            })
-            .toList();
+        List<ActionFuture<AcknowledgedResponse>> responseFutures = composableTemplateConfigs.values().stream().map(indexTemplate -> {
+            String indexPattern = indexTemplate.indexPatterns().get(0);
+            String dsName = indexPattern.replace("*", "test");
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dsName);
+            return client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest);
+        }).toList();
         responseFutures.forEach(responseFuture -> {
             try {
                 assertTrue(responseFuture.get().isAcknowledged());
@@ -128,14 +126,21 @@ public class APMRolloverIT extends ESIntegTestCase {
 
         final ClusterState state = clusterService.state();
         final Map<String, ComposableIndexTemplate> indexTemplatesWithLowerVersion = new HashMap<>();
-        state.metadata().templatesV2().forEach((name, template) -> indexTemplatesWithLowerVersion.put(name, new ComposableIndexTemplate(
-            template.indexPatterns(),
-            template.template(),
-            template.composedOf(),
-            template.priority(),
-            template.version() - 1,
-            template.metadata()
-        )));
+        state.metadata()
+            .templatesV2()
+            .forEach(
+                (name, template) -> indexTemplatesWithLowerVersion.put(
+                    name,
+                    new ComposableIndexTemplate(
+                        template.indexPatterns(),
+                        template.template(),
+                        template.composedOf(),
+                        template.priority(),
+                        template.version() - 1,
+                        template.metadata()
+                    )
+                )
+            );
         ClusterState stateWithLowerVersion = state.copyAndUpdateMetadata(builder -> builder.indexTemplates(indexTemplatesWithLowerVersion));
         apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), stateWithLowerVersion, state));
 
@@ -143,7 +148,7 @@ public class APMRolloverIT extends ESIntegTestCase {
     }
 
     private static void assertNumberOfBackingIndices(final int expected) {
-        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
+        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         final List<GetDataStreamAction.Response.DataStreamInfo> dataStreams = getDataStreamResponse.getDataStreams();

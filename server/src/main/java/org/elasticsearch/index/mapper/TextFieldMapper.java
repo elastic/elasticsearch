@@ -99,15 +99,16 @@ public class TextFieldMapper extends FieldMapper {
         public static final int INDEX_PREFIX_MIN_CHARS = 2;
         public static final int INDEX_PREFIX_MAX_CHARS = 5;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setOmitNorms(false);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         /**
@@ -635,7 +636,7 @@ public class TextFieldMapper extends FieldMapper {
         private final String field;
 
         SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
-            this.fieldType = fieldType;
+            this.fieldType = Mapper.freezeAndDeduplicateFieldType(fieldType);
             this.analyzer = analyzer;
             this.field = field;
         }
@@ -1138,7 +1139,7 @@ public class TextFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;

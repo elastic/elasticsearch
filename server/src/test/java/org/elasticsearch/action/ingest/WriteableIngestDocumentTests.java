@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99403")
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);

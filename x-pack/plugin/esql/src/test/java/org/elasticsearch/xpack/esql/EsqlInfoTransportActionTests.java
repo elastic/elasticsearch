@@ -43,11 +43,17 @@ import static org.mockito.Mockito.when;
 public class EsqlInfoTransportActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool(getTestName());
+
+        // TODO: temporary, remove in #97879
+        transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
     }
@@ -58,12 +64,12 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        EsqlInfoTransportAction featureSet = new EsqlInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -98,7 +104,7 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new EsqlUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
             threadPool,
             mock(ActionFilters.class),

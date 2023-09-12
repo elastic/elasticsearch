@@ -1,4 +1,4 @@
-[[set-up-tsds]]
+[[tsds-reindex]]
 === Reindex a time series data stream (TSDS)
 
 ++++

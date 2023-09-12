@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -149,7 +150,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected void buildLayout(Layout.Builder builder, Expression e) {
         if (e instanceof FieldAttribute f) {
-            builder.appendChannel(f.id());
+            builder.append(f);
             return;
         }
         for (Expression c : e.children()) {
@@ -164,6 +165,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public final void testEvaluate() {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        logger.info(
+            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
+        );
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
@@ -462,7 +466,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric")
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -581,7 +586,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static String functionName() {
-        return getTestClass().getSimpleName().replace("Tests", "").toLowerCase(Locale.ROOT);
+        return StringUtils.camelCaseToUnderscore(getTestClass().getSimpleName().replace("Tests", "")).toLowerCase(Locale.ROOT);
     }
 
     /**

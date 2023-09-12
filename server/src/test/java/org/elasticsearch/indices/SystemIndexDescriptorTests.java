@@ -386,6 +386,18 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("The mappings version must not be negative"));
     }
 
+    public void testMappingsVersionCompareTo() {
+        SystemIndexDescriptor.MappingsVersion mv1 = new SystemIndexDescriptor.MappingsVersion(1, randomInt(20));
+        SystemIndexDescriptor.MappingsVersion mv2 = new SystemIndexDescriptor.MappingsVersion(2, randomInt(20));
+
+        NullPointerException e = expectThrows(NullPointerException.class, () -> mv1.compareTo(null));
+        assertThat(e.getMessage(), equalTo("Cannot compare null MappingsVersion"));
+
+        assertThat(mv1.compareTo(mv2), equalTo(-1));
+        assertThat(mv1.compareTo(mv1), equalTo(0));
+        assertThat(mv2.compareTo(mv1), equalTo(1));
+    }
+
     public void testHashesIgnoreMappingMetadata() {
         String mappingFormatString = """
             {

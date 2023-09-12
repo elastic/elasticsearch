@@ -110,7 +110,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 name,
                 ft,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name)),
                 geoShapeParser,
                 this

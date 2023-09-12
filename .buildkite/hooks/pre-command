@@ -69,3 +69,8 @@ if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   DRA_VAULT_ADDR=https://secrets.elastic.co:8200
   export DRA_VAULT_ADDR
 fi
+
+if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
+  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  export SNYK_TOKEN
+fi

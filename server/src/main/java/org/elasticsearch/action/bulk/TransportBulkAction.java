@@ -802,7 +802,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
-                            threadPool.executor(Names.SAME).execute(runnable);
+                            runnable.run();
                         } else {
                             threadPool.executor(executorName).execute(runnable);
                         }

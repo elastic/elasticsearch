@@ -167,6 +167,10 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
+    public void testCiNotificationTriggered() throws IOException {
+        assertTrue("CI notification should have been triggered", false);
+    }
+
     public void testFlattenedFieldsWithoutSubobjects() throws IOException {
         String indexName = "test_flattened_fields_subobjects_false";
         createTestIndex(indexName, Map.of("subobjects", false));

@@ -19,6 +19,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Base64;
 
 import javax.crypto.KeyGenerator;
 
@@ -35,7 +36,7 @@ public class CryptoServiceTests extends ESTestCase {
     public void init() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
-        mockSecureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, generateKeyAsString());
+        mockSecureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, generateKeyAsBase64EncodedString());
         settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         encryptionKeySetting = SecureSetting.secureString(TEST_ENCRYPTION_KEY_SETTING_NAME, null);
     }
@@ -106,7 +107,10 @@ public class CryptoServiceTests extends ESTestCase {
 
     public void testErrorMessageWhenPassedSettingIsLessThanRequiredSize() {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, "a");
+        secureSettings.setString(
+            TEST_ENCRYPTION_KEY_SETTING_NAME,
+            Base64.getEncoder().encodeToString("a".getBytes(StandardCharsets.UTF_8))
+        );
         Settings mockedSettings = Settings.builder().setSecureSettings(secureSettings).build();
 
         final IllegalArgumentException e = expectThrows(
@@ -117,10 +121,25 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(e.getMessage(), is("key size was less than the expected value; was the key generated with elasticsearch-syskeygen?"));
     }
 
+    public void testErrorMessageWhenPassedKeyIsNotEncoded() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, "a");
+        Settings mockedSettings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CryptoService.createFromEncryptionKeySetting(mockedSettings, encryptionKeySetting)
+        );
+
+        assertThat(e.getMessage(), is("unable to decode the key; the key must be base64 encoded"));
+    }
+
     public void testDoesNotThrowExceptionWhenEncryptionKeyIsLargerThanRequiredSize() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         var keySize = CryptoService.KEY_SIZE / 8;
-        secureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, "a".repeat(keySize + 1));
+
+        String encodedKey = Base64.getEncoder().encodeToString("a".repeat(keySize + 1).getBytes(StandardCharsets.UTF_8));
+        secureSettings.setString(TEST_ENCRYPTION_KEY_SETTING_NAME, encodedKey);
         Settings mockedSettings = Settings.builder().setSecureSettings(secureSettings).build();
 
         CryptoService service = CryptoService.createFromEncryptionKeySetting(mockedSettings, encryptionKeySetting);
@@ -134,8 +153,8 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(Arrays.equals(chars, decrypted), is(true));
     }
 
-    private static String generateKeyAsString() {
-        return new String(generateKey(), StandardCharsets.ISO_8859_1);
+    private static String generateKeyAsBase64EncodedString() {
+        return new String(Base64.getEncoder().encode(generateKey()), StandardCharsets.UTF_8);
     }
 
     public static byte[] generateKey() {

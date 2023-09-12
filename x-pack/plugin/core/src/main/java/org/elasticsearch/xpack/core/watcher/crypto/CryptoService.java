@@ -172,19 +172,31 @@ public class CryptoService {
 
     private static SecretKey createSecretKey(char[] systemKey) {
         final int keySizeBytes = KEY_SIZE / 8;
-        final ByteBuffer byteBuffer = StandardCharsets.ISO_8859_1.encode(CharBuffer.wrap(systemKey));
+        final ByteBuffer encodedBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(systemKey));
+        final ByteBuffer decodedKeyBuffer = decodeSystemKey(encodedBuffer);
 
         // ensure we have at least enough material to produce a key of the required size
-        if (byteBuffer.limit() < keySizeBytes) {
+        if (decodedKeyBuffer.limit() < keySizeBytes) {
             throw new IllegalArgumentException(
                 "key size was less than the expected value; was the key generated with elasticsearch-syskeygen?"
             );
         }
 
         // truncate to the correct key size
-        final byte[] keyBytes = Arrays.copyOf(byteBuffer.array(), keySizeBytes);
+        final byte[] keyBytes = Arrays.copyOf(decodedKeyBuffer.array(), keySizeBytes);
+
+        // zero out the backing array containing the decoded key
+        Arrays.fill(decodedKeyBuffer.array(), (byte) 0);
 
         return new SecretKeySpec(keyBytes, KEY_ALGO);
+    }
+
+    private static ByteBuffer decodeSystemKey(ByteBuffer systemKey) {
+        try {
+            return Base64.getDecoder().decode(systemKey);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unable to decode the key; the key must be base64 encoded", e);
+        }
     }
 
     private static SecretKey readSystemKey(InputStream in) throws IOException {

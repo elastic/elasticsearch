@@ -29,7 +29,7 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
 
   @Override
   public String name() {
-    return "ToDouble";
+    return "ToDoubleFromInt";
   }
 
   @Override

@@ -117,7 +117,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         @Override
         public final String toString() {
-            return name() + "[field=" + fieldEvaluator + "]";
+            return name() + "Evaluator[field=" + fieldEvaluator + "]";
         }
     }
 }

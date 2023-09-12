@@ -30,7 +30,7 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
 
   @Override
   public String name() {
-    return "ToLong";
+    return "ToLongFromString";
   }
 
   @Override

@@ -79,7 +79,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
             Actions.START_RECOVERY,
-            ThreadPool.Names.GENERIC,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
             StartRecoveryRequest::new,
             (request, channel, task) -> recover(request, task, new ChannelActionListener<>(channel))
         );
@@ -89,7 +89,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         // action will fail and the target node will send a new START_RECOVERY request.
         transportService.registerRequestHandler(
             Actions.REESTABLISH_RECOVERY,
-            ThreadPool.Names.GENERIC,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
             ReestablishRecoveryRequest::new,
             (request, channel, task) -> reestablish(request, new ChannelActionListener<>(channel))
         );

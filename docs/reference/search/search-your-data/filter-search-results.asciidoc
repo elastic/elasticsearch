@@ -1,5 +1,5 @@
 [[filter-search-results]]
-== Filter search results
+=== Filter search results
 
 You can use two methods to filter search results:
 
@@ -17,7 +17,7 @@ improve relevance and reorder results.
 
 [discrete]
 [[post-filter]]
-=== Post filter
+==== Post filter
 
 When you use the `post_filter` parameter to filter search results, the search
 hits are filtered after the aggregations are calculated. A post filter has no
@@ -149,7 +149,7 @@ GET /shirts/_search
 
 [discrete]
 [[rescore]]
-=== Rescore filtered search results
+==== Rescore filtered search results
 
 Rescoring can help to improve precision by reordering just the top (eg
 100 - 500) documents returned by the
@@ -175,7 +175,7 @@ confusingly shift as the user steps through pages.
 
 [discrete]
 [[query-rescorer]]
-==== Query rescorer
+===== Query rescorer
 
 The query rescorer executes a second query only on the Top-K results
 returned by the <<request-body-search-query,`query`>> and
@@ -236,7 +236,7 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 
 [discrete]
 [[multiple-rescores]]
-==== Multiple rescores
+===== Multiple rescores
 
 It is also possible to execute multiple rescores in sequence:
 

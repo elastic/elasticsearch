@@ -1,0 +1,4 @@
+[[full-text-search]]
+== Full-text search
+
+include::search-with-synonyms.asciidoc[]

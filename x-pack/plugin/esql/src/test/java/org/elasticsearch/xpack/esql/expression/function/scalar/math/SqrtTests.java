@@ -15,13 +15,12 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
 
 public class SqrtTests extends AbstractFunctionTestCase {
     public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -38,7 +37,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::sqrt,
             Integer.MIN_VALUE,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            List.of()
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
@@ -46,15 +46,17 @@ public class SqrtTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::sqrt,
             Long.MIN_VALUE,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            List.of()
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SqrtUnsignedLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
-            ul -> Math.sqrt(ul.doubleValue()),
+            ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
-            MAX_UNSIGNED_LONG
+            UNSIGNED_LONG_MAX,
+            List.of()
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -62,7 +64,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::sqrt,
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
+            Double.POSITIVE_INFINITY,
+            List.of()
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

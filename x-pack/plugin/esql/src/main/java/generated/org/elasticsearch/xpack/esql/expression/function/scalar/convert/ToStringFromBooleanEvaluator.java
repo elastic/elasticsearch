@@ -32,7 +32,7 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromBoolean";
   }
 
   @Override

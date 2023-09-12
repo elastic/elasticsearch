@@ -135,6 +135,7 @@ public class TransportVersions {
     public static final TransportVersion PINNED_QUERY_OPTIONAL_INDEX = def(8_500_071);
     public static final TransportVersion SHARD_SIZE_PRIMARY_TERM_GEN_ADDED = def(8_500_072);
     public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
+    public static final TransportVersion V_8_500_074 = def(8_500_074);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

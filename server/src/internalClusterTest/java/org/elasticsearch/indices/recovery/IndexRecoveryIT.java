@@ -1641,6 +1641,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         final var replicaNode = internalCluster().startDataOnlyNode();
 
+        final long initialClusterStateVersion = clusterService().state().version();
+
         // Helper class to encapsulate the sync mechanism that delays applying cluster states on the primary node until the replica gives
         // the go-ahead.
         class ClusterStateSyncListeners implements Releasable {
@@ -1664,6 +1666,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             }
 
             SubscribableListener<Void> getStateApplyDelayListener(long clusterStateVersion) {
+                assertThat(clusterStateVersion, greaterThanOrEqualTo(initialClusterStateVersion));
                 if (refCounted.tryIncRef()) {
                     try {
                         return clusterStateBarriers.computeIfAbsent(clusterStateVersion, ignored -> new SubscribableListener<>());
@@ -1707,6 +1710,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             primaryNodeTransportService.addRequestHandlingBehavior(
                 PeerRecoverySourceService.Actions.START_RECOVERY,
                 (handler, request, channel, task) -> {
+                    assertThat(request, instanceOf(StartRecoveryRequest.class));
+                    assertThat(((StartRecoveryRequest)request).clusterStateVersion(), greaterThan(initialClusterStateVersion));
                     handler.messageReceived(
                         request,
                         new TestTransportChannel(

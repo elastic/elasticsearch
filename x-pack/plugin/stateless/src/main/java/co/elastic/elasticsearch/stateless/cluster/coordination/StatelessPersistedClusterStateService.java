@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -119,7 +120,13 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
     private static ClusterState getInitialState(Settings settings, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         return Function.<ClusterState>identity()
             .andThen(ClusterStateUpdaters::addStateNotRecoveredBlock)
-            .andThen(state -> ClusterStateUpdaters.setLocalNode(state, localNode, new CompatibilityVersions(TransportVersion.current())))
+            .andThen(
+                state -> ClusterStateUpdaters.setLocalNode(
+                    state,
+                    localNode,
+                    new CompatibilityVersions(TransportVersion.current(), Map.of())
+                )
+            )
             .andThen(state -> ClusterStateUpdaters.upgradeAndArchiveUnknownOrInvalidSettings(state, clusterSettings))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .andThen(state -> addLocalNodeVotingConfig(state, localNode))

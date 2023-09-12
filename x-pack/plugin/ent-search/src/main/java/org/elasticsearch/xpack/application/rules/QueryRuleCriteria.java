@@ -237,14 +237,15 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
                     return true;
                 }
             }
-        }
-        // Default case
-        final String matchString = matchValue.toString();
-        for (Object criteriaValue : criteriaValues) {
-            matchType.validateInput(matchValue);
-            boolean matchFound = matchType.isMatch(matchString, criteriaValue, criteriaProperties);
-            if (matchFound) {
-                return true;
+        } else {
+            // Default case
+            final String matchString = matchValue.toString();
+            for (Object criteriaValue : criteriaValues) {
+                matchType.validateInput(matchValue);
+                boolean matchFound = matchType.isMatch(matchString, criteriaValue, criteriaProperties);
+                if (matchFound) {
+                    return true;
+                }
             }
         }
         return false;

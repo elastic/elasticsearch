@@ -6,12 +6,14 @@ setup:
       reason: Introduced in 8.11.0
   - do:
       indices.create:
-        index: index-with-rank-features
+        index: test-infer
         body:
           mappings:
             properties:
               source_text:
                 type: keyword
+              theme:
+                type: text
               ml.tokens:
                 type: rank_features
 
@@ -49,23 +51,21 @@ setup:
           }
   - do:
       bulk:
-        index: index-with-rank-features
+        index: test-infer
         refresh: true
         body: |
-          {"index": {"_id": "id1" }}
-          {"source_text": "my words comforter", "ml.tokens":{"my":1.0, "words":1.0,"comforter":1.0}}
-          {"index": {"_id": "id2" }}
-          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.0,"machine":1.0,"is":1.0,"leaking":1.0}}
-          {"index": {"_id": "id3" }}
-          {"source_text": "these are my words", "ml.tokens":{"these":1.0,"are":1.0,"my":1.0,"words":1.0}}
-          {"index": {"_id": "id4" }}
-          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"smells":1.0}}
-          {"index": {"_id": "id5" }}
-          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"is":1.0,"leaking":1.0}}
-          {"index": {"_id": "id6" }}
-          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
-          {"index": {"_id": "id7" }}
-          {"source_text": "unrelated pinned content", "ml.tokens":{"unrelated":1.0,"pinned":1.0,"content":1.0}}
+          {"index": { "_id": "id1" }}
+          {"source_text": "my words comforter", "ml.tokens":{"my":1.0, "words":1.0,"comforter":1.0}, "theme": "bedding"}
+          {"index": { "_id": "id2" }}
+          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.0,"machine":1.0,"is":1.0,"leaking":1.0}, "theme": "appliance"}
+          {"index": { "_id": "id3" }}
+          {"source_text": "these are my words", "ml.tokens":{"these":1.0,"are":1.0,"my":1.0,"words":1.0}, "theme": "sentence"}
+          {"index": { "_id": "id4" }}
+          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"smells":1.0}, "theme": "bedding"}
+          {"index": { "_id": "id5" }}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"is":1.0,"leaking":1.0}, "theme": "bedding"}
+          {"index": { "_id": "id6" }}
+          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}, "theme": "appliance"}
 
   - do:
       ml.start_trained_model_deployment:
@@ -77,26 +77,113 @@ setup:
         ruleset_id: ruleset
         body:
           rules:
-            - rule_id: id1
+            - rule_id: rule_id1
               type: pinned
               criteria:
                 - type: infer
                   metadata: input
-                  values: [ octopus ]
+                  values: [ comforter ]
+                  properties:
+                    model_id: text_expansion_model
               actions:
                 ids:
-                  - 'id7'
+                  - 'id1'
+                  - 'id5'
+                  - 'id4'
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: bad-ruleset
+        body:
+          rules:
+            - rule_id: rule_id1
+              type: pinned
+              criteria:
+                - type: infer
+                  metadata: input
+                  values: [ washing machine ]
+                  properties:
+                    model_id: missing-model
+              actions:
+                ids:
+                  - 'id2'
 
 ---
-"Test rule query with inference":
+"Test rule query with inference match":
   - do:
       search:
-        index: index-with-rank-features
+        index:
+          test-infer
         body:
           query:
-            text_expansion:
-              ml.tokens:
-                model_id: text_expansion_model
-                model_text: "octopus comforter smells"
-  - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._source.source_text: "unrelated pinned content" }
+            rule_query:
+              organic:
+                query_string:
+                  default_field: theme
+                  query: doesnt matter
+              match_criteria:
+                input: comforter
+              ruleset_id: ruleset
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "id1" }
+  - match: { hits.hits.1._id: "id5" }
+  - match: { hits.hits.2._id: "id4" }
+
+---
+"Test rule query where inference is below the threshold and therefore the rule does not match":
+  - do:
+      query_ruleset.put:
+        ruleset_id: ruleset
+        body:
+          rules:
+            - rule_id: rule_id1
+              type: pinned
+              criteria:
+                - type: infer
+                  metadata: input
+                  values: [ comforter ]
+                  properties:
+                    model_id: text_expansion_model
+                    threshold: 100.0
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id5'
+                  - 'id4'
+
+  - do:
+      search:
+        index:
+          test-infer
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: theme
+                  query: doesnt matter
+              match_criteria:
+                input: comforter
+              ruleset_id: ruleset
+
+  - match: { hits.total.value: 0 }
+
+
+---
+"Rule queries with inference return a 404 if there is no model found":
+  - do:
+      catch: "missing"
+      search:
+        index:
+          - test-no-infer
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: theme
+                  query: doesnt matter
+              match_criteria:
+                input: washing machine
+              ruleset_id: bad-ruleset

@@ -109,7 +109,7 @@ public enum QueryRuleCriteriaType {
         ) {
             validateInput(input);
             String modelId = criteriaProperties.getOrDefault("model_id", ".elser_model_1").toString();
-            float threshold = (Float) criteriaProperties.getOrDefault("threshold", 1.0f);
+            float threshold = ((Double) criteriaProperties.getOrDefault("threshold", 1.0)).floatValue();
             return inferenceService.findInferenceRuleMatches(modelId, (String) input, (String) criteriaValue, threshold);
         }
     };

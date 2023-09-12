@@ -25,7 +25,13 @@ public class SinhTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("SinhEvaluator", "val", Math::sinh);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "SinhEvaluator",
+            "val",
+            Math::sinh,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

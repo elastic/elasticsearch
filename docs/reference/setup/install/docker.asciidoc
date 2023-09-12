@@ -1,82 +1,12 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is available as a Docker image. A list of all published Docker images and
-tags is available at https://www.docker.elastic.co[www.docker.elastic.co]. The
-source files are in
-https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
+Docker images for {es} are available from the Elastic Docker registry. A list of
+all published Docker images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
+https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[GitHub].
 
 include::license.asciidoc[]
-
-Starting in {es} 8.0, security is enabled by default. With security enabled,
-{stack} {security-features} require TLS encryption for the transport networking
-layer, or your cluster will fail to start.
-
-==== Install Docker
-
-Visit https://docs.docker.com/get-docker/[Get Docker] to install Docker for your
-environment.
-
-IMPORTANT: If using Docker Desktop, make sure to allocate at least 4GB of
-memory. You can adjust memory usage in Docker Desktop by going to **Settings >
-Resources**.
-
-==== Pull the Docker image
-
-Use the `docker pull` command to pull the {es} image from the the Elastic Docker
-registry.
-
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so no
-Docker image is currently available for this version.
-
-endif::[]
-
-[source,sh,subs="attributes"]
-----
-docker pull {docker-image}
-----
-
-[[docker-verify-signature]]
-==== Optional: Verify the image signature
-
-Verify the signatures included in your {es} Docker images to ensure they're valid.
-
-Elastic images are signed with https://docs.sigstore.dev/cosign/overview/[Cosign] which is part of the https://www.sigstore.dev/[Sigstore] project.
-Cosign supports container signing, verification, and storage in an OCI registry.
-
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so no
-Docker image signature is currently available for this version.
-
-endif::[]
-
-Install the appropriate https://docs.sigstore.dev/cosign/installation/[Cosign application]
-for your operating system.
-
-The container image signature for {es} v{version} can be verified as follows:
-
-["source","sh",subs="attributes"]
---------------------------------------------
-wget https://artifacts.elastic.co/cosign.pub <1>
-cosign verify --key cosign.pub {docker-image} <2>
---------------------------------------------
-<1> Download the Elastic public key to verify container signature
-<2> Verify the container against the Elastic public key
-
-The command prints the check results and the signature payload in JSON format:
-
-[source,sh,subs="attributes"]
---------------------------------------------
-Verification for {docker-image} --
-The following checks were performed on each of these signatures:
-  - The cosign claims were validated
-  - Existence of the claims in the transparency log was verified offline
-  - The signatures were verified against the specified public key
---------------------------------------------
-
 
 [[docker-cli-run-dev-mode]]
 ==== Run {es} in Docker
@@ -89,14 +19,13 @@ TIP: This setup doesn't run multiple {es} nodes or {kib} by default. To create a
 multi-node cluster with {kib}, use Docker Compose instead. See
 <<docker-compose-file>>.
 
-
 ===== Start a single-node cluster
 
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of the {es} Docker image has not yet been released.
-
-endif::[]
+. Install Docker. Visit https://docs.docker.com/get-docker/[Get Docker] to
+install Docker for your environment.
++
+If using Docker Desktop, make sure to allocate at least 4GB of memory. You can
+adjust memory usage in Docker Desktop by going to **Settings > Resources**.
 
 . Create a new docker network.
 +
@@ -105,45 +34,70 @@ endif::[]
 docker network create elastic
 ----
 
-. Start an {es} container.
+. Pull the {es} Docker image.
 +
 --
 ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so no
-Docker image is currently available for this version.
-
+WARNING: Version {version} has not yet been released.
+No Docker image is currently available for {es} {version}.
 endif::[]
 
 [source,sh,subs="attributes"]
 ----
-docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
+docker pull {docker-image}
+----
+--
+
+. Optional: Install
+https://docs.sigstore.dev/system_config/installation/[Cosign] for your
+environment. Then use Cosign to verify the {es} image's signature.
++
+[[docker-verify-signature]]
+[source,sh,subs="attributes"]
+----
+wget https://artifacts.elastic.co/cosign.pub
+cosign verify --key cosign.pub {docker-image}
+----
++
+The `cosign` command prints the check results and the signature payload in JSON format:
++
+[source,sh,subs="attributes"]
+----
+Verification for {docker-image} --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
 ----
 
+. Start an {es} container.
++
+[source,sh,subs="attributes"]
+----
+docker run --name es01 --net elastic -p 9200:9200 -it -m 1GB {docker-image}
+----
++
 TIP: Use the `-m` flag to set a memory limit for the container. This removes the
 need to <<docker-set-heap-size,manually set the JVM size>>.
-
++
 The command prints the `elastic` user password and an enrollment token for {kib}.
---
 
 . Copy the generated `elastic` password and enrollment token. These credentials
 are only shown when you start {es} for the first time. You can regenerate the
 credentials using the following commands.
 +
---
 [source,sh,subs="attributes"]
 ----
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
 ----
-
++
 We recommend storing the `elastic` password as an environment variable in your shell. Example:
-
++
 [source,sh]
 ----
 export ELASTIC_PASSWORD="your_password"
 ----
---
 
 . Copy the `http_ca.crt` SSL certificate from the container to your local machine.
 +
@@ -164,30 +118,19 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 
 . Use an existing node to generate a enrollment token for the new node.
 +
---
 [source,sh]
 ----
 docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
 ----
-
++
 The enrollment token is valid for 30 minutes.
---
 
 . Start a new {es} container. Include the enrollment token as an environment variable.
 +
---
-ifeval::["{release-state}"=="unreleased"]
-
-WARNING: Version {version} of {es} has not yet been released, so no
-Docker image is currently available for this version.
-
-endif::[]
-
 [source,sh,subs="attributes"]
 ----
 docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it -m 1GB {docker-image}
 ----
---
 
 . Call the <<cat-nodes,cat nodes API>> to verify the node was added to the cluster.
 +
@@ -204,8 +147,8 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_c
 +
 --
 ifeval::["{release-state}"=="unreleased"]
-WARNING: Version {version} of {kib} has not yet been released, so no
-Docker image is currently available for this version.
+WARNING: Version {version} has not yet been released.
+No Docker image is currently available for {kib} {version}.
 endif::[]
 
 [source,sh,subs="attributes"]
@@ -216,18 +159,11 @@ docker pull {kib-docker-image}
 
 . Optional: Verify the {kib} image's signature.
 +
---
-ifeval::["{release-state}"=="unreleased"]
-WARNING: Version {version} of {kib} has not yet been released, so no
-Docker image signature is currently available for this version.
-endif::[]
-
 [source,sh,subs="attributes"]
 ----
 wget https://artifacts.elastic.co/cosign.pub
 cosign verify --key cosign.pub {kib-docker-image}
 ----
---
 
 . Start a {kib} container.
 +
@@ -282,125 +218,99 @@ You now have a test {es} environment set up. Before you start
 serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
-[[elasticsearch-security-certificates]]
-include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
 
-To get a multi-node {es} cluster and {kib} up and running in Docker with
-security enabled, you can use Docker Compose.
+Use Docker Compose to start a three-node {es} cluster with {kib}. Docker Compose
+lets you start multiple containers with a single command.
 
-This configuration provides a simple method of starting a secured cluster that
-you can use for development before building a distributed deployment with
-multiple hosts.
+===== Configure and start the cluster
 
-===== Prerequisites
-
-Install the appropriate https://docs.docker.com/get-docker/[Docker application]
-for your operating system.
-
-If you're running on Linux, install https://docs.docker.com/compose/install/[Docker Compose].
-
-[NOTE]
-====
-Make sure that Docker is allotted at least 4GB of memory. In Docker Desktop,
-you configure resource usage on the Advanced tab in Preferences (macOS) or
-Settings (Windows).
-====
-
-===== Prepare the environment
-
-Create the following configuration files in a new, empty directory. These files
-are also available from the
-https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
-repository on GitHub.
-
---
-ifeval::["{release-state}"=="unreleased"]
-WARNING: Version {version} of {es} has not been released,
-so the following Docker Compose and configuration files won't work.
-See the {stack-gs-current}/get-started-docker.html[current version]
-for the latest working files.
-endif::[]
---
-
-
-[discrete]
-[[docker-env-file]]
-===== `.env`
-
-The `.env` file sets environment variables that are used when you run the
-`docker-compose.yml` configuration file. Ensure that you specify a strong
-password for the `elastic` and `kibana_system` users with the
-`ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables. These variable are
-referenced by the `docker-compose.yml` file.
-
-IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
-characters such as `!` or `@`. The `bash` script included in the
-`docker-compose.yml` file only operates on alphanumeric characters.
-
-["source","txt",subs="attributes"]
-----
-include::docker/.env[]
-----
-
-[discrete]
-[[docker-file]]
-===== `docker-compose.yml`
-
-This `docker-compose.yml` file creates a three-node secure {es} cluster with authentication and network encryption enabled, and a {kib} instance securely connected to it.
-
-.Exposing ports
-****
-This configuration exposes port `9200` on all network interfaces. Because
-of how Docker handles ports, a port that isn't bound to `localhost` leaves your
-{es} cluster publicly accessible, potentially ignoring any firewall settings.
-If you don't want to expose port `9200` to external hosts, set the value for
-`ES_PORT` in the `.env` file to something like `127.0.0.1:9200`. {es} will
-then only be accessible from the host machine itself.
-****
-
-[source,yaml,subs="attributes"]
-----
-include::docker/docker-compose.yml[]
-----
-
-
-===== Start your cluster with security enabled and configured
-
-. Modify the `.env` file and enter strong password values for both the
-`ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables.
+. Install Docker Compose. Visit the
+https://docs.docker.com/compose/install/[Docker Compose docs] to install Docker
+Compose for your environment.
 +
-NOTE: You must use the `ELASTIC_PASSWORD` value for further interactions with
-the cluster. The `KIBANA_PASSWORD` value is only used internally when
-configuring {kib}.
+If you're using Docker Desktop, Docker Compose is installed automatically. Make
+sure to allocate at least 4GB of memory to Docker Desktop. You can adjust memory
+usage in Docker Desktop by going to **Settings > Resources**.
 
-. Create and start the three-node {es} cluster and {kib} instance:
+. Create or navigate to an empty directory for the project.
+
+. Download and save the following files in the project directory:
 +
-["source","sh"]
+- https://github.com/elastic/elasticsearch/blob/{branch}/docs/reference/setup/install/docker/.env[`.env`]
+- https://github.com/elastic/elasticsearch/blob/{branch}/docs/reference/setup/install/docker/docker-compose.yml[`docker-compose.yml`]
+
+
+. In the `.env` file, specify a password for the `ELASTIC_PASSWORD` and
+`KIBANA_PASSWORD` variables.
++
+The passwords must be alphanumeric and can't contain special characters, such as
+`!` or `@`. The bash script included in the `docker-compose.yml` file only
+works with alphanumeric characters. Example:
++
+[source,txt]
+----
+# Password for the 'elastic' user (at least 6 characters)
+ELASTIC_PASSWORD=changeme
+
+# Password for the 'kibana_system' user (at least 6 characters)
+KIBANA_PASSWORD=changeme
+...
+----
+
+. In the `.env` file, set `STACK_VERSION` to the current {stack} version.
++
+[source,txt,subs="attributes"]
+----
+...
+# Version of Elastic products
+STACK_VERSION={version}
+...
+----
+
+. By default, the Docker Compose configuration exposes port `9200` on all network interfaces.
++
+To avoid exposing port `9200` to external hosts, set `ES_PORT` to `127.0.0.1:9200`
+in the `.env` file. This ensures {es} is only accessible from the host
+machine.
++
+[source,txt]
+----
+...
+# Port to expose Elasticsearch HTTP API to the host
+#ES_PORT=9200
+ES_PORT=127.0.0.1:9200
+...
+----
+
+. To start the cluster, run the following command from the project directory.
++
+[source,sh]
 ----
 docker-compose up -d
 ----
 
-. When the deployment has started, open a browser and navigate to http://localhost:5601[http://localhost:5601] to
-access {kib}, where you can load sample data and interact with your cluster.
+. After the cluster has started, open http://localhost:5601 in a web browser to
+access {kib}.
 
-===== Stop and remove the deployment
+. Log in to {kib} as the `elastic` user using the `ELASTIC_PASSWORD` you set
+earlier.
+
+===== Stop and remove the cluster
 To stop the cluster, run `docker-compose down`. The data in the Docker volumes
 is preserved and loaded when you restart the cluster with `docker-compose up`.
 
---
-["source","sh"]
+[source,sh]
 ----
 docker-compose down
 ----
---
 
-To **delete** the network, containers, and volumes when you stop the cluster,
+To delete the network, containers, and volumes when you stop the cluster,
 specify the `-v` option:
 
-["source","sh"]
+[source,sh]
 ----
 docker-compose down -v
 ----
@@ -614,14 +524,14 @@ options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
 includes your desired <<set-jvm-heap-size,heap size>> settings.
 
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
-environment variable. For example, to use 1GB, use the following command. 
+environment variable. For example, to use 1GB, use the following command.
 
 [source,sh,subs="attributes"]
 ----
 docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es01 -p 9200:9200 --net elastic -it {docker-image}
 ----
 
-The `ES_JAVA_OPTS` variable overrides all other JVM options. 
+The `ES_JAVA_OPTS` variable overrides all other JVM options.
 We do not recommend using `ES_JAVA_OPTS` in production.
 
 ===== Pin deployments to a specific image version

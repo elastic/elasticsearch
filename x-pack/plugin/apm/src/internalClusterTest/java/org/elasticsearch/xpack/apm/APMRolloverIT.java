@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.apm;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -24,25 +29,51 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.stack.StackPlugin;
+import org.elasticsearch.xpack.stack.StackTemplateRegistry;
+import org.elasticsearch.xpack.wildcard.Wildcard;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
+@SuppressWarnings("resource")
+// the Painless compiler requires the "createClassLoader" permission
 @ESTestCase.WithoutSecurityManager
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class APMRolloverIT extends ESIntegTestCase {
 
-    private APMIndexTemplateRegistry registry;
+    private ClusterService clusterService;
+    private APMIndexTemplateRegistry apmIndexTemplateRegistry;
+    private StackTemplateRegistry stackTemplateRegistry;
+    private ILMHistoryTemplateRegistry ilmHistoryTemplateRegistry;
 
     @Before
     public void obtainRegistry() {
-        registry = internalCluster().getInstance(APMIndexTemplateRegistry.class, internalCluster().getMasterName());
+        clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        apmIndexTemplateRegistry = internalCluster().getInstance(APMIndexTemplateRegistry.class, internalCluster().getMasterName());
+        stackTemplateRegistry = internalCluster().getInstance(StackTemplateRegistry.class, internalCluster().getMasterName());
+        ilmHistoryTemplateRegistry = internalCluster().getInstance(ILMHistoryTemplateRegistry.class, internalCluster().getMasterName());
+    }
+
+    @After
+    public void unregisterRegistries() {
+        // we must remove the registries from the cluster state listeners' list, otherwise they mess up the cluster cleanup assertions by
+        // automatically reinstalling resources
+        clusterService.removeListener(apmIndexTemplateRegistry);
+        clusterService.removeListener(stackTemplateRegistry);
+        clusterService.removeListener(ilmHistoryTemplateRegistry);
+        // todo: find a way to cancel the geoip database download task as it throws errors when terminating the test
     }
 
     @Override
@@ -50,6 +81,8 @@ public class APMRolloverIT extends ESIntegTestCase {
         return List.of(
             APMPlugin.class,
             StackPlugin.class,
+            IndexLifecycle.class,
+            Wildcard.class,
             DataStreamsPlugin.class,
             XPackPlugin.class,
             IngestCommonPlugin.class,
@@ -64,32 +97,60 @@ public class APMRolloverIT extends ESIntegTestCase {
     }
 
     public void testRollover() throws Exception {
-        // todo see org.elasticsearch.datastreams.DataStreamUpgradeRestIT.waitForLogsComponentTemplateInitialization
-        Thread.sleep(30000);
-        Map<String, ComposableIndexTemplate> composableTemplateConfigs = registry.getComposableTemplateConfigs();
-        composableTemplateConfigs.values().forEach(indexTemplate -> {
-            String indexPattern = indexTemplate.indexPatterns().get(0);
-            String dsName = indexPattern.replace("*", "test");
-            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dsName);
+        assertBusy(() -> {
+            ClusterState state = clusterService.state();
+            // todo - figure out why we need this synthetic cluster change event trigger to make sure the last index template is registered
+            // maybe because org.elasticsearch.ingest.IngestService.putPipeline() doesn't update the cluster state and trigger state
+            // change event like, for example, org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.addComponentTemplate does
+            apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), state, state));
+            apmIndexTemplateRegistry.getComposableTemplateConfigs().keySet().forEach((indexTemplate -> {
+                assertThat(clusterService.state().metadata().templatesV2(), hasKey(equalTo(indexTemplate)));
+            }));
+        });
+        Map<String, ComposableIndexTemplate> composableTemplateConfigs = apmIndexTemplateRegistry.getComposableTemplateConfigs();
+        List<ActionFuture<AcknowledgedResponse>> responseFutures = composableTemplateConfigs.values().stream()
+            .map(indexTemplate -> {
+                String indexPattern = indexTemplate.indexPatterns().get(0);
+                String dsName = indexPattern.replace("*", "test");
+                CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dsName);
+                return client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest);
+            })
+            .toList();
+        responseFutures.forEach(responseFuture -> {
             try {
-                AcknowledgedResponse acknowledgedResponse = client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
-                    .get();
-                System.out.println("acknowledgedResponse = " + acknowledgedResponse);
+                assertTrue(responseFuture.get().isAcknowledged());
             } catch (Exception e) {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         });
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
-        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+
+        assertNumberOfBackingIndices(1);
+
+        final ClusterState state = clusterService.state();
+        final Map<String, ComposableIndexTemplate> indexTemplatesWithLowerVersion = new HashMap<>();
+        state.metadata().templatesV2().forEach((name, template) -> indexTemplatesWithLowerVersion.put(name, new ComposableIndexTemplate(
+            template.indexPatterns(),
+            template.template(),
+            template.composedOf(),
+            template.priority(),
+            template.version() - 1,
+            template.metadata()
+        )));
+        ClusterState stateWithLowerVersion = state.copyAndUpdateMetadata(builder -> builder.indexTemplates(indexTemplatesWithLowerVersion));
+        apmIndexTemplateRegistry.clusterChanged(new ClusterChangedEvent(APMRolloverIT.class.getName(), stateWithLowerVersion, state));
+
+        assertBusy(() -> assertNumberOfBackingIndices(2));
+    }
+
+    private static void assertNumberOfBackingIndices(final int expected) {
+        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
+        final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
-        List<GetDataStreamAction.Response.DataStreamInfo> dataStreams = getDataStreamResponse.getDataStreams();
-        dataStreams.forEach(ds -> assertThat(ds.getDataStream().getIndices(), hasSize(1)));
-
-        registry.setVersion(registry.getVersion() + 1);
-        assertAcked(prepareCreate("test1"));
-
-        // todo: now use assertBusy to wait until each data stream has two backing indices (indicating rollover has occurred)
+        final List<GetDataStreamAction.Response.DataStreamInfo> dataStreams = getDataStreamResponse.getDataStreams();
+        dataStreams.forEach(ds -> {
+            DataStream dataStream = ds.getDataStream();
+            assertThat(dataStream.getIndices(), hasSize(expected));
+            assertThat(dataStream.getWriteIndex().getName(), endsWith(String.valueOf(expected)));
+        });
     }
 }

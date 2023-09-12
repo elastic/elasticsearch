@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.apm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -38,14 +36,7 @@ import static org.elasticsearch.xpack.apm.ResourceUtils.loadVersionedResourceUTF
  * Creates all index templates and ingest pipelines that are required for using Elastic APM.
  */
 public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
-    private static final Logger logger = LogManager.getLogger(APMIndexTemplateRegistry.class);
-
-    /**
-     * The version that will be assigned to all resources loaded by this registry instance, as specified in resources.yaml.
-     * The version is only meant to be set once during the registry instance construction. It is not final only to allow registry upgrade
-     * tests.
-     */
-    private int version;
+    private final int version;
 
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
@@ -67,7 +58,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 loadResource("/resources.yaml"),
                 false
             );
-            setVersion(((Number) apmResources.get("version")).intValue());
+            version = (((Number) apmResources.get("version")).intValue());
             final List<Object> componentTemplateNames = (List<Object>) apmResources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) apmResources.get("index-templates");
             final List<Object> ingestPipelineConfigs = (List<Object>) apmResources.get("ingest-pipelines");
@@ -85,17 +76,6 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Sets this registry instance version, which is the version that will be assigned to all resources managed by this registry instance.
-     * Not intended for any use other than during construction.
-     * Exposed with package-private access in order to allow registry upgrade tests.
-     *
-     * @param version this registry instance version
-     */
-    void setVersion(int version) {
-        this.version = version;
     }
 
     public int getVersion() {

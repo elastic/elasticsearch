@@ -43,7 +43,7 @@ public class APMPlugin extends Plugin implements ActionPlugin {
 
     public APMPlugin(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.PROFILING_ENABLED.get(settings);
+        this.enabled = XPackSettings.APM_ENABLED.get(settings);
     }
 
     @Override

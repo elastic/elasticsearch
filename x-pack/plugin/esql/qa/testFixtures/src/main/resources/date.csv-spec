@@ -616,15 +616,15 @@ birth_date:datetime
 ;
 
 dateMathAddDatePeriodsThenAddToDatetime
-row n = to_dt("1953-04-20T00:00:00.000Z") | eval then = (1 year + 1 month + 1 day) + n | keep then;
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
 
 then:datetime
-1954-05-21T00:00:00.000Z
+1957-07-19T00:00:00.000Z
 ;
 
 dateMathSubtractDatePeriodsThenAddToDatetime
-row n = to_dt("1954-05-21T00:00:00.000Z") | eval then = (-1 year - 1 month - 1 day) + n | keep then;
+row n = to_dt("1957-07-19T00:00:00.000Z") | eval then = (-4 years - 3 months - 2 weeks - 1 day) + n | keep then;
 
 then:datetime
-1953-04-20T00:00:00.000Z
+1953-04-04T00:00:00.000Z
 ;

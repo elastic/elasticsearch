@@ -24,10 +24,3 @@ processors:
     target_field: user_agent
     ignore_failure: true
     ignore_missing: true
-- date:
-    description: "Add time when event was ingested (and remove sub-seconds to improve storage efficiency)"
-    field: _ingest.timestamp
-    target_field: event.ingested
-    formats: ["ISO8601"]
-    output_format: date_time_no_millis
-    ignore_failure: true

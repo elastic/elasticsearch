@@ -98,6 +98,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -1062,8 +1063,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         protected final IndexService indexService;
 
-        BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
-            super(indexService.logger, indexService.threadPool, interval, true);
+        BaseAsyncTask(final IndexService indexService, final Executor executor, final TimeValue interval) {
+            super(indexService.logger, indexService.threadPool, executor, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
@@ -1082,12 +1083,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     static final class AsyncTranslogFSync extends BaseAsyncTask {
 
         AsyncTranslogFSync(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getTranslogSyncInterval());
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.FLUSH;
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.FLUSH),
+                indexService.getIndexSettings().getTranslogSyncInterval()
+            );
         }
 
         @Override
@@ -1111,17 +1111,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     static final class AsyncRefreshTask extends BaseAsyncTask {
 
         AsyncRefreshTask(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getRefreshInterval());
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.REFRESH),
+                indexService.getIndexSettings().getRefreshInterval()
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.maybeRefreshEngine(false);
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.REFRESH;
         }
 
         @Override
@@ -1135,6 +1134,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         AsyncTrimTranslogTask(IndexService indexService) {
             super(
                 indexService,
+                threadPool.generic(),
                 indexService.getIndexSettings()
                     .getSettings()
                     .getAsTime(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING, TimeValue.timeValueMinutes(10))
@@ -1149,11 +1149,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected void runInternal() {
             indexService.maybeTrimTranslog();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -1187,17 +1182,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         AsyncGlobalCheckpointTask(final IndexService indexService) {
             // index.global_checkpoint_sync_interval is not a real setting, it is only registered in tests
-            super(indexService, GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+            super(
+                indexService,
+                indexService.getThreadPool().generic(),
+                GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings())
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.maybeSyncGlobalCheckpoints();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -1209,17 +1203,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private static final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
 
         AsyncRetentionLeaseSyncTask(final IndexService indexService) {
-            super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings())
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.syncRetentionLeases();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.MANAGEMENT;
         }
 
         @Override

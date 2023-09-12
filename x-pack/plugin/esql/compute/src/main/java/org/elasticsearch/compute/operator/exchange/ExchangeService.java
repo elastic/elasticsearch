@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -78,13 +79,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public void registerTransportHandler(TransportService transportService) {
         transportService.registerRequestHandler(
             EXCHANGE_ACTION_NAME,
-            requestExecutorName,
+            threadPool.executor(requestExecutorName),
             ExchangeRequest::new,
             new ExchangeTransportAction()
         );
         transportService.registerRequestHandler(
             OPEN_EXCHANGE_ACTION_NAME,
-            requestExecutorName,
+            threadPool.executor(requestExecutorName),
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
@@ -211,7 +212,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final class InactiveSinksReaper extends AbstractAsyncTask {
         InactiveSinksReaper(Logger logger, ThreadPool threadPool, TimeValue interval) {
-            super(logger, threadPool, interval, true);
+            super(logger, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE, interval, true);
             rescheduleIfNecessary();
         }
 

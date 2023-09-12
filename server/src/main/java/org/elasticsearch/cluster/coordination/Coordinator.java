@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -208,7 +209,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
         LeaderHeartbeatService leaderHeartbeatService,
-        PreVoteCollector.Factory preVoteCollectorFactory
+        PreVoteCollector.Factory preVoteCollectorFactory,
+        CompatibilityVersions compatibilityVersions
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -232,7 +234,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinReasonService,
             circuitBreakerService,
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
-            this::getLatestStoredStateAfterWinningAnElection
+            this::getLatestStoredStateAfterWinningAnElection,
+            compatibilityVersions
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -268,7 +271,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
         transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             ApplyCommitRequest::new,
@@ -769,7 +772,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
-                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
+                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getCompatibilityVersions(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();

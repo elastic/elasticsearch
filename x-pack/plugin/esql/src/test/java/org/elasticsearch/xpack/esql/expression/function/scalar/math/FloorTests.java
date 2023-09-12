@@ -33,15 +33,16 @@ public class FloorTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(suppliers, read, DataTypes.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE);
-        TestCaseSupplier.forUnaryLong(suppliers, read, DataTypes.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE);
+        TestCaseSupplier.forUnaryInt(suppliers, read, DataTypes.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
+        TestCaseSupplier.forUnaryLong(suppliers, read, DataTypes.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             read,
             DataTypes.UNSIGNED_LONG,
             ul -> NumericUtils.asLongUnsigned(ul),
             BigInteger.ZERO,
-            MAX_UNSIGNED_LONG
+            MAX_UNSIGNED_LONG,
+            List.of()
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -49,7 +50,8 @@ public class FloorTests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             Math::floor,
             Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY
+            Double.POSITIVE_INFINITY,
+            List.of()
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }

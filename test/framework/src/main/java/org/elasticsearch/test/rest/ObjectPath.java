@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Holds an object and allows extraction of specific values from it, given their path
@@ -170,5 +171,15 @@ public class ObjectPath {
     @Override
     public String toString() {
         return "ObjectPath[" + object + "]";
+    }
+
+    public int evaluateArraySize(String path) throws IOException {
+        final List<?> list = evaluate(path);
+        return list.size();
+    }
+
+    public Set<String> evaluateMapKeys(String path) throws IOException {
+        final Map<String, ?> map = evaluate(path);
+        return map.keySet();
     }
 }

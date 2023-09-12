@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -14,6 +16,8 @@ import java.util.Arrays;
  * This class is generated. Do not edit it.
  */
 public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
 
     private final boolean[] values;
 
@@ -45,6 +49,15 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     @Override
     public BooleanVector filter(int... positions) {
         return new FilterBooleanVector(this, positions);
+    }
+
+    public static long ramBytesEstimated(boolean[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override

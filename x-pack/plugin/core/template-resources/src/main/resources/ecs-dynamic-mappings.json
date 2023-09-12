@@ -92,29 +92,17 @@
               "type": "keyword"
             },
             "path_match": [
-              "*file.path",
-              "*file.target_path",
-              "*os.full",
-              "user_agent.original"
-            ]
-          }
-        },
-        {
-          "ecs_match_keyword_and_match_only_text": {
-            "mapping": {
-              "fields": {
-                "text": {
-                  "type": "match_only_text"
-                }
-              },
-              "type": "keyword"
-            },
-            "path_match": [
               "*.title",
               "*.executable",
               "*.name",
               "*.working_directory",
-              "*.full_name"
+              "*.full_name",
+              "*file.path",
+              "*file.target_path",
+              "*os.full",
+              "email.subject",
+              "vulnerability.description",
+              "user_agent.original"
             ]
           }
         },

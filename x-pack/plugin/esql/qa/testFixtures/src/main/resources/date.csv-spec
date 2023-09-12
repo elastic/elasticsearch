@@ -628,3 +628,17 @@ row n = to_dt("1957-07-19T00:00:00.000Z") | eval then = (-4 years - 3 months - 2
 then:datetime
 1953-04-04T00:00:00.000Z
 ;
+
+dateMathAddTimeDurationsThenAddToDatetime
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (1 hour + 1 minute + 1 second + 1 milliseconds) + n | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
+;
+
+dateMathSubtractTimeDurationsThenAddToDatetime
+row n = to_dt("1953-04-04T01:01:01.001Z") | eval then = (-1 hour - 1 minute - 1 second - 1 milliseconds) + n | keep then;
+
+then:datetime
+1953-04-04T00:00:00.000Z
+;

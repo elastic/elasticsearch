@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -460,7 +461,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             () -> 0L,
             () -> fakeStatelessNode.electionStrategy,
             () -> fakeStatelessNode.objectStoreService,
-            fakeStatelessNode.threadPool
+            fakeStatelessNode.threadPool,
+            CompatibilityVersionsUtils.staticCurrent()
         );
         final var persistedState = statelessPersistedClusterStateService.createPersistedState(Settings.EMPTY, fakeStatelessNode.node);
         return new PersistedStateTestContext(
@@ -480,7 +482,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             () -> 0L,
             () -> fakeStatelessNode.electionStrategy,
             () -> objectStoreService,
-            fakeStatelessNode.threadPool
+            fakeStatelessNode.threadPool,
+            CompatibilityVersionsUtils.staticCurrent()
         );
         final var persistedState = statelessPersistedClusterStateService.createPersistedState(Settings.EMPTY, fakeStatelessNode.node);
         return new PersistedStateTestContext(

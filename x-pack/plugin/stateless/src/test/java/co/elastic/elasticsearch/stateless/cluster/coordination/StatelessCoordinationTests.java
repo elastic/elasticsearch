@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -203,7 +204,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     threadPool::relativeTimeInMillis,
                     () -> statelessNode.electionStrategy,
                     () -> statelessNode.objectStoreService,
-                    threadPool
+                    threadPool,
+                    CompatibilityVersionsUtils.staticCurrent()
                 ) {
                     @Override
                     protected String getUploadsThreadPool() {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,15 +22,20 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public class ToVersion extends AbstractConvertFunction {
 
     private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(VERSION, (fieldEval, source) -> fieldEval, KEYWORD, ToVersionFromStringEvaluator::new);
+        Map.ofEntries(
+            Map.entry(VERSION, (fieldEval, source) -> fieldEval),
+            Map.entry(KEYWORD, ToVersionFromStringEvaluator::new),
+            Map.entry(TEXT, ToVersionFromStringEvaluator::new)
+        );
 
-    public ToVersion(Source source, Expression field) {
-        super(source, field);
+    public ToVersion(Source source, @Named("v") Expression v) {
+        super(source, v);
     }
 
     @Override

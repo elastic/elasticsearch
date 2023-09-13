@@ -215,6 +215,10 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
+        }
+
         final List<String> partition = new ArrayList<>();
         try (AmazonS3Reference clientReference = clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes

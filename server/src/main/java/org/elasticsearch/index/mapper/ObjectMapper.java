@@ -259,7 +259,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (subobjectsNode != null) {
                 return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
             }
-            return Explicit.IMPLICIT_TRUE;
+            return Defaults.SUBOBJECTS;
         }
 
         protected static void parseProperties(
@@ -475,11 +475,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if ((mergeWith instanceof ObjectMapper) == false) {
-            throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
         }
         if (mergeWith instanceof NestedObjectMapper) {
             // TODO stop NestedObjectMapper extending ObjectMapper?
-            throw new IllegalArgumentException("can't merge a nested mapping [" + mergeWith.name() + "] with a non-nested mapping");
+            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
@@ -520,10 +520,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
-                if (mergeWithMapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException(
-                        "can't merge a non object mapping [" + mergeWithMapper.name() + "] with an object mapping"
-                    );
+                if (mergeWithMapper instanceof NestedObjectMapper) {
+                    MapperErrors.throwNestedMappingConflictError(mergeWithMapper.name());
+                } else if (mergeWithMapper instanceof ObjectMapper) {
+                    MapperErrors.throwObjectMappingConflictError(mergeWithMapper.name());
                 }
 
                 // If we're merging template mappings when creating an index, then a field definition always

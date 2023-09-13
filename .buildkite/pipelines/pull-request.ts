@@ -3,9 +3,12 @@ import { readFileSync, readdirSync } from "fs";
 import { basename } from "path";
 import { execSync } from "child_process";
 
+// TODO remove these before PR
 process.env["GITHUB_PR_LABELS"] =
+  process.env["GITHUB_PR_LABELS"] ||
   "release_note:skip,:Delivery/Packaging,v8.11.0";
-process.env["GITHUB_PR_TARGET_BRANCH"] = "main";
+process.env["GITHUB_PR_TARGET_BRANCH"] =
+  process.env["GITHUB_PR_TARGET_BRANCH"] || "main";
 // process.env["GITHUB_PR_TRIGGER_COMMENT"] =
 //   "hey run elasticsearch-ci/build-benchmarks please and run elasticsearch-ci/part-2";
 

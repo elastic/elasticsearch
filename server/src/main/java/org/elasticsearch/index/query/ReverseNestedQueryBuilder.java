@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.ElasticsearchException;
@@ -148,9 +148,7 @@ public class ReverseNestedQueryBuilder extends AbstractQueryBuilder<ReverseNeste
 
     @Override
     protected boolean doEquals(ReverseNestedQueryBuilder that) {
-        return Objects.equals(query, that.query)
-            && Objects.equals(path, that.path)
-            && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+        return Objects.equals(query, that.query) && Objects.equals(path, that.path) && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override

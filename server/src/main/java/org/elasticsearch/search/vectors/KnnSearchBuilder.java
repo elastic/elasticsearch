@@ -94,10 +94,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         );
         PARSER.declareFloat(KnnSearchBuilder::boost, BOOST_FIELD);
         PARSER.declareField(
-                KnnSearchBuilder::innerHit,
-                (p, c) -> InnerHitBuilder.fromXContent(p),
-                INNER_HITS_FIELD,
-                ObjectParser.ValueType.OBJECT
+            KnnSearchBuilder::innerHit,
+            (p, c) -> InnerHitBuilder.fromXContent(p),
+            INNER_HITS_FIELD,
+            ObjectParser.ValueType.OBJECT
         );
     }
 
@@ -286,10 +286,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             if (querySupplier.get() == null) {
                 return this;
             }
-            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity)
-                    .boost(boost)
-                    .addFilterQueries(filterQueries)
-                    .innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, querySupplier.get(), k, numCands, similarity).boost(boost)
+                .addFilterQueries(filterQueries)
+                .innerHit(innerHitBuilder);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
@@ -321,10 +320,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnSearchBuilder(field, queryVector, k, numCands, similarity)
-                    .boost(boost)
-                    .addFilterQueries(rewrittenQueries)
-                    .innerHit(innerHitBuilder);
+            return new KnnSearchBuilder(field, queryVector, k, numCands, similarity).boost(boost)
+                .addFilterQueries(rewrittenQueries)
+                .innerHit(innerHitBuilder);
         }
         return this;
     }
@@ -333,9 +331,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity)
-                .boost(boost)
-                .addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost).addFilterQueries(filterQueries);
     }
 
     @Override

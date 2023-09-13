@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -818,7 +817,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
+        public Query createKnnQuery(
+            byte[] queryVector,
+            int numCands,
+            Query filter,
+            Float similarityThreshold,
+            BitSetProducer parentFilter
+        ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -841,9 +846,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Query knnQuery = parentFilter != null ?
-                new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter) :
-                new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+            Query knnQuery = parentFilter != null
+                ? new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                : new KnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -854,7 +859,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        public Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
+        public Query createKnnQuery(
+            float[] queryVector,
+            int numCands,
+            Query filter,
+            Float similarityThreshold,
+            BitSetProducer parentFilter
+        ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -878,13 +889,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield parentFilter != null ?
-                        new DiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter) :
-                        new KnnByteVectorQuery(name(), bytes, numCands, filter);
+                    yield parentFilter != null
+                        ? new DiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        : new KnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> parentFilter != null ?
-                    new DiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter) :
-                    new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                case FLOAT -> parentFilter != null
+                    ? new DiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    : new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
 
             if (similarityThreshold != null) {

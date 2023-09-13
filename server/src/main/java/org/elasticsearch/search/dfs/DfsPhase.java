@@ -196,7 +196,8 @@ public class DfsPhase {
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath) throws IOException {
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
+        throws IOException {
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
             k,
             null,

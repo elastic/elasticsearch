@@ -1133,8 +1133,9 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
         }));
-        registerQuery(new QuerySpec<>(ReverseNestedQueryBuilder.NAME,
-                ReverseNestedQueryBuilder::new, ReverseNestedQueryBuilder::fromXContent));
+        registerQuery(
+            new QuerySpec<>(ReverseNestedQueryBuilder.NAME, ReverseNestedQueryBuilder::new, ReverseNestedQueryBuilder::fromXContent)
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

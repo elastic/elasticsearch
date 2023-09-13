@@ -53,7 +53,7 @@ public class VectorNestedIT extends ESIntegTestCase {
                 jsonBuilder().startObject()
                     .startArray("nested")
                     .startObject()
-                    .field("vector", new float[]{1,1,1})
+                    .field("vector", new float[] { 1, 1, 1 })
                     .endObject()
                     .endArray()
                     .endObject()
@@ -66,9 +66,10 @@ public class VectorNestedIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setKnnSearch(
-            List.of(new KnnSearchBuilder("nested.vector", new float[]{1,1,1}, 1, 1, null))
-        ).setAllowPartialSearchResults(false).get();
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setKnnSearch(List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null)))
+            .setAllowPartialSearchResults(false)
+            .get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
     }
 

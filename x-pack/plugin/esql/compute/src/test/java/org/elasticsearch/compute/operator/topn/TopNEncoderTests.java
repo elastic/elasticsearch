@@ -9,8 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -21,7 +19,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@Repeat(iterations = 1000)
 public class TopNEncoderTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {

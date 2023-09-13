@@ -26,7 +26,7 @@ public class Cosh extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new CoshEvaluator(field);
+        return new CoshEvaluator(source(), field);
     }
 
     @Override
@@ -39,8 +39,12 @@ public class Cosh extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Cosh::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        return Math.cosh(val);
+        double res = Math.cosh(val);
+        if (Double.isNaN(res) || Double.isInfinite(res)) {
+            throw new ArithmeticException("cosh overflow");
+        }
+        return res;
     }
 }

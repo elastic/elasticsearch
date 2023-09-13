@@ -331,9 +331,7 @@ public class LocalExecutionPlanner {
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
-        System.err.println("ASDFADF " + source.layout);
         List<Layout.ChannelSet> inverse = source.layout.inverse();
-        System.err.println("ASDFADF " + inverse);
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes[channel] = toElementType(inverse.get(channel).type());
             encoders[channel] = switch (inverse.get(channel).type().typeName()) {

@@ -43,7 +43,6 @@ class DefaultLayout implements Layout {
             inverse.add(null);
         }
         for (Map.Entry<NameId, ChannelAndType> entry : layout.entrySet()) {
-            System.err.println("ASD " + entry);
             ChannelSet set = inverse.get(entry.getValue().channel());
             if (set == null) {
                 set = new ChannelSet(new HashSet<>(), entry.getValue().type());

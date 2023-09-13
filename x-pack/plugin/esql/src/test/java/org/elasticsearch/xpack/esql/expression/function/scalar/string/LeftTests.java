@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -198,7 +199,7 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
     private String process(String str, int length) {
         Block result = evaluator(
             new Left(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
-        ).get().eval(row(List.of(new BytesRef(str))));
+        ).get(new DriverContext()).eval(row(List.of(new BytesRef(str))));
         if (null == result) {
             return null;
         }

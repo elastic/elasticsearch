@@ -92,7 +92,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -390,8 +389,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            Supplier<ExpressionEvaluator> evaluatorSupplier;
-            evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
+            var evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -472,7 +470,7 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         return EvalMapper.toEvaluator(exp, layout);
     }
 
@@ -689,7 +687,7 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext();
+            var driverContext = new DriverContext(bigArrays);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

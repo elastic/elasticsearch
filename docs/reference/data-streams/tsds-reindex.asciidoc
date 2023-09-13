@@ -9,24 +9,24 @@
 [[tsds-reindex-intro]]
 ==== Introduction
 
-With reindexing, you can copy the docs from an old time-series data stream (TSDS) to a new one. Data streams support
+With reindexing, you can copy documents from an old time-series data stream (TSDS) to a new one. Data streams support
 reindexing in general, with a few <<reindex-with-a-data-stream, restrictions>>. Still, time-series data streams
 introduce additional challenges due to tight control on the accepted timestamp range for each backing index they
-contain. Direct use of the reindex API would likely error out due to attempting to insert docs with timestamps that are
+contain. Direct use of the reindex API would likely error out due to attempting to insert documents with timestamps that are
 outside the current acceptance window.
 
 To avoid these limitations, use the process that is outlined below:
 
 . Create an index template for the destination data stream that will contain the re-indexed data.
 . Update the template to
-.. Set `index.time_series.start_time` and `index.time_series.end_time index` settings to
-match the lowest and highest @timestamp values in the old data stream.
+.. Set `index.time_series.start_time` and `index.time_series.end_time` index settings to
+match the lowest and highest `@timestamp` values in the old data stream.
 .. Set the `index.number_of_shards` index setting to the sum of all primary shards of all backing
 indices of the old data stream.
 .. Set `index.number_of_replicas` to zero and unset the `index.lifecycle.name` index setting.
 . Run the reindex operation to completion.
 . Revert the overriden index settings in the destination index template.
-. Invoke the `rollover` api to create a new backing index that can receive fresh docs.
+. Invoke the `rollover` api to create a new backing index that can receive new documents.
 
 NOTE: This process only applies to time-series data streams without <<downsampling, downsampling>> configuration. Data
 streams with downsampling can only be re-indexed by re-indexing their backing indexes individually and adding them to an
@@ -36,7 +36,7 @@ In what follows, we elaborate on each step of the process with examples.
 
 [discrete]
 [[tsds-reindex-create-template]]
-==== Create a TSDS template to accept old docs
+==== Create a TSDS template to accept old documents
 
 Consider a TSDS with the following template:
 
@@ -152,9 +152,9 @@ To reindex this TSDS, do not to re-use its index template in the destination dat
 functionality. Instead, clone the template of the source TSDS and apply the following modifications:
 
 * Set `index.time_series.start_time` and `index.time_series.end_time` index settings explicitly. Their values should be
-based on the lowest and highest @timestamp values in the data stream to reindex. This way, the initial backing index can
+based on the lowest and highest `@timestamp` values in the data stream to reindex. This way, the initial backing index can
 load all data that is contained in the source data stream.
-* Set `index.number_of_shards index` setting to the sum of all primary shards of all backing indices of the source data
+* Set `index.number_of_shards` index setting to the sum of all primary shards of all backing indices of the source data
 stream. This helps maintain the same level of search parallelism, as each shard is processed in a separate thread (or
 more).
 * Unset the `index.lifecycle.name` index setting, if any. This prevents ILM from modifying the destination data stream
@@ -240,7 +240,7 @@ POST /_reindex
 Once the reindexing operation completes, restore the index template for the destination TSDS as follows:
 
 * Remove the overrides for `index.time_series.start_time` and `index.time_series.end_time`.
-* Restore the values of `index.number_of_shards index`, `index.number_of_replicas`  and  `index.lifecycle.name` as
+* Restore the values of `index.number_of_shards`, `index.number_of_replicas`  and  `index.lifecycle.name` as
 applicable.
 
 Using the previous example, the destination template is modified as follows:
@@ -286,7 +286,7 @@ POST /k9s/_rollover/
 ----
 // TEST[continued]
 
-This creates a new backing index with the updated index settings. The destination data stream is now ready to accept new docs.
+This creates a new backing index with the updated index settings. The destination data stream is now ready to accept new documents.
 
-Note that the initial backing index can still accept docs within the range of timestamps derived from the source data
+Note that the initial backing index can still accept documents within the range of timestamps derived from the source data
 stream. If this is not desired, mark it as <<index-blocks-read-only, read-only>> explicitly.

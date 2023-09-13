@@ -13,7 +13,7 @@ const BWC_VERSIONS = parse(readFileSync(".ci/bwcVersions", "utf-8")).BWC_VERSION
 const SNAPSHOT_BWC_VERSIONS = parse(readFileSync(".ci/snapshotBwcVersions", "utf-8")).BWC_VERSION;
 
 type PipelineConfig = {
-  config: {
+  config?: {
     "allow-labels"?: string | string[];
     "skip-labels"?: string | string[];
     "included-regions"?: string | string[];
@@ -34,7 +34,7 @@ type BuildkitePipeline = {
 
 type Pipeline = PipelineConfig &
   BuildkitePipeline & {
-    name: string;
+    name?: string;
   };
 
 let defaults: PipelineConfig = { config: {} };
@@ -85,14 +85,14 @@ const getArray = (strOrArray: string | string[] | undefined): string[] => {
 };
 
 const labelCheckAllow = (pipeline: Pipeline): boolean => {
-  if (pipeline.config["allow-labels"]) {
+  if (pipeline.config?.["allow-labels"]) {
     return getArray(pipeline.config["allow-labels"]).some((label) => labels.includes(label));
   }
   return true;
 };
 
 const labelCheckSkip = (pipeline: Pipeline): boolean => {
-  if (pipeline.config["skip-labels"]) {
+  if (pipeline.config?.["skip-labels"]) {
     return !getArray(pipeline.config["skip-labels"]).some((label) => labels.includes(label));
   }
   return true;
@@ -100,9 +100,9 @@ const labelCheckSkip = (pipeline: Pipeline): boolean => {
 
 // Exclude the pipeline if all of the changed files in the PR are in at least one excluded region
 const changedFilesExcludedCheck = (pipeline: Pipeline): boolean => {
-  if (pipeline.config["excluded-regions"]) {
+  if (pipeline.config?.["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline.config["excluded-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region))
     );
   }
   return true;
@@ -110,16 +110,16 @@ const changedFilesExcludedCheck = (pipeline: Pipeline): boolean => {
 
 // Include the pipeline if all of the changed files in the PR are in at least one included region
 const changedFilesIncludedCheck = (pipeline: Pipeline): boolean => {
-  if (pipeline.config["included-regions"]) {
+  if (pipeline.config?.["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline.config["included-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region))
     );
   }
   return true;
 };
 
 const triggerCommentCheck = (pipeline: Pipeline): boolean => {
-  if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config["trigger-phrase"]) {
+  if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config?.["trigger-phrase"]) {
     return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
   }
   return false;
@@ -166,12 +166,21 @@ for (const pipeline of pipelines) {
   doBwcTransforms(pipeline);
 }
 
-const finalPipeline: { steps: any[] } = { steps: [] };
+pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
-// TODO should we just do a pipeline upload on each individual yaml? so that they are isolated, can use env:, etc?
-// Remove our custom attributes before outputting the Buildkite YAML
 for (const pipeline of pipelines) {
-  finalPipeline["steps"] = [...finalPipeline["steps"], ...(pipeline["steps"] || [])];
-}
+  const finalPipeline = { ...pipeline };
+  delete finalPipeline.config;
+  delete finalPipeline.name;
 
-console.log(stringify(finalPipeline));
+  if (!process.env.CI) {
+    // Just for local debugging purposes
+    console.log("");
+    console.log(stringify(finalPipeline));
+  } else {
+    execSync(`buildkite-agent pipeline upload`, {
+      input: stringify(finalPipeline),
+      stdio: ["pipe", "inherit", "inherit"],
+    });
+  }
+}

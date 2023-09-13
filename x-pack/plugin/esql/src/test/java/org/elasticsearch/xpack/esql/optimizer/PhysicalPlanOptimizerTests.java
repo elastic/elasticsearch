@@ -1732,6 +1732,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.sorts().get(0).field().name(), equalTo("job.raw"));
     }
 
+    public void testFieldExtractForTextAndSubfield() {
+        var plan = physicalPlan("""
+            from test
+            | keep job*
+            """);
+
+        var project = as(plan, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("job", "job.raw"));
+    }
+
     public void testFieldExtractWithoutSourceAttributes() {
         PhysicalPlan verifiedPlan = optimizedPlan(physicalPlan("""
             from test

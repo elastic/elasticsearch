@@ -95,4 +95,9 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
             + Arrays.toString(values)
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

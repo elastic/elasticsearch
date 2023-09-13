@@ -70,4 +70,9 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

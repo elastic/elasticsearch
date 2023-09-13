@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -87,12 +86,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceFieldAttributesWithExactSubfield()
+        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch()
+        // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
         );
 
         var operators = new Batch<>(
@@ -853,24 +848,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
-        }
-    }
-
-    private static class ReplaceFieldAttributesWithExactSubfield extends OptimizerRules.OptimizerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Filter || plan instanceof OrderBy || plan instanceof Aggregate) {
-                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceFieldAttributesWithExactSubfield::toExact);
-            }
-            return plan;
-        }
-
-        private static FieldAttribute toExact(FieldAttribute fa) {
-            if (fa.getExactInfo().hasExact() && fa.exactAttribute() != fa) {
-                return fa.exactAttribute();
-            }
-            return fa;
         }
     }
 }

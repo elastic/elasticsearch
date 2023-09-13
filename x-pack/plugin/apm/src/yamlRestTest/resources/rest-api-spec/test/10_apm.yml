@@ -13,9 +13,9 @@ setup:
       indices.get_index_template:
         name: traces-apm*
   - length: {index_templates: 3}
-  - contains: {index_templates: {name: traces-apm}}
-  - contains: {index_templates: {name: traces-apm.rum}}
-  - contains: {index_templates: {name: traces-apm.sampled}}
+  - contains: {index_templates: {name: traces-apm@template}}
+  - contains: {index_templates: {name: traces-apm.rum@template}}
+  - contains: {index_templates: {name: traces-apm.sampled@template}}
 
 ---
 "Test metrics-apm* template installation":
@@ -26,20 +26,20 @@ setup:
       indices.get_index_template:
         name: metrics-apm*
   - length: {index_templates: 14}
-  - contains: {index_templates: {name: metrics-apm.app}}
-  - contains: {index_templates: {name: metrics-apm.internal}}
-  - contains: {index_templates: {name: metrics-apm.service_destination.1m}}
-  - contains: {index_templates: {name: metrics-apm.service_destination.10m}}
-  - contains: {index_templates: {name: metrics-apm.service_destination.60m}}
-  - contains: {index_templates: {name: metrics-apm.service_summary.1m}}
-  - contains: {index_templates: {name: metrics-apm.service_summary.10m}}
-  - contains: {index_templates: {name: metrics-apm.service_summary.60m}}
-  - contains: {index_templates: {name: metrics-apm.service_transaction.1m}}
-  - contains: {index_templates: {name: metrics-apm.service_transaction.10m}}
-  - contains: {index_templates: {name: metrics-apm.service_transaction.60m}}
-  - contains: {index_templates: {name: metrics-apm.transaction.1m}}
-  - contains: {index_templates: {name: metrics-apm.transaction.10m}}
-  - contains: {index_templates: {name: metrics-apm.transaction.60m}}
+  - contains: {index_templates: {name: metrics-apm.app@template}}
+  - contains: {index_templates: {name: metrics-apm.internal@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.60m@template}}
 
 ---
 "Test logs-apm* template installation":
@@ -50,8 +50,8 @@ setup:
       indices.get_index_template:
         name: logs-apm*
   - length: {index_templates: 2}
-  - contains: {index_templates: {name: logs-apm.app}}
-  - contains: {index_templates: {name: logs-apm.error}}
+  - contains: {index_templates: {name: logs-apm.app@template}}
+  - contains: {index_templates: {name: logs-apm.error@template}}
 
 ---
 "Test traces-apm-* data stream indexing":

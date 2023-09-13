@@ -1,0 +1,24 @@
+version: ${xpack.apm.template.version}
+index_patterns: ["logs-apm.app.*-*"]
+priority: 150
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for logs-apm.app.*-*
+  managed: true
+composed_of:
+- logs-mappings
+- apm@mappings
+- apm@settings
+- apm-10d@lifecycle
+- apm@custom
+- logs-apm.app@custom
+- ecs@dynamic_templates
+ignore_missing_component_templates:
+- logs-apm.app@custom
+- apm@custom
+template:
+  settings:
+    index:
+      default_pipeline: apm@default-pipeline
+      final_pipeline: apm@pipeline

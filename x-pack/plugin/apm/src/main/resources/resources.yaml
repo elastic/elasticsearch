@@ -4,52 +4,55 @@
 version: 1
 
 component-templates:
-  - apm
-  - apm-retention-10d
-  - apm-retention-90d
-  - apm-retention-180d
-  - apm-retention-390d
-  - logs-apm.error
-  - metrics-apm.app
-  - metrics-apm.internal
-  - metrics-apm.service_destination
-  - metrics-apm.service_summary
-  - metrics-apm.service_transaction
-  - metrics-apm.transaction
-  - traces-apm
-  - traces-apm.rum
-  - traces-apm.sampled
+  # Data lifecycle.
+  - apm-10d@lifecycle
+  - apm-90d@lifecycle
+  - apm-180d@lifecycle
+  - apm-390d@lifecycle
+  # Common mappings and settings.
+  # - *-apm* data streams compose apm@*
+  # - metrics-apm* data streams additionally compose metrics-apm@*
+  - apm@mappings
+  - apm@settings
+  - metrics-apm@mappings
+  - metrics-apm@settings
+  # Data stream-specific mappings.
+  - logs-apm.error@mappings
+  - metrics-apm.service_destination@mappings
+  - metrics-apm.service_summary@mappings
+  - metrics-apm.service_transaction@mappings
+  - metrics-apm.transaction@mappings
+  - traces-apm@mappings
+  - traces-apm.rum@mappings
 
 index-templates:
-  - logs-apm.app
-  - logs-apm.error
-  - metrics-apm.app
-  - metrics-apm.internal
-  - metrics-apm.service_destination.1m
-  - metrics-apm.service_destination.10m
-  - metrics-apm.service_destination.60m
-  - metrics-apm.service_summary.1m
-  - metrics-apm.service_summary.10m
-  - metrics-apm.service_summary.60m
-  - metrics-apm.service_transaction.1m
-  - metrics-apm.service_transaction.10m
-  - metrics-apm.service_transaction.60m
-  - metrics-apm.transaction.1m
-  - metrics-apm.transaction.10m
-  - metrics-apm.transaction.60m
-  - traces-apm
-  - traces-apm.rum
-  - traces-apm.sampled
+  - logs-apm.app@template
+  - logs-apm.error@template
+  - metrics-apm.app@template
+  - metrics-apm.internal@template
+  - metrics-apm.service_destination.1m@template
+  - metrics-apm.service_destination.10m@template
+  - metrics-apm.service_destination.60m@template
+  - metrics-apm.service_summary.1m@template
+  - metrics-apm.service_summary.10m@template
+  - metrics-apm.service_summary.60m@template
+  - metrics-apm.service_transaction.1m@template
+  - metrics-apm.service_transaction.10m@template
+  - metrics-apm.service_transaction.60m@template
+  - metrics-apm.transaction.1m@template
+  - metrics-apm.transaction.10m@template
+  - metrics-apm.transaction.60m@template
+  - traces-apm@template
+  - traces-apm.rum@template
+  - traces-apm.sampled@template
 
 # Ingest pipeline configuration requires to manually specify pipeline dependencies
 ingest-pipelines:
-  - apm: {}
-  - traces-apm:
+  - apm@default-pipeline: {}
+  - apm@pipeline: {}
+  - traces-apm@pipeline:
       dependencies:
-        - apm
-  - metrics-apm:
+        - apm@pipeline
+  - metrics-apm@pipeline:
       dependencies:
-        - apm
-  - metrics-apm.internal:
-      dependencies:
-        - metrics-apm
+        - apm@pipeline

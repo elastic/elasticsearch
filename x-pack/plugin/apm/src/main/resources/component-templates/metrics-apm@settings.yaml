@@ -1,0 +1,5 @@
+---
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    codec: best_compression

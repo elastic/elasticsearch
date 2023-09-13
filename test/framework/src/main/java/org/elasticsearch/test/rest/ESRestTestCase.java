@@ -1851,7 +1851,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
-        if (name.equals("apm")
+        if (name.startsWith("apm@")
             || name.startsWith("apm-")
             || name.startsWith("traces-apm")
             || name.startsWith("metrics-apm")

@@ -1,0 +1,7 @@
+version: ${xpack.apm.template.version}
+template:
+  settings:
+    index:
+      sort:
+        field: "@timestamp"
+        order: desc

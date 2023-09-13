@@ -90,9 +90,26 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder requestBuilder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            Settings.Builder pragmas = Settings.builder();
+            if (randomBoolean()) {
+                pragmas.put("data_partitioning", randomFrom("doc", "segment", "shard"));
+            }
+            if (randomBoolean()) {
+                pragmas.put("exchange_buffer_size", between(1, 5));
+            }
+            if (randomBoolean()) {
+                pragmas.put("exchange_concurrent_clients", between(1, 16));
+            }
+            if (randomBoolean()) {
+                pragmas.put("task_concurrency", between(1, 16));
+            }
+            if (randomBoolean()) {
+                pragmas.put("page_size", between(1, 128));
+            }
+            requestBuilder.pragmas(pragmas.build());
+        }
         requestBuilder.query(testCase.query);
-        // TODO: Randomize the query pragmas
-        requestBuilder.pragmas(Settings.builder().put("data_partitioning", "segment").build());
         Map<String, Object> answer = runEsql(requestBuilder.build(), testCase.expectedWarnings);
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 

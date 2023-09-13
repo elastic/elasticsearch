@@ -105,11 +105,11 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Override
-    protected Period processTimePeriods(Period left, Period right) {
+    protected Period processDatePeriods(Period left, Period right) {
         return left.minus(right);
     }
     @Override
-    protected Duration processDateDurations(Duration left, Duration right) {
+    protected Duration processTimeDurations(Duration left, Duration right) {
         return left.minus(right);
     }
 }

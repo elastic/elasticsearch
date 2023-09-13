@@ -80,7 +80,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
      * @param right the right period
      * @return the result of the evaluation
      */
-    protected Period processTimePeriods(Period left, Period right) {
+    protected Period processDatePeriods(Period left, Period right) {
         throw new UnsupportedOperationException("processing of time periods is unsupported for [" + op().symbol() + "]");
     }
 
@@ -91,7 +91,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
      * @param right the right duration
      * @return the result of the evaluation
      */
-    protected Duration processDateDurations(Duration left, Duration right) {
+    protected Duration processTimeDurations(Duration left, Duration right) {
         throw new UnsupportedOperationException("processing of date durations is unsupported for [" + op().symbol() + "]");
     }
 
@@ -103,13 +103,13 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();
             Period r = (Period) right().fold();
-            return processTimePeriods(l, r);
+            return processDatePeriods(l, r);
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Duration l = (Duration) left().fold();
             Duration r = (Duration) right().fold();
-            return processDateDurations(l, r);
+            return processTimeDurations(l, r);
         }
         return super.fold();
     }

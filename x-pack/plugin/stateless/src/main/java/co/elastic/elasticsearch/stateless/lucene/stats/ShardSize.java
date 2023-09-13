@@ -32,7 +32,7 @@ public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBy
         Writeable {
 
     public static final ShardSize EMPTY = new ShardSize(0, 0, PrimaryTermAndGeneration.ZERO);
-    public static final TransportVersion PRIMARY_TERM_GENERATION_VERSION = TransportVersions.V_8_500_072;
+    public static final TransportVersion PRIMARY_TERM_GENERATION_VERSION = TransportVersions.SHARD_SIZE_PRIMARY_TERM_GEN_ADDED;
 
     public ShardSize {
         assert interactiveSizeInBytes >= 0 : "interactiveSize must be non negative";

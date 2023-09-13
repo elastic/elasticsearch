@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
@@ -19,5 +19,5 @@ public abstract class ExpressionMapper<E extends Expression> {
         typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
     }
 
-    public abstract ExpressionEvaluatorFactory map(E expression, Layout layout);
+    public abstract ExpressionEvaluator.Factory map(E expression, Layout layout);
 }

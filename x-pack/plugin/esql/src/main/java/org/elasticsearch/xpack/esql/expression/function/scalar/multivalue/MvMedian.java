@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,7 +43,7 @@ public class MvMedian extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected ExpressionEvaluatorFactory evaluator(ExpressionEvaluatorFactory fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> dvrCtx -> new MvMedianDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             case INT -> dvrCtx -> new MvMedianIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);

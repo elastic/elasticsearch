@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.util.Arrays;
 
@@ -18,7 +18,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     private final EvalOperator.ExpressionEvaluator evaluator;
 
-    public record FilterOperatorFactory(ExpressionEvaluatorFactory evaluatorSupplier) implements OperatorFactory {
+    public record FilterOperatorFactory(ExpressionEvaluator.Factory evaluatorSupplier) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {

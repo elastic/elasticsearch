@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,7 +28,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected abstract ExpressionEvaluatorFactory evaluator(ExpressionEvaluatorFactory fieldEval);
+    protected abstract ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval);
 
     @Override
     protected final TypeResolution resolveType() {
@@ -46,7 +46,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     }
 
     @Override
-    public final ExpressionEvaluatorFactory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

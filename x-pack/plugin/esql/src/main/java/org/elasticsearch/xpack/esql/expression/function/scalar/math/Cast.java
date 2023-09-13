@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -21,7 +21,7 @@ public class Cast {
     /**
      * Build the evaluator supplier to cast {@code in} from {@code current} to {@code required}.
      */
-    public static ExpressionEvaluatorFactory cast(DataType current, DataType required, ExpressionEvaluatorFactory in) {
+    public static ExpressionEvaluator.Factory cast(DataType current, DataType required, ExpressionEvaluator.Factory in) {
         if (current == required) {
             return in;
         }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
@@ -39,12 +39,12 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType type = dataType();
 
         if (type.isNumeric()) {
             var f = toEvaluator.apply(field());
-            ExpressionEvaluatorFactory supplier = null;
+            ExpressionEvaluator.Factory supplier = null;
 
             if (type == DataTypes.INTEGER) {
                 supplier = dvrCtx -> new NegIntsEvaluator(source(), f.get(dvrCtx), dvrCtx);

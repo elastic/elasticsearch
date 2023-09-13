@@ -18,7 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
@@ -59,7 +59,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static ExpressionEvaluatorFactory toEvaluator(Expression exp, Layout layout) {
+    public static ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(e -> toEvaluator(e, layout));
         }
@@ -73,7 +73,7 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluatorFactory map(BinaryLogic bc, Layout layout) {
+        public ExpressionEvaluator.Factory map(BinaryLogic bc, Layout layout) {
             var leftEval = toEvaluator(bc.left(), layout);
             var rightEval = toEvaluator(bc.right(), layout);
             /**
@@ -146,7 +146,7 @@ public final class EvalMapper {
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public ExpressionEvaluatorFactory map(Not not, Layout layout) {
+        public ExpressionEvaluator.Factory map(Not not, Layout layout) {
             var expEval = toEvaluator(not.field(), layout);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 expEval.get(dvrCtx),
@@ -157,7 +157,7 @@ public final class EvalMapper {
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluatorFactory map(Attribute attr, Layout layout) {
+        public ExpressionEvaluator.Factory map(Attribute attr, Layout layout) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -172,7 +172,7 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluatorFactory map(Literal lit, Layout layout) {
+        public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
             record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -217,7 +217,7 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public ExpressionEvaluatorFactory map(IsNull isNull, Layout layout) {
+        public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
             var field = toEvaluator(isNull.field(), layout);
             return driverContext -> new IsNullEvaluator(field.get(driverContext));
         }
@@ -241,7 +241,7 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public ExpressionEvaluatorFactory map(IsNotNull isNotNull, Layout layout) {
+        public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
             var field = toEvaluator(isNotNull.field(), layout);
             return driverContext -> new IsNotNullEvaluator(field.get(driverContext));
         }

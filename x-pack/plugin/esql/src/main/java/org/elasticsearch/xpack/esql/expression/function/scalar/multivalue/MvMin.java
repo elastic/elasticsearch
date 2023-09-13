@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -36,7 +36,7 @@ public class MvMin extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected ExpressionEvaluatorFactory evaluator(ExpressionEvaluatorFactory fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);

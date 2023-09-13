@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -78,7 +78,7 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var yEval = Cast.cast(y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
         var xEval = Cast.cast(x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
         return dvrCtx -> new Atan2Evaluator(yEval.get(dvrCtx), xEval.get(dvrCtx), dvrCtx);

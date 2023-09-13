@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -19,7 +19,7 @@ public abstract class RegexMapper extends ExpressionMapper<RegexMatch<?>> {
 
     public static final ExpressionMapper<?> REGEX_MATCH = new RegexMapper() {
         @Override
-        public ExpressionEvaluatorFactory map(RegexMatch<?> expression, Layout layout) {
+        public ExpressionEvaluator.Factory map(RegexMatch<?> expression, Layout layout) {
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMatchEvaluator(
                 EvalMapper.toEvaluator(expression.field(), layout).get(dvrCtx),
                 new CharacterRunAutomaton(((AbstractStringPattern) expression.pattern()).createAutomaton()),

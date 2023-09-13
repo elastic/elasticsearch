@@ -11,7 +11,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -143,7 +143,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataTypes.DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
@@ -164,8 +164,8 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         return (t, u) -> t;
     }
 
-    private ExpressionEvaluatorFactory toEvaluator(
-        Function<Expression, ExpressionEvaluatorFactory> toEvaluator,
+    private ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
         BiFunction<ExpressionEvaluator, DriverContext, ExpressionEvaluator> noDecimals,
         TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> withDecimals
     ) {

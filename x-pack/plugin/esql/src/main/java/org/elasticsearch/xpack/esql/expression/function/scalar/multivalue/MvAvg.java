@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -44,7 +44,7 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected ExpressionEvaluatorFactory evaluator(ExpressionEvaluatorFactory fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> dvrCtx -> new MvAvgDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             case INT -> dvrCtx -> new MvAvgIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);

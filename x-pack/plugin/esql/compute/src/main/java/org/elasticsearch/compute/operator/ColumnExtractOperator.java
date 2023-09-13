@@ -12,7 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 import java.util.function.Supplier;
 
@@ -20,7 +20,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     public record Factory(
         ElementType[] types,
-        ExpressionEvaluatorFactory inputEvalSupplier,
+        ExpressionEvaluator.Factory inputEvalSupplier,
         Supplier<ColumnExtractOperator.Evaluator> evaluatorSupplier
     ) implements OperatorFactory {
 

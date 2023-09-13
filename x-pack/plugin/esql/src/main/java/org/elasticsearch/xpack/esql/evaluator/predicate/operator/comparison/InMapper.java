@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -34,11 +34,11 @@ public class InMapper extends ExpressionMapper<In> {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public ExpressionEvaluatorFactory map(In in, Layout layout) {
-        List<ExpressionEvaluatorFactory> listEvaluators = new ArrayList<>(in.list().size());
+    public ExpressionEvaluator.Factory map(In in, Layout layout) {
+        List<ExpressionEvaluator.Factory> listEvaluators = new ArrayList<>(in.list().size());
         in.list().forEach(e -> {
             Equals eq = new Equals(in.source(), in.value(), e);
-            ExpressionEvaluatorFactory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
+            ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
         return dvrCtx -> new InExpressionEvaluator(listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());

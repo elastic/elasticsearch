@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 /**
  * Utilities to remove duplicates from multivalued fields.
@@ -76,7 +76,7 @@ public final class MultivalueDedupe {
      * Build and {@link EvalOperator.ExpressionEvaluator} that deduplicates values
      * using an adaptive algorithm based on the size of the input list.
      */
-    public static ExpressionEvaluatorFactory evaluator(ElementType elementType, ExpressionEvaluatorFactory nextSupplier) {
+    public static ExpressionEvaluator.Factory evaluator(ElementType elementType, ExpressionEvaluator.Factory nextSupplier) {
         return switch (elementType) {
             case BOOLEAN -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override

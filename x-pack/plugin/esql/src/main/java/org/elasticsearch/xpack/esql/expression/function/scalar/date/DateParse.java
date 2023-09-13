@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -94,9 +94,9 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         ZoneId zone = UTC; // TODO session timezone?
-        ExpressionEvaluatorFactory fieldEvaluator = toEvaluator.apply(field);
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
             return dvrCtx -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), DEFAULT_FORMATTER, dvrCtx);
         }
@@ -111,7 +111,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
                 throw new EsqlIllegalArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
-        ExpressionEvaluatorFactory formatEvaluator = toEvaluator.apply(format);
+        ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
         return dvrCtx -> new DateParseEvaluator(source(), fieldEvaluator.get(dvrCtx), formatEvaluator.get(dvrCtx), zone, dvrCtx);
     }
 

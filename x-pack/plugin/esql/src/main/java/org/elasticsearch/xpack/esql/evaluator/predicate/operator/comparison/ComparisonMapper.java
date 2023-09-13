@@ -11,7 +11,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
@@ -110,7 +110,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     }
 
     @Override
-    public final ExpressionEvaluatorFactory map(BinaryComparison bc, Layout layout) {
+    public final ExpressionEvaluator.Factory map(BinaryComparison bc, Layout layout) {
         DataType leftType = bc.left().dataType();
         if (leftType.isNumeric()) {
             DataType type = EsqlDataTypeRegistry.INSTANCE.commonType(leftType, bc.right().dataType());
@@ -142,7 +142,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
-    public static ExpressionEvaluatorFactory castToEvaluator(
+    public static ExpressionEvaluator.Factory castToEvaluator(
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
@@ -153,7 +153,7 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         return dvrCtx -> buildEvaluator.apply(lhs.get(dvrCtx), rhs.get(dvrCtx), dvrCtx);
     }
 
-    public static ExpressionEvaluatorFactory castToEvaluatorWithSource(
+    public static ExpressionEvaluator.Factory castToEvaluatorWithSource(
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,

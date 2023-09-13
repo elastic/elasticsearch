@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -151,7 +151,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(timestampField());
         Expression interval = interval();
         if (interval.foldable() == false) {
@@ -171,7 +171,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         return evaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
     }
 
-    public static ExpressionEvaluatorFactory evaluator(ExpressionEvaluatorFactory fieldEvaluator, Rounding.Prepared rounding) {
+    public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
         return dvrCtx -> new DateTruncEvaluator(fieldEvaluator.get(dvrCtx), rounding, dvrCtx);
     }
 }

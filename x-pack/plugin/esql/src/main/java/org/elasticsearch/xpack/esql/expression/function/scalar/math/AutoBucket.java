@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -100,7 +100,7 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         int b = ((Number) buckets.fold()).intValue();
 
         if (field.dataType() == DataTypes.DATETIME) {

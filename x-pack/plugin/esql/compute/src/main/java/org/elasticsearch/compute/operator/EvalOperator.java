@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -17,7 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.Expre
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(ExpressionEvaluatorFactory evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
@@ -48,7 +47,8 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     public interface ExpressionEvaluator {
 
-        interface ExpressionEvaluatorFactory {
+        /** A Factory for creating ExpressionEvaluators. */
+        interface Factory {
             ExpressionEvaluator get(DriverContext driverContext);
         }
 

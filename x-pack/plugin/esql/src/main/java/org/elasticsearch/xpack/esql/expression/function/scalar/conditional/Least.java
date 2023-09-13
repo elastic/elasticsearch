@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Named;
@@ -106,7 +106,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
     }
 
     @Override
-    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var suppliers = children().stream().map(toEvaluator).toList();
         if (dataType == DataTypes.BOOLEAN) {
             return dvrCtx -> new LeastBooleanEvaluator(

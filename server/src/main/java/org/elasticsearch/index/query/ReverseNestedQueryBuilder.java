@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class ReverseNestedQueryBuilder extends AbstractQueryBuilder<ReverseNestedQueryBuilder> {
@@ -212,6 +213,6 @@ public class ReverseNestedQueryBuilder extends AbstractQueryBuilder<ReverseNeste
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.current();
+        return NESTED_KNN_VECTOR_QUERY_V;
     }
 }

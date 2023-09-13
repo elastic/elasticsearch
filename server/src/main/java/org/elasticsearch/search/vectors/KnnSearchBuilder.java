@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -228,7 +229,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         } else {
             this.similarity = null;
         }
-        this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+        if (in.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+        }
     }
 
     public String getField() {
@@ -429,6 +432,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalFloat(similarity);
         }
-        out.writeOptionalWriteable(innerHitBuilder);
+        if (out.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            out.writeOptionalWriteable(innerHitBuilder);
+        }
     }
 }

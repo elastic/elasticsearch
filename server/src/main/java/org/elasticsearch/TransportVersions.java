@@ -138,6 +138,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_500_072 = def(8_500_072, "e2df7d80-7b74-4afd-9734-aee0fc256025");
     public static final TransportVersion V_8_500_073 = def(8_500_073, "9128e16a-e4f7-41c4-b04f-842955bfc1b4");
     public static final TransportVersion V_8_500_074 = def(8_500_074, "aab0c31c-62d7-4b95-bb29-0b6f367ece64");
+    public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_500_999, "nested-knn-vector-query-support");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

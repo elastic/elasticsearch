@@ -16,6 +16,8 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
+import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
+
 public class DfsKnnResults implements Writeable {
     private final String nestedPath;
     private final ScoreDoc[] scoreDocs;
@@ -27,7 +29,11 @@ public class DfsKnnResults implements Writeable {
 
     public DfsKnnResults(StreamInput in) throws IOException {
         scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
-        nestedPath = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            nestedPath = in.readOptionalString();
+        } else {
+            nestedPath = null;
+        }
     }
 
     public String getNestedPath() {
@@ -40,6 +46,8 @@ public class DfsKnnResults implements Writeable {
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
-        out.writeOptionalString(nestedPath);
+        if (out.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
+            out.writeOptionalString(nestedPath);
+        }
     }
 }

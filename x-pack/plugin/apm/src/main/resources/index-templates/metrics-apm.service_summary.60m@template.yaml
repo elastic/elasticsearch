@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apm.template.version}
 index_patterns: [metrics-apm.service_summary.60m-*]
-priority: 150
+priority: 110
 data_stream:
   hidden: true
 allow_auto_create: true

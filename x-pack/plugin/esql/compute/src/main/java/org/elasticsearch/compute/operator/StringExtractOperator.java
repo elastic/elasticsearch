@@ -62,7 +62,7 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount);
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        Block input = inputEvaluator.eval(page);
         BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
             if (input.isNull(row)) {
@@ -72,10 +72,11 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
                 continue;
             }
 
+            BytesRefBlock bytesInput = (BytesRefBlock) input;
             int position = input.getFirstValueIndex(row);
             int valueCount = input.getValueCount(row);
             if (valueCount == 1) {
-                Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
+                Map<String, String> items = parser.apply(bytesInput.getBytesRef(position, spare).utf8ToString());
                 if (items == null) {
                     for (int i = 0; i < fieldNames.length; i++) {
                         blockBuilders[i].appendNull();
@@ -91,7 +92,7 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
                 String[] firstValues = new String[fieldNames.length];
                 boolean[] positionEntryOpen = new boolean[fieldNames.length];
                 for (int c = 0; c < valueCount; c++) {
-                    Map<String, String> items = parser.apply(input.getBytesRef(position + c, spare).utf8ToString());
+                    Map<String, String> items = parser.apply(bytesInput.getBytesRef(position + c, spare).utf8ToString());
                     if (items == null) {
                         continue;
                     }

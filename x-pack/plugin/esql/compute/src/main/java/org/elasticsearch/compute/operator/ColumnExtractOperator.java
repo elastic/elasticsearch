@@ -57,16 +57,16 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = types[i].newBlockBuilder(rowsCount);
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        Block input = inputEvaluator.eval(page);
         BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
             if (input.isNull(row)) {
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blockBuilders[i].appendNull();
+                for (Block.Builder blockBuilder : blockBuilders) {
+                    blockBuilder.appendNull();
                 }
                 continue;
             }
-            evaluator.computeRow(input, row, blockBuilders, spare);
+            evaluator.computeRow((BytesRefBlock) input, row, blockBuilders, spare);
         }
 
         Block[] blocks = new Block[blockBuilders.length];

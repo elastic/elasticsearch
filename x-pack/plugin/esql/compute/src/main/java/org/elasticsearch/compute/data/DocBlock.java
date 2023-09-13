@@ -53,6 +53,19 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
+    public int hashCode() {
+        return vector.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocBlock == false) {
+            return false;
+        }
+        return vector.equals(((DocBlock) obj).vector);
+    }
+
+    @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
     }

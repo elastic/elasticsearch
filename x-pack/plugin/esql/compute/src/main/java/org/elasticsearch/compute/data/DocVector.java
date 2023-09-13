@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -197,5 +198,10 @@ public class DocVector extends AbstractVector implements Vector {
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(shards, segments, docs, shardSegmentDocMapForwards, shardSegmentDocMapBackwards);
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(shards, segments, docs);
     }
 }

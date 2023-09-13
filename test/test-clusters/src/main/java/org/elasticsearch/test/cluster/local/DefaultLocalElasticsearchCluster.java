@@ -6,8 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.cluster;
+package org.elasticsearch.test.cluster.local;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -15,12 +17,12 @@ import org.junit.runners.model.Statement;
 import java.io.InputStream;
 import java.util.function.Supplier;
 
-public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
+public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H extends LocalClusterHandle> implements ElasticsearchCluster {
     private final Supplier<S> specProvider;
-    private final ClusterFactory<S, H> clusterFactory;
+    private final LocalClusterFactory<S, H> clusterFactory;
     private H handle;
 
-    public DefaultElasticsearchCluster(Supplier<S> specProvider, ClusterFactory<S, H> clusterFactory) {
+    public DefaultLocalElasticsearchCluster(Supplier<S> specProvider, LocalClusterFactory<S, H> clusterFactory) {
         this.specProvider = specProvider;
         this.clusterFactory = clusterFactory;
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -54,6 +55,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 
     /**

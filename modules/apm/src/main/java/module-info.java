@@ -6,8 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.cluster.local;
+module org.elasticsearch.tracing.apm {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
+    requires org.apache.logging.log4j;
+    requires org.apache.lucene.core;
+    requires io.opentelemetry.context;
 
-import org.elasticsearch.test.cluster.ClusterFactory;
-
-public interface LocalClusterFactory<S extends LocalClusterSpec, H extends LocalClusterHandle> extends ClusterFactory<S, H> {}
+    exports org.elasticsearch.tracing.apm;
+}

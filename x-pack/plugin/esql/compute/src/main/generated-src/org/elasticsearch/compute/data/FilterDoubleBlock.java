@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for DoubleBlocks.
@@ -121,5 +122,10 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(block);
     }
 }

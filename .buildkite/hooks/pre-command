@@ -75,4 +75,12 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   export SNYK_TOKEN
 fi
 
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_USERNAME
+
+  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_PASSWORD
+fi
+
 buildkite-agent annotation remove --context "ctx-gobld-metrics" || true

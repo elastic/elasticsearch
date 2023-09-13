@@ -4,11 +4,8 @@ import { basename } from "path";
 import { execSync } from "child_process";
 
 // TODO remove these before PR
-process.env["GITHUB_PR_LABELS"] =
-  process.env["GITHUB_PR_LABELS"] ||
-  "release_note:skip,:Delivery/Packaging,v8.11.0";
-process.env["GITHUB_PR_TARGET_BRANCH"] =
-  process.env["GITHUB_PR_TARGET_BRANCH"] || "main";
+process.env["GITHUB_PR_LABELS"] = process.env["GITHUB_PR_LABELS"] || "release_note:skip,:Delivery/Packaging,v8.11.0";
+process.env["GITHUB_PR_TARGET_BRANCH"] = process.env["GITHUB_PR_TARGET_BRANCH"] || "main";
 // process.env["GITHUB_PR_TRIGGER_COMMENT"] =
 //   "hey run elasticsearch-ci/build-benchmarks please and run elasticsearch-ci/part-2";
 
@@ -28,9 +25,7 @@ type Pipeline = PipelineConfig & {
 };
 
 let defaults: PipelineConfig = { config: {} };
-defaults = parse(
-  readFileSync(".buildkite/pipelines/pull-request/.defaults.yml", "utf-8")
-);
+defaults = parse(readFileSync(".buildkite/pipelines/pull-request/.defaults.yml", "utf-8"));
 defaults.config = defaults.config || {};
 
 let pipelines: Pipeline[] = [];
@@ -40,10 +35,7 @@ for (const file of files) {
     continue;
   }
 
-  const yaml = readFileSync(
-    `.buildkite/pipelines/pull-request/${file}`,
-    "utf-8"
-  );
+  const yaml = readFileSync(`.buildkite/pipelines/pull-request/${file}`, "utf-8");
   const pipeline: Pipeline = parse(yaml) || {};
 
   pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
@@ -51,8 +43,7 @@ for (const file of files) {
   // '.../build-benchmark.yml' => 'build-benchmark'
   const name = basename(file).split(".", 2)[0];
   pipeline.name = name;
-  pipeline.config["trigger-phrase"] =
-    pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
+  pipeline.config["trigger-phrase"] = pipeline.config["trigger-phrase"] || `.*run\\W+elasticsearch-ci/${name}.*`;
 
   pipelines.push(pipeline);
 }
@@ -62,15 +53,9 @@ const labels = (process.env["GITHUB_PR_LABELS"] || "")
   .map((x) => x.trim())
   .filter((x) => x);
 
-const mergeBase = execSync(
-  `git merge-base ${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`
-)
-  .toString()
-  .trim();
+const mergeBase = execSync(`git merge-base ${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`).toString().trim();
 
-const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`)
-  .toString()
-  .trim();
+const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`).toString().trim();
 
 const changedFiles = changedFilesOutput
   .split("\n")
@@ -87,18 +72,14 @@ const getArray = (strOrArray: string | string[] | undefined): string[] => {
 
 const labelCheckAllow = (pipeline: Pipeline): boolean => {
   if (pipeline.config["allow-labels"]) {
-    return getArray(pipeline.config["allow-labels"]).some((label) =>
-      labels.includes(label)
-    );
+    return getArray(pipeline.config["allow-labels"]).some((label) => labels.includes(label));
   }
   return true;
 };
 
 const labelCheckSkip = (pipeline: Pipeline): boolean => {
   if (pipeline.config["skip-labels"]) {
-    return !getArray(pipeline.config["skip-labels"]).some((label) =>
-      labels.includes(label)
-    );
+    return !getArray(pipeline.config["skip-labels"]).some((label) => labels.includes(label));
   }
   return true;
 };
@@ -107,9 +88,7 @@ const labelCheckSkip = (pipeline: Pipeline): boolean => {
 const changedFilesExcludedCheck = (pipeline: Pipeline): boolean => {
   if (pipeline.config["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline.config["excluded-regions"]).some((region) =>
-        file.match(region)
-      )
+      getArray(pipeline.config["excluded-regions"]).some((region) => file.match(region))
     );
   }
   return true;
@@ -119,22 +98,15 @@ const changedFilesExcludedCheck = (pipeline: Pipeline): boolean => {
 const changedFilesIncludedCheck = (pipeline: Pipeline): boolean => {
   if (pipeline.config["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline.config["included-regions"]).some((region) =>
-        file.match(region)
-      )
+      getArray(pipeline.config["included-regions"]).some((region) => file.match(region))
     );
   }
   return true;
 };
 
 const triggerCommentCheck = (pipeline: Pipeline): boolean => {
-  if (
-    process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
-    pipeline.config["trigger-phrase"]
-  ) {
-    return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      pipeline.config["trigger-phrase"]
-    );
+  if (process.env["GITHUB_PR_TRIGGER_COMMENT"] && pipeline.config["trigger-phrase"]) {
+    return !!process.env["GITHUB_PR_TRIGGER_COMMENT"].match(pipeline.config["trigger-phrase"]);
   }
   return false;
 };
@@ -160,10 +132,7 @@ const finalPipeline: { steps: any[] } = { steps: [] };
 // TODO should we just do a pipeline upload on each individual yaml? so that they are isolated, can use env:, etc?
 // Remove our custom attributes before outputting the Buildkite YAML
 for (const pipeline of pipelines) {
-  finalPipeline["steps"] = [
-    ...finalPipeline["steps"],
-    ...(pipeline["steps"] || []),
-  ];
+  finalPipeline["steps"] = [...finalPipeline["steps"], ...(pipeline["steps"] || [])];
 }
 
 console.log(stringify(finalPipeline));

@@ -50,11 +50,13 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
-        .putCompatibilityVersions(
-            "node-1",
-            new CompatibilityVersions(
-                TransportVersion.current(),
-                Map.of(MANAGED_SYSTEM_INDEX_NAME + "-primary", new SystemIndexDescriptor.MappingsVersion(1, 1))
+        .compatibilityVersions(
+            Map.of(
+                "node-1",
+                new CompatibilityVersions(
+                    TransportVersion.current(),
+                    Map.of(MANAGED_SYSTEM_INDEX_NAME + "-primary", new SystemIndexDescriptor.MappingsVersion(1, 1))
+                )
             )
         )
         .build();

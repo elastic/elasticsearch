@@ -36,7 +36,7 @@ In what follows, we elaborate on each step of the process with examples.
 
 [discrete]
 [[tsds-reindex-create-template]]
-==== Create a TSDS template to accept old docs
+==== Create a TSDS template to accept old documents
 
 Consider a TSDS with the following template:
 

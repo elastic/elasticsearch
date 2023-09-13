@@ -286,7 +286,7 @@ POST /k9s/_rollover/
 ----
 // TEST[continued]
 
-This creates a new backing index with the updated index settings. The destination data stream is now ready to accept new docs.
+This creates a new backing index with the updated index settings. The destination data stream is now ready to accept new documents.
 
-Note that the initial backing index can still accept docs within the range of timestamps derived from the source data
+Note that the initial backing index can still accept documents within the range of timestamps derived from the source data
 stream. If this is not desired, mark it as <<index-blocks-read-only, read-only>> explicitly.

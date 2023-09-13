@@ -1,4 +1,7 @@
 version: ${xpack.apm.template.version}
+_meta:
+  description: Default mappings for metrics-apm.service_transaction.* data streams
+  managed: true
 template:
   mappings:
     properties:

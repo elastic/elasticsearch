@@ -1,5 +1,8 @@
 ---
 version: ${xpack.apm.template.version}
+_meta:
+  description: Default mappings for traces-apm.rum-* data streams
+  managed: true
 template:
   mappings:
     properties:

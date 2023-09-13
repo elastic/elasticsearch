@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.dfs;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
@@ -50,9 +48,6 @@ import java.util.Map;
  * global top k hits are passed on to the query phase.
  */
 public class DfsPhase {
-
-    private static final Logger logger = LogManager.getLogger(DfsPhase.class);
-
 
     public void execute(SearchContext context) {
         try {

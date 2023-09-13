@@ -240,7 +240,7 @@ POST /_reindex
 Once the reindexing operation completes, restore the index template for the destination TSDS as follows:
 
 * Remove the overrides for `index.time_series.start_time` and `index.time_series.end_time`.
-* Restore the values of `index.number_of_shards index`, `index.number_of_replicas`  and  `index.lifecycle.name` as
+* Restore the values of `index.number_of_shards`, `index.number_of_replicas`  and  `index.lifecycle.name` as
 applicable.
 
 Using the previous example, the destination template is modified as follows:

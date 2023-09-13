@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -100,5 +102,14 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).minus(temporalAmount));
+    }
+
+    @Override
+    protected Period processTimePeriods(Period left, Period right) {
+        return left.minus(right);
+    }
+    @Override
+    protected Duration processDateDurations(Duration left, Duration right) {
+        return left.minus(right);
     }
 }

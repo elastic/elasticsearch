@@ -73,6 +73,28 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         return super.resolveType();
     }
 
+    /**
+     * Override this to allow processing literals of type {@link EsqlDataTypes#DATE_PERIOD} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * @param left the left period
+     * @param right the right period
+     * @return the result of the evaluation
+     */
+    protected Period processTimePeriods(Period left, Period right) {
+        throw new UnsupportedOperationException("processing of time periods is unsupported for [" + op().symbol() + "]");
+    }
+
+    /**
+     * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * @param left the left duration
+     * @param right the right duration
+     * @return the result of the evaluation
+     */
+    protected Duration processDateDurations(Duration left, Duration right) {
+        throw new UnsupportedOperationException("processing of date durations is unsupported for [" + op().symbol() + "]");
+    }
+
     @Override
     public final Object fold() {
         DataType leftDataType = left().dataType();
@@ -81,21 +103,13 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();
             Period r = (Period) right().fold();
-            return switch (op()) {
-                case ADD -> l.plus(r);
-                case SUB -> l.minus(r);
-                default -> throw new UnsupportedOperationException("Unsupported date math expression");
-            };
+            return processTimePeriods(l, r);
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Duration l = (Duration) left().fold();
             Duration r = (Duration) right().fold();
-            return switch (op()) {
-                case ADD -> l.plus(r);
-                case SUB -> l.minus(r);
-                default -> throw new UnsupportedOperationException("Unsupported date math expression");
-            };
+            return processDateDurations(l, r);
         }
         return super.fold();
     }

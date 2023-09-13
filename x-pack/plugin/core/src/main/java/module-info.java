@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.xpack.core.XPackVersionInformation;
+
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
@@ -222,5 +224,5 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
 
-    uses org.elasticsearch.xpack.core.VersionExtension;
+    uses XPackVersionInformation;
 }

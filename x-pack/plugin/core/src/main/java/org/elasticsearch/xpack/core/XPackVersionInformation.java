@@ -15,7 +15,7 @@ import java.util.ServiceLoader;
 /**
  * Allows plugging in xpack config versions.
  */
-public interface VersionExtension {
+public interface XPackVersionInformation {
 
     /**
      * Returns the {@link MlConfigVersion} that Elasticsearch should use.
@@ -34,8 +34,8 @@ public interface VersionExtension {
     /**
      * Loads a single VersionExtension, or returns {@code null} if none are found.
      */
-    static VersionExtension load() {
-        var loader = ServiceLoader.load(VersionExtension.class);
+    static XPackVersionInformation load() {
+        var loader = ServiceLoader.load(XPackVersionInformation.class);
         var extensions = loader.stream().toList();
         if (extensions.size() > 1) {
             throw new IllegalStateException("More than one version extension found");

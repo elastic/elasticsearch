@@ -122,4 +122,9 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

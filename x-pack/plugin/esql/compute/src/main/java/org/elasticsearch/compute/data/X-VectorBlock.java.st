@@ -79,4 +79,9 @@ $endif$
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

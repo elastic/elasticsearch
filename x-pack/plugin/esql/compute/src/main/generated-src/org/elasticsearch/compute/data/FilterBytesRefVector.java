@@ -89,4 +89,9 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
             sb.append(getBytesRef(i, new BytesRef()));
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

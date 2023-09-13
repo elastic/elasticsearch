@@ -122,4 +122,9 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

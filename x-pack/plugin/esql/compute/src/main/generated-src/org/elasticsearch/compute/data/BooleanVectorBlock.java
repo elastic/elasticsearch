@@ -71,4 +71,9 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

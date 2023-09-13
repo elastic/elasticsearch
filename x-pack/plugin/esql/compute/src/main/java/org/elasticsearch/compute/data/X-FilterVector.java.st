@@ -100,4 +100,9 @@ $else$
 $endif$
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

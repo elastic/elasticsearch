@@ -88,4 +88,9 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
             sb.append(getLong(i));
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

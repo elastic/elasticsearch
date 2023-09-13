@@ -71,4 +71,9 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

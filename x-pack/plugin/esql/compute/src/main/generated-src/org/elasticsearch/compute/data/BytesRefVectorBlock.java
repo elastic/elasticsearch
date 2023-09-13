@@ -72,4 +72,9 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

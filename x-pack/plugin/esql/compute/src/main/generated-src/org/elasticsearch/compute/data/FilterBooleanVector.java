@@ -88,4 +88,9 @@ public final class FilterBooleanVector extends AbstractFilterVector implements B
             sb.append(getBoolean(i));
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

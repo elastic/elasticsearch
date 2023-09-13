@@ -122,4 +122,9 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

@@ -122,4 +122,9 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

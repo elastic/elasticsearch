@@ -88,4 +88,9 @@ public final class FilterDoubleVector extends AbstractFilterVector implements Do
             sb.append(getDouble(i));
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

@@ -71,4 +71,9 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

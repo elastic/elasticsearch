@@ -88,4 +88,9 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
             sb.append(getInt(i));
         }
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

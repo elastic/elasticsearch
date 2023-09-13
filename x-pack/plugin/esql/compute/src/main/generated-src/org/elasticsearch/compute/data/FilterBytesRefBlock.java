@@ -125,4 +125,9 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

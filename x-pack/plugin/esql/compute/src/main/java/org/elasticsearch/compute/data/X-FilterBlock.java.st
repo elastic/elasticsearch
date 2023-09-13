@@ -146,4 +146,9 @@ $endif$
             sb.append(']');
         }
     }
+
+    @Override
+    public void close() {
+        block.close();
+    }
 }

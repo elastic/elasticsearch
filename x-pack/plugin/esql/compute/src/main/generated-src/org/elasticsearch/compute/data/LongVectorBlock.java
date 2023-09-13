@@ -71,4 +71,9 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
     }
+
+    @Override
+    public void close() {
+        vector.close();
+    }
 }

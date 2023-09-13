@@ -29,7 +29,6 @@ public class PlanExecutor {
 
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    // private final CircuitBreaker breaker;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -37,10 +36,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(IndexResolver indexResolver, EnrichPolicyResolver enrichPolicyResolver) { // }, CircuitBreaker breaker) {
+    public PlanExecutor(IndexResolver indexResolver, EnrichPolicyResolver enrichPolicyResolver) {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        // this.breaker = breaker;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.logicalPlanOptimizer = new LogicalPlanOptimizer();
@@ -69,8 +67,7 @@ public class PlanExecutor {
             functionRegistry,
             logicalPlanOptimizer,
             mapper,
-            verifier // ,
-            // breaker
+            verifier
         );
     }
 

@@ -22,7 +22,6 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
-    // TODO: replace Function<BigArrays, ExpressionEvaluator> with explicit ExpressionEvaluatorSupplier type
     ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator);
 
     /**

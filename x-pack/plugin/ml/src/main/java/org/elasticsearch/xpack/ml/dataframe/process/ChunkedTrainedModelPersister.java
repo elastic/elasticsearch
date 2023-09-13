@@ -139,7 +139,8 @@ public class ChunkedTrainedModelPersister {
             this.currentModelId.get(),
             modelMetadata.getFeatureImportances(),
             modelMetadata.getFeatureImportanceBaseline(),
-            modelMetadata.getHyperparameters()
+            modelMetadata.getHyperparameters(),
+            null
         );
 
         CountDownLatch latch = storeTrainedModelMetadata(trainedModelMetadata);

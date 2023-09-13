@@ -29,6 +29,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_metadata";
     public static final ParseField TOTAL_FEATURE_IMPORTANCE = new ParseField("total_feature_importance");
     public static final ParseField HYPERPARAMETERS = new ParseField("hyperparameters");
+    public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
     public static final ParseField FEATURE_IMPORTANCE_BASELINE = new ParseField("feature_importance_baseline");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -45,7 +46,8 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
                 (String) a[0],
                 (List<TotalFeatureImportance>) a[1],
                 (FeatureImportanceBaseline) a[2],
-                (List<Hyperparameters>) a[3]
+                (List<Hyperparameters>) a[3],
+                (String) a[4]
             )
         );
         parser.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
@@ -64,6 +66,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
             ignoreUnknownFields ? Hyperparameters.LENIENT_PARSER : Hyperparameters.STRICT_PARSER,
             HYPERPARAMETERS
         );
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PLATFORM_ARCHITECTURE);
         return parser;
     }
 
@@ -83,24 +86,28 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     private final FeatureImportanceBaseline featureImportanceBaselines;
     private final List<Hyperparameters> hyperparameters;
     private final String modelId;
+    private final String platformArchitecture;
 
     public TrainedModelMetadata(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.totalFeatureImportances = in.readCollectionAsList(TotalFeatureImportance::new);
         this.featureImportanceBaselines = in.readOptionalWriteable(FeatureImportanceBaseline::new);
         this.hyperparameters = in.readCollectionAsList(Hyperparameters::new);
+        this.platformArchitecture = in.readOptionalString(); // TODO version guard
     }
 
     public TrainedModelMetadata(
         String modelId,
         List<TotalFeatureImportance> totalFeatureImportances,
         FeatureImportanceBaseline featureImportanceBaselines,
-        List<Hyperparameters> hyperparameters
+        List<Hyperparameters> hyperparameters,
+        String platformArchitecture
     ) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.totalFeatureImportances = Collections.unmodifiableList(totalFeatureImportances);
         this.featureImportanceBaselines = featureImportanceBaselines;
         this.hyperparameters = hyperparameters == null ? Collections.emptyList() : Collections.unmodifiableList(hyperparameters);
+        this.platformArchitecture = platformArchitecture;
     }
 
     public String getModelId() {
@@ -123,6 +130,10 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         return hyperparameters;
     }
 
+    public String getPlatformArchitecture() {
+        return platformArchitecture;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -131,12 +142,13 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         return Objects.equals(totalFeatureImportances, that.totalFeatureImportances)
             && Objects.equals(featureImportanceBaselines, that.featureImportanceBaselines)
             && Objects.equals(hyperparameters, that.hyperparameters)
-            && Objects.equals(modelId, that.modelId);
+            && Objects.equals(modelId, that.modelId)
+            && Objects.equals(platformArchitecture, that.platformArchitecture);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalFeatureImportances, featureImportanceBaselines, hyperparameters, modelId);
+        return Objects.hash(totalFeatureImportances, featureImportanceBaselines, hyperparameters, modelId, platformArchitecture);
     }
 
     @Override
@@ -145,6 +157,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         out.writeCollection(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
         out.writeCollection(hyperparameters);
+        out.writeOptionalString(platformArchitecture);// TODO version guard
     }
 
     @Override
@@ -159,6 +172,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
             builder.field(FEATURE_IMPORTANCE_BASELINE.getPreferredName(), featureImportanceBaselines);
         }
         builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
+        if (platformArchitecture != null) {
+            builder.field(PLATFORM_ARCHITECTURE.getPreferredName(), platformArchitecture);
+        }
         builder.endObject();
         return builder;
     }

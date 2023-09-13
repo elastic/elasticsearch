@@ -100,7 +100,8 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             modelId,
             Collections.emptyList(),
             new FeatureImportanceBaseline(1.0, Collections.emptyList()),
-            Collections.emptyList()
+            Collections.emptyList(),
+            null
         );
         blockingCall(
             listener -> trainedModelProvider.storeTrainedModelMetadata(modelMetadata, listener),

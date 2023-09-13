@@ -71,6 +71,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String HYPERPARAMETERS = "hyperparameters";
+    public static final String PLATFORM_ARCHITECTURE = "platform_architecture";
     public static final String MODEL_ALIASES = "model_aliases";
     public static final String DEFINITION_STATUS = "definition_status";
 
@@ -701,6 +702,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 return this;
             }
             return addToMetadata(HYPERPARAMETERS, hyperparameters.stream().map(Hyperparameters::asMap).collect(Collectors.toList()));
+        }
+
+        public Builder setPlatformArchitecture(String platformArchitecture) {
+            return addToMetadata(PLATFORM_ARCHITECTURE, platformArchitecture);
         }
 
         public Builder setModelAliases(Set<String> modelAliases) {

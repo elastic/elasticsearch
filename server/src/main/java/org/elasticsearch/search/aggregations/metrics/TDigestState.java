@@ -138,7 +138,7 @@ public class TDigestState {
             state.tdigest.reserve(size);
         }
         for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_075) ? in.readVLong() : in.readVInt());
+            state.add(in.readDouble(), in.readVLong());
         }
         return state;
     }

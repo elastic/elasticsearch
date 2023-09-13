@@ -26,7 +26,7 @@ indices of the old data stream.
 .. Set `index.number_of_replicas` to zero and unset the `index.lifecycle.name` index setting.
 . Run the reindex operation to completion.
 . Revert the overriden index settings in the destination index template.
-. Invoke the `rollover` api to create a new backing index that can receive fresh docs.
+. Invoke the `rollover` api to create a new backing index that can receive new documents.
 
 NOTE: This process only applies to time-series data streams without <<downsampling, downsampling>> configuration. Data
 streams with downsampling can only be re-indexed by re-indexing their backing indexes individually and adding them to an

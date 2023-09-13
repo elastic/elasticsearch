@@ -15,7 +15,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -134,42 +134,24 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
-        if (request.clusterStateVersion() <= clusterService.state().version()) {
-            // either our locally-applied cluster state is already fresh enough, or request.clusterStateVersion() == 0 for bwc
-            recoverWithFreshClusterState(request, task, listener);
-        } else {
-            logger.debug(
-                "delaying recovery of {} until application of cluster state version {}",
-                request.shardId(),
-                request.clusterStateVersion()
-            );
-            final var waitListener = new SubscribableListener<Void>();
-            final var clusterStateVersionListener = new ClusterStateListener() {
+        PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
+            request.clusterStateVersion(),
+            clusterService,
+            transportService.getThreadPool().generic(),
+            transportService.getThreadPool().getThreadContext(),
+            listener,
+            new Consumer<>() {
                 @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    if (request.clusterStateVersion() <= event.state().version()) {
-                        waitListener.onResponse(null);
-                    }
+                public void accept(ActionListener<RecoveryResponse> l) {
+                    recoverWithFreshClusterState(request, task, l);
                 }
 
                 @Override
                 public String toString() {
-                    return "wait for cluster state for [" + request + "]";
+                    return "recovery [" + request + "]";
                 }
-            };
-            clusterService.addListener(clusterStateVersionListener);
-            waitListener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateVersionListener)));
-            if (request.clusterStateVersion() <= clusterService.state().version()) {
-                waitListener.onResponse(null);
             }
-            waitListener.addListener(
-                listener.delegateFailureAndWrap((l, ignored) -> recoverWithFreshClusterState(request, task, l)),
-                transportService.getThreadPool().generic(),
-                transportService.getThreadPool().getThreadContext()
-            );
-            // NB no timeout. If we never apply the fresh cluster state then eventually we leave the cluster which removes the recovery
-            // from the routing table so the target shard will fail.
-        }
+        );
     }
 
     private void recoverWithFreshClusterState(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {

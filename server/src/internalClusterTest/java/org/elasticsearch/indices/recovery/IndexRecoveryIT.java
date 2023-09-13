@@ -1711,7 +1711,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 PeerRecoverySourceService.Actions.START_RECOVERY,
                 (handler, request, channel, task) -> {
                     assertThat(request, instanceOf(StartRecoveryRequest.class));
-                    assertThat(((StartRecoveryRequest)request).clusterStateVersion(), greaterThan(initialClusterStateVersion));
+                    assertThat(((StartRecoveryRequest) request).clusterStateVersion(), greaterThan(initialClusterStateVersion));
                     handler.messageReceived(
                         request,
                         new TestTransportChannel(

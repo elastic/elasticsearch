@@ -221,19 +221,19 @@ public class MlConfigVersionTests extends ESTestCase {
     public void testMin() {
         assertEquals(
             MlConfigVersionUtils.getPreviousVersion(),
-            MlConfigVersion.min(MlConfigVersion.CURRENT, MlConfigVersionUtils.getPreviousVersion())
+            MlConfigVersion.min(MlConfigVersion.current(), MlConfigVersionUtils.getPreviousVersion())
         );
         assertEquals(
             MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()),
-            MlConfigVersion.min(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.CURRENT)
+            MlConfigVersion.min(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.current())
         );
     }
 
     public void testMax() {
-        assertEquals(MlConfigVersion.CURRENT, MlConfigVersion.max(MlConfigVersion.CURRENT, MlConfigVersionUtils.getPreviousVersion()));
+        assertEquals(MlConfigVersion.current(), MlConfigVersion.max(MlConfigVersion.current(), MlConfigVersionUtils.getPreviousVersion()));
         assertEquals(
-            MlConfigVersion.CURRENT,
-            MlConfigVersion.max(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.CURRENT)
+            MlConfigVersion.current(),
+            MlConfigVersion.max(MlConfigVersion.fromId(MlConfigVersion.FIRST_ML_VERSION.id()), MlConfigVersion.current())
         );
     }
 
@@ -262,8 +262,8 @@ public class MlConfigVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<MlConfigVersion> ignore = Set.of(MlConfigVersion.ZERO, MlConfigVersion.CURRENT, MlConfigVersion.FIRST_ML_VERSION);
-        assertThat(MlConfigVersion.CURRENT, sameInstance(MlConfigVersion.fromId(MlConfigVersion.CURRENT.id())));
+        Set<MlConfigVersion> ignore = Set.of(MlConfigVersion.ZERO, MlConfigVersion.current(), MlConfigVersion.FIRST_ML_VERSION);
+        assertThat(MlConfigVersion.current(), sameInstance(MlConfigVersion.fromId(MlConfigVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             MlConfigVersion version = MlConfigVersionUtils.randomVersion(ignore);
@@ -273,7 +273,7 @@ public class MlConfigVersionTests extends ESTestCase {
     }
 
     public void testCurrentIsLatest() {
-        assertThat(Collections.max(MlConfigVersion.getAllVersions()), Matchers.is(MlConfigVersion.CURRENT));
+        assertThat(Collections.max(MlConfigVersion.getAllVersions()), Matchers.is(MlConfigVersion.current()));
     }
 
     public void testToString() {
@@ -310,9 +310,9 @@ public class MlConfigVersionTests extends ESTestCase {
         assertEquals(false, KnownMlConfigVersions.ALL_VERSIONS.contains(V_8_0_1));
         assertEquals(8000199, V_8_0_1.id());
 
-        MlConfigVersion unknownVersion = MlConfigVersion.fromId(MlConfigVersion.CURRENT.id() + 1);
+        MlConfigVersion unknownVersion = MlConfigVersion.fromId(MlConfigVersion.current().id() + 1);
         assertEquals(false, KnownMlConfigVersions.ALL_VERSIONS.contains(unknownVersion));
-        assertEquals(MlConfigVersion.CURRENT.id() + 1, unknownVersion.id());
+        assertEquals(MlConfigVersion.current().id() + 1, unknownVersion.id());
 
         for (String version : new String[] { "10.2", "7.17.2.99" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));

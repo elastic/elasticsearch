@@ -182,7 +182,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "task_id",
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             false
         );
 
@@ -278,7 +278,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "job-id",
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             false
         );
 

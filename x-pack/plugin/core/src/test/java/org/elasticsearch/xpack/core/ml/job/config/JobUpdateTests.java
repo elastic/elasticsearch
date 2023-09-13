@@ -132,7 +132,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
+            update.setModelSnapshotMinVersion(MlConfigVersion.current());
         }
         if (useInternalParser && randomBoolean()) {
             update.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));

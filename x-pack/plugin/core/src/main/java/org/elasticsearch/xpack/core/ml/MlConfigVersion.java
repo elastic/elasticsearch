@@ -63,7 +63,7 @@ import java.util.regex.Pattern;
  * Each ML config version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
  * <p>
  * To add a new ML config version, add a new constant at the bottom of the list that is one million greater than the current highest
- * version, ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * version, ensure it has a unique id, and update the {@link CurrentHolder#CURRENT} constant to point to the new version.
  * <h2>Reverting a ML config version</h2>
  * If you revert a commit with a ML config version change, you <em>must</em> ensure there is a <em>new</em> ML config version
  * representing the reverted change. <em>Do not</em> let the ML config version go backwards, it must <em>always</em> be incremented.
@@ -150,11 +150,21 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
     public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_99, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
 
-    /**
-     * Reference to the most recent Ml config version.
-     * This should be the Ml config version with the highest id.
-     */
-    public static final MlConfigVersion CURRENT = V_10;
+    private static class CurrentHolder {
+        private static final MlConfigVersion CURRENT = findCurrent(V_10);
+
+        // finds the pluggable current version, or uses the given fallback
+        private static MlConfigVersion findCurrent(MlConfigVersion fallback) {
+            var versionExtension = MlVersionExtension.load();
+            if (versionExtension == null) {
+                return fallback;
+            }
+            var version = versionExtension.getCurrentMlConfigVersion();
+
+            assert version.onOrAfter(fallback);
+            return version;
+        }
+    }
 
     /**
      * Reference to the first MlConfigVersion that is detached from the
@@ -266,6 +276,14 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return version1.id > version2.id ? version1 : version2;
     }
 
+    /**
+     * Returns the most recent Ml config version.
+     * This should be the Ml config version with the highest id.
+     */
+    public static MlConfigVersion current() {
+        return CurrentHolder.CURRENT;
+    }
+
     public static MlConfigVersion fromVersion(Version version) {
         if (version.equals(Version.V_8_10_0)) {
             return V_10;
@@ -292,7 +310,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     public static Tuple<MlConfigVersion, MlConfigVersion> getMinMaxMlConfigVersion(DiscoveryNodes nodes) {
-        MlConfigVersion minMlConfigVersion = MlConfigVersion.CURRENT;
+        MlConfigVersion minMlConfigVersion = current();
         MlConfigVersion maxMlConfigVersion = MlConfigVersion.FIRST_ML_VERSION;
         for (DiscoveryNode node : nodes) {
             try {
@@ -323,7 +341,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     // This is to support upgrade scenarios in pre-prod QA environments.
     public static MlConfigVersion fromString(String str) {
         if (str == null) {
-            return CURRENT;
+            return current();
         }
         if (str.equals("8.10.0")) {
             return V_10;

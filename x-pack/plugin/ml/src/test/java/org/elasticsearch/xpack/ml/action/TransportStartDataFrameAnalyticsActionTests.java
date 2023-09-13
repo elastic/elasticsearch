@@ -54,7 +54,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because upgrade mode is enabled
     public void testGetAssignment_UpgradeModeIsEnabled() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
+        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.current(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
             .build();
@@ -67,7 +67,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because there are no existing nodes in the cluster state
     public void testGetAssignment_NoNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
+        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.current(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .build();
@@ -80,14 +80,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because none of the existing nodes is an ML node
     public void testGetAssignment_NoMlNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
+        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.current(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(createNode(0, false, Version.CURRENT, MlConfigVersion.CURRENT))
-                    .add(createNode(1, false, Version.CURRENT, MlConfigVersion.CURRENT))
-                    .add(createNode(2, false, Version.CURRENT, MlConfigVersion.CURRENT))
+                    .add(createNode(0, false, Version.CURRENT, MlConfigVersion.current()))
+                    .add(createNode(1, false, Version.CURRENT, MlConfigVersion.current()))
+                    .add(createNode(2, false, Version.CURRENT, MlConfigVersion.current()))
             )
             .build();
 
@@ -109,7 +109,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
+        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.current(), false);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .nodes(
@@ -132,13 +132,13 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
                         + "because the data frame analytics created for version ["
-                        + MlConfigVersion.CURRENT
+                        + MlConfigVersion.current()
                         + "] requires a node of version [7.10.0] or higher"
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
                         + "because the data frame analytics created for version ["
-                        + MlConfigVersion.CURRENT
+                        + MlConfigVersion.current()
                         + "] requires a node of version [7.10.0] or higher"
                 )
             )

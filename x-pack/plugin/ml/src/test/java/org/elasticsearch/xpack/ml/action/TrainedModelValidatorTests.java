@@ -32,7 +32,10 @@ public class TrainedModelValidatorTests extends ESTestCase {
                 .build();
 
             DiscoveryNode node = mock(DiscoveryNode.class);
-            final Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString());
+            final Map<String, String> attributes = Map.of(
+                MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                MlConfigVersion.current().toString()
+            );
             when(node.getAttributes()).thenReturn(attributes);
             when(node.getVersion()).thenReturn(Version.CURRENT);
             when(node.getMinIndexVersion()).thenReturn(IndexVersion.current());
@@ -61,7 +64,7 @@ public class TrainedModelValidatorTests extends ESTestCase {
 
             final ModelPackageConfig packageConfigCurrent = new ModelPackageConfig.Builder(
                 ModelPackageConfigTests.randomModulePackageConfig()
-            ).setMinimumVersion(MlConfigVersion.CURRENT.toString()).build();
+            ).setMinimumVersion(MlConfigVersion.current().toString()).build();
 
             DiscoveryNode node = mock(DiscoveryNode.class);
             final Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_7_0.toString());
@@ -83,7 +86,7 @@ public class TrainedModelValidatorTests extends ESTestCase {
                 "Validation Failed: 1: The model ["
                     + packageConfigCurrent.getPackagedModelId()
                     + "] requires that all nodes are at least version ["
-                    + MlConfigVersion.CURRENT
+                    + MlConfigVersion.current()
                     + "];",
                 e.getMessage()
             );

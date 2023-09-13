@@ -77,7 +77,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, allowLazyStart),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.current(), allowLazyStart),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
 

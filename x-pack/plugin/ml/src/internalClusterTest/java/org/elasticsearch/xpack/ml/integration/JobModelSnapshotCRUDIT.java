@@ -89,7 +89,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "job-with-current-snapshot";
 
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT).setSnapshotId("snap_1").build();
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.current()).setSnapshotId("snap_1").build();
         indexModelSnapshot(snapshot);
 
         ElasticsearchStatusException ex = expectThrows(
@@ -112,7 +112,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "update-job-model-snapshot";
         createJob(jobId);
         Date timestamp = new Date();
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.current())
             .setTimestamp(timestamp)
             .setSnapshotId("snap_1")
             .build();
@@ -137,7 +137,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
     public void testDeleteUnusedModelSnapshot() {
         String jobId = "delete-job-model-snapshot-unused";
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT).setSnapshotId("snap_1").build();
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.current()).setSnapshotId("snap_1").build();
         indexModelSnapshot(snapshot);
         GetModelSnapshotsAction.Response getResponse = client().execute(
             GetModelSnapshotsAction.INSTANCE,
@@ -155,7 +155,7 @@ public class JobModelSnapshotCRUDIT extends MlSingleNodeTestCase {
         String jobId = "delete-job-model-snapshot-used";
         Date timestamp = new Date();
         createJob(jobId);
-        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.CURRENT)
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setMinVersion(MlConfigVersion.current())
             .setSnapshotId("snap_1")
             .setQuantiles(new Quantiles(jobId, timestamp, "quantiles-1"))
             .setSnapshotDocCount(1)

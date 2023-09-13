@@ -198,7 +198,7 @@ public class InferenceProcessor extends AbstractProcessor {
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
-        private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
+        private volatile MlConfigVersion minNodeVersion = MlConfigVersion.current();
 
         public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;

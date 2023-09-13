@@ -31,7 +31,7 @@ public class NullInferenceConfig implements InferenceConfig {
 
     @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
-        return MlConfigVersion.CURRENT;
+        return MlConfigVersion.current();
     }
 
     @Override

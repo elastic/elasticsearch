@@ -244,7 +244,7 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        MlConfigVersion version = MlConfigVersion.fromString(params.param("version", MlConfigVersion.CURRENT.toString()));
+        MlConfigVersion version = MlConfigVersion.fromString(params.param("version", MlConfigVersion.current().toString()));
 
         builder.startObject();
         builder.field(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);

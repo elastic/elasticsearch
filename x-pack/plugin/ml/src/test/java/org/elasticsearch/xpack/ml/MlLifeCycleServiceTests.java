@@ -95,7 +95,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.current(), true),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask(
@@ -151,7 +151,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         tasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("job-2"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("foo-2", MlConfigVersion.current(), true),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.updateTaskState(

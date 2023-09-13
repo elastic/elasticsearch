@@ -131,7 +131,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
     private static ModelSnapshot.Builder createFullyPopulated() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder();
         modelSnapshot.setJobId("foo");
-        modelSnapshot.setMinVersion(MlConfigVersion.CURRENT);
+        modelSnapshot.setMinVersion(MlConfigVersion.current());
         modelSnapshot.setTimestamp(DEFAULT_TIMESTAMP);
         modelSnapshot.setDescription(DEFAULT_DESCRIPTION);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
@@ -158,7 +158,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
 
     public static ModelSnapshot createRandomized() {
         ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAlphaOfLengthBetween(1, 20));
-        modelSnapshot.setMinVersion(MlConfigVersion.CURRENT);
+        modelSnapshot.setMinVersion(MlConfigVersion.current());
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
@@ -227,7 +227,7 @@ public class ModelSnapshotTests extends AbstractXContentSerializingTestCase<Mode
         ModelSnapshot modelSnapshot = ModelSnapshot.emptySnapshot("my_job");
         assertThat(modelSnapshot.getSnapshotId(), equalTo("empty"));
         assertThat(modelSnapshot.isTheEmptySnapshot(), is(true));
-        assertThat(modelSnapshot.getMinVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(modelSnapshot.getMinVersion(), equalTo(MlConfigVersion.current()));
         assertThat(modelSnapshot.getLatestRecordTimeStamp(), is(nullValue()));
         assertThat(modelSnapshot.getLatestResultTimeStamp(), is(nullValue()));
     }

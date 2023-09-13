@@ -489,7 +489,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(classification.getRandomizeSeed(), is(notNullValue()));
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            classification.toXContent(builder, new ToXContent.MapParams(singletonMap("version", MlConfigVersion.CURRENT.toString())));
+            classification.toXContent(builder, new ToXContent.MapParams(singletonMap("version", MlConfigVersion.current().toString())));
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));
         }

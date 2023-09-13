@@ -1126,7 +1126,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         previousTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.current(), true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1197,7 +1197,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         previousTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.current(), true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1217,7 +1217,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         currentTasksBuilder.addTask(
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.current(), true),
             new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
         );
 
@@ -1883,7 +1883,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {
-        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT, MlConfigVersion.CURRENT);
+        return buildNode(name, isML, nativeMemory, allocatedProcessors, VersionInformation.CURRENT, MlConfigVersion.current());
     }
 
     private static DiscoveryNode buildNode(

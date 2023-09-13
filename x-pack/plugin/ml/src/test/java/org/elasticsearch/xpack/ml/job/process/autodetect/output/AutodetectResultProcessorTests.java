@@ -412,7 +412,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId("a_snapshot_id")
             .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
             .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
-            .setMinVersion(MlConfigVersion.CURRENT)
+            .setMinVersion(MlConfigVersion.current())
             .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         IndexResponse indexResponse = new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true);

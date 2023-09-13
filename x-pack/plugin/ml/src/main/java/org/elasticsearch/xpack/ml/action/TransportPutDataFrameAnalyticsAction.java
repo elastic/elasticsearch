@@ -157,7 +157,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     ) {
         DataFrameAnalyticsConfig preparedForPutConfig = new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimitSupplier.get())
             .setCreateTime(Instant.now())
-            .setVersion(MlConfigVersion.CURRENT)
+            .setVersion(MlConfigVersion.current())
             .build();
 
         if (securityContext != null) {

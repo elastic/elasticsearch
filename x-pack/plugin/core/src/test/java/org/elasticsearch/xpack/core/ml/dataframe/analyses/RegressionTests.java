@@ -408,7 +408,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             regression.toXContent(
                 builder,
-                new ToXContent.MapParams(Collections.singletonMap("version", MlConfigVersion.CURRENT.toString()))
+                new ToXContent.MapParams(Collections.singletonMap("version", MlConfigVersion.current().toString()))
             );
             String json = Strings.toString(builder);
             assertThat(json, containsString("randomize_seed"));

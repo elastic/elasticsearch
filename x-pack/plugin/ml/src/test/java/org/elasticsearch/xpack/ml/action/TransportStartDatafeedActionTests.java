@@ -114,9 +114,9 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testRemoteClusterVersionCheck() {
         Map<String, MlConfigVersion> clusterVersions = Map.of(
             "modern_cluster_1",
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             "modern_cluster_2",
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             "old_cluster_1",
             MlConfigVersion.V_7_0_0
         );

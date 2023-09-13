@@ -136,7 +136,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
     public void testRunJob_TaskIsStopping() {
         when(task.isStopping()).thenReturn(true);
-        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", MlConfigVersion.CURRENT, false));
+        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", MlConfigVersion.current(), false));
 
         processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory,
             ActionTestUtils.assertNoFailureListener(stepResponse -> {
@@ -219,7 +219,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
     public void testRunJob_ProcessNotAliveAfterStart() {
         when(process.isProcessAlive()).thenReturn(false);
-        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", MlConfigVersion.CURRENT, false));
+        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", MlConfigVersion.current(), false));
 
         processManager.runJob(
             task,

@@ -95,7 +95,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-job");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.current()));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -139,7 +139,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-data-stream-job");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.current()));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -519,7 +519,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob(jobId);
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.current()));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -703,7 +703,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-job-stopped-then-killed");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.current()));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 

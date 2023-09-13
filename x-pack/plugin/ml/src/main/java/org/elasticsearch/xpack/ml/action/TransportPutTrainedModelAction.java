@@ -205,7 +205,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         }
 
-        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.CURRENT)
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config).setVersion(MlConfigVersion.current())
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());

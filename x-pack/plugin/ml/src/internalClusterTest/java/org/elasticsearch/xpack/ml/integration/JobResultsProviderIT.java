@@ -786,7 +786,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         indexModelSnapshot(
             new ModelSnapshot.Builder("other_job").setSnapshotId("other_snap")
                 .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-                .setMinVersion(MlConfigVersion.CURRENT)
+                .setMinVersion(MlConfigVersion.current())
                 .setQuantiles(new Quantiles("other_job", Date.from(Instant.ofEpochMilli(10)), randomAlphaOfLength(20)))
                 .build()
         );

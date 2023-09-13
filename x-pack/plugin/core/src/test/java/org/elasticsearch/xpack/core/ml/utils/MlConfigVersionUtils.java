@@ -76,8 +76,8 @@ public class MlConfigVersionUtils {
     }
 
     public static MlConfigVersion getPreviousVersion() {
-        MlConfigVersion version = getPreviousVersion(MlConfigVersion.CURRENT);
-        assert version.before(MlConfigVersion.CURRENT);
+        MlConfigVersion version = getPreviousVersion(MlConfigVersion.current());
+        assert version.before(MlConfigVersion.current());
         return version;
     }
 
@@ -112,7 +112,7 @@ public class MlConfigVersionUtils {
 
     /** Returns a random {@code MlConfigVersion} that is compatible with {@link MlConfigVersion#CURRENT} */
     public static MlConfigVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.CURRENT);
+        return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.current());
     }
 
     /** Returns a random {@code MlConfigVersion} that is compatible with the previous version to {@code version} */

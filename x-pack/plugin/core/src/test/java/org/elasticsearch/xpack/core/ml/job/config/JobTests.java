@@ -513,7 +513,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         Date now = new Date();
         Job job = builder.build(now);
         assertEquals(now, job.getCreateTime());
-        assertEquals(MlConfigVersion.CURRENT, job.getJobVersion());
+        assertEquals(MlConfigVersion.current(), job.getJobVersion());
     }
 
     public void testJobWithoutVersion() throws IOException {
@@ -711,7 +711,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
             builder.setDescription(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            builder.setJobVersion(MlConfigVersion.CURRENT);
+            builder.setJobVersion(MlConfigVersion.current());
         }
         if (randomBoolean()) {
             int groupsNum = randomIntBetween(0, 10);
@@ -766,7 +766,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
             builder.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotMinVersion(MlConfigVersion.CURRENT);
+            builder.setModelSnapshotMinVersion(MlConfigVersion.current());
         }
         if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());

@@ -134,7 +134,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
-        assertThat(storedModel.getVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(storedModel.getVersion(), equalTo(MlConfigVersion.current()));
         assertThat(storedModel.getCreatedBy(), equalTo(InternalUsers.XPACK_USER.principal()));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));

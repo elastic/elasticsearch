@@ -221,7 +221,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(MlConfigVersion.CURRENT)
+            .setVersion(MlConfigVersion.current())
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)

@@ -295,7 +295,7 @@ public class ChunkedTrainedModelPersister {
             .setModelId(modelId)
             .setModelType(trainedModelType)
             .setCreatedBy(InternalUsers.XPACK_USER.principal())
-            .setVersion(MlConfigVersion.CURRENT)
+            .setVersion(MlConfigVersion.current())
             .setCreateTime(createTime)
             // NOTE: GET _cat/ml/trained_models relies on the creating analytics ID being in the tags
             .setTags(Collections.singletonList(analytics.getId()))

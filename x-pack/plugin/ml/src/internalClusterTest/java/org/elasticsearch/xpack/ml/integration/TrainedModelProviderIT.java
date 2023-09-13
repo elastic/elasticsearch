@@ -461,7 +461,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(MlConfigVersion.CURRENT)
+            .setVersion(MlConfigVersion.current())
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(0)
             .setEstimatedOperations(0)

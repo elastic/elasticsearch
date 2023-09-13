@@ -94,7 +94,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setInput(TrainedModelInputTests.createRandomInput())
             .setMetadata(randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)))
             .setCreateTime(Instant.ofEpochMilli(randomLongBetween(Instant.MIN.getEpochSecond(), Instant.MAX.getEpochSecond())))
-            .setVersion(MlConfigVersion.CURRENT)
+            .setVersion(MlConfigVersion.current())
             .setModelId(modelId)
             .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
@@ -174,7 +174,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomAlphaOfLength(10),
             TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             lazyModelDefinition,
@@ -224,7 +224,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomAlphaOfLength(10),
             TrainedModelType.TREE_ENSEMBLE,
             randomAlphaOfLength(10),
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             randomBoolean() ? null : randomAlphaOfLength(100),
             Instant.ofEpochMilli(randomNonNegativeLong()),
             lazyModelDefinition,
@@ -326,7 +326,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
-                .setVersion(MlConfigVersion.CURRENT)
+                .setVersion(MlConfigVersion.current())
                 .setModelId(modelId)
                 .validate(true)
         );

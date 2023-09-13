@@ -449,7 +449,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
-        return builderClusterStateWithModelReferences(MlConfigVersion.CURRENT, modelId);
+        return builderClusterStateWithModelReferences(MlConfigVersion.current(), modelId);
     }
 
     private static ClusterState builderClusterStateWithModelReferences(MlConfigVersion minNodeVersion, String... modelId)

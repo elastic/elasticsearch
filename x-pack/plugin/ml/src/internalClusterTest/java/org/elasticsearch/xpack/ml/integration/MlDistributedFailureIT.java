@@ -789,7 +789,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
-            .setMinVersion(MlConfigVersion.CURRENT)
+            .setMinVersion(MlConfigVersion.current())
             .setSnapshotId(jobId + "_mock_snapshot")
             .setTimestamp(new Date())
             .setModelSizeStats(new ModelSizeStats.Builder(jobId).build())

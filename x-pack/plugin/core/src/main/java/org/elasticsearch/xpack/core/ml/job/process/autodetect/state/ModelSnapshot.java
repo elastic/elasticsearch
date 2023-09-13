@@ -501,7 +501,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     public static ModelSnapshot emptySnapshot(String jobId) {
         return new ModelSnapshot(
             jobId,
-            MlConfigVersion.CURRENT,
+            MlConfigVersion.current(),
             new Date(),
             "empty snapshot",
             EMPTY_SNAPSHOT_ID,

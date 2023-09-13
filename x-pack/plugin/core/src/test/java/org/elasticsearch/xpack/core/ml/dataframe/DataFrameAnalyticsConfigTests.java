@@ -175,7 +175,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 builder.setCreateTime(Instant.now());
             }
             if (randomBoolean()) {
-                builder.setVersion(MlConfigVersion.CURRENT);
+                builder.setVersion(MlConfigVersion.current());
             }
         }
         if (randomBoolean()) {
@@ -406,7 +406,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         Regression regression = new Regression("foo");
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(MlConfigVersion.CURRENT)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(MlConfigVersion.current())
             .setId("test_config")
             .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))

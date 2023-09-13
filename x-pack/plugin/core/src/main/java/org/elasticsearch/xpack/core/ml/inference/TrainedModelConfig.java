@@ -1009,7 +1009,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 modelId,
                 modelType,
                 createdBy == null ? "user" : createdBy,
-                version == null ? MlConfigVersion.CURRENT : version,
+                version == null ? MlConfigVersion.current() : version,
                 description,
                 createTime == null ? Instant.now() : createTime,
                 definition,

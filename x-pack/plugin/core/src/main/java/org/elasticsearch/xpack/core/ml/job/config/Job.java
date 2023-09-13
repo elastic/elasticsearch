@@ -1321,7 +1321,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
          */
         public Job build(@SuppressWarnings("HiddenField") Date createTime) {
             setCreateTime(createTime);
-            setJobVersion(MlConfigVersion.CURRENT);
+            setJobVersion(MlConfigVersion.current());
             return build();
         }
 

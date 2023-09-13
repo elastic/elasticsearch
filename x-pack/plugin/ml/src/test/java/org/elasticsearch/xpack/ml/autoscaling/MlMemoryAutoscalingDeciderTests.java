@@ -1399,7 +1399,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.current(), true),
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {

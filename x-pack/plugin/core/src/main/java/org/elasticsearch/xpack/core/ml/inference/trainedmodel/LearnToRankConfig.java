@@ -166,7 +166,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
 
     @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
-        return MlConfigVersion.CURRENT;
+        return MlConfigVersion.current();
     }
 
     @Override

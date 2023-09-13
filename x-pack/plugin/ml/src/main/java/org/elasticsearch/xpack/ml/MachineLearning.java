@@ -843,7 +843,7 @@ public class MachineLearning extends Plugin
                 allocatedProcessorsAttrName
             );
         }
-        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
+        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.current().toString());
         return additionalSettings.build();
     }
 

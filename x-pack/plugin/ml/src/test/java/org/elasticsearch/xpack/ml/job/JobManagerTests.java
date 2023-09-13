@@ -393,7 +393,7 @@ public class JobManagerTests extends ESTestCase {
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         CategorizationAnalyzerConfig c = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters);
         Job.Builder jobBuilder = createCategorizationJob(c, null);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.current());
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -408,7 +408,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder jobBuilder = createCategorizationJob(c, null);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT)
+            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.current())
         );
 
         assertThat(e.getMessage(), equalTo("Failed to find global analyzer [does_not_exist]"));
@@ -418,7 +418,7 @@ public class JobManagerTests extends ESTestCase {
 
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.current());
 
         Job job = jobBuilder.build(new Date());
         assertThat(

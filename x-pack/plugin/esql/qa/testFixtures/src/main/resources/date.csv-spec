@@ -615,6 +615,13 @@ birth_date:datetime
 1953-04-21T00:00:00.000Z
 ;
 
+dateMathAddDatePeriodsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = 4 years + 3 months + 2 weeks + 1 day + n | keep then;
+
+then:datetime
+1957-07-19T00:00:00.000Z
+;
+
 dateMathAddDatePeriodsThenAddToDatetime
 row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
 
@@ -622,11 +629,25 @@ then:datetime
 1957-07-19T00:00:00.000Z
 ;
 
-dateMathSubtractDatePeriodsThenAddToDatetime
-row n = to_dt("1957-07-19T00:00:00.000Z") | eval then = (-4 years - 3 months - 2 weeks - 1 day) + n | keep then;
+dateMathSubtractDatePeriodsFromLeft
+row n = to_dt("1957-07-19T00:00:00.000Z") | eval then = -4 years - 3 months - 2 weeks - 1 day + n | keep then;
 
 then:datetime
 1953-04-04T00:00:00.000Z
+;
+
+dateMathSubtractDatePeriodsThenSubtractFromDatetime
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-4 years - 3 months - 2 weeks - 1 day)| keep then;
+
+then:datetime
+1957-07-19T00:00:00.000Z
+;
+
+dateMathAddTimeDurationsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = 1 hour + 1 minute + 1 second + 1 milliseconds + n  | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
 ;
 
 dateMathAddTimeDurationsThenAddToDatetime
@@ -636,9 +657,17 @@ then:datetime
 1953-04-04T01:01:01.001Z
 ;
 
-dateMathSubtractTimeDurationsThenAddToDatetime
-row n = to_dt("1953-04-04T01:01:01.001Z") | eval then = (-1 hour - 1 minute - 1 second - 1 milliseconds) + n | keep then;
+
+dateMathSubtractTimeDurationsFromLeft
+row n = to_dt("1953-04-04T01:01:01.001Z") | eval then = -1 hour - 1 minute - 1 second - 1 milliseconds + n | keep then;
 
 then:datetime
 1953-04-04T00:00:00.000Z
+;
+
+dateMathSubtractTimeDurationsThenSubtractFromDatetime
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-1 hour - 1 minute - 1 second - 1 milliseconds) | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
 ;

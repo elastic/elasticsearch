@@ -19,7 +19,7 @@ To avoid these limitations, use the process that is outlined below:
 
 . Create an index template for the destination data stream that will contain the re-indexed data.
 . Update the template to
-.. Set `index.time_series.start_time` and `index.time_series.end_time index` settings to
+.. Set `index.time_series.start_time` and `index.time_series.end_time` index settings to
 match the lowest and highest @timestamp values in the old data stream.
 .. Set the `index.number_of_shards` index setting to the sum of all primary shards of all backing
 indices of the old data stream.

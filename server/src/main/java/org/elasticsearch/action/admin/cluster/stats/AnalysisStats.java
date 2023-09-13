@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.TransportVersion.V_8_500_045;
+import static org.elasticsearch.TransportVersions.V_8_500_045;
 
 /**
  * Statistics about analysis usage.

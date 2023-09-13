@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -315,19 +314,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 }));
             }
         } else {
-            int openConnections = connectionManager.size();
-            if (openConnections == 0) {
-                assert false : "should not happen since onFailure should catch it and report with underlying cause";
-                finished.onFailure(getNoSeedNodeLeftException(Set.of()));
-            } else {
-                logger.debug(
-                    "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
-                    clusterAlias,
-                    openConnections,
-                    maxNumConnections
-                );
-                finished.onResponse(null);
-            }
+            logger.debug(
+                "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
+                clusterAlias,
+                connectionManager.size(),
+                maxNumConnections
+            );
+            finished.onResponse(null);
         }
     }
 
@@ -359,7 +352,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                 serverName = input.readString();
             } else {
                 serverName = null;
@@ -380,7 +373,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
                 out.writeString(serverName);
             }
             out.writeVInt(maxSocketConnections);

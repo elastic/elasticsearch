@@ -38,7 +38,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.logging*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
 
@@ -47,7 +47,8 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false
+    "enabled" : true,
+    ...
   },
   "monitoring" : {
     "available" : true,
@@ -475,6 +476,7 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
+// TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

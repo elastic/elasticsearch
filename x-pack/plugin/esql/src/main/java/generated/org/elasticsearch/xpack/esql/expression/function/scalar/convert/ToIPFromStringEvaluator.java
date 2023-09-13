@@ -31,7 +31,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
 
   @Override
   public String name() {
-    return "ToIP";
+    return "ToIPFromString";
   }
 
   @Override

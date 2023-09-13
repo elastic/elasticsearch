@@ -768,7 +768,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "max_index_version":%s
                   }
                 },
-                "transport_versions": []
+                "nodes_versions": []
               },
               "cluster_settings": {
                 "cluster": {

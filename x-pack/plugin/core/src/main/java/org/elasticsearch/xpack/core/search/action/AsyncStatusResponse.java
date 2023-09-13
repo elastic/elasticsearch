@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.search.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -136,12 +136,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
         } else {
             this.clusters = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
             this.completionTimeMillis = in.readOptionalVLong();
         } else {
             this.completionTimeMillis = null;
@@ -162,11 +162,11 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_035)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
             out.writeOptionalVLong(completionTimeMillis);
         }
     }

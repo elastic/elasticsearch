@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Filter block for LongBlocks.
  * This class is generated. Do not edit it.
  */
 final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterLongBlock.class);
 
     private final LongBlock block;
 
@@ -63,6 +67,13 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override

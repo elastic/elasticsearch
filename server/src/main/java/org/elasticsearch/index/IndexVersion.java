@@ -146,6 +146,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_7_17_11 = registerIndexVersion(7_17_11_99, Version.LUCENE_8_11_1, "f1935acc-1af9-44b0-97e9-67112d333753");
     public static final IndexVersion V_7_17_12 = registerIndexVersion(7_17_12_99, Version.LUCENE_8_11_1, "1a0719f2-96f4-4df5-b20d-62244e27d7d4");
     public static final IndexVersion V_7_17_13 = registerIndexVersion(7_17_13_99, Version.LUCENE_8_11_1, "171a73c6-3ece-4f10-804f-7104a97b557c");
+    public static final IndexVersion V_7_17_14 = registerIndexVersion(7_17_14_99, Version.LUCENE_8_11_1, "3012f344-15f5-4971-a5ff-56a792d9b263");
     public static final IndexVersion V_8_0_0 = registerIndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = registerIndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = registerIndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");
@@ -180,12 +181,13 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
     public static final IndexVersion V_8_9_2 = registerIndexVersion(8_09_02_99, Version.LUCENE_9_7_0, "14c7d64c-9e25-4265-b4fa-e0c5aca67f14");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
+    public static final IndexVersion V_8_10_1 = registerIndexVersion(8_10_01_99, Version.LUCENE_9_7_0, "5f4ccc3d-3769-4aef-819d-945c47b9a08b");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_0);
+        private static final IndexVersion CURRENT = findCurrent(V_8_10_1);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

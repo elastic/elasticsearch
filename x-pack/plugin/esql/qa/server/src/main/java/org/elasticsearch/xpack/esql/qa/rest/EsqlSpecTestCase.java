@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -88,8 +89,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest() throws Throwable {
-        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testCase.expectedWarnings);
+        RequestObjectBuilder requestBuilder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        requestBuilder.query(testCase.query);
+        // TODO: Randomize the query pragmas
+        requestBuilder.pragmas(Settings.builder().put("data_partitioning", "segment").build());
+        Map<String, Object> answer = runEsql(requestBuilder.build(), testCase.expectedWarnings);
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         assertNotNull(answer.get("columns"));

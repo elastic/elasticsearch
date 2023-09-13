@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -792,8 +793,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     }
                 );
                 for (String rolloverTarget : rolloverTargets) {
-                    // todo - log info that we apply a rollover
-                    logger.info("");
+                    logger.info(
+                        "rolling over data stream [{}] as a followup to the upgrade of the [{}] index template [{}]",
+                        rolloverTarget,
+                        getOrigin(),
+                        templateName
+                    );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
                     // todo - make configurable timeout
@@ -813,18 +818,15 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
         for (RolloverResponse rolloverResponse : rolloverResponses) {
             if (rolloverResponse.isRolledOver() == false) {
-                // todo - log warning for each non-rolled-over
-                logger.warn("");
+                logger.warn("rollover of the [{}] index [{}] failed", getOrigin(), rolloverResponse.getOldIndex());
             }
         }
     }
 
     void onRolloverFailure(Exception e) {
-        // todo - log error for e
-        logger.error("");
+        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed", getOrigin()), e);
         for (Throwable throwable : e.getSuppressed()) {
-            // todo - log the same
-            logger.error("");
+            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed", getOrigin()), throwable);
         }
     }
 

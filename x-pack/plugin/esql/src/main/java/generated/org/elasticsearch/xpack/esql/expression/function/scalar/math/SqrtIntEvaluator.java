@@ -4,24 +4,29 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sqrt}.
  * This class is generated. Do not edit it.
  */
 public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
-  public SqrtIntEvaluator(EvalOperator.ExpressionEvaluator val) {
+  public SqrtIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val) {
+    this.warnings = new Warnings(source);
     this.val = val;
   }
 
@@ -36,7 +41,7 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
     if (valVector == null) {
       return eval(page.getPositionCount(), valBlock);
     }
-    return eval(page.getPositionCount(), valVector).asBlock();
+    return eval(page.getPositionCount(), valVector);
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
@@ -46,15 +51,25 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
         result.appendNull();
         continue position;
       }
-      result.appendDouble(Sqrt.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+      try {
+        result.appendDouble(Sqrt.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, IntVector valVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, IntVector valVector) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Sqrt.process(valVector.getInt(p)));
+      try {
+        result.appendDouble(Sqrt.process(valVector.getInt(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }

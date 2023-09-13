@@ -131,7 +131,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> properties = indexConcurrently(
             numberOfFieldsToCreate,
             Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate),
-            Map.of("dynamic", "until_limit")
+            Map.of("dynamic", "true_until_limit")
         );
         // every field is a multi-field (text + keyword)
         assertThat(properties.size(), equalTo(16));
@@ -332,6 +332,39 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
     }
 
+    public void testFieldLimitRuntimeAndDynamic() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5).build())
+                .setMapping("""
+                    {
+                      "dynamic": "runtime",
+                      "properties": {
+                        "runtime": {
+                          "type": "object"
+                        },
+                        "mapped_obj": {
+                          "type": "object",
+                          "dynamic": "true_until_limit"
+                        }
+                      }
+                    }""")
+                .get()
+        );
+
+        client().index(
+            new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(orderedMap("dynamic.keyword", "foo", "mapped_obj.number", 1, "mapped_obj.string", "foo"))
+        ).get();
+
+        var fields = client().prepareSearch("test").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0]
+            .getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("dynamic.keyword", "mapped_obj.number", "_ignored")));
+        assertThat(fields.get("dynamic.keyword").getValues(), equalTo(List.of("foo")));
+        assertThat(fields.get("mapped_obj.number").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("mapped_obj.string")));
+    }
+
     private LinkedHashMap<String, Object> orderedMap(Object... entries) {
         var map = new LinkedHashMap<String, Object>();
         for (int i = 0; i < entries.length; i += 2) {
@@ -345,7 +378,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             .indices()
             .prepareCreate("index")
             .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit).build())
-            .setMapping(Map.of("dynamic", "until_limit"))
+            .setMapping(Map.of("dynamic", "true_until_limit"))
             .get();
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();

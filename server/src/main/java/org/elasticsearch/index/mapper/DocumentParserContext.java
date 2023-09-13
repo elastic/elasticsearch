@@ -301,8 +301,8 @@ public abstract class DocumentParserContext {
      *
      * @return returns <code>true</code> if the mapper could be created, <code>false</code> if the dynamic mapper has been ignored due to
      * the field limit
-     * @throws IllegalArgumentException if the field limit has been exceeded and it's not possible to ignore the dynamic field according to
-     * the index settings
+     * @throws IllegalArgumentException if the field limit has been exceeded.
+     * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
     public final boolean addDynamicMapper(Mapper mapper) {
         // eagerly check object depth limit here to avoid stack overflow errors
@@ -317,7 +317,7 @@ public abstract class DocumentParserContext {
             && mappingLookup.objectMappers().containsKey(mapper.name()) == false
             && dynamicMappers.containsKey(mapper.name()) == false) {
             int additionalFieldsToAdd = getNewDynamicMappersSize() + mapper.mapperSize();
-            if (dynamic == ObjectMapper.Dynamic.UNTIL_LIMIT) {
+            if (dynamic == ObjectMapper.Dynamic.TRUE_UNTIL_LIMIT) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     addIgnoredField(mapper.name());
                     return false;
@@ -357,12 +357,18 @@ public abstract class DocumentParserContext {
      * However, in order for users to get to the field limit, we should try to be as close as possible to the actual field count.
      * If we under-count fields here (for example by not counting multi-fields),
      * we may only know that we exceed the field limit during the mapping update.
-     * This leads to document rejection instead of ignoring fields above the limit if Dynamic.UNTIL_LIMIT is configured for the index.
+     * This leads to document rejection instead of ignoring fields above the limit if Dynamic.TRUE_UNTIL_LIMIT is configured for the index.
      * If we over-count the fields (for example by counting all mappers with the same name),
      * we may reject fields earlier than necessary and before actually hitting the field limit.
      */
     private int getNewDynamicMappersSize() {
-        return dynamicMappers.values().stream().mapToInt(mappers -> mappers.stream().mapToInt(Mapper::mapperSize).max().orElse(0)).sum();
+        return dynamicMappers.values()
+            .stream()
+            // we're taking the largest mapper in case there are multiple mappers for the same field
+            // we may under-count if the mappers are merged in a way where the total size of the field is greater than the largest mapper
+            // we can't just accumulate the sizes as we get a dynamic mapper for each element in an array, even if the type is the same
+            .mapToInt(mappers -> mappers.stream().mapToInt(Mapper::mapperSize).max().orElse(0))
+            .sum() + dynamicRuntimeFields.size();
     }
 
     /**
@@ -409,7 +415,7 @@ public abstract class DocumentParserContext {
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), dynamicRuntimeFields.size() + 1);
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getNewDynamicMappersSize() + 1);
         }
         dynamicRuntimeFields.computeIfAbsent(runtimeField.name(), k -> new ArrayList<>(1)).add(runtimeField);
         return true;

@@ -48,7 +48,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return DynamicFieldsBuilder.DYNAMIC_TRUE;
             }
         },
-        UNTIL_LIMIT {
+        TRUE_UNTIL_LIMIT {
             @Override
             DynamicFieldsBuilder getDynamicFieldsBuilder() {
                 return DynamicFieldsBuilder.DYNAMIC_TRUE;
@@ -224,8 +224,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
                     builder.dynamic(Dynamic.RUNTIME);
-                } else if (value.equalsIgnoreCase("until_limit")) {
-                    builder.dynamic(Dynamic.UNTIL_LIMIT);
+                } else if (value.equalsIgnoreCase("true_until_limit")) {
+                    builder.dynamic(Dynamic.TRUE_UNTIL_LIMIT);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);

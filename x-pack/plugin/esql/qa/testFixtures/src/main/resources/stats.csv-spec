@@ -293,15 +293,15 @@ byStringAndLong
 FROM employees
 | EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
 | STATS c = COUNT(gender) by gender, trunk_worked_seconds
-| SORT c desc;
+| SORT c desc, gender, trunk_worked_seconds desc;
 
 c:long | gender:keyword | trunk_worked_seconds:long
 30     | M              | 300000000
 27     | M              | 200000000
 22     | F              | 300000000
 11     | F              | 200000000
- 0     | null           | 200000000
  0     | null           | 300000000
+ 0     | null           | 200000000
 ;
 
 byStringAndLongWithAlias
@@ -310,15 +310,15 @@ FROM employees
 | RENAME  gender as g, trunk_worked_seconds as tws
 | KEEP g, tws
 | STATS c = count(g) by g, tws
-| SORT c desc;
+| SORT c desc, g, tws desc;
 
 c:long | g:keyword | tws:long
 30     | M         | 300000000
 27     | M         | 200000000
 22     | F         | 300000000
 11     | F         | 200000000
- 0     | null      | 200000000
  0     | null      | 300000000
+ 0     | null      | 200000000
 ;
 
 byStringAndString

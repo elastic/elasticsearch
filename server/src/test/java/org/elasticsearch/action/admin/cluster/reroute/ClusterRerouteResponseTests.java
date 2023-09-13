@@ -129,7 +129,8 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                         "nodes_versions": [
                           {
                             "node_id": "node0",
-                            "transport_version": "8000099"
+                            "transport_version": "8000099",
+                            "mappings_versions": {}
                           }
                         ],
                         "metadata": {

@@ -12,26 +12,22 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import java.util.Objects;
 
 /**
  * Get snapshot global state status request
  */
 public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobalStateRequest> {
 
-    private String repository = "_all";
+    private final String repository;
 
-    private String snapshot;
-
-    public SnapshotGlobalStateRequest() {}
+    private final String snapshot;
 
     /**
      * Constructs a new get snapshots request with given repository name and list of snapshots
@@ -40,8 +36,8 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
      * @param snapshot  snapshot name
      */
     public SnapshotGlobalStateRequest(String repository, String snapshot) {
-        this.repository = repository;
-        this.snapshot = snapshot;
+        this.repository = Objects.requireNonNull(repository);
+        this.snapshot = Objects.requireNonNull(snapshot);
     }
 
     public SnapshotGlobalStateRequest(StreamInput in) throws IOException {
@@ -59,30 +55,12 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (repository == null) {
-            validationException = addValidationError("repository is missing", validationException);
-        }
-        if (snapshot == null) {
-            validationException = addValidationError("snapshot is null", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
-    }
-
-    /**
-     * Sets repository name
-     *
-     * @param repository repository name
-     * @return this request
-     */
-    public SnapshotGlobalStateRequest repository(String repository) {
-        this.repository = repository;
-        return this;
     }
 
     /**
@@ -101,15 +79,6 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
      */
     public String snapshot() {
         return this.snapshot;
-    }
-
-    public SnapshotId snapshotId() {
-        return null;
-    }
-
-    public SnapshotGlobalStateRequest snapshot(String snapshot) {
-        this.snapshot = snapshot;
-        return this;
     }
 
     @Override

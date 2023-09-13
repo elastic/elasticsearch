@@ -21,7 +21,7 @@ public class SnapshotGlobalStateRequestBuilder extends MasterNodeOperationReques
     }
 
     public SnapshotGlobalStateRequestBuilder setSnapshot(String snapshot) {
-        request.snapshot(snapshot);
+        request.snapshot();
         return this;
     }
 }

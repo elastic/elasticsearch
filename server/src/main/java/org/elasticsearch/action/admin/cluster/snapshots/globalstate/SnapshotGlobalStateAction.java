@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionType;
 public class SnapshotGlobalStateAction extends ActionType<SnapshotGlobalStateResponse> {
 
     public static final SnapshotGlobalStateAction INSTANCE = new SnapshotGlobalStateAction();
-    public static final String NAME = "cluster:admin/snapshot/globalstate";
+    public static final String NAME = "cluster:admin/snapshot/get/global_state";
 
     private SnapshotGlobalStateAction() {
         super(NAME, SnapshotGlobalStateResponse::new);

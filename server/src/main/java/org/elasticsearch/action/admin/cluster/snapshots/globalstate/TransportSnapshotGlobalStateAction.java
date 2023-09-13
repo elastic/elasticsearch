@@ -42,7 +42,7 @@ public class TransportSnapshotGlobalStateAction extends TransportMasterNodeActio
             SnapshotGlobalStateRequest::new,
             indexNameExpressionResolver,
             SnapshotGlobalStateResponse::new,
-            ThreadPool.Names.SNAPSHOT_META
+            ThreadPool.Names.SAME
         );
         this.snapshotsService = snapshotsService;
     }

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.upgrades;
 
-enum FullClusterRestartUpgradeStatus {
+enum RollingUpgradeStatus {
     OLD,
+    ONE_THIRDS_UPGRADED,
+    TWO_THIRDS_UPGRADED,
     UPGRADED
 }

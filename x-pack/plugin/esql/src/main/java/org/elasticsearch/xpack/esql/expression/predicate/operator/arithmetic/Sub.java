@@ -44,6 +44,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     protected TypeResolution resolveType() {
         TypeResolution resolution = super.resolveType();
+        // As opposed to general date time arithmetics, we cannot subtract a datetime from something else.
         if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(right().dataType())) {
             return new TypeResolution(
                 format(

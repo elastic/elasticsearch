@@ -11,11 +11,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: # TODO dynamic
-              - 7.17.13
-              - 8.9.2
-              - 8.10.0
-              - 8.11.0
+            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
         agents:
           provider: gcp
           image: family/elasticsearch-windows-2022

@@ -9,6 +9,9 @@ process.env["GITHUB_PR_TARGET_BRANCH"] = process.env["GITHUB_PR_TARGET_BRANCH"] 
 // process.env["GITHUB_PR_TRIGGER_COMMENT"] =
 //   "hey run elasticsearch-ci/build-benchmarks please and run elasticsearch-ci/part-2";
 
+const BWC_VERSIONS = parse(readFileSync(".ci/bwcVersions", "utf-8")).BWC_VERSION;
+const SNAPSHOT_BWC_VERSIONS = parse(readFileSync(".ci/snapshotBwcVersions", "utf-8")).BWC_VERSION;
+
 type PipelineConfig = {
   config: {
     "allow-labels"?: string | string[];
@@ -19,10 +22,20 @@ type PipelineConfig = {
   };
 };
 
-type Pipeline = PipelineConfig & {
-  name: string;
-  steps: any[];
+type BuildkiteStep = {
+  steps?: BuildkiteStep[];
+  group?: string;
+  bwc_template?: boolean;
 };
+
+type BuildkitePipeline = {
+  steps?: BuildkiteStep[];
+};
+
+type Pipeline = PipelineConfig &
+  BuildkitePipeline & {
+    name: string;
+  };
 
 let defaults: PipelineConfig = { config: {} };
 defaults = parse(readFileSync(".buildkite/pipelines/pull-request/.defaults.yml", "utf-8"));
@@ -35,7 +48,8 @@ for (const file of files) {
     continue;
   }
 
-  const yaml = readFileSync(`.buildkite/pipelines/pull-request/${file}`, "utf-8");
+  let yaml = readFileSync(`.buildkite/pipelines/pull-request/${file}`, "utf-8");
+  yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(SNAPSHOT_BWC_VERSIONS));
   const pipeline: Pipeline = parse(yaml) || {};
 
   pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };
@@ -125,6 +139,31 @@ if (process.env["GITHUB_PR_TRIGGER_COMMENT"]) {
 
 for (const filter of filters) {
   pipelines = pipelines.filter(filter);
+}
+
+// Recursively check for any steps that have a bwc_template attribute and expand them out into multiple steps, one for each BWC_VERSION
+const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
+  const stepsToExpand = (step.steps || []).filter((s) => s.bwc_template);
+  step.steps = (step.steps || []).filter((s) => !s.bwc_template);
+
+  for (const s of step.steps) {
+    if (s.steps?.length) {
+      doBwcTransforms(s);
+    }
+  }
+
+  for (const stepToExpand of stepsToExpand) {
+    for (const bwcVersion of BWC_VERSIONS) {
+      const newStepJson = JSON.stringify(stepToExpand).replaceAll("$BWC_VERSION", bwcVersion);
+      const newStep = JSON.parse(newStepJson);
+      delete newStep.bwc_template;
+      step.steps.push(newStep);
+    }
+  }
+};
+
+for (const pipeline of pipelines) {
+  doBwcTransforms(pipeline);
 }
 
 const finalPipeline: { steps: any[] } = { steps: [] };

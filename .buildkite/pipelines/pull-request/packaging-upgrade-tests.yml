@@ -1,3 +1,21 @@
 config:
   allow-labels: ":Delivery/Packaging"
-# TODO BWC_VERSION expansion
+steps:
+  - group: packaging-tests-upgrade
+    steps:
+      - label: "{{matrix.image}} / $BWC_VERSION / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$BWC_VERSION
+        timeout_in_minutes: 300
+        bwc_template: true
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: $BWC_VERSION

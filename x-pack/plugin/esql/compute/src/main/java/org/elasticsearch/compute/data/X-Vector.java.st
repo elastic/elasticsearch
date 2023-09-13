@@ -13,7 +13,6 @@ $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 $if(BytesRef)$
-import org.elasticsearch.common.util.BigArrays;
 
 $else$
 $endif$
@@ -117,7 +116,7 @@ $endif$
         if (constant && positions > 0) {
             return new Constant$Type$Vector(in.read$Type$(), positions);
         } else {
-            var builder = $Type$Vector.newVectorBuilder(positions$if(BytesRef)$, BigArrays.NON_RECYCLING_INSTANCE$endif$);
+            var builder = $Type$Vector.newVectorBuilder(positions);
             for (int i = 0; i < positions; i++) {
                 builder.append$Type$(in.read$Type$());
             }
@@ -147,14 +146,8 @@ $endif$
         }
     }
 
-$if(BytesRef)$
-    static Builder newVectorBuilder(int estimatedSize) { // For now
-        return new $Type$VectorBuilder(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
-    }
-$endif$
-
-    static Builder newVectorBuilder(int estimatedSize$if(BytesRef)$, BigArrays bigArrays$endif$) {
-        return new $Type$VectorBuilder(estimatedSize$if(BytesRef)$, bigArrays$endif$);
+    static Builder newVectorBuilder(int estimatedSize) {
+        return new $Type$VectorBuilder(estimatedSize);
     }
 
 $if(int)$

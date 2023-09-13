@@ -20,7 +20,7 @@ public class ShapeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new ShapeFieldMapper.Builder("field", IndexVersion.current(), false, true).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));

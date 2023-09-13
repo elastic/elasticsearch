@@ -290,23 +290,35 @@ null
 ;
 
 byStringAndLong
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = COUNT(gender) by gender, trunk_worked_seconds
+| SORT c desc, gender, trunk_worked_seconds desc;
 
 c:long | gender:keyword | trunk_worked_seconds:long
-30 | M | 300000000
-27 | M | 200000000
-22 | F | 300000000
-11 | F | 200000000
+30     | M              | 300000000
+27     | M              | 200000000
+22     | F              | 300000000
+11     | F              | 200000000
+ 0     | null           | 300000000
+ 0     | null           | 200000000
 ;
 
 byStringAndLongWithAlias
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename  gender as g, trunk_worked_seconds as tws | keep g, tws | stats c = count(g) by g, tws | sort c desc;
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| RENAME  gender as g, trunk_worked_seconds as tws
+| KEEP g, tws
+| STATS c = count(g) by g, tws
+| SORT c desc, g, tws desc;
 
 c:long | g:keyword | tws:long
-30 | M | 300000000
-27 | M | 200000000
-22 | F | 300000000
-11 | F | 200000000
+30     | M         | 300000000
+27     | M         | 200000000
+22     | F         | 300000000
+11     | F         | 200000000
+ 0     | null      | 300000000
+ 0     | null      | 200000000
 ;
 
 byStringAndString
@@ -324,53 +336,63 @@ c:long | gender:keyword | hire_year_str:keyword
 ;
 
 byLongAndLong
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(languages.long) by languages.long, trunk_worked_seconds | sort c desc;
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = COUNT(languages.long) BY languages.long, trunk_worked_seconds
+| SORT c DESC, languages.long, trunk_worked_seconds;
 
-c:long | languages.long:long | trunk_worked_seconds:long
-15 | 5 | 300000000
-11 | 2 | 300000000
-10 | 4 | 300000000
- 9 | 3 | 200000000
- 8 | 2 | 200000000
- 8 | 4 | 200000000
- 8 | 3 | 300000000
- 8 | 1 | 200000000
- 7 | 1 | 300000000
- 6 | 5 | 200000000
+c:long         | languages.long:long | trunk_worked_seconds:long
+15             |5                    |300000000
+11             |2                    |300000000
+10             |4                    |300000000
+9              |3                    |200000000
+8              |1                    |200000000
+8              |2                    |200000000
+8              |3                    |300000000
+8              |4                    |200000000
+7              |1                    |300000000
+6              |5                    |200000000
+0              |null                 |200000000
+0              |null                 |300000000
 ;
 
 byUnmentionedLongAndLong
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages.long, trunk_worked_seconds | sort c desc;
+FROM employees
+| EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+| STATS c = count(gender) by languages.long, trunk_worked_seconds
+| SORT c desc, trunk_worked_seconds, languages.long;
 
 c:long | languages.long:long | trunk_worked_seconds:long
-13 | 5 | 300000000
-10 | 2 | 300000000
- 9 | 4 | 300000000
- 9 | 3 | 200000000
- 8 | 4 | 200000000
- 8 | 3 | 300000000
- 7 | 1 | 200000000
- 6 | 2 | 200000000
- 6 | 1 | 300000000
- 4 | 5 | 200000000
+13     |5                    |300000000           
+10     |2                    |300000000           
+9      |3                    |200000000           
+9      |4                    |300000000           
+8      |4                    |200000000           
+8      |3                    |300000000           
+7      |1                    |200000000           
+6      |2                    |200000000           
+6      |1                    |300000000           
+6      |null                 |300000000           
+4      |5                    |200000000           
+4      |null                 |200000000
 ;
 
 byUnmentionedIntAndLong
-from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc, languages, trunk_worked_seconds;
 
 c:long | languages:integer | trunk_worked_seconds:long
-    13 |                 5 | 300000000
-    10 |                 2 | 300000000
-     9 |                 4 | 300000000
-     9 |                 3 | 200000000
-     8 |                 4 | 200000000
-     8 |                 3 | 300000000
-     7 |                 1 | 200000000
-     6 |                 2 | 200000000
-     6 |              null | 300000000
-     6 |                 1 | 300000000
-     4 |              null | 200000000
-     4 |                 5 | 200000000
+13             |5              |300000000           
+10             |2              |300000000           
+9              |3              |200000000           
+9              |4              |300000000           
+8              |3              |300000000           
+8              |4              |200000000           
+7              |1              |200000000           
+6              |1              |300000000           
+6              |2              |200000000           
+6              |null           |300000000           
+4              |5              |200000000       
+4              |null           |200000000           
 ;
 
 byUnmentionedIntAndBoolean
@@ -392,7 +414,7 @@ c:long | languages:integer | still_hired:boolean
 ;
 
 byDateAndKeywordAndInt
-from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
+from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc, gender desc | limit 10;
 
 c:long |           d:date         | gender:keyword | languages:integer
      3 | 1986-01-01T00:00:00.000Z | M              | 2
@@ -408,7 +430,7 @@ c:long |           d:date         | gender:keyword | languages:integer
 ;
 
 byDateAndKeywordAndIntWithAlias
-from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc, g desc | limit 10;
 
 c:long |           d:date         | g:keyword | l:integer
      3 | 1986-01-01T00:00:00.000Z | M         | 2
@@ -474,8 +496,7 @@ min(salary):i | max(salary):i | c:l
 ;
 
 statsWithLiterals
-from employees | limit 10 | eval x = 1 | stats c = count(x)
-;
+from employees | limit 10 | eval x = 1 | stats c = count(x);
 
 c:l
 10

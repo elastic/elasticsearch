@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         transportService.acceptIncomingRequests();
         transportService.registerRequestHandler(
             TransportUnpromotableShardRefreshAction.NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             UnpromotableShardRefreshRequest::new,
             (request, channel, task) -> {
                 unpromotableRefreshRequestReceived.set(true);

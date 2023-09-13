@@ -83,7 +83,7 @@ public class BulkRequest extends ActionRequest
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
+        requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
     }

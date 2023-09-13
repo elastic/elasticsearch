@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +34,6 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
  */
 public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskListener {
     private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
-    public static final String REPLACEMENT_SOURCE_INDEX = "replacement_source_index";
     private ActionListener<Void> listener;
     private final String dataStreamName;
     private final String sourceBackingIndex;
@@ -166,13 +164,11 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
     ) {
         IndexMetadata.Builder downsampleIndexBuilder = IndexMetadata.builder(dest);
         Map<String, String> lifecycleCustomMetadata = source.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
-        Map<String, String> newCustomMetadata = new HashMap<>();
         if (lifecycleCustomMetadata != null) {
-            newCustomMetadata.putAll(lifecycleCustomMetadata);
+            // this will, for now, ensure that DSL tail merging is skipped for the downsample index (and it should be as the downsample
+            // transport action forcemerged the downsample index to 1 segment)
+            downsampleIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, lifecycleCustomMetadata);
         }
-        newCustomMetadata.put(REPLACEMENT_SOURCE_INDEX, source.getIndex().getName());
-        downsampleIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, newCustomMetadata);
-
         if (IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.exists(dest.getSettings()) == false) {
             downsampleIndexBuilder.settings(
                 Settings.builder()

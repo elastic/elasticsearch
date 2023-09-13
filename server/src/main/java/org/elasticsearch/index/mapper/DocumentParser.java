@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
@@ -40,10 +41,15 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
+
 /**
  * A parser for documents
  */
 public final class DocumentParser {
+
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_11_0;
 
     private final XContentParserConfiguration parserConfiguration;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
@@ -244,13 +250,12 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        for (Mapper mapper : context.getDynamicMappers()) {
-            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
-        }
+        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.name(), null, mapper, context));
+
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic()));
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 
@@ -588,6 +593,33 @@ public final class DocumentParser {
                 parseValue(context, lastFieldName);
             }
         }
+        postProcessDynamicArrayMapping(context, lastFieldName);
+    }
+
+    /**
+     * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
+     */
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            final String fullFieldName = builderContext.buildFullName(fieldName);
+            final List<Mapper> mappers = context.getDynamicMappers(fullFieldName);
+            if (mappers == null
+                || context.isFieldAppliedFromTemplate(fullFieldName)
+                || context.isCopyToField(fullFieldName)
+                || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || mappers.size() > MAX_DIMS_COUNT
+                || mappers.stream().allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())) == false) {
+                return;
+            }
+
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                fieldName,
+                context.indexSettings().getIndexVersionCreated()
+            );
+            DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
+            context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
+        }
     }
 
     private static void throwEOFOnParseArray(String arrayFieldName, DocumentParserContext context) {
@@ -677,6 +709,7 @@ public final class DocumentParser {
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
             innerParseObject(copyToContext);
+            context.markFieldAsCopyTo(field);
         }
     }
 

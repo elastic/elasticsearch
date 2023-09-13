@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -66,6 +67,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndi
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -108,7 +110,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -621,6 +622,10 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.current(),
+                systemIndices.getMappingsVersions()
+            );
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
@@ -628,7 +633,8 @@ public class Node implements Closeable {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 xContentRegistry,
                 clusterService.getClusterSettings(),
-                threadPool
+                threadPool,
+                compatibilityVersions
             );
 
             // collect engine factory providers from plugins
@@ -942,7 +948,8 @@ public class Node implements Closeable {
                 gatewayMetaState,
                 rerouteService,
                 fsHealthService,
-                circuitBreakerService
+                circuitBreakerService,
+                compatibilityVersions
             );
             this.nodeService = new NodeService(
                 settings,
@@ -1027,14 +1034,14 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+            final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
                 transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
-            HealthService healthService = createHealthService(
+            final HealthService healthService = createHealthService(
                 clusterService,
                 clusterModule,
                 coordinationDiagnosticsService,
@@ -1152,10 +1159,11 @@ public class Node implements Closeable {
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
+                b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             });
 
             if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(newReadinessService(clusterService, environment)));
             }
 
             injector = modules.createInjector();
@@ -1289,26 +1297,18 @@ public class Node implements Closeable {
         ThreadPool threadPool,
         SystemIndices systemIndices
     ) {
-        List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
+        var serverHealthIndicatorServices = List.of(
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
+            new DiskHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService)
         );
-        var serverHealthIndicatorServices = new ArrayList<>(
-            List.of(
-                new RepositoryIntegrityHealthIndicatorService(clusterService),
-                new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices)
-            )
-        );
-        serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
-        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
             .toList();
-        return new HealthService(
-            preflightHealthIndicatorServices,
-            concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices),
-            threadPool
-        );
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
     }
 
     private HealthPeriodicLogger createHealthPeriodicLogger(
@@ -1363,7 +1363,8 @@ public class Node implements Closeable {
     private PersistedClusterStateService newPersistedClusterStateService(
         NamedXContentRegistry xContentRegistry,
         ClusterSettings clusterSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        CompatibilityVersions compatibilityVersions
     ) {
         final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
             .filterPlugins(ClusterCoordinationPlugin.class)
@@ -1378,7 +1379,7 @@ public class Node implements Closeable {
 
         if (persistedClusterStateServiceFactories.size() == 1) {
             return persistedClusterStateServiceFactories.get(0)
-                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool, compatibilityVersions);
         }
 
         return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis);
@@ -1483,7 +1484,8 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            injector.getInstance(CompatibilityVersions.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
         if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {
@@ -1911,7 +1913,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new SearchService. This method can be overwritten by tests to inject mock implementations.
      */
     protected SearchService newSearchService(
         ClusterService clusterService,
@@ -1940,7 +1942,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Creates a new the ScriptService. This method can be overwritten by tests to inject mock implementations.
+     * Creates a new ScriptService. This method can be overwritten by tests to inject mock implementations.
      */
     protected ScriptService newScriptService(
         Settings settings,
@@ -1949,6 +1951,13 @@ public class Node implements Closeable {
         LongSupplier timeProvider
     ) {
         return new ScriptService(settings, engines, contexts, timeProvider);
+    }
+
+    /**
+     * Creates a new ReadinessService. This method can be overwritten by tests to inject mock implementations.
+     */
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        return new ReadinessService(clusterService, environment);
     }
 
     /**

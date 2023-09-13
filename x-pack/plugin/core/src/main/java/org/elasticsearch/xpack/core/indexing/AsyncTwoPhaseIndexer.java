@@ -77,16 +77,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+            this.scheduled = threadPool.schedule(command, delay, threadPool.generic());
         }
 
         public void reschedule(TimeValue delay) {
             // note: cancel return true if the runnable is currently executing
             if (scheduled.cancel()) {
                 if (delay.duration() > 0) {
-                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
+                    scheduled = threadPool.schedule(command, delay, threadPool.generic());
                 } else {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
+                    threadPool.generic().execute(command);
                 }
             }
         }

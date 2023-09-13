@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -61,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -69,7 +73,6 @@ import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
 public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
@@ -84,11 +87,18 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch());
+        var substitutions = new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceFieldAttributesWithExactSubfield()
+        );
 
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
+            new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -300,6 +310,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    /**
+     * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
+     * TODO: eliminate unnecessary fields inside the eval as well
+     */
+    static class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+
+        CombineEvals() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            LogicalPlan plan = eval;
+            if (eval.child() instanceof Eval subEval) {
+                plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
+            }
+            return plan;
         }
     }
 
@@ -575,7 +605,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();
 
-            // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
@@ -786,10 +815,25 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
-        @Override
+    /**
+     * Combine disjunctions on the same field into an In expression.
+     * This rule looks for both simple equalities:
+     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
+     * and combinations of In
+     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
+     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+     *
+     * This rule does NOT check for type compatibility as that phase has been
+     * already be verified in the analyzer.
+     */
+    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
+
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values);
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
     }
 
@@ -802,6 +846,31 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 p = new TopN(plan.source(), o.child(), o.order(), plan.limit());
             }
             return p;
+        }
+    }
+
+    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    private static class ReplaceFieldAttributesWithExactSubfield extends OptimizerRules.OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Filter || plan instanceof OrderBy || plan instanceof Aggregate) {
+                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceFieldAttributesWithExactSubfield::toExact);
+            }
+            return plan;
+        }
+
+        private static FieldAttribute toExact(FieldAttribute fa) {
+            if (fa.getExactInfo().hasExact() && fa.exactAttribute() != fa) {
+                return fa.exactAttribute();
+            }
+            return fa;
         }
     }
 }

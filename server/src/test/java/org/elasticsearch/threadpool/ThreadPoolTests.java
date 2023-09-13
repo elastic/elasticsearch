@@ -265,7 +265,7 @@ public class ThreadPoolTests extends ESTestCase {
                 assertNull(threadPool.getThreadContext().getHeader("bar"));
                 assertNull(threadPool.getThreadContext().getTransient("bar"));
                 executed.countDown();
-            }, TimeValue.timeValueMillis(randomInt(100)), randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            }, TimeValue.timeValueMillis(randomInt(100)), randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic()));
             threadPool.getThreadContext().putTransient("bar", "boom");
             threadPool.getThreadContext().putHeader("bar", "boom");
             latch.countDown();
@@ -310,7 +310,7 @@ public class ThreadPoolTests extends ESTestCase {
                     return "slow-test-task";
                 }
             };
-            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), ThreadPool.Names.SAME);
+            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, appender);

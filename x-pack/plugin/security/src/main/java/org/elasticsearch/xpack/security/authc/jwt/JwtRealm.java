@@ -372,7 +372,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private void processValidatedJwt(
+    // package private for testing
+    void processValidatedJwt(
         String tokenPrincipal,
         BytesArray jwtCacheKey,
         JWTClaimsSet claimsSet,
@@ -449,7 +450,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         if (isCacheEnabled()) {
             try {
                 logger.trace("Invalidating JWT cache for realm [{}]", name());
-                try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
+                try (ReleasableLock ignored = jwtCacheHelper.acquireForIterator()) {
                     jwtCache.invalidateAll();
                 }
                 logger.debug("Invalidated JWT cache for realm [{}]", name());
@@ -482,6 +483,16 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return Map.copyOf(metadata);
     }
 
+    // We construct the token principal as a function of the JWT realm configuration. We also short circuit the extraction of the
+    // token principal while we iterate through the realms. For realms like the file realm this is not an issue since there is only
+    // one file realm. For realms like LDAP this is also not an issue since the token principal is identical across all realms regardless
+    // of how the realm is configured. However, for realms like JWT (and PKI realm) where the token principal is a function of the
+    // realm configuration AND multiple realms of that type can exist this can be an issue. This is an issue because realm1 might
+    // result in the token principal "abc", but realm2 (same JWT) might result in the token principal as "xyz". Since we short circuit the
+    // extraction of the token principal (i.e. use the first one that does not error) then the same JWT token can result in a
+    // token principal of either "abc" or "xyz" depending on which came first. This means that we can not rely on the value calculated here
+    // to be logically correct within the context of a given realm. The value is technically correct as the value is a function of
+    // the JWT itself, but which function (from realm1 or realm2) can not be known. The value emitted here should be used judiciously.
     private String buildTokenPrincipal(JWTClaimsSet jwtClaimsSet) {
         final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
         final FallbackableClaim subClaim = new FallbackableClaim("sub", fallbackClaimNames, jwtClaimsSet);

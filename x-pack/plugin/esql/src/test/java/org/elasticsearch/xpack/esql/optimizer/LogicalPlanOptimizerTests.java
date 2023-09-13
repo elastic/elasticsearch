@@ -17,6 +17,13 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
@@ -48,17 +55,12 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -86,12 +88,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
-import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
-import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
-import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
-import static org.elasticsearch.xpack.ql.TestUtils.rlike;
-import static org.elasticsearch.xpack.ql.TestUtils.wildcardLike;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
@@ -258,6 +255,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var from = as(agg.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * EsqlProject[[x{r}#3, y{r}#6]]
+     * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testCombineEvals() {
+        var plan = plan("""
+            from test
+            | eval x = emp_no + 2
+            | eval y = salary + 3
+            | keep x, y
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     public void testCombineLimits() {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
@@ -284,6 +303,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             plan = new Limit(EMPTY, L(value), plan);
         }
         assertEquals(new Limit(EMPTY, L(minimum), relation), new LogicalPlanOptimizer().optimize(plan));
+    }
+
+    public static GreaterThan greaterThanOf(Expression left, Expression right) {
+        return new GreaterThan(EMPTY, left, right, randomZone());
+    }
+
+    public static LessThan lessThanOf(Expression left, Expression right) {
+        return new LessThan(EMPTY, left, right, randomZone());
+    }
+
+    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
+        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
     }
 
     public void testCombineFilters() {
@@ -330,7 +361,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testPushDownLikeRlikeFilter() {
         EsRelation relation = relation();
-        RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        org.elasticsearch.xpack.ql.expression.predicate.regex.RLike conditionA = rlike(getFieldAttribute("a"), "foo");
         WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
@@ -768,9 +799,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("z", "emp_no"));
         var eval = as(topN.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("z"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
         as(eval.child(), EsRelation.class);
     }
 
@@ -1418,6 +1447,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(new LogicalPlanOptimizer.SplitInWithFoldableValue().rule(in), equalTo(expected));
     }
 
+    public void testReplaceFilterWithExact() {
+        var plan = plan("""
+              from test
+            | where job == "foo"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        Equals equals = as(filter.condition(), Equals.class);
+        FieldAttribute left = as(equals.left(), FieldAttribute.class);
+        assertThat(left.name(), equalTo("job.raw"));
+    }
+
+    public void testReplaceExpressionWithExact() {
+        var plan = plan("""
+              from test
+            | eval x = job
+            """);
+
+        var eval = as(plan, Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        var field = as(alias.child(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("job"));
+    }
+
+    public void testReplaceSortWithExact() {
+        var plan = plan("""
+              from test
+            | sort job
+            """);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.order().size(), equalTo(1));
+        var sortField = as(topN.order().get(0).child(), FieldAttribute.class);
+        assertThat(sortField.name(), equalTo("job.raw"));
+    }
+
     public void testPruneUnusedEval() {
         var plan = plan("""
               from test
@@ -1553,8 +1619,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var eval = as(plan, Eval.class);
-        eval = as(eval.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
     }
@@ -1584,9 +1648,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("y"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
     }
@@ -1616,4 +1678,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
 }

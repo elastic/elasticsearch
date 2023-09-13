@@ -8,11 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.RamUsageEstimator;
 
 /**
  * {@link Vector} where each entry references a lucene document.
  */
 public class DocVector extends AbstractVector implements Vector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+
     /**
      * Per position memory cost to build the shard segment doc map required
      * to load fields out of order.
@@ -177,5 +181,21 @@ public class DocVector extends AbstractVector implements Vector {
     @Override
     public boolean isConstant() {
         return shards.isConstant() && segments.isConstant() && docs.isConstant();
+    }
+
+    public static long ramBytesEstimated(
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        int[] shardSegmentDocMapForwards,
+        int[] shardSegmentDocMapBackwards
+    ) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
+            + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards) + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(shards, segments, docs, shardSegmentDocMapForwards, shardSegmentDocMapBackwards);
     }
 }

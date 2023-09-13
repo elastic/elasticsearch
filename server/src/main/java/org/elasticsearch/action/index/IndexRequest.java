@@ -11,6 +11,7 @@ package org.elasticsearch.action.index;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -67,7 +68,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
-    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersion.V_8_500_049;
+    private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_500_049;
 
     /**
      * Max length of the source document to include into string()
@@ -129,7 +130,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String type = in.readOptionalString();
             assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
         }
@@ -140,10 +141,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             finalPipeline = in.readOptionalString();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             isPipelineResolved = in.readBoolean();
         }
         isRetry = in.readBoolean();
@@ -155,12 +156,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
@@ -654,7 +655,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(TransportVersion version) {
-        if (id == null && opType == OpType.CREATE && version.before(TransportVersion.V_7_5_0)) {
+        if (id == null && opType == OpType.CREATE && version.before(TransportVersions.V_7_5_0)) {
             throw new IllegalArgumentException(
                 "optype create not supported for indexing requests without explicit id below transport version 7500099, current version "
                     + version
@@ -687,7 +688,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeOptionalString(id);
@@ -697,10 +698,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             out.writeOptionalString(finalPipeline);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             out.writeBoolean(isPipelineResolved);
         }
         out.writeBoolean(isRetry);
@@ -713,11 +714,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-            out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
+            out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
                 throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");

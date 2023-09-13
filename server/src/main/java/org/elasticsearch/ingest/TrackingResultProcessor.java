@@ -98,7 +98,7 @@ public final class TrackingResultProcessor implements Processor {
                                 pipelineProcessor.getType(),
                                 pipelineProcessor.getTag(),
                                 pipelineProcessor.getDescription(),
-                                new IngestDocument(ingestDocument),
+                                ingestDocument,
                                 e,
                                 conditionalWithResult
                             )
@@ -148,7 +148,7 @@ public final class TrackingResultProcessor implements Processor {
                             actualProcessor.getType(),
                             actualProcessor.getTag(),
                             actualProcessor.getDescription(),
-                            new IngestDocument(ingestDocument),
+                            ingestDocument,
                             e,
                             conditionalWithResult
                         )
@@ -172,7 +172,7 @@ public final class TrackingResultProcessor implements Processor {
                             actualProcessor.getType(),
                             actualProcessor.getTag(),
                             actualProcessor.getDescription(),
-                            new IngestDocument(ingestDocument),
+                            ingestDocument,
                             conditionalWithResult
                         )
                     );

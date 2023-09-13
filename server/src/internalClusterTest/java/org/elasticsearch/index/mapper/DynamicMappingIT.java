@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
@@ -661,5 +662,33 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertNotNull(properties.get("time"));
             assertNotNull(properties.get("time.max"));
         });
+    }
+
+    public void testKnnSubObject() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
+            {
+              "properties": {
+                "obj": {
+                  "type": "object",
+                  "dynamic": "true"
+                },
+                "mapped_obj": {
+                  "type": "object",
+                  "dynamic": "true",
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector"
+                    }
+                  }
+                }
+              }
+            }""").get());
+
+        client().index(new IndexRequest("test").source("mapped_obj.vector", Randomness.get().doubles(3, 0.0, 5.0).toArray())).get();
+
+        client().index(
+            new IndexRequest("test").source("obj.vector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+        ).get();
+
     }
 }

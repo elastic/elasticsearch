@@ -212,13 +212,13 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep *
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
         assertProjectionTypes(
             """
                 from test
@@ -227,6 +227,8 @@ public class AnalyzerTests extends ESTestCase {
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
             DataTypes.TEXT,
+            DataTypes.TEXT,
+            DataTypes.KEYWORD,
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
             DataTypes.INTEGER
@@ -237,7 +239,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "gender", "languages", "salary", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary", "last_name");
     }
 
     public void testProjectThenDropName() {
@@ -269,21 +271,21 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
     }
 
     public void testProjectDropNoStarPattern() {
         assertProjection("""
             from test
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | keep *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "gender", "languages", "salary", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "gender", "job", "job.raw", "languages", "salary", "emp_no");
     }
 
     public void testProjectDropPatternAndKeepOthers() {
@@ -420,7 +422,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop *ala*
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name");
     }
 
     public void testDropUnsupportedPattern() {
@@ -488,7 +490,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename emp_no as e, first_name as e
-            """, "_meta_field", "e", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "salary");
     }
 
     public void testRenameUnsupportedField() {
@@ -1165,7 +1167,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, unsigned_long or version";
+        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, text, unsigned_long or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"

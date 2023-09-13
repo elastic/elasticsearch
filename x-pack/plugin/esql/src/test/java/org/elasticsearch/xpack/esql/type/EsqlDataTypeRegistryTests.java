@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;

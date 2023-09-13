@@ -154,7 +154,7 @@ functionality. Instead, clone the template of the source TSDS and apply the foll
 * Set `index.time_series.start_time` and `index.time_series.end_time` index settings explicitly. Their values should be
 based on the lowest and highest `@timestamp` values in the data stream to reindex. This way, the initial backing index can
 load all data that is contained in the source data stream.
-* Set `index.number_of_shards index` setting to the sum of all primary shards of all backing indices of the source data
+* Set `index.number_of_shards` index setting to the sum of all primary shards of all backing indices of the source data
 stream. This helps maintain the same level of search parallelism, as each shard is processed in a separate thread (or
 more).
 * Unset the `index.lifecycle.name` index setting, if any. This prevents ILM from modifying the destination data stream

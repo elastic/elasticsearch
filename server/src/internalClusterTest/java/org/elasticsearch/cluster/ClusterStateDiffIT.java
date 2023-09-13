@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -238,7 +239,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 versions.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
-                    versions.put(nodeId, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+                    versions.put(nodeId, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
                 }
             }
         }
@@ -246,7 +247,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < additionalNodeCount; i++) {
             String id = "node-" + randomAlphaOfLength(10);
             nodes.add(randomNode(id));
-            versions.put(id, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+            versions.put(id, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
         }
 
         return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersions(versions);

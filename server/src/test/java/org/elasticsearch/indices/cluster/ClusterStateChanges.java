@@ -422,7 +422,7 @@ public class ClusterStateChanges {
                         .map(
                             node -> new JoinTask.NodeJoinTask(
                                 node,
-                                new CompatibilityVersions(transportVersion),
+                                new CompatibilityVersions(transportVersion, Map.of()),
                                 DUMMY_REASON,
                                 ActionListener.running(() -> {
                                     throw new AssertionError("should not complete publication");

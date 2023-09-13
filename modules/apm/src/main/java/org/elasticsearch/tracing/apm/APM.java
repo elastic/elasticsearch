@@ -33,6 +33,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
+
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
  * a {@link org.elasticsearch.tracing.Tracer} interface, which this module implements via
@@ -54,7 +56,7 @@ import java.util.function.Supplier;
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
 public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
-    private final SetOnce<APMTracer> tracer = new SetOnce<>();
+    protected final SetOnce<APMTracer> tracer = new SetOnce<>();
     private final Settings settings;
 
     public APM(Settings settings) {
@@ -63,7 +65,7 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
 
     @Override
     public Tracer getTracer(Settings settings) {
-        final APMTracer apmTracer = new APMTracer(settings);
+        final APMTracer apmTracer = new APMTracer(settings, APM_ENABLED_SETTING.get(settings));
         tracer.set(apmTracer);
         return apmTracer;
     }

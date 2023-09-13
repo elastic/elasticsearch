@@ -256,7 +256,7 @@ public class APMTracerTests extends ESTestCase {
         Map<String, Instant> spanStartTimeMap;
 
         SpyAPMTracer(Settings settings) {
-            super(settings);
+            super(settings, APM_ENABLED_SETTING.get(settings));
             this.spanStartTimeMap = new HashMap<>();
         }
 

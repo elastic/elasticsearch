@@ -31,7 +31,7 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
  * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
-class APMAgentSettings {
+public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
@@ -154,7 +154,7 @@ class APMAgentSettings {
         NodeScope
     );
 
-    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,

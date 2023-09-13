@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
@@ -88,17 +87,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings) {
+    public APMTracer(Settings settings, boolean enabled) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.enabled = enabled;
     }
 
-    void setEnabled(boolean enabled) {
+    public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
             this.services = createApmServices();

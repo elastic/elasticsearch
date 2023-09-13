@@ -96,10 +96,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateAction;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequestBuilder;
-import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
@@ -985,16 +981,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot) {
             return new RestoreSnapshotRequestBuilder(this, RestoreSnapshotAction.INSTANCE, repository, snapshot);
-        }
-
-        @Override
-        public void snapshotGlobalState(SnapshotGlobalStateRequest request, ActionListener<SnapshotGlobalStateResponse> listener) {
-            execute(SnapshotGlobalStateAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public SnapshotGlobalStateRequestBuilder prepareGlobalStateSnapshot(String repository, String snapshot) {
-            return new SnapshotGlobalStateRequestBuilder(this, SnapshotGlobalStateAction.INSTANCE, repository, snapshot);
         }
 
         @Override

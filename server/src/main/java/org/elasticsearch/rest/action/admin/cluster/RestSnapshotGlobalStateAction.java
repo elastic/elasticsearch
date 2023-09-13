@@ -8,11 +8,11 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
@@ -41,9 +41,10 @@ public class RestSnapshotGlobalStateAction extends BaseRestHandler {
         String snapshot = request.param("snapshot");
         SnapshotGlobalStateRequest snapshotGlobalStateRequest = new SnapshotGlobalStateRequest(repository, snapshot);
         snapshotGlobalStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotGlobalStateRequest.masterNodeTimeout()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
-            .cluster()
-            .snapshotGlobalState(snapshotGlobalStateRequest, new RestChunkedToXContentListener<>(channel));
-
+        return restChannel -> client.execute(
+            SnapshotGlobalStateAction.INSTANCE,
+            snapshotGlobalStateRequest,
+            new RestChunkedToXContentListener<>(restChannel)
+        );
     }
 }

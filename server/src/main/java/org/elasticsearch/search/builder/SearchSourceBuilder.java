@@ -2095,7 +2095,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public boolean supportsParallelCollection() {
-        if (profile) return false;
+        // if (profile) return false;
 
         if (sorts != null) {
             for (SortBuilder<?> sortBuilder : sorts) {

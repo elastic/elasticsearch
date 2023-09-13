@@ -945,8 +945,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.profile(true);
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            // profiling shouldn't make a difference
+            searchSourceBuilder.profile(randomBoolean());
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
         }
     }
 

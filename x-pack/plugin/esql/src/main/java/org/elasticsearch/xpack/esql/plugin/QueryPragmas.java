@@ -33,7 +33,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "data_partitioning",
-        DataPartitioning.SEGMENT
+        DataPartitioning.DOC
     );
 
     /**

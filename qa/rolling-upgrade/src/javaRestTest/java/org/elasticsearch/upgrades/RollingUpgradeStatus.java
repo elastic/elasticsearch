@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-enum RollingUpgradeStatus {
+public enum RollingUpgradeStatus {
     OLD,
     ONE_THIRDS_UPGRADED,
     TWO_THIRDS_UPGRADED,

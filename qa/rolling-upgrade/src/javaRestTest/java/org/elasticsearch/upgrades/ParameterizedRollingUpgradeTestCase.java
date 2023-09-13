@@ -11,26 +11,29 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEq;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@TestCaseOrdering(RollingUpgradeTestOrdering.class)
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private static RollingUpgradeStatus lastUpgradeStatus = RollingUpgradeStatus.OLD;
     private static boolean upgradeFailed = false;
     private final RollingUpgradeStatus requestedUpgradeStatus;
 
     public ParameterizedRollingUpgradeTestCase(@Name("cluster") RollingUpgradeStatus upgradeStatus) {
-        assertThat("Test parameters are trying to downgrade a cluster", upgradeStatus.ordinal(), lessThanOrEq(lastUpgradeStatus));
+        assertThat("Test parameters are trying to downgrade a cluster", upgradeStatus.ordinal(), lessThanOrEqualTo(lastUpgradeStatus.ordinal()));
         this.requestedUpgradeStatus = upgradeStatus;
     }
 
@@ -46,7 +49,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
         if (lastUpgradeStatus != requestedUpgradeStatus) {
             try {
-                getUpgradeCluster().nextNodeToNextVersion();
+                getUpgradeCluster().upgradeNodeToVersion();
                 closeClients();
                 initClient();
             } catch (Exception e) {

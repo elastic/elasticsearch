@@ -142,7 +142,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     private int recursiveCountMappers(int size) {
         for (Mapper mapper : this) {
-            size += mapper.recursiveCountMappers(size);
+            size = mapper.recursiveCountMappers(size);
         }
         return size + 1;
     }

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -524,5 +525,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
         assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+    }
+
+    public void testNestedObjectWithMultiFieldsMapperSize() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("parent_size_1").startObject("properties");
+            {
+                b.startObject("child_size_2");
+                {
+                    b.field("type", "object").startObject("properties");
+
+                    b.startObject("grand_child_size_3");
+                    {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("multi_field_size_4");
+                            {
+                                b.field("type", "keyword");
+                            }
+                            b.endObject();
+                            b.startObject("multi_field_size_5");
+                            {
+                                b.field("type", "keyword");
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        }));
+        assertThat(mapper.mapping().getRoot().getMapper("parent_size_1").mapperSize(), equalTo(5));
     }
 }

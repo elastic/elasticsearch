@@ -110,7 +110,7 @@ public class MlConfigVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    /** Returns a random {@code MlConfigVersion} that is compatible with {@link MlConfigVersion#CURRENT} */
+    /** Returns a random {@code MlConfigVersion} that is compatible with {@link MlConfigVersion#current} */
     public static MlConfigVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, MlConfigVersion.FIRST_ML_VERSION, MlConfigVersion.current());
     }

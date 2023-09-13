@@ -110,7 +110,7 @@ public class TransformConfigVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    /** Returns a random {@code TransformConfigVersion} that is compatible with {@link TransformConfigVersion#CURRENT} */
+    /** Returns a random {@code TransformConfigVersion} that is compatible with {@link TransformConfigVersion#current} */
     public static TransformConfigVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.current());
     }

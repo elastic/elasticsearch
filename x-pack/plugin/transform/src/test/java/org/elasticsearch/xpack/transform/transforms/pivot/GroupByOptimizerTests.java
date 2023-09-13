@@ -77,8 +77,8 @@ public class GroupByOptimizerTests extends ESTestCase {
 
         groups.put("terms1", randomTermsGroupSourceNoScript("t1"));
         // create with scripts
-        groups.put("date1", randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, true, "d1"));
-        groups.put("terms2", randomTermsGroupSource(TransformConfigVersion.CURRENT, true, "t2"));
+        groups.put("date1", randomDateHistogramGroupSource(TransformConfigVersion.current(), true, "d1"));
+        groups.put("terms2", randomTermsGroupSource(TransformConfigVersion.current(), true, "t2"));
         groups.put("date2", randomDateHistogramGroupSourceNoScript("d2"));
         groups.put("date3", randomDateHistogramGroupSourceNoScript("d3"));
 

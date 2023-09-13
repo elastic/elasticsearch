@@ -226,27 +226,27 @@ public class TransformConfigVersionTests extends ESTestCase {
     public void testMin() {
         assertEquals(
             TransformConfigVersionUtils.getPreviousVersion(),
-            TransformConfigVersion.min(TransformConfigVersion.CURRENT, TransformConfigVersionUtils.getPreviousVersion())
+            TransformConfigVersion.min(TransformConfigVersion.current(), TransformConfigVersionUtils.getPreviousVersion())
         );
         assertEquals(
             TransformConfigVersion.fromId(TransformConfigVersion.FIRST_TRANSFORM_VERSION.id()),
             TransformConfigVersion.min(
                 TransformConfigVersion.fromId(TransformConfigVersion.FIRST_TRANSFORM_VERSION.id()),
-                TransformConfigVersion.CURRENT
+                TransformConfigVersion.current()
             )
         );
     }
 
     public void testMax() {
         assertEquals(
-            TransformConfigVersion.CURRENT,
-            TransformConfigVersion.max(TransformConfigVersion.CURRENT, TransformConfigVersionUtils.getPreviousVersion())
+            TransformConfigVersion.current(),
+            TransformConfigVersion.max(TransformConfigVersion.current(), TransformConfigVersionUtils.getPreviousVersion())
         );
         assertEquals(
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             TransformConfigVersion.max(
                 TransformConfigVersion.fromId(TransformConfigVersion.FIRST_TRANSFORM_VERSION.id()),
-                TransformConfigVersion.CURRENT
+                TransformConfigVersion.current()
             )
         );
     }
@@ -278,10 +278,10 @@ public class TransformConfigVersionTests extends ESTestCase {
     public void testVersionConstantPresent() {
         Set<TransformConfigVersion> ignore = Set.of(
             TransformConfigVersion.ZERO,
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             TransformConfigVersion.FIRST_TRANSFORM_VERSION
         );
-        assertThat(TransformConfigVersion.CURRENT, sameInstance(TransformConfigVersion.fromId(TransformConfigVersion.CURRENT.id())));
+        assertThat(TransformConfigVersion.current(), sameInstance(TransformConfigVersion.fromId(TransformConfigVersion.current().id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             TransformConfigVersion version = TransformConfigVersionUtils.randomVersion(ignore);
@@ -291,7 +291,7 @@ public class TransformConfigVersionTests extends ESTestCase {
     }
 
     public void testCurrentIsLatest() {
-        assertThat(Collections.max(TransformConfigVersion.getAllVersions()), Matchers.is(TransformConfigVersion.CURRENT));
+        assertThat(Collections.max(TransformConfigVersion.getAllVersions()), Matchers.is(TransformConfigVersion.current()));
     }
 
     public void testToString() {
@@ -328,9 +328,9 @@ public class TransformConfigVersionTests extends ESTestCase {
         assertEquals(false, KnownTransformConfigVersions.ALL_VERSIONS.contains(V_8_0_1));
         assertEquals(8000199, V_8_0_1.id());
 
-        TransformConfigVersion unknownVersion = TransformConfigVersion.fromId(TransformConfigVersion.CURRENT.id() + 1);
+        TransformConfigVersion unknownVersion = TransformConfigVersion.fromId(TransformConfigVersion.current().id() + 1);
         assertEquals(false, KnownTransformConfigVersions.ALL_VERSIONS.contains(unknownVersion));
-        assertEquals(TransformConfigVersion.CURRENT.id() + 1, unknownVersion.id());
+        assertEquals(TransformConfigVersion.current().id() + 1, unknownVersion.id());
 
         for (String version : new String[] { "10.2", "7.17.2.99" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TransformConfigVersion.fromString(version));

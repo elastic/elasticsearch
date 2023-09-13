@@ -72,6 +72,12 @@ dependencies {
   rootCert files("src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")
 }
 
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/xpack/core/transform/TransformConfigVersion.java"
+  }
+}
+
 ext.expansions = [
   'project.version': version
 ]

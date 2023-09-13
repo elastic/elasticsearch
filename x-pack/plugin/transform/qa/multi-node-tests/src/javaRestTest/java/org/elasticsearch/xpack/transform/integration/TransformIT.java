@@ -112,7 +112,7 @@ public class TransformIT extends TransformRestTestCase {
         assertBusy(() -> { assertEquals("stopped", getTransformStats(config.getId()).get("state")); });
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.current().toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -153,7 +153,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.current().toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -201,7 +201,7 @@ public class TransformIT extends TransformRestTestCase {
         int docsIndexed = (Integer) XContentMapValues.extractValue("stats.documents_indexed", getTransformStats(config.getId()));
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.current().toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));
@@ -427,7 +427,7 @@ public class TransformIT extends TransformRestTestCase {
         int pagesProcessed = (Integer) XContentMapValues.extractValue("stats.pages_processed", transformStats);
 
         var storedConfig = getTransform(config.getId());
-        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.CURRENT.toString()));
+        assertThat(storedConfig.get("version"), equalTo(TransformConfigVersion.current().toString()));
         Instant now = Instant.now();
         long createTime = (long) storedConfig.get("create_time");
         assertTrue("[create_time] is not before current time", Instant.ofEpochMilli(createTime).isBefore(now));

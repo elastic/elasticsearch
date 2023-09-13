@@ -134,7 +134,7 @@ public class TransformUpdaterTests extends ESTestCase {
 
         TransformConfig maxCompatibleConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfigVersion.CURRENT
+            TransformConfigVersion.current()
         );
         transformConfigManager.putTransformConfiguration(maxCompatibleConfig, ActionListener.noop());
         assertConfiguration(
@@ -170,7 +170,7 @@ public class TransformUpdaterTests extends ESTestCase {
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(maxCompatibleConfig.getId(), listener), config -> {
             assertNotNull(config);
-            assertEquals(TransformConfigVersion.CURRENT, config.getVersion());
+            assertEquals(TransformConfigVersion.current(), config.getVersion());
         });
 
         TransformConfig minCompatibleConfig = TransformConfigTests.randomTransformConfig(
@@ -279,7 +279,7 @@ public class TransformUpdaterTests extends ESTestCase {
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(oldConfig.getId(), listener), config -> {
             assertNotNull(config);
-            assertEquals(TransformConfigVersion.CURRENT, config.getVersion());
+            assertEquals(TransformConfigVersion.current(), config.getVersion());
         });
 
         assertCheckpoint(
@@ -342,7 +342,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertEquals(UpdateResult.Status.NEEDS_UPDATE, updateResult.getStatus());
                 assertNotEquals(oldConfigForDryRunUpdate, updateResult.getConfig());
-                assertEquals(TransformConfigVersion.CURRENT, updateResult.getConfig().getVersion());
+                assertEquals(TransformConfigVersion.current(), updateResult.getConfig().getVersion());
                 assertNull(updateResult.getAuthState());
             }
         );
@@ -390,7 +390,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertThat(updateResult.getStatus(), is(equalTo(UpdateResult.Status.UPDATED)));
                 assertThat(updateResult.getConfig(), is(not(equalTo(oldConfig))));
-                assertThat(updateResult.getConfig().getVersion(), is(equalTo(TransformConfigVersion.CURRENT)));
+                assertThat(updateResult.getConfig().getVersion(), is(equalTo(TransformConfigVersion.current())));
                 assertThat(updateResult.getAuthState(), is(notNullValue()));
                 assertThat(updateResult.getAuthState().getStatus(), is(equalTo(HealthStatus.GREEN)));
                 assertThat(updateResult.getAuthState().getLastAuthError(), is(nullValue()));
@@ -433,7 +433,7 @@ public class TransformUpdaterTests extends ESTestCase {
             updateResult -> {
                 assertThat(updateResult.getStatus(), is(equalTo(UpdateResult.Status.UPDATED)));
                 assertThat(updateResult.getConfig(), is(not(equalTo(oldConfig))));
-                assertThat(updateResult.getConfig().getVersion(), is(equalTo(TransformConfigVersion.CURRENT)));
+                assertThat(updateResult.getConfig().getVersion(), is(equalTo(TransformConfigVersion.current())));
                 assertThat(updateResult.getAuthState(), is(notNullValue()));
                 assertThat(updateResult.getAuthState().getStatus(), is(equalTo(HealthStatus.RED)));
                 assertThat(updateResult.getAuthState().getLastAuthError(), is(equalTo("missing privileges")));

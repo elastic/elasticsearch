@@ -24,7 +24,7 @@ public class FunctionFactoryTests extends ESTestCase {
     public void testCreatePivotFunction() {
         TransformConfig config = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             PivotConfigTests.randomPivotConfig(),
             null
         );
@@ -35,7 +35,7 @@ public class FunctionFactoryTests extends ESTestCase {
     public void testCreateLatestFunction() {
         TransformConfig config = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             null,
             LatestConfigTests.randomLatestConfig()
         );

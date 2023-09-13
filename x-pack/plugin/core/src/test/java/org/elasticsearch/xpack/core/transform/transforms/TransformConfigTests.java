@@ -106,7 +106,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfig(String id) {
-        return randomTransformConfig(id, randomBoolean() ? null : TransformConfigVersion.CURRENT);
+        return randomTransformConfig(id, randomBoolean() ? null : TransformConfigVersion.current());
     }
 
     public static TransformConfig randomTransformConfig(String id, TransformConfigVersion version) {
@@ -615,7 +615,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
-        assertEquals(TransformConfigVersion.CURRENT, transformConfigRewritten.getVersion());
+        assertEquals(TransformConfigVersion.current(), transformConfigRewritten.getVersion());
     }
 
     public void testRewriteForUpdateAlignCheckpoints() throws IOException {
@@ -649,7 +649,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
-        assertEquals(TransformConfigVersion.CURRENT, transformConfigRewritten.getVersion());
+        assertEquals(TransformConfigVersion.current(), transformConfigRewritten.getVersion());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
         TransformConfig explicitFalseAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
@@ -701,7 +701,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
         assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
         assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
-        assertEquals(TransformConfigVersion.CURRENT, transformConfigRewritten.getVersion());
+        assertEquals(TransformConfigVersion.current(), transformConfigRewritten.getVersion());
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
@@ -738,7 +738,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
-        assertEquals(TransformConfigVersion.CURRENT, transformConfigRewritten.getVersion());
+        assertEquals(TransformConfigVersion.current(), transformConfigRewritten.getVersion());
 
         TransformConfig explicitTrueAfter711 = new TransformConfig.Builder(transformConfig).setSettings(
             new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
@@ -747,7 +747,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         // The config is still being rewritten due to "settings.align_checkpoints".
-        assertEquals(TransformConfigVersion.CURRENT, transformConfigRewritten.getVersion());
+        assertEquals(TransformConfigVersion.current(), transformConfigRewritten.getVersion());
 
         TransformConfig explicitTrueAfter715 = new TransformConfig.Builder(transformConfig).setSettings(
             new SettingsConfig.Builder(transformConfigRewritten.getSettings()).setDatesAsEpochMillis(true).build()
@@ -891,9 +891,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public void testCheckForDeprecations() {
         String id = randomAlphaOfLengthBetween(1, 10);
-        assertThat(randomTransformConfig(id, TransformConfigVersion.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
+        assertThat(randomTransformConfig(id, TransformConfigVersion.current()).checkForDeprecations(xContentRegistry()), is(empty()));
 
-        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.CURRENT);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.current());
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);

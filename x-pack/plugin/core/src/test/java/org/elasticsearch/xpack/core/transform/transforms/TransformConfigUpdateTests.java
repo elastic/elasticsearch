@@ -187,7 +187,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getMetadata(), equalTo(newMetadata));
         assertThat(updatedConfig.getRetentionPolicyConfig(), equalTo(retentionPolicyConfig));
         assertThat(updatedConfig.getHeaders(), equalTo(headers));
-        assertThat(updatedConfig.getVersion(), equalTo(TransformConfigVersion.CURRENT));
+        assertThat(updatedConfig.getVersion(), equalTo(TransformConfigVersion.current()));
     }
 
     public void testApplyRetentionPolicy() {
@@ -353,7 +353,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : TransformConfigVersion.CURRENT.toString()
+            randomBoolean() ? null : TransformConfigVersion.current().toString()
         );
 
         TransformConfigUpdate update = new TransformConfigUpdate(
@@ -387,7 +387,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomMetadata(),
             randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            randomBoolean() ? null : TransformConfigVersion.CURRENT.toString()
+            randomBoolean() ? null : TransformConfigVersion.current().toString()
         );
 
         TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null, null, null, new FooSync(), null, null, null, null);

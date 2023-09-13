@@ -55,13 +55,13 @@ public class TransformNodesTests extends ESTestCase {
         tasksBuilder.addTask(
             transformIdFoo,
             TransformField.TASK_NAME,
-            new TransformTaskParams(transformIdFoo, TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams(transformIdFoo, TransformConfigVersion.current(), null, false),
             new PersistentTasksCustomMetadata.Assignment("node-1", "test assignment")
         );
         tasksBuilder.addTask(
             transformIdBar,
             TransformField.TASK_NAME,
-            new TransformTaskParams(transformIdBar, TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams(transformIdBar, TransformConfigVersion.current(), null, false),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
@@ -88,19 +88,19 @@ public class TransformNodesTests extends ESTestCase {
         tasksBuilder.addTask(
             transformIdFailed,
             TransformField.TASK_NAME,
-            new TransformTaskParams(transformIdFailed, TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams(transformIdFailed, TransformConfigVersion.current(), null, false),
             new PersistentTasksCustomMetadata.Assignment(null, "awaiting reassignment after node loss")
         );
         tasksBuilder.addTask(
             transformIdBaz,
             TransformField.TASK_NAME,
-            new TransformTaskParams(transformIdBaz, TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams(transformIdBaz, TransformConfigVersion.current(), null, false),
             new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
         );
         tasksBuilder.addTask(
             transformIdOther,
             TransformField.TASK_NAME,
-            new TransformTaskParams(transformIdOther, TransformConfigVersion.CURRENT, null, false),
+            new TransformTaskParams(transformIdOther, TransformConfigVersion.current(), null, false),
             new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
         );
 
@@ -272,13 +272,13 @@ public class TransformNodesTests extends ESTestCase {
     public void testGetAssignment() {
         TransformTaskParams transformTaskParams1 = new TransformTaskParams(
             "transform-1",
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             TimeValue.timeValueSeconds(10),
             false
         );
         TransformTaskParams transformTaskParams2 = new TransformTaskParams(
             "transform-2",
-            TransformConfigVersion.CURRENT,
+            TransformConfigVersion.current(),
             TimeValue.timeValueSeconds(10),
             false
         );

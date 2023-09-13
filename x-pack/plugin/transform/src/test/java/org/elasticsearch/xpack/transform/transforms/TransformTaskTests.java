@@ -450,6 +450,6 @@ public class TransformTaskTests extends ESTestCase {
     }
 
     private static TransformTaskParams createTransformTaskParams(String transformId) {
-        return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, TimeValue.timeValueSeconds(10), false);
+        return new TransformTaskParams(transformId, TransformConfigVersion.current(), TimeValue.timeValueSeconds(10), false);
     }
 }

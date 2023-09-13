@@ -76,8 +76,8 @@ public class TransformConfigVersionUtils {
     }
 
     public static TransformConfigVersion getPreviousVersion() {
-        TransformConfigVersion version = getPreviousVersion(TransformConfigVersion.CURRENT);
-        assert version.before(TransformConfigVersion.CURRENT);
+        TransformConfigVersion version = getPreviousVersion(TransformConfigVersion.current());
+        assert version.before(TransformConfigVersion.current());
         return version;
     }
 
@@ -112,7 +112,7 @@ public class TransformConfigVersionUtils {
 
     /** Returns a random {@code TransformConfigVersion} that is compatible with {@link TransformConfigVersion#CURRENT} */
     public static TransformConfigVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.CURRENT);
+        return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.current());
     }
 
     /** Returns a random {@code TransformConfigVersion} that is compatible with the previous version to {@code version} */

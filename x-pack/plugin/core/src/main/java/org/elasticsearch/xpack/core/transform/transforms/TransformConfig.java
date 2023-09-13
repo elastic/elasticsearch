@@ -635,7 +635,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             );
         }
 
-        return builder.setVersion(TransformConfigVersion.CURRENT).build();
+        return builder.setVersion(TransformConfigVersion.current()).build();
     }
 
     public static Builder builder() {

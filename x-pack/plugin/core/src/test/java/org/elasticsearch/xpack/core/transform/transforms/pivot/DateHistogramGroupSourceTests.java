@@ -31,15 +31,15 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTestCase<DateHistogramGroupSource> {
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
-        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT);
+        return randomDateHistogramGroupSource(TransformConfigVersion.current());
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSourceNoScript() {
-        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, false);
+        return randomDateHistogramGroupSource(TransformConfigVersion.current(), false);
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSourceNoScript(String fieldPrefix) {
-        return randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, false, fieldPrefix);
+        return randomDateHistogramGroupSource(TransformConfigVersion.current(), false, fieldPrefix);
     }
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource(TransformConfigVersion version) {

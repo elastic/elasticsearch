@@ -41,7 +41,7 @@ public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupC
     private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
-        return randomGroupConfig(TransformConfigVersion.CURRENT);
+        return randomGroupConfig(TransformConfigVersion.current());
     }
 
     public static GroupConfig randomGroupConfig(TransformConfigVersion version) {

@@ -313,7 +313,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         Settings.Builder additionalSettings = Settings.builder();
 
-        addTransformNodeAttribute(additionalSettings, transformConfigVersionAttrName, TransformConfigVersion.CURRENT.toString());
+        addTransformNodeAttribute(additionalSettings, transformConfigVersionAttrName, TransformConfigVersion.current().toString());
         return additionalSettings.build();
     }
 

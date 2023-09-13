@@ -22,7 +22,7 @@ import java.io.IOException;
 public class GeoTileGroupSourceTests extends AbstractXContentSerializingTestCase<GeoTileGroupSource> {
 
     public static GeoTileGroupSource randomGeoTileGroupSource() {
-        return randomGeoTileGroupSource(TransformConfigVersion.CURRENT);
+        return randomGeoTileGroupSource(TransformConfigVersion.current());
     }
 
     public static GeoTileGroupSource randomGeoTileGroupSource(TransformConfigVersion version) {

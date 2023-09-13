@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfigWithDeprecatedFields() {
-        return randomPivotConfigWithDeprecatedFields(TransformConfigVersion.CURRENT);
+        return randomPivotConfigWithDeprecatedFields(TransformConfigVersion.current());
     }
 
     public static PivotConfig randomPivotConfigWithDeprecatedFields(TransformConfigVersion version) {
@@ -42,7 +42,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     public static PivotConfig randomPivotConfig() {
-        return randomPivotConfig(TransformConfigVersion.CURRENT);
+        return randomPivotConfig(TransformConfigVersion.current());
     }
 
     public static PivotConfig randomPivotConfig(TransformConfigVersion version) {

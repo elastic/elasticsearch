@@ -67,7 +67,7 @@ public class Pivot extends AbstractCompositeAggFunction {
         super(createCompositeAggregation(config, runtimeFields));
         this.config = config;
         this.settings = settings;
-        this.version = version == null ? TransformConfigVersion.CURRENT : version;
+        this.version = version == null ? TransformConfigVersion.current() : version;
     }
 
     @Override

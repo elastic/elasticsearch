@@ -222,5 +222,5 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
 
-    uses org.elasticsearch.xpack.core.ml.MlVersionExtension;
+    uses org.elasticsearch.xpack.core.VersionExtension;
 }

@@ -296,7 +296,7 @@ public class TransformConfigUpdate implements Writeable {
             }
         }
 
-        builder.setVersion(TransformConfigVersion.CURRENT);
+        builder.setVersion(TransformConfigVersion.current());
         return builder.build();
     }
 }

@@ -24,23 +24,23 @@ import static org.hamcrest.Matchers.nullValue;
 public class TermsGroupSourceTests extends AbstractXContentSerializingTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        return randomTermsGroupSource(TransformConfigVersion.CURRENT);
+        return randomTermsGroupSource(TransformConfigVersion.current());
     }
 
     public static TermsGroupSource randomTermsGroupSourceNoScript() {
-        return randomTermsGroupSource(TransformConfigVersion.CURRENT, false);
+        return randomTermsGroupSource(TransformConfigVersion.current(), false);
     }
 
     public static TermsGroupSource randomTermsGroupSourceNoScript(String fieldPrefix) {
-        return randomTermsGroupSource(TransformConfigVersion.CURRENT, false, fieldPrefix);
+        return randomTermsGroupSource(TransformConfigVersion.current(), false, fieldPrefix);
     }
 
     public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version) {
-        return randomTermsGroupSource(TransformConfigVersion.CURRENT, randomBoolean());
+        return randomTermsGroupSource(TransformConfigVersion.current(), randomBoolean());
     }
 
     public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version, boolean withScript) {
-        return randomTermsGroupSource(TransformConfigVersion.CURRENT, withScript, "");
+        return randomTermsGroupSource(TransformConfigVersion.current(), withScript, "");
     }
 
     public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version, boolean withScript, String fieldPrefix) {

@@ -17,15 +17,15 @@ import java.io.IOException;
 public class HistogramGroupSourceTests extends AbstractXContentSerializingTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
-        return randomHistogramGroupSource(TransformConfigVersion.CURRENT);
+        return randomHistogramGroupSource(TransformConfigVersion.current());
     }
 
     public static HistogramGroupSource randomHistogramGroupSourceNoScript() {
-        return randomHistogramGroupSource(TransformConfigVersion.CURRENT, false);
+        return randomHistogramGroupSource(TransformConfigVersion.current(), false);
     }
 
     public static HistogramGroupSource randomHistogramGroupSourceNoScript(String fieldPrefix) {
-        return randomHistogramGroupSource(TransformConfigVersion.CURRENT, false, fieldPrefix);
+        return randomHistogramGroupSource(TransformConfigVersion.current(), false, fieldPrefix);
     }
 
     public static HistogramGroupSource randomHistogramGroupSource(TransformConfigVersion version) {

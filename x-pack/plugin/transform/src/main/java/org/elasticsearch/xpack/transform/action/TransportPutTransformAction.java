@@ -94,7 +94,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
+        TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.current());
         config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
 
         String transformId = config.getId();

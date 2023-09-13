@@ -19,6 +19,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.VersionExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -155,7 +156,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
         // finds the pluggable current version, or uses the given fallback
         private static MlConfigVersion findCurrent(MlConfigVersion fallback) {
-            var versionExtension = MlVersionExtension.load();
+            var versionExtension = VersionExtension.load();
             if (versionExtension == null) {
                 return fallback;
             }

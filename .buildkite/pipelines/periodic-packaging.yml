@@ -1584,22 +1584,6 @@ steps:
         env:
           BWC_VERSION: 8.9.2
 
-      - label: "{{matrix.image}} / 8.9.3 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.9.3
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            image:
-              - rocky-8
-              - ubuntu-2004
-        agents:
-          provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-16-32768
-          buildDirectory: /dev/shm/bk
-        env:
-          BWC_VERSION: 8.9.3
-
       - label: "{{matrix.image}} / 8.10.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.10.0
         timeout_in_minutes: 300
@@ -1615,6 +1599,22 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.10.0
+
+      - label: "{{matrix.image}} / 8.10.1 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.10.1
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.1
 
       - label: "{{matrix.image}} / 8.11.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.11.0

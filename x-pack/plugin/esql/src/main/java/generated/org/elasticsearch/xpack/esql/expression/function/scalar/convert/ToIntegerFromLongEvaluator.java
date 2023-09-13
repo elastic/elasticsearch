@@ -29,7 +29,7 @@ public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.Ab
 
   @Override
   public String name() {
-    return "ToInteger";
+    return "ToIntegerFromLong";
   }
 
   @Override

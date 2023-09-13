@@ -4,10 +4,10 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -15,26 +15,24 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Left}.
  * This class is generated. Do not edit it.
  */
 public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
-
   private final BytesRef out;
+
+  private final UnicodeUtil.UTF8CodePoint cp;
 
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator length;
 
-  public LeftEvaluator(Source source, BytesRef out, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator length) {
-    this.warnings = new Warnings(source);
+  public LeftEvaluator(BytesRef out, UnicodeUtil.UTF8CodePoint cp,
+      EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length) {
     this.out = out;
+    this.cp = cp;
     this.str = str;
     this.length = length;
   }
@@ -59,7 +57,7 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     if (lengthVector == null) {
       return eval(page.getPositionCount(), strBlock, lengthBlock);
     }
-    return eval(page.getPositionCount(), strVector, lengthVector);
+    return eval(page.getPositionCount(), strVector, lengthVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock lengthBlock) {
@@ -74,32 +72,22 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
         result.appendNull();
         continue position;
       }
-      try {
-        result.appendBytesRef(Left.process(out, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      result.appendBytesRef(Left.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
     }
     return result.build();
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
+  public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
+    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     BytesRef strScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendBytesRef(Left.process(out, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "LeftEvaluator[" + "out=" + out + ", str=" + str + ", length=" + length + "]";
+    return "LeftEvaluator[" + "str=" + str + ", length=" + length + "]";
   }
 }

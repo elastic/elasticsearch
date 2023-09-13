@@ -183,6 +183,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         MockitoAnnotations.openMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
+
+        // TODO: temporary, remove in #97879
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         clusterService = mock(ClusterService.class);
         localIngest = true;
         // setup nodes for local and remote

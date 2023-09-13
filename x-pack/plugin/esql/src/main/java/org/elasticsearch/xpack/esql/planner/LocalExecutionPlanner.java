@@ -33,13 +33,13 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.TopNEncoder;
-import org.elasticsearch.compute.operator.TopNOperator;
-import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -256,6 +257,9 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
+        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+            return ElementType.DOC;
+        }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
@@ -325,6 +329,20 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(topNExec.child(), context);
 
+        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes[channel] = toElementType(inverse.get(channel).type());
+            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
+                case "ip" -> TopNEncoder.IP;
+                case "text", "keyword" -> TopNEncoder.UTF8;
+                case "version" -> TopNEncoder.VERSION;
+                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
+            };
+        }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
             int sortByChannel;
             if (order.child() instanceof Attribute a) {
@@ -333,28 +351,10 @@ public class LocalExecutionPlanner {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
 
-            TopNEncoder encoder = switch (a.dataType().typeName()) {
-                case "ip": {
-                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
-                }
-                case "text", "keyword": {
-                    yield TopNOperator.BYTESREF_UTF8_ENCODER;
-                }
-                case "version": {
-                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
-                }
-                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long": {
-                    yield TopNOperator.DEFAULT_ENCODER;
-                }
-                default:
-                    throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + a.dataType().typeName());
-            };
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST),
-                encoder
+                order.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
 
@@ -374,7 +374,16 @@ public class LocalExecutionPlanner {
          * That'll be more accurate. And we don't have a path for estimating
          * incoming rows. And we don't need one because we can estimate.
          */
-        return source.with(new TopNOperatorFactory(limit, orders, context.pageSize(2000 + topNExec.estimatedRowSize())), source.layout);
+        return source.with(
+            new TopNOperatorFactory(
+                limit,
+                Arrays.asList(elementTypes),
+                Arrays.asList(encoders),
+                orders,
+                context.pageSize(2000 + topNExec.estimatedRowSize())
+            ),
+            source.layout
+        );
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {

@@ -214,15 +214,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
+        Timer timer = null;
         if (profiler != null) {
-            profiler.startRewriteTime();
+            timer = profiler.startRewriteTime();
         }
 
         try {
             return super.rewrite(original);
         } finally {
-            if (profiler != null) {
-                profiler.stopAndAddRewriteTime();
+            if (timer != null) {
+                timer.stop();
             }
         }
     }

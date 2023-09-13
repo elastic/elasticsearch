@@ -10,6 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.Timer;
 
 import java.util.Objects;
 
@@ -47,18 +48,10 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
-    public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
-    }
-
-    /**
-     * Stop recording the current rewrite and add it's time to the total tally, returning the
-     * cumulative time so far.
-     *
-     * @return cumulative rewrite time
-     */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public Timer startRewriteTime() {
+        Timer timer = ((InternalQueryProfileTree) profileTree).startRewriteTime();
+        timer.start();
+        return timer;
     }
 
     /**

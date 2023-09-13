@@ -11,6 +11,11 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.Timer;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
@@ -19,9 +24,8 @@ import org.elasticsearch.search.profile.ProfileResult;
  */
 final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryProfileBreakdown, Query> {
 
-    /** Rewrite time */
-    private long rewriteTime;
-    private long rewriteScratch;
+    /** Rewrite timers */
+    private Collection<Timer> rewriteTimers = Collections.synchronizedCollection(new ArrayList<>());
 
     @Override
     protected QueryProfileBreakdown createProfileBreakdown() {
@@ -44,29 +48,16 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
     }
 
     /**
-     * Begin timing a query for a specific Timing context
+     * Begin timing a query for a specific Timing context.
+     * Use the Timer returned to stop timing.
      */
-    public void startRewriteTime() {
-        assert rewriteScratch == 0;
-        rewriteScratch = System.nanoTime();
-    }
-
-    /**
-     * Halt the timing process and add the elapsed rewriting time.
-     * startRewriteTime() must be called for a particular context prior to calling
-     * stopAndAddRewriteTime(), otherwise the elapsed time will be negative and
-     * nonsensical
-     *
-     * @return          The elapsed time
-     */
-    public long stopAndAddRewriteTime() {
-        long time = Math.max(1, System.nanoTime() - rewriteScratch);
-        rewriteTime += time;
-        rewriteScratch = 0;
-        return time;
+    public Timer startRewriteTime() {
+        Timer timer = new Timer();
+        this.rewriteTimers.add(timer);
+        return timer;
     }
 
     public long getRewriteTime() {
-        return rewriteTime;
+        return rewriteTimers.stream().map(Timer::getApproximateTiming).mapToLong(Long::valueOf).sum();
     }
 }

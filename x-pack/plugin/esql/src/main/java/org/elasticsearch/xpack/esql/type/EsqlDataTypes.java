@@ -145,7 +145,7 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isTemporalAmount(DataType t) {
-        return t == DATE_PERIOD || t == TIME_DURATION || t == DURATION;
+        return t == DATE_PERIOD || t == TIME_DURATION;
     }
 
     /**

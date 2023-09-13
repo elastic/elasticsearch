@@ -25,7 +25,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
@@ -52,12 +51,18 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     protected TypeResolution resolveType() {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
-        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if (argumentOfType(DataTypes::isDateTime) != null && argumentOfType(EsqlDataTypes::isTemporalAmount) != null) {
+
+        if (hasArgumentWhich(EsqlDataTypes::isDateTimeOrTemporal)) {
+            // Date math is only possible if either
+            // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
+            // - both arguments are TemporalValues (so we can fold them).
+            if (hasArgumentWhich(DataTypes::isDateTime) && hasArgumentWhich(EsqlDataTypes::isTemporalAmount)) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (EsqlDataTypes.isTemporalAmount(leftType) && EsqlDataTypes.isTemporalAmount(rightType)) {
+            if (leftType == TIME_DURATION && rightType == TIME_DURATION) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+            if (leftType == DATE_PERIOD && rightType == DATE_PERIOD) {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
@@ -72,8 +77,6 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     public final Object fold() {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
-        // TODO: handle time_durations
-        // TODO: handle mixed time_durations and date_periods
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();
@@ -102,13 +105,17 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         return dataType() == DataTypes.DATETIME
             ? () -> datetimes.apply(
                 source(),
-                toEvaluator.apply(argumentOfType(DataTypes::isDateTime)).get(),
-                (TemporalAmount) argumentOfType(EsqlDataTypes::isTemporalAmount).fold()
+                toEvaluator.apply(argumentWhich(DataTypes::isDateTime)).get(),
+                (TemporalAmount) argumentWhich(EsqlDataTypes::isTemporalAmount).fold()
             )
             : super.toEvaluator(toEvaluator);
     }
 
-    private Expression argumentOfType(Predicate<DataType> filter) {
+    private Expression argumentWhich(Predicate<DataType> filter) {
         return filter.test(left().dataType()) ? left() : filter.test(right().dataType()) ? right() : null;
+    }
+
+    private boolean hasArgumentWhich(Predicate<DataType> filter) {
+        return argumentWhich(filter) != null;
     }
 }

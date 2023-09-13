@@ -857,40 +857,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold) {
-            if (isIndexed() == false) {
-                throw new IllegalArgumentException(
-                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
-                );
-            }
-
-            if (queryVector.length != dims) {
-                throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
-                );
-            }
-
-            if (elementType != ElementType.BYTE) {
-                throw new IllegalArgumentException(
-                    "only [" + ElementType.BYTE + "] elements are supported when querying field [" + name() + "]"
-                );
-            }
-
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
-            }
-            Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
-            if (similarityThreshold != null) {
-                knnQuery = new VectorSimilarityQuery(
-                    knnQuery,
-                    similarityThreshold,
-                    similarity.score(similarityThreshold, elementType, dims)
-                );
-            }
-            return knnQuery;
-        }
-
         public Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(

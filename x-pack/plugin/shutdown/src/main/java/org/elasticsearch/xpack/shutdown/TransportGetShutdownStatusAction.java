@@ -36,9 +36,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -89,7 +91,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             GetShutdownStatusAction.Request::readFrom,
             indexNameExpressionResolver,
             GetShutdownStatusAction.Response::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
         this.allocationService = allocationService;
         this.allocationDeciders = allocationDeciders;
@@ -104,7 +106,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         GetShutdownStatusAction.Request request,
         ClusterState state,
         ActionListener<GetShutdownStatusAction.Response> listener
-    ) throws Exception {
+    ) {
+        CancellableTask cancellableTask = (CancellableTask) task;
         NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
 
         GetShutdownStatusAction.Response response;
@@ -118,6 +121,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     ns -> new SingleNodeShutdownStatus(
                         ns,
                         shardMigrationStatus(
+                            cancellableTask,
                             state,
                             ns.getNodeId(),
                             ns.getType(),
@@ -142,6 +146,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     ns -> new SingleNodeShutdownStatus(
                         ns,
                         shardMigrationStatus(
+                            cancellableTask,
                             state,
                             ns.getNodeId(),
                             ns.getType(),
@@ -165,6 +170,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
     // pkg-private for testing
     static ShutdownShardMigrationStatus shardMigrationStatus(
+        CancellableTask cancellableTask,
         ClusterState currentState,
         String nodeId,
         SingleNodeShutdownMetadata.Type shutdownType,
@@ -174,6 +180,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationService allocationService,
         AllocationDeciders allocationDeciders
     ) {
+        assert Transports.assertNotTransportThread("doing O(#shards) work must be forked");
+
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
             return new ShutdownShardMigrationStatus(
@@ -208,6 +216,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         var unassignedShards = currentState.getRoutingNodes()
             .unassigned()
             .stream()
+            .peek(s -> cancellableTask.ensureNotCancelled())
             .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
             .filter(s -> s.primary() || hasShardCopyOnAnotherNode(currentState, s, shuttingDownNodes) == false)
             .toList();
@@ -264,6 +273,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
+            .peek(s -> cancellableTask.ensureNotCancelled())
             .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
             .filter(pair -> {
@@ -285,8 +295,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             })
             // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
             .filter(pair -> isIlmRestrictingShardMovement(currentState, pair.v1()) == false)
-            .peek(pair -> {
-                logger.debug(
+            .peek(
+                pair -> logger.debug(
                     "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
                     nodeId,
                     shutdownType,
@@ -294,8 +304,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     pair.v1().primary() ? "primary" : "replica",
                     pair.v1().shardId().getIndexName(),
                     Strings.toString(pair.v2())
-                );
-            })
+                )
+            )
             .findFirst();
 
         if (totalRemainingShards == shardsToIgnoreForFinalStatus.get() && unmovableShard.isEmpty()) {

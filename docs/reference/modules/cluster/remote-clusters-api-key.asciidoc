@@ -192,4 +192,4 @@ remote cluster earlier.
 include::remote-clusters-connect.asciidoc[]
 :!trust-mechanism: 
 
-include::../../../../x-pack/docs/en/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]
+include::{es-repo-dir}/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

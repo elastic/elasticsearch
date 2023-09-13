@@ -28,11 +28,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleFunction;
-import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,8 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
-
-    public static final BigInteger MAX_UNSIGNED_LONG = NumericUtils.UNSIGNED_LONG_MAX;
     /**
      * Build a test case without types.
      *
@@ -91,7 +89,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static List<TestCaseSupplier> forUnaryCastingToDouble(
         String name,
         String argName,
-        DoubleUnaryOperator expected,
+        UnaryOperator<Double> expected,
         Double min,
         Double max,
         List<String> warnings
@@ -103,7 +101,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.INTEGER) + "]",
             DataTypes.DOUBLE,
-            i -> expected.applyAsDouble(i),
+            i -> expected.apply(Double.valueOf(i)),
             min.intValue(),
             max.intValue(),
             warnings
@@ -112,7 +110,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.LONG) + "]",
             DataTypes.DOUBLE,
-            l -> expected.applyAsDouble(l),
+            i -> expected.apply(Double.valueOf(i)),
             min.longValue(),
             max.longValue(),
             warnings
@@ -121,12 +119,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             suppliers,
             eval + castToDoubleEvaluator(read, DataTypes.UNSIGNED_LONG) + "]",
             DataTypes.DOUBLE,
-            ul -> expected.applyAsDouble(ul.doubleValue()),
+            ul -> expected.apply(ul.doubleValue()),
             BigInteger.valueOf((int) Math.ceil(min)),
             BigInteger.valueOf((int) Math.floor(max)),
             warnings
         );
-        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, i -> expected.applyAsDouble(i), min, max, warnings);
+        forUnaryDouble(suppliers, eval + read + "]", DataTypes.DOUBLE, expected::apply, min, max, warnings);
         return suppliers;
     }
 
@@ -510,7 +508,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             cases.add(
                 new TypedDataSupplier(
                     "<small unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower1.longValue(), upper1.longValue())),
+                    () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1),
                     DataTypes.UNSIGNED_LONG
                 )
             );
@@ -520,12 +518,12 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         // Big values, greater than Long.MAX_VALUE
         BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
-        BigInteger upper2 = max.min(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(Integer.MAX_VALUE)));
+        BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
         if (lower2.compareTo(upper2) < 0) {
             cases.add(
                 new TypedDataSupplier(
                     "<big unsigned long>",
-                    () -> BigInteger.valueOf(ESTestCase.randomLongBetween(lower2.longValue(), upper2.longValue())),
+                    () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2),
                     DataTypes.UNSIGNED_LONG
                 )
             );

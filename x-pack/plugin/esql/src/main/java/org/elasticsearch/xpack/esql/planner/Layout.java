@@ -118,7 +118,11 @@ public interface Layout {
             for (ChannelSet set : channels) {
                 int channel = numberOfChannels++;
                 for (NameId id : set.nameIds) {
-                    layout.putIfAbsent(id, new ChannelAndType(channel, set.type));
+                    ChannelAndType next = new ChannelAndType(channel, set.type);
+                    ChannelAndType prev = layout.put(id, next);
+                    if (prev != null) {
+                        throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
+                    }
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);

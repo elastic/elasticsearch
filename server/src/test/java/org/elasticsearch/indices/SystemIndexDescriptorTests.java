@@ -273,7 +273,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(MAPPINGS_FORMAT_STRING.formatted(VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
+            .setMappings(String.format(Locale.ROOT, MAPPINGS_FORMAT_STRING, VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)

@@ -68,22 +68,8 @@ public class XContentHelperTests extends ESTestCase {
     }
 
     public void testMergingDefaults() {
-        Map<String, Object> base = getMap(
-            "key1",
-            "old",
-            "key3",
-            "old",
-            "map",
-            getMap("key1", "old", "key3", "old")
-        );
-        Map<String, Object> toMerge = getMap(
-            "key2",
-            "new",
-            "key3",
-            "new",
-            "map",
-            getMap("key2", "new", "key3", "new")
-        );
+        Map<String, Object> base = getMap("key1", "old", "key3", "old", "map", getMap("key1", "old", "key3", "old"));
+        Map<String, Object> toMerge = getMap("key2", "new", "key3", "new", "map", getMap("key2", "new", "key3", "new"));
         XContentHelper.mergeDefaults(base, toMerge);
         Map<String, Object> expected = getMap(
             "key1",

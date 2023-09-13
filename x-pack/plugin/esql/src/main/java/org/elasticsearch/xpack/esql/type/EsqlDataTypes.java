@@ -43,8 +43,6 @@ public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
-    // A combination of a date period and time duration
-    public static final DataType DURATION = new DataType("DURATION", null, 4 * Integer.BYTES + Long.BYTES, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -62,7 +60,6 @@ public final class EsqlDataTypes {
         DATETIME,
         DATE_PERIOD,
         TIME_DURATION,
-        DURATION,
         IP,
         OBJECT,
         NESTED,

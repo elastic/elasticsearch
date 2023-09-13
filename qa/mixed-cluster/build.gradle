@@ -30,7 +30,7 @@ restResources {
 def excludeList = []
 // Excluding these cache aggregation tests from mixed cluster qa,
 // because we can't hit the same node reliable. The qa cluster
-// consists out of 4 nodes. Two nodes are on old version and the
+// consists of 4 nodes. Two nodes are on old version and the
 // other two nodes on the current version. The node selector skips
 // the nodes on current version. The rest client then round robins
 // between the two nodes on old version. In order to unmute this,

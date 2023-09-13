@@ -68,7 +68,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
 
-        if (serializationVersion.onOrAfter(TransportVersions.V_8_500_073)) {
+        if (serializationVersion.onOrAfter(TransportVersions.WAIT_FOR_RECOVERY_ADDED)) {
             assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
         } else {
             assertEquals(0L, inRequest.clusterStateVersion());

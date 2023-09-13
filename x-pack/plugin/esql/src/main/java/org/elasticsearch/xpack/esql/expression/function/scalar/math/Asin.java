@@ -26,7 +26,7 @@ public class Asin extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new AsinEvaluator(field);
+        return new AsinEvaluator(source(), field);
     }
 
     @Override
@@ -39,8 +39,11 @@ public class Asin extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Asin::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (Math.abs(val) > 1) {
+            throw new ArithmeticException("Asin input out of range");
+        }
         return Math.asin(val);
     }
 }

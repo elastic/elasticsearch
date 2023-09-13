@@ -23,4 +23,5 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.operator;
     exports org.elasticsearch.compute.operator.exchange;
     exports org.elasticsearch.compute.aggregation.blockhash;
+    exports org.elasticsearch.compute.operator.topn;
 }

@@ -95,4 +95,9 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
             + Arrays.toString(values)
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

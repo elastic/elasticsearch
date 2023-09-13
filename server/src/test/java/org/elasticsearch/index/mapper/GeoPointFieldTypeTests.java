@@ -30,7 +30,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
             ignoreMalformed,
             IndexVersion.current(),
             null
-        ).build(MapperBuilderContext.root(false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
@@ -89,7 +89,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchVectorTile() throws IOException {
         MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false, IndexVersion.current(), null).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

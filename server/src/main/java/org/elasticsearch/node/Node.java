@@ -622,7 +622,10 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
-            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.current(),
+                systemIndices.getMappingsVersions()
+            );
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);

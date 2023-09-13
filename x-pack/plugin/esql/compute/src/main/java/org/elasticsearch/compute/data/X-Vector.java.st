@@ -12,10 +12,6 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-$if(BytesRef)$
-
-$else$
-$endif$
 
 import java.io.IOException;
 

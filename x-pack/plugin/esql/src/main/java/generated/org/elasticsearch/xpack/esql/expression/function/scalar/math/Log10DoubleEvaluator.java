@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,9 +25,13 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
 
   private final EvalOperator.ExpressionEvaluator val;
 
-  public Log10DoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public Log10DoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override

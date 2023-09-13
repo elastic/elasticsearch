@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -98,7 +99,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                         field("a", DataTypes.KEYWORD),
                         IntStream.range(1, 5).mapToObj(i -> field(Integer.toString(i), DataTypes.KEYWORD)).toList()
                     )
-                ).get().eval(row(simpleData)),
+                ).get(new DriverContext()).eval(row(simpleData)),
                 0
             ),
             equalTo(new BytesRef("cats and dogs"))
@@ -120,7 +121,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                             field("c", DataTypes.KEYWORD)
                         )
                     )
-                ).get().eval(row(simpleData)),
+                ).get(new DriverContext()).eval(row(simpleData)),
                 0
             ),
             equalTo(new BytesRef("cats and dogs"))

@@ -95,14 +95,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(objectMapper, nestedMapper.mapping(), reason)
             );
-            assertThat(e.getMessage(), containsString("can't merge a nested mapping [obj] with a non-nested mapping"));
+            assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> MapperService.mergeMappings(nestedMapper, objectMapper.mapping(), reason)
             );
-            assertThat(e.getMessage(), containsString("can't merge a non nested mapping [obj] with a nested mapping"));
+            assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
     }
 

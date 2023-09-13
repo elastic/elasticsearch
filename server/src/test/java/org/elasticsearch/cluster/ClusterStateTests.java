@@ -1178,7 +1178,7 @@ public class ClusterStateTests extends ESTestCase {
     public static int expectedChunkCount(ToXContent.Params params, ClusterState clusterState) {
         final var metrics = ClusterState.Metric.parseString(params.param("metric", "_all"), true);
 
-        int chunkCount = 0;
+        long chunkCount = 0;
 
         // header chunk
         chunkCount += 1;
@@ -1242,6 +1242,6 @@ public class ClusterStateTests extends ESTestCase {
             }
         }
 
-        return chunkCount;
+        return Math.toIntExact(chunkCount);
     }
 }

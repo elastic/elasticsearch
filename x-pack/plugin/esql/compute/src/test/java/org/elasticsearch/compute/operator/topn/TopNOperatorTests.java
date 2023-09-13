@@ -1299,7 +1299,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    private Version randomVersion() {
+    static Version randomVersion() {
         return new Version(randomFrom(VERSIONS));
     }
 }

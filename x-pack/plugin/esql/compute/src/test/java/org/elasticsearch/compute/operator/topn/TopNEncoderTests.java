@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -19,6 +21,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@Repeat(iterations = 1000)
 public class TopNEncoderTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
@@ -120,10 +123,11 @@ public class TopNEncoderTests extends ESTestCase {
 
     static Version randomVersion() {
         // TODO degenerate versions and stuff
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> new Version(Integer.toString(between(0, 100)));
             case 1 -> new Version(between(0, 100) + "." + between(0, 100));
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
+            case 3 -> TopNOperatorTests.randomVersion();
             default -> throw new IllegalArgumentException();
         };
     }

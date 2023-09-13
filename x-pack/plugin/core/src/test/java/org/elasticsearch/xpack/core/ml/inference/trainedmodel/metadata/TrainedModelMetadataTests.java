@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -64,6 +65,16 @@ public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected TrainedModelMetadata mutateInstanceForVersion(TrainedModelMetadata instance, TransportVersion version) {
+        if (version.before(TransportVersions.ML_TRAINED_MODEL_METADATA_PLATFORM_ADDED)) {
+            return new TrainedModelMetadata(
+                instance.getModelId(),
+                instance.getTotalFeatureImportances(),
+                instance.getFeatureImportanceBaselines(),
+                instance.getHyperparameters(),
+                null
+            );
+        }
+
         return instance;
     }
 }

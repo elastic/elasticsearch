@@ -97,7 +97,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         sb.append(esFilter);
         sb.append(", estimatedRowSize=");
         sb.append(estimatedRowSize);
-        sb.append(", fragment=[<>");
+        sb.append(", fragment=[<>\n");
         sb.append(fragment.toString());
         sb.append("<>]]");
         return sb.toString();

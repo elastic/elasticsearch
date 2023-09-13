@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
@@ -34,7 +35,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
@@ -53,22 +56,30 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
     private final Scheduler scheduler;
+    private final Executor executor;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
-    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, Scheduler scheduler) {
+    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, ThreadPool threadPool) {
         // there tends to be a lot of state operations on an upgrade - this one is not time-critical,
         // so use LOW priority. It just needs to be run at some point after upgrade.
-        this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client, scheduler);
+        this(
+            service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()),
+            client,
+            threadPool,
+            threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION)
+        );
     }
 
     TransportVersionsFixupListener(
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue,
         ClusterAdminClient client,
-        Scheduler scheduler
+        Scheduler scheduler,
+        Executor executor
     ) {
         this.taskQueue = taskQueue;
         this.client = client;
         this.scheduler = scheduler;
+        this.executor = executor;
     }
 
     class NodeTransportVersionTask implements ClusterStateTaskListener {
@@ -99,7 +110,10 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    TransportVersion recordedTv = builder.transportVersions().get(e.getKey());
+                    var cvMap = builder.compatibilityVersions();
+                    TransportVersion recordedTv = Optional.ofNullable(cvMap.get(e.getKey()))
+                        .map(CompatibilityVersions::transportVersion)
+                        .orElse(null);
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
                     if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
@@ -113,9 +127,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#transportVersions requires reading them")
-    private static Map<String, TransportVersion> getTransportVersions(ClusterState clusterState) {
-        return clusterState.transportVersions();
+    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     @Override
@@ -129,9 +143,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
-            Set<String> nodes = getTransportVersions(event.state()).entrySet()
+            Set<String> nodes = getCompatibilityVersions(event.state()).entrySet()
                 .stream()
-                .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
+                .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
@@ -142,7 +156,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private void scheduleRetry(Set<String> nodes, int thisRetryNum) {
         // just keep retrying until this succeeds
         logger.debug("Scheduling retry {} for nodes {}", thisRetryNum + 1, nodes);
-        scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, ThreadPool.Names.CLUSTER_COORDINATION);
+        scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, executor);
     }
 
     private void updateTransportVersions(Set<String> nodes, int retryNum) {

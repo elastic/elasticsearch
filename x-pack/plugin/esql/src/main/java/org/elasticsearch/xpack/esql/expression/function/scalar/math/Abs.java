@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,8 +23,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
-    public Abs(Source source, Expression field) {
-        super(source, field);
+    public Abs(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
@@ -63,7 +64,7 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
         if (dataType() == DataTypes.INTEGER) {
             return () -> new AbsIntEvaluator(field.get());
         }
-        throw EsqlUnsupportedOperationException.unsupportedDataType(dataType());
+        throw EsqlIllegalArgumentException.illegalDataType(dataType());
     }
 
     @Override

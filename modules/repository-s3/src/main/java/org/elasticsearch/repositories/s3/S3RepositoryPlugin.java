@@ -106,13 +106,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        service.set(s3Service(environment));
+        service.set(s3Service(environment, clusterService.getSettings()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment) {
-        return new S3Service(environment);
+    S3Service s3Service(Environment environment, Settings nodeSettings) {
+        return new S3Service(environment, nodeSettings);
     }
 
     @Override

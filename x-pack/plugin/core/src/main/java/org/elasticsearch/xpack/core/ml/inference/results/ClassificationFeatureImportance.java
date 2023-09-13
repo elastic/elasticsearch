@@ -62,7 +62,7 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
 
     public ClassificationFeatureImportance(StreamInput in) throws IOException {
         this.featureName = in.readString();
-        this.classImportance = in.readList(ClassImportance::new);
+        this.classImportance = in.readCollectionAsList(ClassImportance::new);
     }
 
     public List<ClassImportance> getClassImportance() {
@@ -85,7 +85,7 @@ public class ClassificationFeatureImportance extends AbstractFeatureImportance {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(featureName);
-        out.writeList(classImportance);
+        out.writeCollection(classImportance);
     }
 
     @Override

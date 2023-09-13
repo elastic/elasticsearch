@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.textstructure.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -140,13 +140,13 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(TextStructure.Format.class) : null;
-            columnNames = in.readBoolean() ? in.readStringList() : null;
+            columnNames = in.readBoolean() ? in.readStringCollectionAsList() : null;
             hasHeaderRow = in.readOptionalBoolean();
             delimiter = in.readBoolean() ? (char) in.readVInt() : null;
             quote = in.readBoolean() ? (char) in.readVInt() : null;
             shouldTrimFields = in.readOptionalBoolean();
             grokPattern = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
                 ecsCompatibility = in.readOptionalString();
             } else {
                 ecsCompatibility = null;
@@ -391,7 +391,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeCollection(columnNames, StreamOutput::writeString);
+                out.writeStringCollection(columnNames);
             }
             out.writeOptionalBoolean(hasHeaderRow);
             if (delimiter == null) {
@@ -408,7 +408,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
             out.writeOptionalBoolean(shouldTrimFields);
             out.writeOptionalString(grokPattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
                 out.writeOptionalString(ecsCompatibility);
             }
             out.writeOptionalString(timestampFormat);

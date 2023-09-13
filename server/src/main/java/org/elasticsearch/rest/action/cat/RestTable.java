@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -92,35 +91,29 @@ public class RestTable {
         int lastHeader = headers.size() - 1;
         List<Integer> rowOrder = getRowOrder(table, request);
 
-        if (verbose == false && rowOrder.isEmpty()) {
-            return new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-        }
-
         return RestResponse.chunked(
             RestStatus.OK,
             ChunkedRestResponseBody.fromTextChunks(
                 RestResponse.TEXT_CONTENT_TYPE,
                 Iterators.concat(
                     // optional header
-                    Iterators.single(writer -> {
-                        if (verbose) {
-                            for (int col = 0; col < headers.size(); col++) {
-                                DisplayHeader header = headers.get(col);
-                                boolean isLastColumn = col == lastHeader;
-                                pad(
-                                    new Table.Cell(header.display, table.findHeaderByName(header.name)),
-                                    width[col],
-                                    request,
-                                    writer,
-                                    isLastColumn
-                                );
-                                if (isLastColumn == false) {
-                                    writer.append(" ");
-                                }
+                    verbose ? Iterators.single(writer -> {
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(
+                                new Table.Cell(header.display, table.findHeaderByName(header.name)),
+                                width[col],
+                                request,
+                                writer,
+                                isLastColumn
+                            );
+                            if (isLastColumn == false) {
+                                writer.append(" ");
                             }
-                            writer.append("\n");
                         }
-                    }),
+                        writer.append("\n");
+                    }) : Collections.emptyIterator(),
                     // body
                     Iterators.map(rowOrder.iterator(), row -> writer -> {
                         for (int col = 0; col < headers.size(); col++) {

@@ -109,7 +109,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**

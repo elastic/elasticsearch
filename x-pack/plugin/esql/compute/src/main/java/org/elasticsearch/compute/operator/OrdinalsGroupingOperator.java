@@ -24,8 +24,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
@@ -338,7 +338,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
-                final LongBlock ordinals = currentReader.readOrdinals(docs);
+                final IntBlock ordinals = currentReader.readOrdinals(docs);
                 for (int p = 0; p < ordinals.getPositionCount(); p++) {
                     if (ordinals.isNull(p)) {
                         continue;
@@ -346,7 +346,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     int start = ordinals.getFirstValueIndex(p);
                     int end = start + ordinals.getValueCount(p);
                     for (int i = start; i < end; i++) {
-                        long ord = ordinals.getLong(i);
+                        long ord = ordinals.getInt(i);
                         visitedOrds.set(ord);
                     }
                 }
@@ -422,7 +422,7 @@ public class OrdinalsGroupingOperator implements Operator {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize),
+                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize, false),
                 driverContext
             );
         }

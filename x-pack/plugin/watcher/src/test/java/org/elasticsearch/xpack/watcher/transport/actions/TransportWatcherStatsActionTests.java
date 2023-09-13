@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,8 +45,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
 
     @Before
     public void setupTransportAction() {
-        TransportService transportService = mock(TransportService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
 
         ClusterService clusterService = mock(ClusterService.class);
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");

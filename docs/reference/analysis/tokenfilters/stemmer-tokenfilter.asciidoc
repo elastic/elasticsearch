@@ -214,6 +214,9 @@ Norwegian (Nynorsk)::
 {lucene-analysis-docs}/no/NorwegianLightStemmer.html[*`light_nynorsk`*],
 {lucene-analysis-docs}/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`]
 
+Persian::
+{lucene-analysis-docs}/fa/PersianStemmer.html[*`persian`*]
+
 Portuguese::
 https://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
 pass:macros[http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`\]],

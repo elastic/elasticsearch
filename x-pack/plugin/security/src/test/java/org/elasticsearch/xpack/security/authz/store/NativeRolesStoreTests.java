@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
@@ -63,6 +65,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -71,8 +74,10 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -385,7 +390,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         );
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             transportVersionBeforeAdvancedRemoteClusterSecurity
         );
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
@@ -435,6 +440,26 @@ public class NativeRolesStoreTests extends ESTestCase {
                     + "] or higher to support remote indices privileges"
             )
         );
+    }
+
+    public void testGetRoleWhenDisabled() throws Exception {
+        final Settings settings = Settings.builder().put(NativeRolesStore.NATIVE_ROLES_ENABLED, "false").build();
+        final Client client = mock(Client.class);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
+        systemIndices.init(client, clusterService);
+        final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
+
+        final NativeRolesStore store = new NativeRolesStore(settings, client, licenseState, securityIndex, clusterService);
+
+        final PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
+        store.getRoleDescriptors(Set.of(randomAlphaOfLengthBetween(4, 12)), future);
+
+        assertThat(future.get().isSuccess(), is(true));
+        assertThat(future.get().getDescriptors(), empty());
+
+        Mockito.verifyNoInteractions(client);
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {

@@ -110,7 +110,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(destIndexMappings, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(destIndexMappings, StreamOutput::writeString);
         }
 
         public Map<String, String> getDestIndexMappings() {

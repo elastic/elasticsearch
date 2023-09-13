@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,12 +43,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
         AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         VersionStats versionStats = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             versionStats = in.readOptionalWriteable(VersionStats::new);
         }
         this.clusterUUID = clusterUUID;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             clusterSnapshotStats = ClusterSnapshotStats.readFrom(in);
         } else {
             clusterSnapshotStats = ClusterSnapshotStats.EMPTY;
@@ -115,23 +115,23 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         out.writeOptionalString(clusterUUID);
         out.writeOptionalWriteable(indicesStats.getMappings());
         out.writeOptionalWriteable(indicesStats.getAnalysis());
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             out.writeOptionalWriteable(indicesStats.getVersions());
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             clusterSnapshotStats.writeTo(out);
         }
     }
 
     @Override
     protected List<ClusterStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(ClusterStatsNodeResponse::readNodeResponse);
+        return in.readCollectionAsList(ClusterStatsNodeResponse::readNodeResponse);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {
         // nodeStats and indicesStats are rebuilt from nodes
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

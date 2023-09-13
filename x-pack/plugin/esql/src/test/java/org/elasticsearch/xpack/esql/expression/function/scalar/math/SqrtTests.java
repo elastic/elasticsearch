@@ -10,53 +10,108 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class SqrtTests extends AbstractScalarFunctionTestCase {
-    public SqrtTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class SqrtTests extends AbstractFunctionTestCase {
+    public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Sqrt of Double", () -> {
-            // TODO: include larger values here
-            double arg = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "SqrtDoubleEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.sqrt(arg))
-            );
-        })));
-    }
+        String read = "Attribute[channel=0]";
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        // Valid values
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "SqrtIntEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::sqrt,
+            0,
+            Integer.MAX_VALUE,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "SqrtLongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::sqrt,
+            0,
+            Long.MAX_VALUE,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "SqrtUnsignedLongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            ul -> Math.sqrt(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
+            BigInteger.ZERO,
+            UNSIGNED_LONG_MAX,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "SqrtDoubleEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            Math::sqrt,
+            -0d,
+            Double.MAX_VALUE,
+            List.of()
+        );
+        suppliers = anyNullIsNull(true, suppliers);
 
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
-        return equalTo(Math.sqrt((Double) typedData.get(0).data()));
+        // Out of range values (there are no out of range unsigned longs)
+        TestCaseSupplier.forUnaryInt(
+            suppliers,
+            "SqrtIntEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Integer.MIN_VALUE,
+            -1,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Square root of negative"
+            )
+        );
+        TestCaseSupplier.forUnaryLong(
+            suppliers,
+            "SqrtLongEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Long.MIN_VALUE,
+            -1,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Square root of negative"
+            )
+        );
+        TestCaseSupplier.forUnaryDouble(
+            suppliers,
+            "SqrtDoubleEvaluator[val=" + read + "]",
+            DataTypes.DOUBLE,
+            k -> null,
+            Double.NEGATIVE_INFINITY,
+            -Double.MIN_VALUE,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "java.lang.ArithmeticException: Square root of negative"
+            )
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Sqrt(source, args.get(0));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
     }
 }

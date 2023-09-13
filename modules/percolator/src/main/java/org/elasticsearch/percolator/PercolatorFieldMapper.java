@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -162,7 +163,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 name(),
                 fieldType,
                 multiFields,
-                copyTo.build(),
+                copyTo,
                 searchExecutionContext,
                 extractedTermsField,
                 extractionResultField,
@@ -409,7 +410,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        configureContext(executionContext, isMapUnmappedFieldAsText());
+        executionContext = configureContext(executionContext, isMapUnmappedFieldAsText());
 
         QueryBuilder queryBuilder = parseQueryBuilder(context);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
@@ -509,7 +510,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
-    static void configureContext(SearchExecutionContext context, boolean mapUnmappedFieldsAsString) {
+    static SearchExecutionContext configureContext(SearchExecutionContext context, boolean mapUnmappedFieldsAsString) {
+        SearchExecutionContext wrapped = wrapAllEmptyTextFields(context);
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -522,8 +524,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         //
         // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
         // as an analyzed string.
-        context.setAllowUnmappedFields(false);
-        context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        wrapped.setAllowUnmappedFields(false);
+        wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        return wrapped;
     }
 
     @Override
@@ -569,5 +572,18 @@ public class PercolatorFieldMapper extends FieldMapper {
         System.arraycopy(minEncoded, 0, bytes, offset, minEncoded.length);
         System.arraycopy(maxEncoded, 0, bytes, BinaryRange.BYTES + offset, maxEncoded.length);
         return bytes;
+    }
+
+    // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+    // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+    // Consequently, we may erroneously skip expanding those term fields.
+    // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+    static SearchExecutionContext wrapAllEmptyTextFields(SearchExecutionContext searchExecutionContext) {
+        return new FilteredSearchExecutionContext(searchExecutionContext) {
+            @Override
+            public boolean fieldExistsInIndex(String fieldname) {
+                return true;
+            }
+        };
     }
 }

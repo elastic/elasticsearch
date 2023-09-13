@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -337,7 +338,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                         threadPool.schedule(
                             () -> doExecute(task, request, listener, attempt + 1),
                             TimeValue.timeValueMillis(100L * attempt),
-                            ThreadPool.Names.SAME
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                     } else {
                         listener.onFailure(

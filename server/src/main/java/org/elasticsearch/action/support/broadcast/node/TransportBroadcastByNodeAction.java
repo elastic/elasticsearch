@@ -119,7 +119,7 @@ public abstract class TransportBroadcastByNodeAction<
 
         transportService.registerRequestHandler(
             transportNodeBroadcastAction,
-            executor,
+            this.executor,
             false,
             canTripCircuitBreaker,
             NodeRequest::new,
@@ -469,7 +469,7 @@ public abstract class TransportBroadcastByNodeAction<
         NodeRequest(StreamInput in) throws IOException {
             super(in);
             indicesLevelRequest = readRequestFrom(in);
-            shards = in.readList(ShardRouting::new);
+            shards = in.readCollectionAsList(ShardRouting::new);
             nodeId = in.readString();
         }
 
@@ -507,7 +507,7 @@ public abstract class TransportBroadcastByNodeAction<
             assert indicesLevelRequest.hasReferences();
             super.writeTo(out);
             indicesLevelRequest.writeTo(out);
-            out.writeList(shards);
+            out.writeCollection(shards);
             out.writeString(nodeId);
         }
 
@@ -552,9 +552,9 @@ public abstract class TransportBroadcastByNodeAction<
             super(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
-            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
+            results = in.readCollectionAsList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
             if (in.readBoolean()) {
-                exceptions = in.readList(BroadcastShardOperationFailedException::new);
+                exceptions = in.readCollectionAsList(BroadcastShardOperationFailedException::new);
             } else {
                 exceptions = null;
             }
@@ -599,7 +599,7 @@ public abstract class TransportBroadcastByNodeAction<
             out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                out.writeList(exceptions);
+                out.writeCollection(exceptions);
             }
         }
     }

@@ -20,6 +20,14 @@
         },
         "_meta_field": {
             "type" : "keyword"
+        },
+        "job": {
+            "type": "text",
+            "fields": {
+                "raw": {
+                  "type": "keyword"
+                }
+            }
         }
     }
 }

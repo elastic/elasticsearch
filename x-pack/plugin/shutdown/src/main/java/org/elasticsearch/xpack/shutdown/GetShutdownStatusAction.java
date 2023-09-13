@@ -14,12 +14,16 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.Response> {
@@ -69,6 +73,11 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         public int hashCode() {
             return Arrays.hashCode(nodeIds);
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -79,7 +88,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            this.shutdownStatuses = in.readList(SingleNodeShutdownStatus::new);
+            this.shutdownStatuses = in.readCollectionAsList(SingleNodeShutdownStatus::new);
         }
 
         public List<SingleNodeShutdownStatus> getShutdownStatuses() {
@@ -102,7 +111,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(shutdownStatuses);
+            out.writeCollection(shutdownStatuses);
         }
 
         @Override

@@ -50,7 +50,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
     }
 
     @Override
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {

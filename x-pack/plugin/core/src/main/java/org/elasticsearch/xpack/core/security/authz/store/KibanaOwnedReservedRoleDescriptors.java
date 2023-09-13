@@ -281,13 +281,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-ti_*_latest.*")
                     .privileges(
-                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
-                        // UpdateSettingsAction.NAME for transform
                         "create_index",
                         "delete_index",
                         "read",
                         "index",
                         "delete",
+                        "manage",
                         IndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )

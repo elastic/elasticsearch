@@ -62,7 +62,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
         this.answer = in.readString();
         this.startOffset = in.readVInt();
         this.endOffset = in.readVInt();
-        this.topClasses = in.readImmutableList(TopAnswerEntry::fromStream);
+        this.topClasses = in.readCollectionAsImmutableList(TopAnswerEntry::fromStream);
         this.resultsField = in.readString();
         this.score = in.readDouble();
     }

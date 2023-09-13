@@ -10,43 +10,30 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class AtanTests extends AbstractScalarFunctionTestCase {
-    public AtanTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class AtanTests extends AbstractFunctionTestCase {
+    public AtanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
-            double arg = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "AtanEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.atan(arg))
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "AtanEvaluator",
+            "val",
+            Math::atan,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

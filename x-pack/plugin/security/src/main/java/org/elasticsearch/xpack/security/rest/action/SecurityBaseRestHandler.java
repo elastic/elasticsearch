@@ -35,7 +35,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     }
 
     /**
-     * Calls the {@link #checkFeatureAvailable()} method to check whether the feature is available based
+     * Calls the {@link #checkFeatureAvailable(RestRequest)} method to check whether the feature is available based
      * on settings and license state. If allowed, the result from
      * {@link #innerPrepareRequest(RestRequest, NodeClient)} is returned, otherwise a default error
      * response will be returned indicating that security is not licensed.
@@ -44,7 +44,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * trip the unused parameters check
      */
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final Exception failedFeature = checkFeatureAvailable();
+        final Exception failedFeature = checkFeatureAvailable(request);
         if (failedFeature == null) {
             return innerPrepareRequest(request, client);
         } else {
@@ -58,23 +58,23 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * Check whether the given request is allowed within the current license state and setup,
      * and return the name of any unlicensed feature.
      * By default this returns an exception if security is not enabled.
-     * Sub-classes can override {@link #innerCheckFeatureAvailable()} if they have additional requirements.
+     * Sub-classes can override {@link #innerCheckFeatureAvailable(RestRequest)} if they have additional requirements.
      *
      * @return {@code null} if all required features are available, otherwise an exception to be
      * sent to the requester
      */
-    public final Exception checkFeatureAvailable() {
+    public final Exception checkFeatureAvailable(RestRequest request) {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
         } else {
-            return innerCheckFeatureAvailable();
+            return innerCheckFeatureAvailable(request);
         }
     }
 
     /**
      * Implementers should implement this method when sub-classes have additional license requirements.
      */
-    protected Exception innerCheckFeatureAvailable() {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
         return null;
     }
 
@@ -82,7 +82,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * Implementers should implement this method as they normally would for
      * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)} and ensure that all request
      * parameters are consumed prior to returning a value. This method is executed only if the
-     * check from {@link #checkFeatureAvailable()} passes.
+     * check from {@link #checkFeatureAvailable(RestRequest)} passes.
      */
     protected abstract RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException;
 }

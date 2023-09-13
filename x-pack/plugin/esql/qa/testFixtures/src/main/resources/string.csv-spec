@@ -55,6 +55,7 @@ emp_no:integer | first_name:keyword  | f_S:boolean
 
 startsWithField
 from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | keep emp_no, last_name, gender, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10001 | Facello   | M    | false
@@ -71,6 +72,7 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | cello
@@ -87,6 +89,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 
 substring with length
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | keep emp_no, last_name, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | c
@@ -103,6 +106,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 
 substring negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | keep emp_no, last_name, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | llo
@@ -119,6 +123,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 
 substring nested negative start
 from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | keep emp_no, last_name, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | o
@@ -135,6 +140,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 
 substring length
 from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | keep emp_no, last_name, f_l;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | f_l:integer
 10001 | Facello   | 5
@@ -151,6 +157,7 @@ emp_no:integer | last_name:keyword | f_l:integer
 
 substring pair
 from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | keep emp_no, last_name, x, z;
+ignoreOrder:true
 
 emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10001 | Facello   | F | a
@@ -294,6 +301,7 @@ emp_no:integer | name:keyword
 // Note: no matches in MV returned
 in
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
+ignoreOrder:true
 
 emp_no:integer |job_positions:keyword
 10048          |Internship
@@ -302,7 +310,7 @@ emp_no:integer |job_positions:keyword
 
 in3VLNoNull
 // filtering for SVs, since IN uses EQUALS evaluators, that turn MVs into NULL
-from employees | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship");
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship");
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |false
@@ -311,7 +319,7 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 ;
 
 in3VLWithNull
-from employees | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -319,8 +327,15 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 10026          |Reporting Analyst     |null
 ;
 
+in3VLWithNull-99347_bugfix
+from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10025          |Accountant            |true
+;
+
 in3VLWithComputedNull
-from employees | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
 
 emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10024          |Junior Developer      |null        |null
@@ -329,7 +344,7 @@ emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 ;
 
 in3VLWithNullAsValue
-from employees | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = null in ("Accountant", "Internship", null);
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = null in ("Accountant", "Internship", null);
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -338,7 +353,7 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 ;
 
 in3VLWithComputedNullAsValue
-from employees | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = nil in ("Accountant", "Internship", null);
+from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = nil in ("Accountant", "Internship", null);
 
 emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10024          |Junior Developer      |null        |null
@@ -436,7 +451,7 @@ min(salary):integer | max(salary):integer | job_positions:keyword
 ;
 
 convertFromString
-from employees | eval positions = to_string(job_positions) | keep emp_no, positions, job_positions | limit 5;
+from employees | sort emp_no | eval positions = to_string(job_positions) | keep emp_no, positions, job_positions | limit 5;
 
 emp_no:integer |positions:keyword                                                     |job_positions:keyword
 10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
@@ -548,7 +563,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 convertFromBoolean
-from employees | eval rehired = to_string(is_rehired) | keep emp_no, rehired, is_rehired | limit 5;
+from employees | sort emp_no | eval rehired = to_string(is_rehired) | keep emp_no, rehired, is_rehired | limit 5;
 
 emp_no:integer |rehired:string              |is_rehired:boolean
 10001          |[false, true]               |[false, true]
@@ -559,7 +574,7 @@ emp_no:integer |rehired:string              |is_rehired:boolean
 ;
 
 convertFromDatetime
-from employees | sort emp_no| eval hired_at = to_string(hire_date) | keep emp_no, hired_at, hire_date  | limit 1;
+from employees | sort emp_no | eval hired_at = to_string(hire_date) | keep emp_no, hired_at, hire_date  | limit 1;
 
 emp_no:integer |hired_at:keyword         |hire_date:date
 10001          |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
@@ -567,6 +582,7 @@ emp_no:integer |hired_at:keyword         |hire_date:date
 
 convertFromIP
 from hosts | where host=="epsilon" | eval str0 = to_string(ip0) | keep str0, ip0;
+ignoreOrder:true
 
 str0:keyword                                                                            |ip0:ip
 ["fe80::cae2:65ff:fece:feb9", "fe80::cae2:65ff:fece:fec0", "fe80::cae2:65ff:fece:fec1"] |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
@@ -638,6 +654,7 @@ ROW a=[10, 9, 8]
 
 showTextFields
 from hosts | where host == "beta" | keep host, host_group, description;
+ignoreOrder:true
 
 host:keyword     | host_group:text          | description:text
 beta             | Kubernetes cluster       | beta k8s server
@@ -647,6 +664,7 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 
 lengthOfText
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
+ignoreOrder:true
 
 l1:integer             | l2:integer
 null                   | 19
@@ -656,6 +674,7 @@ null                   | 19
 
 startsWithText
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
+ignoreOrder:true
 
 l1:boolean             | l2:boolean
 null                   | true
@@ -665,6 +684,7 @@ false                  | null
 
 substringOfText
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
+ignoreOrder:true
 
 l1:keyword             | l2:keyword
 null                   | epsil
@@ -699,4 +719,44 @@ l1:keyword  | l2:keyword
 Gateway     | instances   
 Gateway     | instances   
 null        | null
+;
+
+left
+// tag::left[]
+FROM employees
+| KEEP last_name
+| EVAL left = LEFT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::left[]
+;
+
+// tag::left-result[]
+last_name:keyword | left:keyword
+Awdeh             |Awd
+Azuma             |Azu
+Baek              |Bae
+Bamford           |Bam
+Bernatsky         |Ber
+// end::left-result[]
+;
+
+right
+// tag::right[]
+FROM employees
+| KEEP last_name
+| EVAL right = RIGHT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::right[]
+;
+
+// tag::right-result[]
+last_name:keyword | right:keyword
+Awdeh             |deh
+Azuma             |uma
+Baek              |aek
+Bamford           |ord
+Bernatsky         |sky
+// end::right-result[]
 ;

@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -27,8 +28,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
-    public Log10(Source source, Expression field) {
-        super(source, field);
+    public Log10(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
@@ -40,38 +41,50 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
         var eval = field.get();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return () -> new Log10DoubleEvaluator(eval);
+            return () -> new Log10DoubleEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return () -> new Log10IntEvaluator(eval);
+            return () -> new Log10IntEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.LONG) {
-            return () -> new Log10LongEvaluator(eval);
+            return () -> new Log10LongEvaluator(source(), eval);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return () -> new Log10UnsignedLongEvaluator(eval);
+            return () -> new Log10UnsignedLongEvaluator(source(), eval);
         }
 
-        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
+        throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (val <= 0d) {
+            throw new ArithmeticException("Log of non-positive number");
+        }
         return Math.log10(val);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static double process(long val) {
+        if (val <= 0L) {
+            throw new ArithmeticException("Log of non-positive number");
+        }
         return Math.log10(val);
     }
 
-    @Evaluator(extraName = "UnsignedLong")
+    @Evaluator(extraName = "UnsignedLong", warnExceptions = ArithmeticException.class)
     static double processUnsignedLong(long val) {
+        if (val == NumericUtils.ZERO_AS_UNSIGNED_LONG) {
+            throw new ArithmeticException("Log of non-positive number");
+        }
         return Math.log10(NumericUtils.unsignedLongToDouble(val));
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static double process(int val) {
+        if (val <= 0) {
+            throw new ArithmeticException("Log of non-positive number");
+        }
         return Math.log10(val);
     }
 

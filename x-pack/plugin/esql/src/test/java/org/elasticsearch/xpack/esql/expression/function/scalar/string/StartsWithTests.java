@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartsWithTests extends AbstractScalarFunctionTestCase {
-    public StartsWithTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public StartsWithTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -36,10 +37,10 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
             if (randomBoolean()) {
                 str = prefix + str;
             }
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
                 ),
                 "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
                 DataTypes.BOOLEAN,
@@ -53,7 +54,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
         return DataTypes.BOOLEAN;
     }
 
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String prefix = ((BytesRef) typedData.get(1).data()).utf8ToString();
         return equalTo(str.startsWith(prefix));

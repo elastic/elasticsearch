@@ -80,7 +80,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
 
     public LearnToRankConfig(StreamInput in) throws IOException {
         super(in);
-        this.featureExtractorBuilders = in.readNamedWriteableList(LearnToRankFeatureExtractorBuilder.class);
+        this.featureExtractorBuilders = in.readNamedWriteableCollectionAsList(LearnToRankFeatureExtractorBuilder.class);
     }
 
     public List<LearnToRankFeatureExtractorBuilder> getFeatureExtractorBuilders() {
@@ -120,7 +120,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteableList(featureExtractorBuilders);
+        out.writeNamedWriteableCollection(featureExtractorBuilders);
     }
 
     @Override

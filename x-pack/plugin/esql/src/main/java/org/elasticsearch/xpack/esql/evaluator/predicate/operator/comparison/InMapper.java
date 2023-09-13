@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -107,7 +106,12 @@ public class InMapper extends ExpressionMapper<In> {
                         nulls.set(i);
                     } // else: leave nulls as is
                 }
-                return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+                if (nulls.isEmpty()) {
+                    // no nulls and no multi-values means we must use a Vector
+                    return new BooleanArrayVector(values, values.length).asBlock();
+                } else {
+                    return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
+                }
             }
         }
     }

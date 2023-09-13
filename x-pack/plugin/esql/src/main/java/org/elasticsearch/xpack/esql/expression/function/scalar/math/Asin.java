@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,13 +20,13 @@ import java.util.List;
  * Inverse cosine trigonometric function.
  */
 public class Asin extends AbstractTrigonometricFunction {
-    public Asin(Source source, Expression field) {
-        super(source, field);
+    public Asin(Source source, @Named("n") Expression n) {
+        super(source, n);
     }
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new AsinEvaluator(field);
+        return new AsinEvaluator(source(), field);
     }
 
     @Override
@@ -38,8 +39,11 @@ public class Asin extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Asin::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (Math.abs(val) > 1) {
+            throw new ArithmeticException("Asin input out of range");
+        }
         return Math.asin(val);
     }
 }

@@ -111,7 +111,6 @@ public class Types {
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
 
-
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
     static ClassName blockType(TypeName elementType) {

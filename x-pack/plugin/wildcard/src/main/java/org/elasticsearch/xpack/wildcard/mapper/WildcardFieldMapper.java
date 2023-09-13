@@ -242,7 +242,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 nullValue.get(),
                 indexVersionCreated
             );
@@ -879,9 +879,17 @@ public class WildcardFieldMapper extends FieldMapper {
 
     }
 
+    private static final FieldType NGRAM_FIELD_TYPE;
+
+    static {
+        FieldType ft = new FieldType(Defaults.FIELD_TYPE);
+        ft.setTokenized(true);
+        NGRAM_FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
+        assert NGRAM_FIELD_TYPE.indexOptions() == IndexOptions.DOCS;
+    }
+
     private final int ignoreAbove;
     private final String nullValue;
-    private final FieldType ngramFieldType;
     private final IndexVersion indexVersionCreated;
     private final boolean storeIgnored;
 
@@ -900,10 +908,6 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ignoreAbove = ignoreAbove;
         this.storeIgnored = storeIgnored;
         this.indexVersionCreated = indexVersionCreated;
-        this.ngramFieldType = new FieldType(Defaults.FIELD_TYPE);
-        this.ngramFieldType.setTokenized(true);
-        this.ngramFieldType.freeze();
-        assert ngramFieldType.indexOptions() == IndexOptions.DOCS;
     }
 
     @Override
@@ -954,7 +958,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {
         String ngramValue = addLineEndChars(value);
-        Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
+        Field ngramField = new Field(fieldType().name(), ngramValue, NGRAM_FIELD_TYPE);
         fields.add(ngramField);
 
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());

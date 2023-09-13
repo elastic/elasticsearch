@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
- * left(foo, len) is a alias that substring(foo, 0, len)
+ * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
  */
 public class Left extends ScalarFunction implements EvaluatorMapper {
 
@@ -41,20 +42,24 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
-    public Left(Source source, Expression str, Expression length) {
+    public Left(Source source, @Named("string") Expression str, @Named("length") Expression length) {
         super(source, Arrays.asList(str, length));
         this.source = source;
         this.str = str;
         this.length = length;
     }
 
-    @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static BytesRef process(@Fixed BytesRef out, BytesRef str, int length) {
+    @Evaluator
+    static BytesRef process(
+        @Fixed(includeInToString = false) BytesRef out,
+        @Fixed(includeInToString = false) UnicodeUtil.UTF8CodePoint cp,
+        BytesRef str,
+        int length
+    ) {
         out.bytes = str.bytes;
         out.offset = str.offset;
         out.length = str.length;
         int curLenStart = 0;
-        UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
         for (int i = 0; i < length && curLenStart < out.length; i++, curLenStart += cp.numBytes) {
             UnicodeUtil.codePointAt(out.bytes, out.offset + curLenStart, cp);
         }
@@ -68,7 +73,8 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         var lengthSupplier = toEvaluator.apply(length);
         return dvrCtx -> {
             BytesRef out = new BytesRef();
-            return new LeftEvaluator(source, out, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
+            UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
+            return new LeftEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
         };
     }
 

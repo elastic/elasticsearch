@@ -171,7 +171,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 name,
                 ft,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 new GeoShapeIndexer(orientation.get().value(), ft.name()),
                 parser,
                 this

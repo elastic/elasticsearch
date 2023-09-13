@@ -35,14 +35,15 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
+
         if (fieldType == DataTypes.DOUBLE) {
-            return dvrCtx -> new SqrtDoubleEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new SqrtDoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return dvrCtx -> new SqrtIntEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new SqrtIntEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.LONG) {
-            return dvrCtx -> new SqrtLongEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new SqrtLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
             return dvrCtx -> new SqrtUnsignedLongEvaluator(field.get(dvrCtx), dvrCtx);
@@ -51,13 +52,19 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static double process(long val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 
@@ -66,8 +73,11 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static double process(int val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 

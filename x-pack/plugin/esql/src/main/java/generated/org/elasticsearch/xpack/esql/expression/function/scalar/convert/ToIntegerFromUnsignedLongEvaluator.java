@@ -29,7 +29,7 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
 
   @Override
   public String name() {
-    return "ToInteger";
+    return "ToIntegerFromUnsignedLong";
   }
 
   @Override

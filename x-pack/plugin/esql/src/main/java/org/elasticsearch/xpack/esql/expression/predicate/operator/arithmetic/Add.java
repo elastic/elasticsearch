@@ -95,6 +95,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     protected Period processDatePeriods(Period left, Period right) {
         return left.plus(right);
     }
+
     @Override
     protected Duration processTimeDurations(Duration left, Duration right) {
         return left.plus(right);

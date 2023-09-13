@@ -25,7 +25,14 @@ public class SinTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("SinEvaluator", "val", Math::sin);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "SinEvaluator",
+            "val",
+            Math::sin,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

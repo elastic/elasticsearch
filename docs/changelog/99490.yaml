@@ -1,0 +1,6 @@
+pr: 99490
+summary: Fork computation in `TransportGetShutdownStatusAction`
+area: Infra/Node Lifecycle
+type: bug
+issues:
+ - 99487

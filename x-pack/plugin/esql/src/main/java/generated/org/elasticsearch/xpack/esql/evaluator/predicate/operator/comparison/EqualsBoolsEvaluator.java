@@ -10,6 +10,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,10 +22,13 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
+  private final DriverContext driverContext;
+
   public EqualsBoolsEvaluator(EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs) {
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.lhs = lhs;
     this.rhs = rhs;
+    this.driverContext = driverContext;
   }
 
   @Override

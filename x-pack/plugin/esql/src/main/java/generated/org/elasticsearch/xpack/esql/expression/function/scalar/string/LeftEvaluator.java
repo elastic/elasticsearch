@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -31,12 +32,15 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator length;
 
+  private final DriverContext driverContext;
+
   public LeftEvaluator(Source source, BytesRef out, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator length) {
+      EvalOperator.ExpressionEvaluator length, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.out = out;
     this.str = str;
     this.length = length;
+    this.driverContext = driverContext;
   }
 
   @Override

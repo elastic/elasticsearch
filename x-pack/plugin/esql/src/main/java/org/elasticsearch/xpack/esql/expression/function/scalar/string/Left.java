@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -64,15 +63,12 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-
-        Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
-        return () -> {
+    public ExpressionEvaluatorFactory toEvaluator(Function<Expression, ExpressionEvaluatorFactory> toEvaluator) {
+        var strSupplier = toEvaluator.apply(str);
+        var lengthSupplier = toEvaluator.apply(length);
+        return dvrCtx -> {
             BytesRef out = new BytesRef();
-            return new LeftEvaluator(source, out, strSupplier.get(), lengthSupplier.get());
+            return new LeftEvaluator(source, out, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
         };
     }
 

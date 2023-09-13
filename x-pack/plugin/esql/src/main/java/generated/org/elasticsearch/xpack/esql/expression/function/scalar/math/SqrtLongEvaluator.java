@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,8 +22,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public SqrtLongEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public SqrtLongEvaluator(EvalOperator.ExpressionEvaluator val, DriverContext driverContext) {
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override

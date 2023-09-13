@@ -10,6 +10,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -17,8 +18,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxLongEvaluator(EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvMaxLongEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
     super(field);
+    this.driverContext = driverContext;
   }
 
   @Override

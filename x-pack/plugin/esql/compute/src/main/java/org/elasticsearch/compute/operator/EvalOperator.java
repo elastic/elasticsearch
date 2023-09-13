@@ -9,8 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.Supplier;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.ExpressionEvaluatorFactory;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -18,16 +17,16 @@ import java.util.function.Supplier;
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluatorFactory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get() + "]";
+            return "EvalOperator[evaluator=" + evaluator.get(DriverContext.DEFAULT) + "]";
         }
     }
 
@@ -48,6 +47,11 @@ public class EvalOperator extends AbstractPageMappingOperator {
     }
 
     public interface ExpressionEvaluator {
+
+        interface ExpressionEvaluatorFactory {
+            ExpressionEvaluator get(DriverContext driverContext);
+        }
+
         Block eval(Page page);
     }
 

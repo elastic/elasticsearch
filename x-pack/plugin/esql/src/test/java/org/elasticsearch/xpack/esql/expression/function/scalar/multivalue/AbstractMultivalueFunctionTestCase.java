@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -444,7 +445,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             builder.copyFrom(oneRowBlock, 0, 1);
         }
         Block input = builder.build();
-        Block result = evaluator(buildFieldExpression(testCase)).get().eval(new Page(input));
+        Block result = evaluator(buildFieldExpression(testCase)).get(new DriverContext()).eval(new Page(input));
 
         assertThat(result.getPositionCount(), equalTo(result.getPositionCount()));
         for (int p = 0; p < input.getPositionCount(); p++) {

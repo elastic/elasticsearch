@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -93,7 +94,11 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         this.totalFeatureImportances = in.readCollectionAsList(TotalFeatureImportance::new);
         this.featureImportanceBaselines = in.readOptionalWriteable(FeatureImportanceBaseline::new);
         this.hyperparameters = in.readCollectionAsList(Hyperparameters::new);
-        this.platformArchitecture = in.readOptionalString(); // TODO version guard
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_METADATA_PLATFORM_ADDED)) {
+            this.platformArchitecture = in.readOptionalString();
+        } else {
+            this.platformArchitecture = null;
+        }
     }
 
     public TrainedModelMetadata(
@@ -157,7 +162,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         out.writeCollection(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
         out.writeCollection(hyperparameters);
-        out.writeOptionalString(platformArchitecture);// TODO version guard
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_METADATA_PLATFORM_ADDED)) {
+            out.writeOptionalString(platformArchitecture);
+        }
     }
 
     @Override

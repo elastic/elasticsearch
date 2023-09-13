@@ -801,8 +801,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     );
                     RolloverRequest request = new RolloverRequest(rolloverTarget, null);
                     request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-                    // todo - make configurable timeout
-                    request.timeout(TimeValue.MAX_VALUE);
                     executeAsyncWithOrigin(
                         client.threadPool().getThreadContext(),
                         getOrigin(),

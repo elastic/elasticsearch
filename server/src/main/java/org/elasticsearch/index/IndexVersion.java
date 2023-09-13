@@ -126,8 +126,6 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
 
     // A synthetic version that is in the future and is on the next Lucene minor version
     // It needs to be on the same major as the actual current version for backward compatibility assumptions to be correct
-    // Keep it above other versions so that adding new versions in main doesn't cause merge conflicts when merging into the lucene_snapshot
-    // branch
     public static final IndexVersion UPGRADE_TO_LUCENE_9_8 = registerIndexVersion(8_500_010, Version.LUCENE_9_8_0, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
     /*
      * STOP! READ THIS FIRST! No, really,

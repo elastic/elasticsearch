@@ -84,6 +84,9 @@ Allowed criteria types are:
 
 |`always`
 |Always matches for all rule queries.
+
+|`infer`
+| Rule metadata matches a specified `text_expansion` or `text_classification` inference. Requires the specified trained model(s) to be loaded.
 |===
 
 [discrete]

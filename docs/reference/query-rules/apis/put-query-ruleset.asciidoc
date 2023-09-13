@@ -76,11 +76,26 @@ Matches with a value greater than or equal to this value meet the criteria defin
 Only applicable for numerical values.
 - `always`
 Matches all queries, regardless of input.
+- `infer`
+Matches that return inferences matching this value meet the criteria defined by the rule.
+Only applicable for string values.
+The following properties are supported:
++
+*** `model_id` (string) Model ID to use for inference.
+     Defaults to `.elser_model_1`.
+*** `inference_config` (string) The inference configuration to use.
+    Supported inference configurations are `text_expansion` and `text_classification`.
+    Defaults to `text_expansion`.
+*** `threshold` (float) The minimum score required for the inference result to be considered a match.
+    Defaults to `1.0`.
+
 --
 - `metadata` (Optional, string)
   The metadata field to match against. Required for all criteria types except `global`.
 - `values` (Optional, array of strings)
   The values to match against the metadata field. Only one value must match for the criteria to be met. Required for all criteria types except `global`.
+- `properties` (Optional, map to strings to strings)
+     Additional properties for the criteria. Only applicable for `infer` criteria types.
 
 Actions depend on the rule type.
 For `pinned` rules, actions follow the format specified by the <<query-dsl-pinned-query,Pinned Query>>.

@@ -95,7 +95,7 @@ public final class MappingParser {
     Mapping parse(@Nullable String type, Map<String, Object> mappingSource) throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
-                throw new MapperParsingException("malformed mappingSource, no type name found");
+                throw new MapperParsingException("malformed mapping, no type name found");
             }
         } else {
             String rootName = mappingSource.keySet().iterator().next();

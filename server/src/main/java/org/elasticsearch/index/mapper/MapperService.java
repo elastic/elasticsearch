@@ -426,7 +426,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *         to replace the entire mappings subtree, let the last one win
      *     </ul>
      *     <li> any other map values that are not encountered within a {@code properties} node (e.g. "_doc", "_meta" or "properties"
-     *     itself - apply recursive merge as the default algorithm would apply
+     *     itself) - apply recursive merge as the default algorithm would apply
      *     <li> any non-map values - override the value of the base map with the value of the merged map
      * </ul>
      */
@@ -470,6 +470,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 return null;
             } else {
                 if (key.equals("required")) {
+                    // we look for explicit `_routing.required` settings because we use them to detect contradictions of this setting
+                    // that comes from mappings with such that comes from the optional `data_stream` configuration of composable index
+                    // templates
                     if ("_routing".equals(parent) && oldValue != newValue) {
                         throw new MapperParsingException("contradicting `_routing.required` settings");
                     }
@@ -484,7 +487,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          *
          * @param mappings1 first mapping of a field
          * @param mappings2 second mapping of a field
-         * @return true if mapping
+         * @return {@code true} if the second mapping should be merged into the first mapping
          */
         private boolean shouldMergeFieldMappings(Map<String, Object> mappings1, Map<String, Object> mappings2) {
             String type1 = (String) mappings1.get("type");

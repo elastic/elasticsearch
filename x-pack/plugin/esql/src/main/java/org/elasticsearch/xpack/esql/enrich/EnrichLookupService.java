@@ -102,12 +102,7 @@ public class EnrichLookupService {
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(
-            LOOKUP_ACTION_NAME,
-            EsqlPlugin.ESQL_THREAD_POOL_NAME,
-            LookupRequest::new,
-            new TransportHandler()
-        );
+        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
     }
 
     public void lookupAsync(
@@ -292,7 +287,7 @@ public class EnrichLookupService {
             this.matchField = in.readString();
             this.inputPage = new Page(in);
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
 
         @Override

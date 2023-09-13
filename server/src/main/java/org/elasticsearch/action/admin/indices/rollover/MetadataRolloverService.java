@@ -32,6 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -291,9 +294,10 @@ public class MetadataRolloverService {
             currentState,
             createIndexClusterStateRequest,
             silent,
-            (builder, indexMetadata) -> builder.put(
-                dataStream.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
-            ),
+            (builder, indexMetadata) -> {
+                downgradeBrokenTsdbBackingIndices(dataStream, builder);
+                builder.put(dataStream.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2)));
+            },
             rerouteCompletionIsNotRequired()
         );
 
@@ -310,6 +314,30 @@ public class MetadataRolloverService {
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
+    }
+
+    /**
+     * This method before rollover fixes tsdb backing indices with no start and end time index settings set by
+     * removing the index.mode and index.routing_path index settings. This downgrades these indices to regular indices.
+     * Due to <a href="https://github.com/elastic/elasticsearch/issues/98834">a bug</a>  data streams may exist that
+     * have backing indices with no start and end time index settings set.
+     * Note that as part of rollover the new backing index will be in tsdb mode.
+     */
+    private static void downgradeBrokenTsdbBackingIndices(DataStream dataStream, Metadata.Builder builder) {
+        for (Index indexName : dataStream.getIndices()) {
+            var index = builder.getSafe(indexName);
+            final Settings originalSettings = index.getSettings();
+            if (IndexVersion.V_8_11_0.after(index.getCreationVersion())
+                && index.getIndexMode() == IndexMode.TIME_SERIES
+                && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
+                && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
+                settingsBuilder.remove(IndexSettings.MODE.getKey());
+                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                long newVersion = index.getSettingsVersion() + 1;
+                builder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
+            }
+        }
     }
 
     public Metadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {

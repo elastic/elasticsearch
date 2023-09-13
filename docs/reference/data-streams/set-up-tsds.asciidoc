@@ -177,6 +177,7 @@ Optionally, the index settings component template for a TSDS can include:
 
 * Your lifecycle policy in the `index.lifecycle.name` index setting.
 * The <<tsds-look-ahead-time,`index.look_ahead_time`>> index setting.
+* The <<tsds-look-back-time,`index.look_back_time`>> index setting.
 * Other index settings, such as <<index-codec,`index.codec`>>, for your TSDS's
 backing indices.
 

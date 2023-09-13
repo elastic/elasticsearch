@@ -170,6 +170,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.routing.allocation.command;
     exports org.elasticsearch.cluster.routing.allocation.decider;
     exports org.elasticsearch.cluster.service;
+    exports org.elasticsearch.cluster.version;
     exports org.elasticsearch.common;
     exports org.elasticsearch.common.blobstore;
     exports org.elasticsearch.common.blobstore.fs;

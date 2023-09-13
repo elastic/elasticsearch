@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -346,6 +347,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
+            of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             // ArithmeticOperations
@@ -384,7 +386,7 @@ public final class PlanNamedTypes {
         return new AggregateExec(
             Source.EMPTY,
             in.readPhysicalPlanNode(),
-            in.readList(readerFromPlanReader(PlanStreamInput::readExpression)),
+            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)),
             readNamedExpressions(in),
             in.readEnum(AggregateExec.Mode.class),
             in.readOptionalVInt()
@@ -417,7 +419,7 @@ public final class PlanNamedTypes {
             readAttributes(in),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamed(Expression.class),
-            in.readOptionalList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
+            in.readOptionalCollectionAsList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
             in.readOptionalVInt()
         );
     }
@@ -569,7 +571,11 @@ public final class PlanNamedTypes {
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
-        return new OrderExec(Source.EMPTY, in.readPhysicalPlanNode(), in.readList(readerFromPlanReader(PlanNamedTypes::readOrder)));
+        return new OrderExec(
+            Source.EMPTY,
+            in.readPhysicalPlanNode(),
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder))
+        );
     }
 
     static void writeOrderExec(PlanStreamOutput out, OrderExec orderExec) throws IOException {
@@ -609,7 +615,7 @@ public final class PlanNamedTypes {
         return new TopNExec(
             Source.EMPTY,
             in.readPhysicalPlanNode(),
-            in.readList(readerFromPlanReader(PlanNamedTypes::readOrder)),
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder)),
             in.readNamed(Expression.class),
             in.readOptionalVInt()
         );
@@ -627,7 +633,7 @@ public final class PlanNamedTypes {
         return new Aggregate(
             Source.EMPTY,
             in.readLogicalPlanNode(),
-            in.readList(readerFromPlanReader(PlanStreamInput::readExpression)),
+            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)),
             readNamedExpressions(in)
         );
     }
@@ -725,7 +731,11 @@ public final class PlanNamedTypes {
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {
-        return new OrderBy(Source.EMPTY, in.readLogicalPlanNode(), in.readList(readerFromPlanReader(PlanNamedTypes::readOrder)));
+        return new OrderBy(
+            Source.EMPTY,
+            in.readLogicalPlanNode(),
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder))
+        );
     }
 
     static void writeOrderBy(PlanStreamOutput out, OrderBy order) throws IOException {
@@ -746,7 +756,7 @@ public final class PlanNamedTypes {
         return new TopN(
             Source.EMPTY,
             in.readLogicalPlanNode(),
-            in.readList(readerFromPlanReader(PlanNamedTypes::readOrder)),
+            in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readOrder)),
             in.readNamed(Expression.class)
         );
     }
@@ -762,7 +772,7 @@ public final class PlanNamedTypes {
     //
 
     private static List<Attribute> readAttributes(PlanStreamInput in) throws IOException {
-        return in.readList(readerFromPlanReader(PlanStreamInput::readAttribute));
+        return in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readAttribute));
     }
 
     static void writeAttributes(PlanStreamOutput out, List<Attribute> attributes) throws IOException {
@@ -770,7 +780,7 @@ public final class PlanNamedTypes {
     }
 
     private static List<NamedExpression> readNamedExpressions(PlanStreamInput in) throws IOException {
-        return in.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+        return in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
     }
 
     static void writeNamedExpressions(PlanStreamOutput out, List<? extends NamedExpression> namedExpressions) throws IOException {
@@ -778,7 +788,7 @@ public final class PlanNamedTypes {
     }
 
     private static List<Alias> readAliases(PlanStreamInput in) throws IOException {
-        return in.readList(readerFromPlanReader(PlanNamedTypes::readAlias));
+        return in.readCollectionAsList(readerFromPlanReader(PlanNamedTypes::readAlias));
     }
 
     static void writeAliases(PlanStreamOutput out, List<Alias> aliases) throws IOException {
@@ -994,7 +1004,7 @@ public final class PlanNamedTypes {
     // -- InComparison
 
     static In readInComparison(PlanStreamInput in) throws IOException {
-        return new In(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+        return new In(Source.EMPTY, in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeInComparison(PlanStreamOutput out, In in) throws IOException {
@@ -1161,7 +1171,7 @@ public final class PlanNamedTypes {
 
     static ScalarFunction readVarag(PlanStreamInput in, String name) throws IOException {
         return VARARG_CTORS.get(name)
-            .apply(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+            .apply(Source.EMPTY, in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeVararg(PlanStreamOutput out, ScalarFunction vararg) throws IOException {
@@ -1296,6 +1306,17 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(1));
     }
 
+    static Right readRight(PlanStreamInput in) throws IOException {
+        return new Right(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeRight(PlanStreamOutput out, Right right) throws IOException {
+        List<Expression> fields = right.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
     static Split readSplit(PlanStreamInput in) throws IOException {
         return new Split(Source.EMPTY, in.readExpression(), in.readExpression());
     }
@@ -1306,7 +1327,11 @@ public final class PlanNamedTypes {
     }
 
     static CIDRMatch readCIDRMatch(PlanStreamInput in) throws IOException {
-        return new CIDRMatch(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+        return new CIDRMatch(
+            Source.EMPTY,
+            in.readExpression(),
+            in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
+        );
     }
 
     static void writeCIDRMatch(PlanStreamOutput out, CIDRMatch cidrMatch) throws IOException {

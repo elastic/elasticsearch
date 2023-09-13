@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
@@ -31,6 +32,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CleanerService.class);
 
     private final ThreadPool threadPool;
+    private final Executor genericExecutor;
     private final ExecutionScheduler executionScheduler;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final IndicesCleaner runnable;
@@ -39,6 +41,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, ExecutionScheduler executionScheduler) {
         this.threadPool = threadPool;
+        this.genericExecutor = threadPool.generic();
         this.executionScheduler = executionScheduler;
         this.globalRetention = MonitoringField.HISTORY_DURATION.get(settings);
         this.runnable = new IndicesCleaner();
@@ -54,7 +57,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), genericExecutor);
         logger.debug("cleaning service started");
     }
 
@@ -173,7 +176,7 @@ public class CleanerService extends AbstractLifecycleComponent {
             logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
 
             try {
-                cancellable = threadPool.schedule(this, delay, executorName());
+                cancellable = threadPool.schedule(this, delay, genericExecutor);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("couldn't schedule new execution of the cleaner, executor is shutting down", e);

@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 
@@ -43,6 +47,11 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
     }
 
     @Override

@@ -26,7 +26,7 @@ public class InProcessor implements Processor {
     }
 
     public InProcessor(StreamInput in) throws IOException {
-        processsors = in.readNamedWriteableList(Processor.class);
+        processsors = in.readNamedWriteableCollectionAsList(Processor.class);
     }
 
     @Override

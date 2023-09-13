@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.util.concurrent.Executor;
+
 /**
  * Internal (no-REST) transport to retrieve metrics for serverless autoscaling.
  */
@@ -41,6 +43,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
     private final Client client;
     private final MlMemoryTracker mlMemoryTracker;
     private final Settings settings;
+    private final Executor timeoutExecutor;
 
     @Inject
     public TransportGetMlAutoscalingStats(
@@ -67,6 +70,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         this.client = client;
         this.mlMemoryTracker = mlMemoryTracker;
         this.settings = settings;
+        this.timeoutExecutor = threadPool.generic();
     }
 
     @Override
@@ -93,7 +97,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                 ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     request.timeout(),
-                    ThreadPool.Names.GENERIC,
+                    timeoutExecutor,
                     ActionListener.wrap(
                         ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                             state,

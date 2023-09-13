@@ -29,7 +29,7 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
 
   @Override
   public String name() {
-    return "ToInteger";
+    return "ToIntegerFromBoolean";
   }
 
   @Override

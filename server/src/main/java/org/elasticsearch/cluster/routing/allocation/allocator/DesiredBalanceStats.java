@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +31,7 @@ public record DesiredBalanceStats(
     long cumulativeReconciliationTime
 ) implements Writeable, ToXContentObject {
 
-    private static final TransportVersion COMPUTED_SHARD_MOVEMENTS_VERSION = TransportVersion.V_8_8_0;
+    private static final TransportVersion COMPUTED_SHARD_MOVEMENTS_VERSION = TransportVersions.V_8_8_0;
 
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
         return new DesiredBalanceStats(

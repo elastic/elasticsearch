@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
@@ -94,12 +95,24 @@ public final class IngestDocument {
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
+            new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+    }
+
+    /**
+     * Internal helper utility method to get around the issue that a {@code this(...) } constructor call must be the first statement
+     * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
+     * general purpose method.
+     */
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
+        CollectionUtils.ensureNoSelfReferences(source, null);
+        return source;
     }
 
     /**
@@ -908,7 +921,7 @@ public final class IngestDocument {
         }
 
         IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
+        return Objects.equals(ctxMap, other.ctxMap) && Maps.deepEquals(ingestMetadata, other.ingestMetadata);
     }
 
     @Override

@@ -18,15 +18,20 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -649,7 +654,33 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * The hash is a hash of the system index descriptor's mappings so that we can warn
      * in case of inconsistencies across nodes.
      */
-    public record MappingsVersion(int version, int hash) {};
+    public record MappingsVersion(int version, int hash) implements Writeable, ToXContent, Comparable<MappingsVersion> {
+
+        public MappingsVersion(StreamInput in) throws IOException {
+            this(in.readVInt(), in.readInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(version);
+            out.writeInt(hash);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("version", version);
+            builder.field("hash", hash);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int compareTo(MappingsVersion o) {
+            Objects.requireNonNull(o, "Cannot compare null MappingsVersion");
+            return Integer.compare(this.version, o.version);
+        }
+    }
 
     /**
      * Provides a fluent API for building a {@link SystemIndexDescriptor}. Validation still happens in that class.

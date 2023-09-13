@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 public class EsqlConfigurationSerializationTests extends AbstractWireSerializingTestCase<EsqlConfiguration> {
 
@@ -35,7 +37,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
         var clusterName = randomAlphaOfLengthBetween(3, 10);
         var truncation = randomNonNegativeInt();
 
-        return new EsqlConfiguration(zoneId, locale, username, clusterName, randomQueryPragmas(), truncation);
+        return new EsqlConfiguration(zoneId, locale, username, clusterName, randomQueryPragmas(), truncation, null);
     }
 
     @Override
@@ -54,7 +56,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             ordinal == 4
                 ? new QueryPragmas(Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build())
                 : in.pragmas(),
-            ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize()
+            ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize(),
+            ordinal == 6 ? new TimeValue(randomIntBetween(0, 1000000), TimeUnit.MILLISECONDS) : in.timeout()
         );
     }
 }

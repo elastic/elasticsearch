@@ -86,6 +86,11 @@ public class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder timeout(int timeout) throws IOException {
+            builder.field("timeout", timeout);
+            return this;
+        }
+
         public RequestObjectBuilder pragmas(Settings pragmas) throws IOException {
             builder.startObject("pragma");
             pragmas.toXContent(builder, ToXContent.EMPTY_PARAMS);

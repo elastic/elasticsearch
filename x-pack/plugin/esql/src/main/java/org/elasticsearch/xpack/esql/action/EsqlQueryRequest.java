@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -65,6 +67,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
 
+    private static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
+
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
     private String query;
@@ -72,6 +76,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private ZoneId zoneId;
     private Locale locale;
     private QueryBuilder filter;
+    private TimeValue timeout;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private List<TypedParamValue> params = List.of();
 
@@ -149,6 +154,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.params = params;
     }
 
+    public void timeout(TimeValue val) {
+        this.timeout = val;
+    }
+
+    public TimeValue timeout() {
+        return timeout;
+    }
+
     public static EsqlQueryRequest fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -166,6 +179,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareInt((request, value) -> request.timeout(new TimeValue(value, TimeUnit.MILLISECONDS)), TIMEOUT_FIELD);
 
         return parser;
     }

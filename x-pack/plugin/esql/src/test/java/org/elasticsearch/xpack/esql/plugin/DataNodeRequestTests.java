@@ -182,7 +182,8 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             null,
             null,
             new QueryPragmas(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            null
         );
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();

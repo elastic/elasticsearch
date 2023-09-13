@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -139,12 +141,13 @@ public class ComputeService {
         LOGGER.info("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
+
         computeTargetNodes(
             rootTask,
             requestFilter,
             concreteIndices,
             originalIndices,
-            listener.delegateFailureAndWrap((delegate, targetNodes) -> {
+            wrapTimeout(configuration, transportService.getThreadPool(), listener.delegateFailureAndWrap((delegate, targetNodes) -> {
                 final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
                     sessionId,
                     queryPragmas.exchangeBufferSize(),
@@ -172,8 +175,23 @@ public class ComputeService {
                         () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
                     );
                 }
-            })
+            }))
         );
+
+    }
+
+    private ActionListener<List<TargetNode>> wrapTimeout(
+        EsqlConfiguration configuration,
+        ThreadPool pool,
+        ActionListener<List<TargetNode>> l
+    ) {
+        if (configuration.timeout() != null) {
+            return ListenerTimeouts.wrapWithTimeout(pool, configuration.timeout(), esqlExecutor, l, (x) -> {
+                String timeoutMessage = "ESQL query timed out after {}";
+                l.onFailure(new ElasticsearchTimeoutException(timeoutMessage, configuration.timeout()));
+            });
+        }
+        return l;
     }
 
     private void runComputeOnRemoteNodes(

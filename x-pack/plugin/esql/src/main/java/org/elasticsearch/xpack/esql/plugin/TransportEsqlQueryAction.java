@@ -16,6 +16,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -35,9 +36,12 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
+    public static TimeValue DEFAULT_TIMEOUT = new TimeValue(4, TimeUnit.MINUTES);
+    public static TimeValue MAX_TIMEOUT = new TimeValue(4, TimeUnit.MINUTES);
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
@@ -84,6 +88,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        TimeValue timeout = timeout(request);
+
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -91,9 +97,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
+            timeout
         );
         String sessionId = sessionID(task);
+
         planExecutor.esql(
             request,
             sessionId,
@@ -108,6 +116,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 }))
             )
         );
+    }
+
+    private TimeValue timeout(EsqlQueryRequest request) {
+        TimeValue rTimeout = request.timeout();
+        if (rTimeout == null) {
+            return DEFAULT_TIMEOUT;
+        }
+        TimeValue timeout = rTimeout.compareTo(MAX_TIMEOUT) > 0 ? MAX_TIMEOUT : rTimeout;
+        if (timeout.duration() < 0) {
+            return MAX_TIMEOUT;
+        }
+        return timeout;
     }
 
     /**

@@ -661,6 +661,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     case FLOAT -> (1 + similarity) / 2f;
                 };
             }
+        },
+        MAX_INNER_PRODUCT(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+            @Override
+            float score(float similarity, ElementType elementType, int dim) {
+                return switch (elementType) {
+                    case BYTE, FLOAT -> {
+                        if (similarity < 1) {
+                            yield -1 * (1f / similarity - 1);
+                        } else {
+                            yield similarity - 1f;
+                        }
+                    }
+                };
+            }
         };
 
         public final VectorSimilarityFunction function;

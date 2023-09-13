@@ -2216,7 +2216,7 @@ public class MetadataTests extends ESTestCase {
         // 1 chunk to close metadata
         chunkCount += 1;
 
-        return (int) chunkCount;
+        return Math.toIntExact(chunkCount);
     }
 
     /**

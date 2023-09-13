@@ -1242,6 +1242,6 @@ public class ClusterStateTests extends ESTestCase {
             }
         }
 
-        return (int) chunkCount;
+        return Math.toIntExact(chunkCount);
     }
 }

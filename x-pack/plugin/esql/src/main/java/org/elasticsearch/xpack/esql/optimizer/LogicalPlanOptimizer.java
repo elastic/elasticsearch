@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -47,7 +46,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderB
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -56,8 +54,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -90,12 +86,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceFieldAttributesWithExactSubfield()
+        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch()
+        // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
         );
 
         var operators = new Batch<>(
@@ -856,38 +848,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
-        }
-    }
-
-    private static class ReplaceFieldAttributesWithExactSubfield extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            Map<EsField, FieldAttribute> esFieldToAttribute = new HashMap<>();
-
-            return plan.transformUp(LogicalPlan.class, p -> {
-                // the source is skipped but used to get the mapping of fields to attributes
-                if (p instanceof EsRelation r) {
-                    for (Attribute out : r.output()) {
-                        // map the field to their actual attributes
-                        if (out instanceof FieldAttribute fa) {
-                            esFieldToAttribute.put(fa.field(), fa);
-                        }
-                    }
-                }
-                // everything else uses the map to replace the field with the proper attribute
-                else {
-                    p = p.transformExpressionsOnly(FieldAttribute.class, f -> {
-                        if (f.dataType() == DataTypes.TEXT && f.getExactInfo().hasExact()) {
-                            var exact = f.exactAttribute();
-                            f = esFieldToAttribute.get(exact.field());
-                        }
-                        return f;
-                    });
-                }
-
-                return p;
-            });
         }
     }
 }

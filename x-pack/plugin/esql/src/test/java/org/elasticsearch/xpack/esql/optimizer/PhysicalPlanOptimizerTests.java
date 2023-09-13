@@ -157,7 +157,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         allFieldRowSize = mapping.values()
             .stream()
-            .mapToInt(f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType()))))
+            .mapToInt(
+                f -> (EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(f.getDataType())) + f.getProperties()
+                    .values()
+                    .stream()
+                    // check one more level since the mapping contains TEXT fields with KEYWORD multi-fields
+                    .mapToInt(x -> EstimatesRowSize.estimateSize(EsqlDataTypes.widenSmallNumericTypes(x.getDataType())))
+                    .sum())
+            )
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
@@ -207,10 +214,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(
-            Sets.difference(allFields(mapping), Set.of("emp_no", "job")),
-            Sets.newHashSet(names(restExtract.attributesToExtract()))
-        );
+        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
         assertEquals(Set.of("emp_no"), Sets.newHashSet(names(extract.attributesToExtract())));
 
         var query = as(extract.child(), EsQueryExec.class);
@@ -246,10 +250,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), FilterExec.class);
         var extract = as(filter.child(), FieldExtractExec.class);
 
-        assertEquals(
-            Sets.difference(allFields(mapping), Set.of("emp_no", "job")),
-            Sets.newHashSet(names(restExtract.attributesToExtract()))
-        );
+        assertEquals(Sets.difference(allFields(mapping), Set.of("emp_no")), Sets.newHashSet(names(restExtract.attributesToExtract())));
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
@@ -389,7 +390,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -419,7 +420,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
     }
 
@@ -876,7 +877,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
         );
 
         var source = source(extract.child());
@@ -1729,6 +1730,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = as(extract.child(), EsQueryExec.class);
         assertThat(source.sorts().size(), equalTo(1));
         assertThat(source.sorts().get(0).field().name(), equalTo("job.raw"));
+    }
+
+    public void testFieldExtractForTextAndSubfield() {
+        var plan = physicalPlan("""
+            from test
+            | keep job*
+            """);
+
+        var project = as(plan, ProjectExec.class);
+        assertThat(Expressions.names(project.projections()), contains("job", "job.raw"));
     }
 
     public void testFieldExtractWithoutSourceAttributes() {

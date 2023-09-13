@@ -121,13 +121,14 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
+    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
+    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
+
     // A synthetic version that is in the future and is on the next Lucene minor version
     // It needs to be on the same major as the actual current version for backward compatibility assumptions to be correct
     // Keep it above other versions so that adding new versions in main doesn't cause merge conflicts when merging into the lucene_snapshot
     // branch
-    public static final IndexVersion UPGRADE_TO_NEXT_LUCENE_VERSION = registerIndexVersion(8_999_999, Version.LATEST, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
-    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
-    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_8 = registerIndexVersion(8_500_010, Version.LUCENE_9_8_0, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -157,7 +158,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     private static class CurrentHolder {
         // The below line is different from the main branch, which causes merge conflicts when new index versions get added. This will get
         // addressed when the latest index version gets computed dynamically based on the registered index versions.
-        private static final IndexVersion CURRENT = findCurrent(UPGRADE_TO_NEXT_LUCENE_VERSION);
+        private static final IndexVersion CURRENT = findCurrent(UPGRADE_TO_LUCENE_9_8);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

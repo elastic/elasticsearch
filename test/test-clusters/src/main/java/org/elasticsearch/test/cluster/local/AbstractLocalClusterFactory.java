@@ -493,12 +493,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         + "]"
                 );
             }
-            if (spec.resolveKeystore().isEmpty() == false) {
+            Map<String, String> secrets = spec.resolveKeystore();
+            if (secrets.isEmpty() == false) {
                 try {
                     Path secretsFile = configDir.resolve("secrets/secrets.json");
                     Files.createDirectories(secretsFile.getParent());
                     Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", spec.resolveKeystore());
+                    secretsFileContent.put("secrets", secrets);
                     secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
                     Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
                 } catch (IOException e) {

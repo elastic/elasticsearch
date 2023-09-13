@@ -123,9 +123,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
     public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
     public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
-
-    // A synthetic version that is in the future and is on the next Lucene minor version
-    // It needs to be on the same major as the actual current version for backward compatibility assumptions to be correct
+    
     public static final IndexVersion UPGRADE_TO_LUCENE_9_8 = registerIndexVersion(8_500_010, Version.LUCENE_9_8_0, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
     /*
      * STOP! READ THIS FIRST! No, really,

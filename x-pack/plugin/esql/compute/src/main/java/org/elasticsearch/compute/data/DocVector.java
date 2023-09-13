@@ -202,6 +202,6 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public void close() {
-        Releasables.close(shards, segments, docs);
+        Releasables.closeExpectNoException(shards, segments, docs);
     }
 }

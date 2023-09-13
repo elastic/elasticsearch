@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 
 import java.io.IOException;
 
@@ -78,7 +79,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         if (constant && positions > 0) {
             return new ConstantBytesRefVector(in.readBytesRef(), positions);
         } else {
-            var builder = BytesRefVector.newVectorBuilder(positions);
+            var builder = BytesRefVector.newVectorBuilder(positions, BigArrays.NON_RECYCLING_INSTANCE);
             for (int i = 0; i < positions; i++) {
                 builder.appendBytesRef(in.readBytesRef());
             }
@@ -100,8 +101,12 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         }
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new BytesRefVectorBuilder(estimatedSize);
+    static Builder newVectorBuilder(int estimatedSize) { // For now
+        return new BytesRefVectorBuilder(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+        return new BytesRefVectorBuilder(estimatedSize, bigArrays);
     }
 
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {

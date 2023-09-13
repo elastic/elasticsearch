@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for BytesRefBlocks.
@@ -128,6 +129,6 @@ final class FilterBytesRefBlock extends AbstractFilterBlock implements BytesRefB
 
     @Override
     public void close() {
-        block.close();
+        Releasables.closeExpectNoException(block);
     }
 }

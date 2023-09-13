@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for BytesRefVectors.
@@ -92,6 +93,6 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
 
     @Override
     public void close() {
-        vector.close();
+        Releasables.closeExpectNoException(vector);
     }
 }

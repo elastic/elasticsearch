@@ -81,6 +81,6 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public void close() {
-        Releasables.close(values);
+        Releasables.closeExpectNoException(values);
     }
 }

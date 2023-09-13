@@ -110,7 +110,7 @@ $endif$
     @Override
     public void close() {
 $if(BytesRef)$
-        Releasables.close(values);
+        Releasables.closeExpectNoException(values);
 $else$
         // no-op
 $endif$

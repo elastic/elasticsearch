@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for IntBlocks.
@@ -125,6 +126,6 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     @Override
     public void close() {
-        block.close();
+        Releasables.closeExpectNoException(block);
     }
 }

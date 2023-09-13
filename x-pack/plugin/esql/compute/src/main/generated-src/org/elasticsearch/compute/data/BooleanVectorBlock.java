@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a BooleanVector.
@@ -74,6 +75,6 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public void close() {
-        vector.close();
+        Releasables.closeExpectNoException(vector);
     }
 }

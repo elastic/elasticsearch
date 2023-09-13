@@ -327,6 +327,13 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 10026          |Reporting Analyst     |null
 ;
 
+in3VLWithNull-99347_bugfix
+from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10025          |Accountant            |true
+;
+
 in3VLWithComputedNull
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
 
@@ -732,4 +739,24 @@ Baek              |Bae
 Bamford           |Bam
 Bernatsky         |Ber
 // end::left-result[]
+;
+
+right
+// tag::right[]
+FROM employees
+| KEEP last_name
+| EVAL right = RIGHT(last_name, 3)
+| SORT last_name ASC
+| LIMIT 5
+// end::right[]
+;
+
+// tag::right-result[]
+last_name:keyword | right:keyword
+Awdeh             |deh
+Azuma             |uma
+Baek              |aek
+Bamford           |ord
+Bernatsky         |sky
+// end::right-result[]
 ;

@@ -266,38 +266,30 @@ d: double | s:double
 ;
 
 log10ofNegative
-row d = -1.0 | eval s = is_nan(log10(d));
+row d = -1.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--1.0     | true
-;
-
-log10ofNan
-row d = 0.0/0.0 | eval s = is_nan(log10(d));
-
-d:double | s:boolean
-NaN      | true
+d:double | s:double
+-1.0     | null
 ;
 
 log10ofZero
-row d = 0.0 |eval s = is_infinite(log10(d));
+row d = 0.0 | eval s = log10(d);
+warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
-0.0     | true
+d:double | s:double
+0.0     | null
 ;
 
 log10ofNegativeZero
-row d = -0.0 |eval s = is_infinite(log10(d));
+row d = -0.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--0.0     | true
-;
-
-log10ofInfinite
-row d = 1/0.0 | eval s = is_infinite(log10(d));
-
-d:double | s:boolean
-Infinity | true
+d:double | s:double
+-0.0     | null
 ;
 
 log10ofLong
@@ -995,8 +987,9 @@ i:ul                | c:ul                | f:ul
 sqrt
 // tag::sqrt[]
 ROW d = 100.0
-| EVAL s = SQRT(d);
+| EVAL s = SQRT(d)
 // end::sqrt[]
+;
 
 // tag::sqrt-result[]
 d: double | s:double
@@ -1026,10 +1019,12 @@ l:ul                  | s:double
 ;
 
 sqrtOfNegative
-row d = -1.0 | eval s = is_nan(sqrt(d));
+row d = -1.0 | eval s = sqrt(d);
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Square root of negative
 
-d:double | s:boolean
--1.0     | true
+d:double | s:double
+-1.0     | null
 ;
 
 sqrtOfNan
@@ -1063,8 +1058,9 @@ Infinity | true
 least
 // tag::least[]
 ROW a = 10, b = 20
-| EVAL l = LEAST(a, b);
+| EVAL l = LEAST(a, b)
 // end::least[]
+;
 
 // tag::least-result[]
 a:integer | b:integer | l:integer
@@ -1090,8 +1086,9 @@ l:integer
 greatest
 // tag::greatest[]
 ROW a = 10, b = 20
-| EVAL g = GREATEST(a, b);
+| EVAL g = GREATEST(a, b)
 // end::greatest[]
+;
 
 // tag::greatest-result[]
 a:integer | b:integer | g:integer

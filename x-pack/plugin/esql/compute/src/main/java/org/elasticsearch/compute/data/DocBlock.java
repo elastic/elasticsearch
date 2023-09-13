@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -15,6 +17,9 @@ import java.io.IOException;
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
 public class DocBlock extends AbstractVectorBlock implements Block {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocBlock.class);
+
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
@@ -58,6 +63,17 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             return false;
         }
         return vector.equals(((DocBlock) obj).vector);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
+>>>>>>> main
     }
 
     /**

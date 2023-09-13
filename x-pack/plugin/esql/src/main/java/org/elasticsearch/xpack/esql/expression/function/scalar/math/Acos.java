@@ -26,7 +26,7 @@ public class Acos extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new AcosEvaluator(field);
+        return new AcosEvaluator(source(), field);
     }
 
     @Override
@@ -39,8 +39,11 @@ public class Acos extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Acos::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (Math.abs(val) > 1) {
+            throw new ArithmeticException("Acos input out of range");
+        }
         return Math.acos(val);
     }
 }

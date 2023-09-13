@@ -1,5 +1,0 @@
-pr: 94132
-summary: HDFS plugin add replication_factor param
-area: Snapshot/Restore
-type: enhancement
-issues: []

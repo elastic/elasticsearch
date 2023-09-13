@@ -38,6 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
@@ -59,6 +60,10 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool("TransportDeleteExpiredDataActionTests thread pool");
         TransportService transportService = mock(TransportService.class);
+
+        // TODO: temporary, remove in #97879
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         auditor = mock(AnomalyDetectionAuditor.class);

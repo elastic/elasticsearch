@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -29,16 +28,11 @@ setup:
       indices.create:
           index: test_2
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 number:
                   type: double
 
-  - do:
-      cluster.health:
-        wait_for_status: green
 ---
 "Basic test":
   - do:
@@ -869,7 +863,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -1382,7 +1375,6 @@ Value type mismatch fails shard:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1393,7 +1385,6 @@ Value type mismatch fails shard:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1458,7 +1449,6 @@ Value type mismatch fails shard with no docs:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:
@@ -1469,7 +1459,6 @@ Value type mismatch fails shard with no docs:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 ip:

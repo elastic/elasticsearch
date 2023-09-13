@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -35,7 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.downsample.DownsampleAction} on an index
+ * A {@link LifecycleAction} which calls {@link org.elasticsearch.action.downsample.DownsampleAction} on an index
  */
 public class DownsampleAction implements LifecycleAction {
 
@@ -85,7 +85,7 @@ public class DownsampleAction implements LifecycleAction {
     public DownsampleAction(StreamInput in) throws IOException {
         this(
             new DateHistogramInterval(in),
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
                 : DEFAULT_WAIT_TIMEOUT
         );
@@ -94,7 +94,7 @@ public class DownsampleAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_054)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)) {
             out.writeString(waitTimeout.getStringRep());
         } else {
             out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());

@@ -32,10 +32,10 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
             return null;
         } else if (nodeVersion.equals(Version.CURRENT)) {
             return CURRENT;
-        } else if (nodeVersion.before(Version.V_8_10_0)) {
+        } else if (nodeVersion.before(Version.V_8_11_0)) {
             return new VersionInformation(
                 nodeVersion,
-                IndexVersion.fromId(nodeVersion.minimumIndexCompatibilityVersion().id),
+                IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id),
                 IndexVersion.fromId(nodeVersion.id)
             );
         } else {

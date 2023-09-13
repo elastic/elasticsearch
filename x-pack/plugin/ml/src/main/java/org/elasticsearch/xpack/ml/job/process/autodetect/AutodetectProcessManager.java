@@ -574,7 +574,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 client,
                 clusterState,
                 masterNodeTimeout,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -586,7 +587,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     client,
                     clusterState,
                     masterNodeTimeout,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );

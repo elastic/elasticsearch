@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -55,8 +56,9 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             () -> AuthenticationTestHelper.builder().build()
         );
         when(securityContext.getAuthentication()).thenReturn(authentication);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final var action = new TransportUpdateCrossClusterApiKeyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             apiKeyService,
             securityContext
@@ -120,8 +122,9 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
 
     public void testAuthenticationCheck() {
         final SecurityContext securityContext = mock(SecurityContext.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final var action = new TransportUpdateCrossClusterApiKeyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             mock(ApiKeyService.class),
             securityContext

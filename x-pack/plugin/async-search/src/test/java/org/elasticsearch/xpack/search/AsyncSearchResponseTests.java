@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,7 +50,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
 public class AsyncSearchResponseTests extends ESTestCase {
-    private SearchResponse searchResponse = randomSearchResponse(randomBoolean());
+    private final SearchResponse searchResponse = randomSearchResponse(randomBoolean());
     private NamedWriteableRegistry namedWriteableRegistry;
 
     @Before
@@ -164,7 +165,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
-            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(Strings.format("""
                 {
                   "id" : "id",
@@ -178,7 +179,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             builder.humanReadable(true);
-            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
                 Strings.format(
                     """
@@ -234,7 +236,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
-            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(Strings.format("""
                 {
                   "id" : "id",
@@ -264,7 +266,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             builder.humanReadable(true);
-            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
                 Strings.format(
                     """
@@ -332,7 +335,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
-            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(Strings.format("""
                 {
                   "id" : "id",
@@ -383,7 +386,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             builder.humanReadable(true);
-            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
                 Strings.format(
                     """
@@ -461,6 +465,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchResponse.Cluster updated = new SearchResponse.Cluster(
             localCluster.getClusterAlias(),
             localCluster.getIndexExpression(),
+            false,
             SearchResponse.Cluster.Status.SUCCESSFUL,
             10,
             10,
@@ -478,6 +483,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         updated = new SearchResponse.Cluster(
             cluster0.getClusterAlias(),
             cluster0.getIndexExpression(),
+            false,
             SearchResponse.Cluster.Status.SUCCESSFUL,
             8,
             8,
@@ -503,6 +509,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         updated = new SearchResponse.Cluster(
             cluster1.getClusterAlias(),
             cluster1.getIndexExpression(),
+            false,
             SearchResponse.Cluster.Status.SKIPPED,
             2,
             0,
@@ -520,6 +527,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         updated = new SearchResponse.Cluster(
             cluster2.getClusterAlias(),
             cluster2.getIndexExpression(),
+            false,
             SearchResponse.Cluster.Status.PARTIAL,
             8,
             8,
@@ -546,7 +554,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
-            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(Strings.format("""
                 {
                   "id" : "id",
@@ -680,7 +688,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
-            asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse).toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(Strings.format("""
                 {
                   "id" : "id",
@@ -709,7 +717,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             builder.humanReadable(true);
-            asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
+            ChunkedToXContent.wrapAsToXContent(asyncSearchResponse)
+                .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
                 Strings.format(
                     """
@@ -759,7 +768,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             remoteClusterIndices.put("cluster_" + i, new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand()));
         }
 
-        return new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips);
+        return new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips, alias -> false);
     }
 
     static SearchResponse.Clusters createCCSClusterObjects(
@@ -789,6 +798,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     localAlias,
                     localRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.SUCCESSFUL,
                     5,
                     5,
@@ -803,6 +813,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     localAlias,
                     localRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.SKIPPED,
                     5,
                     0,
@@ -817,6 +828,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     localAlias,
                     localRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.PARTIAL,
                     5,
                     2,
@@ -843,6 +855,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     clusterAlias,
                     clusterRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.SUCCESSFUL,
                     5,
                     5,
@@ -857,6 +870,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     clusterAlias,
                     clusterRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.SKIPPED,
                     5,
                     0,
@@ -871,6 +885,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 updated = new SearchResponse.Cluster(
                     clusterAlias,
                     clusterRef.get().getIndexExpression(),
+                    false,
                     SearchResponse.Cluster.Status.PARTIAL,
                     5,
                     2,

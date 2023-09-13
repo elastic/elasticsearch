@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -276,12 +276,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {
                 fetchFields = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_038)) {
                 missing = in.readBoolean();
             } else {
                 missing = index.isEmpty();
@@ -298,13 +298,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
                 out.writeBoolean(fetchFields != null);
                 if (fetchFields != null) {
-                    out.writeMap(fetchFields, StreamOutput::writeString, (stream, documentField) -> documentField.writeTo(stream));
+                    out.writeMap(fetchFields, StreamOutput::writeWriteable);
                 }
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_038)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_038)) {
                 // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
                 // see https://github.com/elastic/elasticsearch/pull/98130
                 out.writeBoolean(missing);
@@ -439,7 +439,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @SuppressWarnings("unchecked")
         public Sequence(StreamInput in) throws IOException {
             this.joinKeys = (List<Object>) in.readGenericValue();
-            this.events = in.readList(Event::readFrom);
+            this.events = in.readCollectionAsList(Event::readFrom);
         }
 
         public static Sequence fromXContent(XContentParser parser) {
@@ -449,7 +449,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeGenericValue(joinKeys);
-            out.writeList(events);
+            out.writeCollection(events);
         }
 
         @Override
@@ -521,8 +521,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events = in.readBoolean() ? in.readList(Event::readFrom) : null;
-            sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
+            events = in.readBoolean() ? in.readCollectionAsList(Event::readFrom) : null;
+            sequences = in.readBoolean() ? in.readCollectionAsList(Sequence::new) : null;
         }
 
         @Override
@@ -534,13 +534,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             if (events != null) {
                 out.writeBoolean(true);
-                out.writeList(events);
+                out.writeCollection(events);
             } else {
                 out.writeBoolean(false);
             }
             if (sequences != null) {
                 out.writeBoolean(true);
-                out.writeList(sequences);
+                out.writeCollection(sequences);
             } else {
                 out.writeBoolean(false);
             }

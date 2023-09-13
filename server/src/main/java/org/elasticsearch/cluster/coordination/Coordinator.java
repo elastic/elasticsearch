@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -208,7 +209,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         CircuitBreakerService circuitBreakerService,
         Reconfigurator reconfigurator,
         LeaderHeartbeatService leaderHeartbeatService,
-        PreVoteCollector.Factory preVoteCollectorFactory
+        PreVoteCollector.Factory preVoteCollectorFactory,
+        CompatibilityVersions compatibilityVersions
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -232,7 +234,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinReasonService,
             circuitBreakerService,
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
-            this::getLatestStoredStateAfterWinningAnElection
+            this::getLatestStoredStateAfterWinningAnElection,
+            compatibilityVersions
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -268,7 +271,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
         transportService.registerRequestHandler(
             COMMIT_STATE_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             ApplyCommitRequest::new,
@@ -769,7 +772,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
-                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getTransportVersion(), joinListener);
+                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getCompatibilityVersions(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();
@@ -789,14 +792,33 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 singleNodeClusterChecker = transportService.getThreadPool().scheduleWithFixedDelay(new Runnable() {
                     @Override
                     public void run() {
-                        Coordinator.this.checkSingleNodeCluster();
+                        synchronized (mutex) {
+                            if (mode != Mode.LEADER || applierState.nodes().size() > 1) {
+                                return;
+                            }
+                        }
+
+                        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)
+                            && DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty() == false) {
+                            logger.warn(
+                                """
+                                    This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to \
+                                    discover other nodes and form a multi-node cluster via the [{}={}] setting. Fully-formed clusters do \
+                                    not attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same \
+                                    cluster. The cluster UUID persists across restarts and can only be changed by deleting the contents of \
+                                    the node's data path(s). Remove the discovery configuration to suppress this message.""",
+                                applierState.metadata().clusterUUID(),
+                                DISCOVERY_SEED_HOSTS_SETTING.getKey(),
+                                DISCOVERY_SEED_HOSTS_SETTING.get(settings)
+                            );
+                        }
                     }
 
                     @Override
                     public String toString() {
                         return "single-node cluster checker";
                     }
-                }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
+                }, singleNodeClusterSeedHostsCheckInterval, clusterCoordinationExecutor);
             }
             return;
         }
@@ -805,30 +827,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         if (singleNodeClusterChecker != null) {
             singleNodeClusterChecker.cancel();
             singleNodeClusterChecker = null;
-        }
-    }
-
-    private void checkSingleNodeCluster() {
-        if (mode != Mode.LEADER || applierState.nodes().size() > 1) {
-            return;
-        }
-
-        if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
-            if (DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()) {
-                // For a single-node cluster, the only acceptable setting is an empty list.
-                return;
-            } else {
-                logger.warn(
-                    """
-                        This node is a fully-formed single-node cluster with cluster UUID [{}], but it is configured as if to \
-                        discover other nodes and form a multi-node cluster via the [{}] setting. Fully-formed clusters do not \
-                        attempt to discover other nodes, and nodes with different cluster UUIDs cannot belong to the same cluster. \
-                        The cluster UUID persists across restarts and can only be changed by deleting the contents of the node's \
-                        data path(s). Remove the discovery configuration to suppress this message.""",
-                    applierState.metadata().clusterUUID(),
-                    DISCOVERY_SEED_HOSTS_SETTING.getKey() + "=" + DISCOVERY_SEED_HOSTS_SETTING.get(settings)
-                );
-            }
         }
     }
 
@@ -1904,7 +1902,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for " + CoordinatorPublication.this;
                 }
-            }, publishTimeout, Names.CLUSTER_COORDINATION);
+            }, publishTimeout, clusterCoordinationExecutor);
 
             this.infoTimeoutHandler = transportService.getThreadPool().schedule(new Runnable() {
                 @Override
@@ -1918,7 +1916,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 public String toString() {
                     return "scheduled timeout for reporting on " + CoordinatorPublication.this;
                 }
-            }, publishInfoTimeout, Names.CLUSTER_COORDINATION);
+            }, publishInfoTimeout, clusterCoordinationExecutor);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {

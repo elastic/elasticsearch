@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -115,10 +115,10 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             .setGracePeriod(new TimeValue(1_000))
             .build();
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(TransportVersion.V_8_7_1);
+        out.setTransportVersion(TransportVersions.V_8_7_1);
         metadata.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setTransportVersion(TransportVersion.V_8_7_1);
+        in.setTransportVersion(TransportVersions.V_8_7_1);
         assertThat(new SingleNodeShutdownMetadata(in).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
 
         out = new BytesStreamOutput();

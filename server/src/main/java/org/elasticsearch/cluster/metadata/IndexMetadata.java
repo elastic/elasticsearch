@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -474,7 +475,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_INDEX_HIDDEN,
         false,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     /**
@@ -544,9 +546,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersion.V_7_10_0;
+    static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersions.V_7_10_0;
 
-    static final TransportVersion STATS_AND_FORECAST_ADDED = TransportVersion.V_8_6_0;
+    static final TransportVersion STATS_AND_FORECAST_ADDED = TransportVersions.V_8_6_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -1227,6 +1229,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
     public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
+    public static final String INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY = "index.downsample.origin.name";
+    public static final String INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY = "index.downsample.origin.uuid";
 
     public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
@@ -1236,6 +1240,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_NAME = Setting.simpleString(
         INDEX_DOWNSAMPLE_SOURCE_NAME_KEY,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_ORIGIN_NAME = Setting.simpleString(
+        INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
+    public static final Setting<String> INDEX_DOWNSAMPLE_ORIGIN_UUID = Setting.simpleString(
+        INDEX_DOWNSAMPLE_ORIGIN_UUID_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
@@ -1430,7 +1446,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
-    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersion.V_8_5_0;
+    private static final TransportVersion SETTING_DIFF_VERSION = TransportVersions.V_8_5_0;
 
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
@@ -1511,7 +1527,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 1;
@@ -1562,7 +1578,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
@@ -1635,7 +1651,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         }
         builder.setRoutingNumShards(in.readInt());
@@ -1695,7 +1711,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
         out.writeInt(routingNumShards);
@@ -1714,7 +1730,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         }
         out.writeCollection(aliases.values());
-        out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(customData, StreamOutput::writeWriteable);
         out.writeMap(
             inSyncAllocationIds,
             StreamOutput::writeVInt,
@@ -2633,7 +2649,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     * Return the {@link IndexVersion} of Elasticsearch that has been used to create an index given its settings.
      *
      * @throws IllegalArgumentException if the given index settings doesn't contain a value for the key
      *                                  {@value IndexMetadata#SETTING_VERSION_CREATED}

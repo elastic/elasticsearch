@@ -66,8 +66,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     // Build at post-collection phase
     @Nullable
     private HyperLogLogPlusPlusSparse counts;
-    private SortedSetDocValues values;
     private ObjectArray<BitArray> visitedOrds;
+    private SortedSetDocValues values;
 
     public GlobalOrdCardinalityAggregator(
         String name,
@@ -211,6 +211,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 if (maxOrd <= MAX_FIELD_CARDINALITY_FOR_DYNAMIC_PRUNING || numNonVisitedOrds <= MAX_TERMS_FOR_DYNAMIC_PRUNING) {
                     dynamicPruningAttempts++;
                     return new LeafBucketCollector() {
+                        final SortedSetDocValues docValues = values;
 
                         final BitArray bits;
                         final CompetitiveIterator competitiveIterator;
@@ -234,8 +235,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
                         @Override
                         public void collect(int doc, long bucketOrd) throws IOException {
-                            if (values.advanceExact(doc)) {
-                                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                            if (docValues.advanceExact(doc)) {
+                                for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
                                     if (bits.getAndSet(ord) == false) {
                                         competitiveIterator.onVisitedOrdinal(ord);
                                     }
@@ -267,6 +268,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
         bruteForce++;
         return new LeafBucketCollector() {
+            final SortedSetDocValues docValues = values;
+
             @Override
             public void collect(int doc, long bucketOrd) throws IOException {
                 visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
@@ -275,8 +278,8 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                     bits = new BitArray(maxOrd, bigArrays);
                     visitedOrds.set(bucketOrd, bits);
                 }
-                if (values.advanceExact(doc)) {
-                    for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                if (docValues.advanceExact(doc)) {
+                    for (long ord = docValues.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = docValues.nextOrd()) {
                         bits.set((int) ord);
                     }
                 }

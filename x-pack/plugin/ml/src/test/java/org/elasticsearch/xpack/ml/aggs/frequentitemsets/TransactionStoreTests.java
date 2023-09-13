@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -141,7 +142,7 @@ public class TransactionStoreTests extends ESTestCase {
             storeCopy = copyInstance(
                 store,
                 writableRegistry(),
-                (out, value) -> value.writeTo(out),
+                StreamOutput::writeWriteable,
                 in -> new HashBasedTransactionStore(in, mockBigArraysWithThrowingCircuitBreaker()),
                 TransportVersion.current()
             );
@@ -165,7 +166,7 @@ public class TransactionStoreTests extends ESTestCase {
         HashBasedTransactionStore storeCopy = copyInstance(
             store,
             writableRegistry(),
-            (out, value) -> value.writeTo(out),
+            StreamOutput::writeWriteable,
             in -> new HashBasedTransactionStore(in, mockBigArrays()),
             TransportVersion.current()
         );

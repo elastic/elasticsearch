@@ -1661,7 +1661,7 @@ public class OptimizerRulesTests extends ESTestCase {
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(new And(EMPTY, isNull, NULL), new PropagateNullable().rule(and));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new PropagateNullable().rule(and));
     }
 
     // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
@@ -1674,7 +1674,7 @@ public class OptimizerRulesTests extends ESTestCase {
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
         Expression optimized = new PropagateNullable().rule(top);
-        Expression expected = new And(EMPTY, and, NULL);
+        Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
@@ -1683,12 +1683,16 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        Expression nullified = new And(EMPTY, greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE), new Add(EMPTY, fa, TWO));
+        Expression nullified = new And(
+            EMPTY,
+            greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
+            greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
+        );
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = new PropagateNullable().rule(and);
-        Expression expected = new And(EMPTY, new And(EMPTY, NULL, NULL), kept);
+        Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
 
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
@@ -1765,6 +1769,10 @@ public class OptimizerRulesTests extends ESTestCase {
         Filter expected = new Filter(EMPTY, new Aggregate(EMPTY, combinedFilter, emptyList(), emptyList()), aggregateCondition);
         assertEquals(expected, new PushDownAndCombineFilters().apply(fb));
 
+    }
+
+    private Literal nullOf(DataType dataType) {
+        return new Literal(Source.EMPTY, null, dataType);
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,12 +29,16 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     private final List<Entry> entries;
 
+    public static RepositoryCleanupInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
+    }
+
     public RepositoryCleanupInProgress(List<Entry> entries) {
         this.entries = entries;
     }
 
     RepositoryCleanupInProgress(StreamInput in) throws IOException {
-        this.entries = in.readList(Entry::new);
+        this.entries = in.readCollectionAsList(Entry::new);
     }
 
     public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -60,7 +65,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     @Override
@@ -84,7 +89,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 
     public static final class Entry implements Writeable, RepositoryOperation {

@@ -336,4 +336,43 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
     }
+
+    public void testEvaluateArraySize() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startArray("test-array");
+        xContentBuilder.startObject();
+        xContentBuilder.field("foo", "bar");
+        xContentBuilder.endObject();
+        xContentBuilder.value(1);
+        xContentBuilder.value("test-string");
+        xContentBuilder.endArray();
+        xContentBuilder.endObject();
+
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            XContentFactory.xContent(xContentBuilder.contentType()),
+            BytesReference.bytes(xContentBuilder)
+        );
+
+        assertEquals(3, objectPath.evaluateArraySize("test-array"));
+    }
+
+    public void testEvaluateMapKeys() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("test-object");
+        xContentBuilder.field("key1", "bar");
+        xContentBuilder.field("key2", 42);
+        xContentBuilder.startObject("key3");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            XContentFactory.xContent(xContentBuilder.contentType()),
+            BytesReference.bytes(xContentBuilder)
+        );
+
+        assertEquals(Set.of("key1", "key2", "key3"), objectPath.evaluateMapKeys("test-object"));
+    }
 }

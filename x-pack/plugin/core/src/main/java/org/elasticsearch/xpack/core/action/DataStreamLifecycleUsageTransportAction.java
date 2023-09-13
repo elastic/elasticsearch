@@ -53,11 +53,6 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        if (DataStreamLifecycle.isFeatureEnabled() == false) {
-            listener.onResponse(new XPackUsageFeatureResponse(DataStreamLifecycleFeatureSetUsage.DISABLED));
-            return;
-        }
-
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         LongSummaryStatistics retentionStats = dataStreams.stream()
             .filter(ds -> ds.getLifecycle() != null && ds.getLifecycle().isEnabled())

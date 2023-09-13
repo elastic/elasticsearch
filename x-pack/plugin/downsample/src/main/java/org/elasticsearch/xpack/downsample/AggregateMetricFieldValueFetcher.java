@@ -17,7 +17,7 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
     private final AggregateDoubleMetricFieldType aggMetricFieldType;
 
-    private final AbstractDownsampleFieldProducer rollupFieldProducer;
+    private final AbstractDownsampleFieldProducer fieldProducer;
 
     protected AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
@@ -26,14 +26,14 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
     ) {
         super(fieldType.name(), fieldType, fieldData);
         this.aggMetricFieldType = aggMetricFieldType;
-        this.rollupFieldProducer = createRollupFieldProducer();
+        this.fieldProducer = createFieldProducer();
     }
 
-    public AbstractDownsampleFieldProducer rollupFieldProducer() {
-        return rollupFieldProducer;
+    public AbstractDownsampleFieldProducer fieldProducer() {
+        return fieldProducer;
     }
 
-    private AbstractDownsampleFieldProducer createRollupFieldProducer() {
+    private AbstractDownsampleFieldProducer createFieldProducer() {
         AggregateDoubleMetricFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
@@ -46,7 +46,7 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
         if (aggMetricFieldType.getMetricType() != null) {
             // If the field is an aggregate_metric_double field, we should use the correct subfields
-            // for each aggregation. This is a rollup-of-rollup case
+            // for each aggregation. This is a downsample-of-downsample case
             MetricFieldProducer.Metric metricOperation = switch (metric) {
                 case max -> new MetricFieldProducer.Max();
                 case min -> new MetricFieldProducer.Min();

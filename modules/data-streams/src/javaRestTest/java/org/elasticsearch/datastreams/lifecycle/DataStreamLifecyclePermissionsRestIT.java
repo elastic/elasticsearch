@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -54,7 +53,6 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .feature(FeatureFlag.DATA_STREAM_LIFECYCLE_ENABLED)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

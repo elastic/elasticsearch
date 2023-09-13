@@ -278,7 +278,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         jobId = in.readString();
         jobType = in.readString();
         jobVersion = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
-        groups = in.readImmutableList(StreamInput::readString);
+        groups = in.readCollectionAsImmutableList(StreamInput::readString);
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -830,7 +830,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             id = in.readOptionalString();
             jobType = in.readString();
             jobVersion = in.readBoolean() ? MlConfigVersion.readVersion(in) : null;
-            groups = in.readStringList();
+            groups = in.readStringCollectionAsList();
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;

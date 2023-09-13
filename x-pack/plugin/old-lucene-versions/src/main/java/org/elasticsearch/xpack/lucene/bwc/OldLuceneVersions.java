@@ -112,7 +112,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
             var usageTracker = new ArchiveUsageTracker(getLicenseState(), clusterService::state);
-            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
+            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
         return List.of();
     }

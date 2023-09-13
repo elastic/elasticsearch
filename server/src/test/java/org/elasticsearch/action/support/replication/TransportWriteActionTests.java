@@ -424,7 +424,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 ),
                 TransportWriteActionTests.this.clusterService,
                 null,
-                null,
+                TransportWriteActionTests.threadPool,
                 null,
                 new ActionFilters(new HashSet<>()),
                 TestRequest::new,

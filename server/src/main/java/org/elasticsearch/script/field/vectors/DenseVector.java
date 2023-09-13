@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.VectorUtil;
+
 import java.util.List;
 
 /**
@@ -151,11 +153,7 @@ public interface DenseVector {
     int size();
 
     static float getMagnitude(byte[] vector) {
-        int mag = 0;
-        for (int elem : vector) {
-            mag += elem * elem;
-        }
-        return (float) Math.sqrt(mag);
+        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(byte[] vector, int dims) {
@@ -170,11 +168,7 @@ public interface DenseVector {
     }
 
     static float getMagnitude(float[] vector) {
-        double mag = 0.0f;
-        for (float elem : vector) {
-            mag += elem * elem;
-        }
-        return (float) Math.sqrt(mag);
+        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(List<Number> vector) {

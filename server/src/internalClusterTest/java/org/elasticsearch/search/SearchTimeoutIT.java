@@ -52,6 +52,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         refresh("test");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98369")
     public void testTopHitsTimeout() {
         indexDocs();
         SearchResponse searchResponse = client().prepareSearch("test")

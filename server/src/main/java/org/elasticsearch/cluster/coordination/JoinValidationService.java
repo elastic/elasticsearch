@@ -121,7 +121,7 @@ public class JoinValidationService {
         final var dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            ThreadPool.Names.CLUSTER_COORDINATION,
+            this.responseExecutor,
             ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final var remoteState = request.getOrReadState();
@@ -375,7 +375,7 @@ public class JoinValidationService {
                         public String toString() {
                             return cacheClearer + " after timeout";
                         }
-                    }, cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
+                    }, cacheTimeout, responseExecutor);
                 }
             } catch (Exception e) {
                 assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;

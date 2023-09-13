@@ -79,7 +79,12 @@ public abstract class TransportTasksAction<
         this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
-        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
+        transportService.registerRequestHandler(
+            transportNodeAction,
+            transportService.getThreadPool().executor(nodeExecutor),
+            NodeTaskRequest::new,
+            new NodeTransportHandler()
+        );
     }
 
     @Override
@@ -316,6 +321,11 @@ public abstract class TransportTasksAction<
         @Override
         public boolean hasReferences() {
             return tasksRequest.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "[" + transportNodeAction + "][" + tasksRequest + "]";
         }
     }
 

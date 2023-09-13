@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -75,10 +76,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardPersistentTaskState;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
@@ -99,7 +99,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 /**
  * The master downsample action that coordinates
  *  -  creating the downsample index
- *  -  instantiating {@link RollupShardIndexer}s to index downsample documents
+ *  -  instantiating {@link DownsampleShardIndexer}s to index downsample documents
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
@@ -170,7 +170,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
-        this.taskQueue = clusterService.createTaskQueue("rollup", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
         this.persistentTasksService = persistentTasksService;
     }
 
@@ -226,7 +226,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndexName) == false) {
             listener.onFailure(
                 new ElasticsearchException(
-                    "Rollup requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
+                    "Downsample requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
                 )
             );
             return;
@@ -274,7 +274,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 .filter(entry -> sourceIndexName.equals(entry.getKey()))
                 .findFirst()
                 .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
-                .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
+                .orElseThrow(() -> new IllegalArgumentException("No mapping found for downsample source index [" + sourceIndexName + "]"));
 
             // 2. Extract downsample config from index mappings
             final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
@@ -330,7 +330,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         labelFields
                     );
                 } else {
-                    listener.onFailure(new ElasticsearchException("Failed to create rollup index [" + downsampleIndexName + "]"));
+                    listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
                 }
             }, e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
@@ -385,7 +385,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     // NOTE: don't need to wait if the persistent task completed and was removed
                     return true;
                 }
-                RollupShardPersistentTaskState runningPersistentTaskState = (RollupShardPersistentTaskState) runningTask.getState();
+                DownsampleShardPersistentTaskState runningPersistentTaskState = (DownsampleShardPersistentTaskState) runningTask.getState();
                 return runningPersistentTaskState != null && runningPersistentTaskState.done();
             };
             var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<>() {
@@ -407,7 +407,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             };
             persistentTasksService.sendStartRequest(
                 persistentTaskId,
-                RollupShardTask.TASK_NAME,
+                DownsampleShardTask.TASK_NAME,
                 params,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
@@ -595,12 +595,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // only one value (the last value of the counter)
             builder.startObject(field).field("type", fieldProperties.get("type")).field(TIME_SERIES_METRIC_PARAM, metricType).endObject();
         } else {
-            final List<String> supportedAggs = List.of(metricType.supportedAggs());
+            final String[] supportedAggsArray = metricType.supportedAggs();
             // We choose max as the default metric
-            final String defaultMetric = supportedAggs.contains("max") ? "max" : supportedAggs.get(0);
+            final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
             builder.startObject(field)
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggs)
+                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();
@@ -680,17 +680,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         /*
-         * Add the source index name and UUID to the downsample index metadata.
-         * If the source index is a downsample index, we will add the name and UUID
+         * Add the origin index name and UUID to the downsample index metadata.
+         * If the origin index is a downsample index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
-        if (IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
-            || IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
-            Index sourceIndex = sourceIndexMetadata.getIndex();
-            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), sourceIndex.getName())
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), sourceIndex.getUUID());
+        Index sourceIndex = sourceIndexMetadata.getIndex();
+        if (IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.exists(sourceIndexMetadata.getSettings()) == false
+            || IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
+            targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), sourceIndex.getName())
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.getKey(), sourceIndex.getUUID());
         }
 
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY, sourceIndex.getName());
+        targetSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY, sourceIndex.getUUID());
         return IndexMetadata.builder(downsampleIndexMetadata).settings(targetSettings);
     }
 

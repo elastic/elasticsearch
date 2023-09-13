@@ -389,6 +389,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -526,7 +527,7 @@ public class Security extends Plugin
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
-    private final Settings settings;
+    private Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
     private final ListenableFuture<Void> nodeStartedListenable;
@@ -543,6 +544,7 @@ public class Security extends Plugin
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
+    private final SetOnce<CrossClusterAccessAuthenticationService> crossClusterAccessAuthcService = new SetOnce<>();
 
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
@@ -562,7 +564,10 @@ public class Security extends Plugin
     }
 
     Security(Settings settings, List<SecurityExtension> extensions) {
-        // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
+        // Note: The settings that are passed in here might not be the final values - things like Plugin.additionalSettings()
+        // will be called after the plugins are constructed, and may introduce new setting values.
+        // Accordingly we should avoid using this settings object for very much and mostly rely on Environment.setting() as provided
+        // to createComponents.
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
@@ -665,6 +670,10 @@ public class Security extends Plugin
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null, null));
         }
+
+        // The settings in `environment` may have additional values over what was provided during construction
+        // See Plugin#additionalSettings()
+        this.settings = environment.settings();
 
         systemIndices.init(client, clusterService);
 
@@ -779,9 +788,7 @@ public class Security extends Plugin
         );
         components.add(privilegeStore);
 
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(
-            Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(environment.settings()))
-        );
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(Set.copyOf(INCLUDED_RESERVED_ROLES_SETTING.get(settings)));
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
@@ -904,7 +911,7 @@ public class Security extends Plugin
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
         // operator privileges are enabled either explicitly via the setting or if running serverless
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(environment.settings()) || DiscoveryNode.isServerless();
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
 
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");
@@ -993,12 +1000,8 @@ public class Security extends Plugin
         final RemoteClusterCredentialsResolver remoteClusterCredentialsResolver = new RemoteClusterCredentialsResolver(settings);
 
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        final CrossClusterAccessAuthenticationService crossClusterAccessAuthcService = new CrossClusterAccessAuthenticationService(
-            clusterService,
-            apiKeyService,
-            authcService.get()
-        );
-        components.add(crossClusterAccessAuthcService);
+        crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
+        components.add(crossClusterAccessAuthcService.get());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1008,7 +1011,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                crossClusterAccessAuthcService,
+                crossClusterAccessAuthcService.get(),
                 remoteClusterCredentialsResolver,
                 getLicenseState()
             )
@@ -1576,7 +1579,7 @@ public class Security extends Plugin
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                 String action,
-                String executor,
+                Executor executor,
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {
@@ -1621,7 +1624,8 @@ public class Security extends Plugin
                         circuitBreakerService,
                         ipFilter,
                         getSslService(),
-                        getNettySharedGroupFactory(settings)
+                        getNettySharedGroupFactory(settings),
+                        crossClusterAccessAuthcService.get()
                     )
                 );
                 return transportReference.get();

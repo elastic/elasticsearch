@@ -2907,7 +2907,7 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 
 dateFormatDate
 // tag::dateFormatDate
-SELECT DATE_FORMAT('%d/%m/%Y', CAST('2020-04-05' AS DATE)) AS "date";
+SELECT DATE_FORMAT(CAST('2020-04-05' AS DATE), '%d/%m/%Y') AS "date";
 
       date
 ------------------
@@ -2917,7 +2917,7 @@ SELECT DATE_FORMAT('%d/%m/%Y', CAST('2020-04-05' AS DATE)) AS "date";
 
 dateFormatDateTime
 // tag::dateFormatDateTime
-SELECT DATE_FORMAT('%d/%m/%Y %H:%i:%s.%f', CAST('2020-04-05T11:22:33.987654' AS DATETIME)) AS "datetime";
+SELECT DATE_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), '%d/%m/%Y %H:%i:%s.%f') AS "datetime";
 
       datetime
 ------------------
@@ -2927,7 +2927,7 @@ SELECT DATE_FORMAT('%d/%m/%Y %H:%i:%s.%f', CAST('2020-04-05T11:22:33.987654' AS 
 
 dateFormatTime
 // tag::dateFormatTime
-SELECT DATE_FORMAT('%H %i %s.%f', CAST('23:22:33.987' AS TIME)) AS "time";
+SELECT DATE_FORMAT(CAST('23:22:33.987' AS TIME), '%H %i %s.%f') AS "time";
 
       time
 ------------------

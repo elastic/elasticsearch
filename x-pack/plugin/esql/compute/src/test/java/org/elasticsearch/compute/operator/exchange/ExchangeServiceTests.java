@@ -268,14 +268,32 @@ public class ExchangeServiceTests extends ESTestCase {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
             DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:1", dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
+            Driver d = new Driver(
+                "test-session:1",
+                dc,
+                () -> description,
+                seqNoGenerator.get(dc),
+                List.of(),
+                sinkOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
             DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:2", dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
+            Driver d = new Driver(
+                "test-session:2",
+                dc,
+                () -> description,
+                sourceOperator,
+                List.of(),
+                seqNoCollector.get(dc),
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();

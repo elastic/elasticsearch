@@ -358,6 +358,11 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
+            if (name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                && context.isDataStream()
+                && ignoreMalformed.isConfigured() == false) {
+                ignoreMalformed.setValue(false);
+            }
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
         }
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -84,12 +85,15 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number val) {
-        return toJavaObject(evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get().eval(row(List.of(val))), 0);
+        return toJavaObject(
+            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(new DriverContext()).eval(row(List.of(val))),
+            0
+        );
     }
 
     private Object process(Number val, int decimals) {
         return toJavaObject(
-            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get()
+            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(new DriverContext())
                 .eval(row(List.of(val, decimals))),
             0
         );
@@ -115,7 +119,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
     public void testNoDecimalsToString() {
         assertThat(
-            evaluator(new Round(Source.EMPTY, field("val", DataTypes.DOUBLE), null)).get().toString(),
+            evaluator(new Round(Source.EMPTY, field("val", DataTypes.DOUBLE), null)).get(new DriverContext()).toString(),
             equalTo("RoundDoubleNoDecimalsEvaluator[val=Attribute[channel=0]]")
         );
     }

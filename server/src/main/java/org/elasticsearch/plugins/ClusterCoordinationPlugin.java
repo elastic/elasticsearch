@@ -79,22 +79,22 @@ public interface ClusterCoordinationPlugin {
     interface PersistedClusterStateServiceFactory {
 
         @Deprecated(forRemoval = true)
-        PersistedClusterStateService newPersistedClusterStateService(
+        default PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
             ThreadPool threadPool
-        );
+        ) {
+            throw new AssertionError("Should not be called!");
+        }
 
-        default PersistedClusterStateService newPersistedClusterStateService(
+        PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
             CompatibilityVersions compatibilityVersions
-        ) {
-            return newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
-        }
+        );
     }
 
     interface ReconfiguratorFactory {

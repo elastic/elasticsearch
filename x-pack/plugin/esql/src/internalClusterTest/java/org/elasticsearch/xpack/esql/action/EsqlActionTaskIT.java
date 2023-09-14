@@ -168,6 +168,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99582")
     public void testCancelRead() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         List<TaskInfo> infos = getTasksStarting();

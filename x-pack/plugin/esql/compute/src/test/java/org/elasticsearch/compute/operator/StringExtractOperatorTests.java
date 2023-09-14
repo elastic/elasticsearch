@@ -42,7 +42,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
-        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, () -> page -> page.getBlock(0), expEval);
+        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, dvrCtx -> page -> page.getBlock(0), expEval);
     }
 
     @Override

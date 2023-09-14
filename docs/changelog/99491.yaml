@@ -1,0 +1,6 @@
+pr: 99491
+summary: Use long in Centroid count
+area: Aggregations
+type: bug
+issues:
+ - 80153

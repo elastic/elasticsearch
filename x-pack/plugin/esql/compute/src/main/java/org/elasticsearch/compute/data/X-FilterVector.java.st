@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for $Type$Vectors.
@@ -99,5 +100,10 @@ $else$
             sb.append(get$Type$(i));
 $endif$
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

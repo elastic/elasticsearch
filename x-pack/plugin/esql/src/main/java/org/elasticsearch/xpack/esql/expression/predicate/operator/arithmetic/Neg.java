@@ -24,7 +24,6 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -40,21 +39,21 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType type = dataType();
 
         if (type.isNumeric()) {
             var f = toEvaluator.apply(field());
-            Supplier<ExpressionEvaluator> supplier = null;
+            ExpressionEvaluator.Factory supplier = null;
 
             if (type == DataTypes.INTEGER) {
-                supplier = () -> new NegIntsEvaluator(source(), f.get());
+                supplier = dvrCtx -> new NegIntsEvaluator(source(), f.get(dvrCtx), dvrCtx);
             }
             // Unsigned longs are unsupported by choice; negating them would require implicitly converting to long.
             else if (type == DataTypes.LONG) {
-                supplier = () -> new NegLongsEvaluator(source(), f.get());
+                supplier = dvrCtx -> new NegLongsEvaluator(source(), f.get(dvrCtx), dvrCtx);
             } else if (type == DataTypes.DOUBLE) {
-                supplier = () -> new NegDoublesEvaluator(f.get());
+                supplier = dvrCtx -> new NegDoublesEvaluator(f.get(dvrCtx), dvrCtx);
             }
 
             if (supplier != null) {

@@ -1,5 +1,0 @@
-pr: 98083
-summary: Collect additional object store stats for S3
-area: Snapshot/Restore
-type: enhancement
-issues: []

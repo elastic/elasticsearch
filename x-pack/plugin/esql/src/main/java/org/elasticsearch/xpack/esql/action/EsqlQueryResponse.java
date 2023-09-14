@@ -247,7 +247,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      */
     private static Page valuesToPage(List<String> dataTypes, List<List<Object>> values) {
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromEs(c)).newBlockBuilder(values.size()))
+            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
             .toList();
 
         for (List<Object> row : values) {

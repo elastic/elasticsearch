@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -23,10 +24,13 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator decimals;
 
+  private final DriverContext driverContext;
+
   public RoundIntEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals) {
+      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
     this.val = val;
     this.decimals = decimals;
+    this.driverContext = driverContext;
   }
 
   @Override

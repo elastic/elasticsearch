@@ -66,7 +66,7 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             transportVersion = TransportVersion.fromId(version.id);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_075)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
             indexVersion = IndexVersion.readVersion(in);
         } else {
             indexVersion = IndexVersion.fromId(version.id);
@@ -216,7 +216,7 @@ public class NodeInfo extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_075)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
             IndexVersion.writeVersion(indexVersion, out);
         }
         Build.writeBuild(build, out);

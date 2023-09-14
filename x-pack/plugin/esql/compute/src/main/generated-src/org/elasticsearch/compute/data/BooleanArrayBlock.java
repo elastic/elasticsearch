@@ -95,4 +95,9 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
             + Arrays.toString(values)
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

@@ -32,6 +32,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
+        // TODO should we read this in as a char[]? That way we can zero it after
         String apiToken = MapParsingUtils.removeAsType(map, API_TOKEN, String.class);
 
         if (apiToken == null) {
@@ -55,7 +56,6 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
         // TODO should this be readString?
-        // TODO do we need to decrypt here?
         apiToken = in.readSecureString();
     }
 
@@ -79,6 +79,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
+        // TODO change this
         return TransportVersions.V_8_500_072;
     }
 

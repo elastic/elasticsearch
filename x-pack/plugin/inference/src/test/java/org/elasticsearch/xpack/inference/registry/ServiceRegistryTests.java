@@ -9,19 +9,20 @@ package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
 import static org.mockito.Mockito.mock;
 
 public class ServiceRegistryTests extends ESTestCase {
 
     public void testGetService() {
-        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class));
+        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class), mock(OpenAiService.class));
         var service = registry.getService(ElserMlNodeService.NAME);
         assertTrue(service.isPresent());
     }
 
     public void testGetUnknownService() {
-        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class));
+        ServiceRegistry registry = new ServiceRegistry(mock(ElserMlNodeService.class), mock(OpenAiService.class));
         var service = registry.getService("foo");
         assertFalse(service.isPresent());
     }

@@ -7,10 +7,81 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-public class HttpClient implements Cloneable {
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 
+import java.io.IOException;
+
+import static org.elasticsearch.core.Strings.format;
+
+public class HttpClient {
+    // TODO pick a reasonable value for this
+    private static final int MAX_CONNECTIONS = 500;
+    private static final Logger logger = LogManager.getLogger(HttpClient.class);
+    private final CloseableHttpClient client;
+    // TODO create a single apache http client because it could be expensive
+    // TODO should proxy settings be set on a client basis? aka not per request
     // TODO this should take some sort of request
-    public void send() {
 
+    public HttpClient() {
+        this.client = createClient();
+    }
+
+    private CloseableHttpClient createClient() {
+        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
+
+        // The apache client will be shared across all connections because it can be expensive to create it
+        // so we don't want to support cookies to avoid accidental authentication for unauthorized users
+        clientBuilder.disableCookieManagement();
+        clientBuilder.evictExpiredConnections();
+        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+
+        return clientBuilder.build();
+    }
+
+    private CloseableHttpAsyncClient createAsyncClient() {
+        var a = HttpAsyncClients.createDefault();
+        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
+
+        // The apache client will be shared across all connections because it can be expensive to create it
+        // so we don't want to support cookies to avoid accidental authentication for unauthorized users
+        clientBuilder.disableCookieManagement();
+        clientBuilder.evictExpiredConnections();
+        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+
+        return clientBuilder.build();
+    }
+
+    public void send(HttpUriRequest request) throws IOException {
+        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request))) {
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                // return it as a String
+                String result = EntityUtils.toString(entity);
+                logger.info(format("Request response: %s", result));
+            }
+            EntityUtils.consume(entity);
+        }
+    }
+
+    public void sendAsync(HttpUriRequest request) throws IOException {
+        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request))) {
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                // return it as a String
+                String result = EntityUtils.toString(entity);
+                logger.info(format("Request response: %s", result));
+            }
+            EntityUtils.consume(entity);
+        }
     }
 }

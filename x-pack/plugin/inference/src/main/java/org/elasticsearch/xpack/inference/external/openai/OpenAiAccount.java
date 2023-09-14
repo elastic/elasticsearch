@@ -14,14 +14,14 @@ public class OpenAiAccount {
     // and should take the crypto service and provide a method to return the api key
 
     // TODO maybe this should be a SecureString? or a char[]?
-    private final String encryptedApiKey;
+    private final SecureString encryptedApiKey;
 
-    public OpenAiAccount(String encryptedApiKey) {
+    public OpenAiAccount(SecureString encryptedApiKey) {
         this.encryptedApiKey = encryptedApiKey;
     }
 
     public SecureString getApiKey() {
         // TODO normally we'd do the decryption here
-        return new SecureString(this.encryptedApiKey.toCharArray());
+        return encryptedApiKey;
     }
 }

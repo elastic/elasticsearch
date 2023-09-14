@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -62,6 +63,7 @@ import java.util.function.Supplier;
 public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
+    public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
     public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
 
@@ -121,7 +123,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         IndicesService indicesService
     ) {
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService(client));
+        // TODO we'll need to initialize the crypto and http client probably
+        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService(client), new OpenAiService());
         return List.of(modelRegistry, serviceRegistry);
     }
 

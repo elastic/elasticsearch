@@ -67,4 +67,8 @@ public class MapParsingUtils {
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
     }
+
+    public static String mustBeNonEmptyString(String settingName) {
+        return Strings.format("Invalid value empty string. [%s] must be a non-empty string", settingName);
+    }
 }

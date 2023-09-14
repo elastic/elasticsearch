@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.openai;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 
+import java.io.IOException;
+
 public class OpenAiClient {
     // TODO this should handle sending the request
 
@@ -25,7 +27,7 @@ public class OpenAiClient {
         this.httpClient = httpClient;
     }
 
-    public void send(OpenAiEmbeddingsRequest request) {
-
+    public void send(OpenAiEmbeddingsRequest request) throws IOException {
+        httpClient.send(request.createRequest());
     }
 }

@@ -140,10 +140,10 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
-                        CompatibilityVersions compatibilityVersions = new CompatibilityVersions(nodeJoinTask.transportVersion());
+                        CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                            ensureTransportVersionBarrier(compatibilityVersions, compatibilityVersionsMap.values());
+                            CompatibilityVersions.ensureVersionsCompatibility(compatibilityVersions, compatibilityVersionsMap.values());
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);

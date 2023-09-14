@@ -96,12 +96,6 @@ public interface Scheduler {
     ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor);
 
     /**
-     * @deprecated Use {@link #schedule(Runnable, TimeValue, Executor)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executorName);
-
-    /**
      * Schedules a periodic action that runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
      * to execute on a different executor, in which case blocking calls are allowed.
      *

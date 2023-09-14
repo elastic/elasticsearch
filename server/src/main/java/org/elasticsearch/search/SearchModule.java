@@ -317,9 +317,7 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
-        registerGenericNamedWriteable(
-            new SearchPlugin.GenericNamedWriteableSpec(GeoBoundingBox.class.getSimpleName(), GeoBoundingBox::new)
-        );
+        registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

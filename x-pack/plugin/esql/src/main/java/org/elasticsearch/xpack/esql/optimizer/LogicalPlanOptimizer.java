@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -87,17 +86,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceFieldAttributesWithExactSubfield()
+        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch()
+        // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
         );
 
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
+            new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -309,6 +305,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    /**
+     * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
+     * TODO: eliminate unnecessary fields inside the eval as well
+     */
+    static class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+
+        CombineEvals() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            LogicalPlan plan = eval;
+            if (eval.child() instanceof Eval subEval) {
+                plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
+            }
+            return plan;
         }
     }
 
@@ -584,7 +600,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();
 
-            // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
@@ -833,24 +848,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
-        }
-    }
-
-    private static class ReplaceFieldAttributesWithExactSubfield extends OptimizerRules.OptimizerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Filter || plan instanceof OrderBy || plan instanceof Aggregate) {
-                return plan.transformExpressionsOnly(FieldAttribute.class, ReplaceFieldAttributesWithExactSubfield::toExact);
-            }
-            return plan;
-        }
-
-        private static FieldAttribute toExact(FieldAttribute fa) {
-            if (fa.getExactInfo().hasExact() && fa.exactAttribute() != fa) {
-                return fa.exactAttribute();
-            }
-            return fa;
         }
     }
 }

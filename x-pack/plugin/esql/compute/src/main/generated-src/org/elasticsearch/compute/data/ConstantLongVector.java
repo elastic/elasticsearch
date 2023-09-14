@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant long value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantLongVector extends AbstractVector implements LongVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
     private final long value;
 
@@ -46,6 +50,11 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(long.class);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof LongVector that) {
             return LongVector.equals(this, that);
@@ -60,5 +69,10 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        // no-op
     }
 }

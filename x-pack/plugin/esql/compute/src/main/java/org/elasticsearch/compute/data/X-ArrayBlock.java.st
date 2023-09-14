@@ -9,9 +9,12 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
@@ -22,6 +25,8 @@ import java.util.stream.IntStream;
  * This class is generated. Do not edit it.
  */
 public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -77,6 +82,16 @@ $endif$
         return new $Type$ArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
+    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {
@@ -105,5 +120,10 @@ $else$
             + Arrays.toString(values)
 $endif$
             + ']';
+    }
+
+    @Override
+    public void close() {
+        // no-op
     }
 }

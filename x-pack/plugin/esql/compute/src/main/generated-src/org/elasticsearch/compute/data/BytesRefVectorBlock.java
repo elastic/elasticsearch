@@ -8,12 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a BytesRefVector.
  * This class is generated. Do not edit it.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class);
 
     private final BytesRefVector vector;
 
@@ -48,6 +52,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BytesRefBlock that) {
             return BytesRefBlock.equals(this, that);
@@ -63,5 +72,10 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

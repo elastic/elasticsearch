@@ -155,7 +155,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             for (final var executor : EXECUTOR_NAMES) {
                 transportService.registerRequestHandler(
                     ACTION_NAME_PREFIX + executor,
-                    executor,
+                    threadPool.executor(executor),
                     TransportRequest.Empty::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {

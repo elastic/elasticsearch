@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -178,8 +181,16 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             getTestClass().getSimpleName(),
             new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
+        var driverRunner = new DriverRunner() {
+            @Override
+            protected void start(Driver driver, ActionListener<Void> driverListener) {
+                Driver.start(threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+            }
+        };
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
-            DriverRunner.runToCompletion(threadPool, between(1, 10000), drivers);
+            driverRunner.runToCompletion(drivers, future);
+            future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             terminate(threadPool);
         }

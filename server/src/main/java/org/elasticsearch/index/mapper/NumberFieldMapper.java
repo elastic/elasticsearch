@@ -268,14 +268,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(
-                name,
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                context.isSourceSynthetic(),
-                this
-            );
+            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
     }
 

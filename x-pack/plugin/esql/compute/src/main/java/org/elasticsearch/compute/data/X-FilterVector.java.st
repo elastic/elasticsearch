@@ -10,12 +10,16 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for $Type$Vectors.
  * This class is generated. Do not edit it.
  */
 public final class Filter$Type$Vector extends AbstractFilterVector implements $Type$Vector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Vector.class);
 
     private final $Type$Vector vector;
 
@@ -55,6 +59,13 @@ $endif$
     }
 
     @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter vectors encapsulate
+        // their inner vector, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {
             return $Type$Vector.equals(this, that);
@@ -89,5 +100,10 @@ $else$
             sb.append(get$Type$(i));
 $endif$
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

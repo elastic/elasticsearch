@@ -9,9 +9,13 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 $endif$
 
@@ -20,6 +24,8 @@ $endif$
  * This class is generated. Do not edit it.
  */
 public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -70,6 +76,15 @@ $endif$
         return new Filter$Type$Vector(this, positions);
     }
 
+    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {
@@ -89,6 +104,15 @@ $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
 $else$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+$endif$
+    }
+
+    @Override
+    public void close() {
+$if(BytesRef)$
+        Releasables.closeExpectNoException(values);
+$else$
+        // no-op
 $endif$
     }
 }

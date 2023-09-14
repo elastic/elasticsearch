@@ -39,7 +39,7 @@ public class HashAggregationOperator implements Operator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize), driverContext);
+            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize, false), driverContext);
         }
 
         @Override

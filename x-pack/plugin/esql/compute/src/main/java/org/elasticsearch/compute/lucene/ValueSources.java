@@ -78,7 +78,6 @@ public final class ValueSources {
             try {
                 fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
             } catch (IllegalArgumentException e) {
-                // if (asUnsupportedSource) {
                 switch (elementType) {
                     case BYTES_REF -> sources.add(
                         new ValueSourceInfo(
@@ -126,9 +125,6 @@ public final class ValueSources {
                     fieldName
                 );
                 continue;
-                // } else {
-                // throw e;
-                // }
             }
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
             var vsType = fieldData.getValuesSourceType();

@@ -1,4 +1,7 @@
 version: ${xpack.apm.template.version}
+_meta:
+  description: Default mappings for all APM data streams
+  managed: true
 template:
   mappings:
     dynamic: true

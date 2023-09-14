@@ -1,4 +1,7 @@
 version: ${xpack.apm.template.version}
+_meta:
+  description: Default settings for all APM data streams
+  managed: true
 template:
   settings:
     index:

@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.TestMethodAndParams;
 
 import java.util.Comparator;
 
-class FullClusterRestartTestOrdering implements Comparator<TestMethodAndParams> {
+public class FullClusterRestartTestOrdering implements Comparator<TestMethodAndParams> {
     @Override
     public int compare(TestMethodAndParams o1, TestMethodAndParams o2) {
         return Integer.compare(getOrdinal(o1), getOrdinal(o2));

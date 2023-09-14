@@ -136,6 +136,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Override
+    protected String getTestRestCluster() {
+        return getUpgradeCluster().getHttpAddresses();
+    }
+
+    @Override
     protected final boolean resetFeatureStates() {
         return false;
     }
@@ -157,6 +162,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
         return true;
     }
 

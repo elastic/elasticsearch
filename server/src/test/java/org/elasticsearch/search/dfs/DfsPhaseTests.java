@@ -44,7 +44,7 @@ public class DfsPhaseTests extends ESTestCase {
         threadPoolExecutor = EsExecutors.newFixed(
             "test",
             numThreads,
-            10,
+            -1,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)

@@ -93,7 +93,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     // We need to call finish as TopSuggestDocsCollector#finish() populates the pendingResults
                     // This is important when skipping duplicates
                     leafCollector.finish();
-                    leafCollector.finish();
                 }
             }
         }

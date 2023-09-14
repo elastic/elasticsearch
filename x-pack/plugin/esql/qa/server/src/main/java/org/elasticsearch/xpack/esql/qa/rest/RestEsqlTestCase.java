@@ -336,7 +336,10 @@ public class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]").build())
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("illegal data type [byte]"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("eval does not support type [byte] in expression [?]")
+        );
     }
 
     public void testErrorMessageForArrayValuesInParams() throws IOException {

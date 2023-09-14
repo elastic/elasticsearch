@@ -1457,7 +1457,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         Equals equals = as(filter.condition(), Equals.class);
         FieldAttribute left = as(equals.left(), FieldAttribute.class);
-        assertThat(left.name(), equalTo("job.raw"));
+        assertThat(left.name(), equalTo("job"));
     }
 
     public void testReplaceExpressionWithExact() {
@@ -1481,7 +1481,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), equalTo(1));
         var sortField = as(topN.order().get(0).child(), FieldAttribute.class);
-        assertThat(sortField.name(), equalTo("job.raw"));
+        assertThat(sortField.name(), equalTo("job"));
     }
 
     public void testPruneUnusedEval() {

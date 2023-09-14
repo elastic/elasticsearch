@@ -10,6 +10,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -19,8 +20,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
-  public AbsDoubleEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
+  private final DriverContext driverContext;
+
+  public AbsDoubleEvaluator(EvalOperator.ExpressionEvaluator fieldVal,
+      DriverContext driverContext) {
     this.fieldVal = fieldVal;
+    this.driverContext = driverContext;
   }
 
   @Override

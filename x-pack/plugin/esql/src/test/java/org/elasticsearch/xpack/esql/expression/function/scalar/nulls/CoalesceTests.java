@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -84,10 +85,10 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         Layout layout = builder.build();
         assertThat(toJavaObject(exp.toEvaluator(child -> {
             if (child == evil) {
-                return () -> page -> { throw new AssertionError("shouldn't be called"); };
+                return dvrCtx -> page -> { throw new AssertionError("shouldn't be called"); };
             }
             return EvalMapper.toEvaluator(child, layout);
-        }).get().eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
+        }).get(new DriverContext()).eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
     }
 
     public void testCoalesceNullabilityIsUnknown() {

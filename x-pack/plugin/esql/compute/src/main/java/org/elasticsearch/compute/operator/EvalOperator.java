@@ -10,24 +10,22 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.function.Supplier;
-
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
  * new block which is appended to the page.
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get() + "]";
+            return "EvalOperator[evaluator=" + evaluator.get(DriverContext.DEFAULT) + "]";
         }
     }
 
@@ -48,6 +46,12 @@ public class EvalOperator extends AbstractPageMappingOperator {
     }
 
     public interface ExpressionEvaluator {
+
+        /** A Factory for creating ExpressionEvaluators. */
+        interface Factory {
+            ExpressionEvaluator get(DriverContext driverContext);
+        }
+
         Block eval(Page page);
     }
 

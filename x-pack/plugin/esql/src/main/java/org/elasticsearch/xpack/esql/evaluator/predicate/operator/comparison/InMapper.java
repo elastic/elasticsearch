@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper.EQUALS;
 
@@ -34,14 +34,14 @@ public class InMapper extends ExpressionMapper<In> {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> map(In in, Layout layout) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> listEvaluators = new ArrayList<>(in.list().size());
+    public ExpressionEvaluator.Factory map(In in, Layout layout) {
+        List<ExpressionEvaluator.Factory> listEvaluators = new ArrayList<>(in.list().size());
         in.list().forEach(e -> {
             Equals eq = new Equals(in.source(), in.value(), e);
-            Supplier<EvalOperator.ExpressionEvaluator> eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
+            ExpressionEvaluator.Factory eqEvaluator = ((ExpressionMapper) EQUALS).map(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
-        return () -> new InExpressionEvaluator(listEvaluators.stream().map(Supplier::get).toList());
+        return dvrCtx -> new InExpressionEvaluator(listEvaluators.stream().map(fac -> fac.get(dvrCtx)).toList());
     }
 
     record InExpressionEvaluator(List<EvalOperator.ExpressionEvaluator> listEvaluators) implements EvalOperator.ExpressionEvaluator {

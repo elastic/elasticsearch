@@ -30,6 +30,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
@@ -497,6 +498,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf
+            // We don't need to finish leaf collector as collection was terminated before it was created
             return;
         }
         Bits liveDocs = ctx.reader().getLiveDocs();
@@ -509,9 +511,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
                 try {
                     bulkScorer.score(leafCollector, liveDocs);
-                } catch (CollectionTerminatedException e) {
+                } catch (CollectionTerminatedException | TimeLimitingCollector.TimeExceededException e) {
+                    leafCollector.finish();
+                    // We did not terminate collection early, rethrow the time exceeded exception
+                    // Otherwise
                     // collection was terminated prematurely
                     // continue with the following leaf
+                    if (e instanceof TimeLimitingCollector.TimeExceededException) {
+                        throw e;
+                    }
                 }
             }
         } else {
@@ -525,9 +533,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         leafCollector,
                         this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
                     );
-                } catch (CollectionTerminatedException e) {
+                } catch (CollectionTerminatedException | TimeLimitingCollector.TimeExceededException e) {
+                    leafCollector.finish();
+                    // We did not terminate collection early, rethrow the time exceeded exception
+                    // Otherwise
                     // collection was terminated prematurely
                     // continue with the following leaf
+                    if (e instanceof TimeLimitingCollector.TimeExceededException) {
+                        throw e;
+                    }
                 }
             }
         }

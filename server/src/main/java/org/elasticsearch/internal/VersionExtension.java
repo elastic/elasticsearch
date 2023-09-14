@@ -30,18 +30,4 @@ public interface VersionExtension {
      * This must be at least equal to the latest version found in {@link IndexVersion} V_* constants.
      */
     IndexVersion getCurrentIndexVersion();
-
-    /**
-     * Loads a single VersionExtension, or returns {@code null} if none are found.
-     */
-    static VersionExtension load() {
-        var loader = ServiceLoader.load(VersionExtension.class);
-        var extensions = loader.stream().toList();
-        if (extensions.size() > 1) {
-            throw new IllegalStateException("More than one version extension found");
-        } else if (extensions.size() == 0) {
-            return null;
-        }
-        return extensions.get(0).get();
-    }
 }

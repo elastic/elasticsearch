@@ -44,6 +44,16 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class WriteableIngestDocumentTests extends AbstractXContentTestCase<WriteableIngestDocument> {
 
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(WriteableIngestDocument expectedInstance, WriteableIngestDocument newInstance) {
+        assertIngestDocument(expectedInstance.getIngestDocument(), newInstance.getIngestDocument());
+    }
+
     public void testSerialization() throws IOException {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         sourceAndMetadata.put(VERSION.getFieldName(), randomVersion());

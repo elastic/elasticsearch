@@ -88,6 +88,7 @@ public class ScriptScoreBenchmark {
     private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
         (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService),
+        (mft, lookup, fdo) -> mft.isFielddataSupported(FieldDataContext.noRuntimeFields("benchmark")),
         SourceProvider.fromStoredFields()
     );
 

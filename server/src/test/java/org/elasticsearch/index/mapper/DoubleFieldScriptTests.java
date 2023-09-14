@@ -66,7 +66,7 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                 DoubleFieldScript script = new DoubleFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ft, lookup, ftd) -> false, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
@@ -102,7 +102,7 @@ public class DoubleFieldScriptTests extends FieldScriptTestCase<DoubleFieldScrip
                 DoubleFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(field -> null, (ft, l, fdt) -> null, (ft, l, ftd) -> false, SourceProvider.fromStoredFields()),
                     OnScriptError.FAIL
                 );
                 DoubleFieldScript doubleFieldScript = leafFactory.newInstance(reader.leaves().get(0));

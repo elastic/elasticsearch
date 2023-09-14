@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -189,10 +188,19 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
-            return builder.build(new IndexFieldDataCache.None(), null);
+        var indexFieldDataLookup = new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.isFielddataSupported(fieldDataContext);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldDataContext);
+                return builder.build(new IndexFieldDataCache.None(), null);
+            }
         };
+
         NestedLookup nestedLookup = NestedLookup.build(
             List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false)))
         );

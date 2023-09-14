@@ -850,6 +850,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return hasDocValues();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new StringBinaryIndexFieldData(

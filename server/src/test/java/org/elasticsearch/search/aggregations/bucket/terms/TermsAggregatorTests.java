@@ -1964,7 +1964,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
-        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, (ctx, doc) -> null);
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, (ft, l, ftd) -> false, (ctx, doc) -> null);
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, OnScriptError.FAIL, ctx) {
             @Override
             public void execute() {

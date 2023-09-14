@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -85,7 +84,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
+    private final IndexFieldDataLookup indexFieldDataLookup;
     private SearchLookup lookup;
 
     private final int shardId;
@@ -98,6 +97,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
 
+    public interface IndexFieldDataLookup {
+        boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext);
+
+        IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext);
+    }
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -106,7 +111,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        IndexFieldDataLookup indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -179,7 +184,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        IndexFieldDataLookup indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -264,7 +269,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataOperation fielddataOperation) {
-        return (IFD) indexFieldDataLookup.apply(
+        return (IFD) indexFieldDataLookup.getForField(
             fieldType,
             new FieldDataContext(
                 getFullyQualifiedIndex().getName(),
@@ -418,7 +423,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // TODO can we assert that this is only called during FetchPhase?
         this.lookup = new SearchLookup(
             this::getFieldType,
-            (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
+            (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.getForField(
+                fieldType,
+                new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
+            ),
+            (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.isFielddataSupportedForField(
                 fieldType,
                 new FieldDataContext(getFullyQualifiedIndex().getName(), searchLookup, this::sourcePath, fielddataOperation)
             ),

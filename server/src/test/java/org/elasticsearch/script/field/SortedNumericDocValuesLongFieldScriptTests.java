@@ -39,7 +39,7 @@ public class SortedNumericDocValuesLongFieldScriptTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 SortedNumericDocValuesLongFieldScript docValues = new SortedNumericDocValuesLongFieldScript(
                     "test",
-                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ctx, doc) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, ftd) -> null, (ft, lookup, ftd) -> false, (ctx, doc) -> null),
                     reader.leaves().get(0)
                 );
                 List<Long> values = new ArrayList<>();

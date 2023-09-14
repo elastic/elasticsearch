@@ -41,9 +41,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
@@ -562,12 +565,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public void close() throws IOException {}
 
         SearchExecutionContext createShardContext(IndexSearcher searcher) {
-            return new SearchExecutionContext(
-                0,
-                0,
-                idxSettings,
-                bitsetFilterCache,
-                indexFieldDataService::getForField,
+            return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, new SearchExecutionContext.IndexFieldDataLookup() {
+                @Override
+                public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                    return indexFieldDataService.isFielddataSupportedForField(fieldType, fieldDataContext);
+                }
+
+                @Override
+                public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                    return indexFieldDataService.getForField(fieldType, fieldDataContext);
+                }
+            },
                 mapperService,
                 mapperService.mappingLookup(),
                 similarityService,

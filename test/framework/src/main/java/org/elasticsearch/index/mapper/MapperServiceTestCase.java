@@ -647,8 +647,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public void onRemoval(ShardId shardId, Accountable accountable) {
 
             }
-        }),
-            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+        }), new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.isFielddataSupported(fieldDataContext);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.fielddataBuilder(fieldDataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+            }
+        },
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -677,6 +686,18 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     ) {
         return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate(
+        MapperService mapperService
+    ) {
+        return fieldDataPredicate(mapperService.mappingLookup()::sourcePaths);
+    }
+
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate(
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return (mft, lookupSource, fdo) -> mft.isFielddataSupported(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo));
     }
 
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {

@@ -28,7 +28,10 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -135,12 +138,17 @@ public class QueryParserHelperBenchmark {
     protected SearchExecutionContext buildSearchExecutionContext() {
         final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
         final long nowInMillis = 1;
-        return new SearchExecutionContext(
-            0,
-            0,
-            mapperService.getIndexSettings(),
-            null,
-            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+        return new SearchExecutionContext(0, 0, mapperService.getIndexSettings(), null, new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext context) {
+                return fieldType.isFielddataSupported(context);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext context) {
+                return fieldType.fielddataBuilder(context).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+            }
+        },
             mapperService,
             mapperService.mappingLookup(),
             similarityService,

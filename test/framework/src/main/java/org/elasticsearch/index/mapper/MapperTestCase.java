@@ -544,6 +544,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService),
+                fieldDataPredicate(mapperService),
                 SourceProvider.fromStoredFields()
             );
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
@@ -566,7 +567,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
             } : SourceProvider.fromStoredFields();
-            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            SearchLookup searchLookup = new SearchLookup(null, null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
                 new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
             ).build(null, null);
@@ -965,6 +966,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
+            (f, s, t) -> false,
             (ctx, docid) -> Source.fromBytes(doc.source())
         );
 

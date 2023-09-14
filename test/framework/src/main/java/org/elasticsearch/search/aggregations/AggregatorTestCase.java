@@ -159,7 +159,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -362,15 +361,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList())
         );
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
-            .fielddataBuilder(
-                new FieldDataContext(
-                    indexSettings.getIndex().getName(),
-                    context.lookupSupplier(),
-                    context.sourcePathsLookup(),
-                    context.fielddataOperation()
-                )
-            ).build(new IndexFieldDataCache.None(), breakerService);
+
+        var indexFieldDataLookup = new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.isFielddataSupported(fieldDataContext);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext context) {
+                return fieldType.fielddataBuilder(
+                    new FieldDataContext(
+                        indexSettings.getIndex().getName(),
+                        context.lookupSupplier(),
+                        context.sourcePathsLookup(),
+                        context.fielddataOperation()
+                    )
+                ).build(new IndexFieldDataCache.None(), breakerService);
+            }
+        };
+
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, Accountable accountable) {}
@@ -383,7 +393,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             -1,
             indexSettings,
             bitsetFilterCache,
-            fieldDataBuilder,
+            indexFieldDataLookup,
             null,
             mappingLookup,
             null,

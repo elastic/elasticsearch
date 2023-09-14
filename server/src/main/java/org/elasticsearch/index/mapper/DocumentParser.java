@@ -163,6 +163,9 @@ public final class DocumentParser {
             (ft, lookup, fto) -> ft.fielddataBuilder(
                 new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, lookup, fto) -> ft.isFielddataSupported(
+                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+            ),
             (ctx, doc) -> Source.fromBytes(context.sourceToParse().source())
         );
         // field scripts can be called both by the loop at the end of this method and via

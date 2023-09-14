@@ -109,6 +109,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return true;
+    }
+
+    @Override
     public StringScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new StringScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), KeywordDocValuesField::new);
     }

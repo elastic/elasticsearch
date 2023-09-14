@@ -409,6 +409,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return hasDocValues();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
@@ -707,6 +712,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return hasDocValues();
         }
 
         @Override

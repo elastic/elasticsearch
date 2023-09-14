@@ -345,6 +345,9 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
                 (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
                     new FieldDataContext("test", lookupSupplier, mapperService.mappingLookup()::sourcePaths, fdo)
                 ).build(null, null),
+                (mft, lookupSupplier, fdo) -> mft.isFielddataSupported(
+                    new FieldDataContext("test", lookupSupplier, mapperService.mappingLookup()::sourcePaths, fdo)
+                ),
                 SourceProvider.fromStoredFields()
             );
 

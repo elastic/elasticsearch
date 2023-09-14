@@ -65,6 +65,7 @@ public class LeafDocLookupTests extends ESTestCase {
         docLookup = new LeafDocLookup(
             field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
             (fieldType, fielddataType) -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            (fieldType, fielddataType) -> fieldType == fieldType1 || fieldType == fieldType2,
             null
         );
     }
@@ -104,7 +105,7 @@ public class LeafDocLookupTests extends ESTestCase {
                 return fieldType2;
             }
             return null;
-        }, fieldDataSupplier, null);
+        }, fieldDataSupplier, (ft, fdt) -> true, null);
 
         assertEquals(docValues1, docLookup.get("flattened.key1"));
         assertEquals(docValues2, docLookup.get("flattened.key2"));
@@ -208,6 +209,16 @@ public class LeafDocLookupTests extends ESTestCase {
                 }
             } else {
                 throw new IllegalArgumentException("unknown mapped field type [" + mappedFieldType + "]");
+            }
+        }, (mappedFieldType, operation) -> {
+            if (mappedFieldType.equals(docMappedFieldType)) {
+                return operation == SEARCH || operation == SCRIPT;
+            } else if (mappedFieldType.equals(sourceMappedFieldType)) {
+                return operation == SCRIPT;
+            } else if (mappedFieldType.equals(docAndSourceMappedFieldType)) {
+                return operation == SEARCH || operation == SCRIPT;
+            } else {
+                return false;
             }
         }, null);
 

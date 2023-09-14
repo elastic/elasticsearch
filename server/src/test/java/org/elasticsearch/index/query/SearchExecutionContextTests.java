@@ -424,12 +424,17 @@ public class SearchExecutionContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mappingLookup);
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
-            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+        return new SearchExecutionContext(0, 0, indexSettings, null, new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.isFielddataSupported(fieldDataContext);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.fielddataBuilder(fieldDataContext).build(null, null);
+            }
+        },
             mapperService,
             mappingLookup,
             null,

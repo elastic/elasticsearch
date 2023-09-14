@@ -103,6 +103,11 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return true;
+    }
+
+    @Override
     public IpScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new IpScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), IpDocValuesField::new);
     }

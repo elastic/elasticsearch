@@ -201,6 +201,11 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return hasDocValues();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new CartesianPointIndexFieldData.Builder(

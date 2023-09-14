@@ -118,6 +118,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return fieldDataEnabled.getAsBoolean();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(

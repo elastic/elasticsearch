@@ -126,6 +126,9 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
                         new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
                     ).build(null, null),
+                    (mft, lookupSupplier, fdo) -> mft.isFielddataSupported(
+                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                    ),
                     (ctx, doc) -> null
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);

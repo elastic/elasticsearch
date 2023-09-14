@@ -47,6 +47,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
@@ -660,7 +661,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
-            indexFieldData::getForField,
+            new SearchExecutionContext.IndexFieldDataLookup() {
+                @Override
+                public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                    return indexFieldData.isFielddataSupportedForField(fieldType, fieldDataContext);
+                }
+
+                @Override
+                public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                    return indexFieldData.getForField(fieldType, fieldDataContext);
+                }
+            },
             mapperService(),
             mapperService().mappingLookup(),
             similarityService(),

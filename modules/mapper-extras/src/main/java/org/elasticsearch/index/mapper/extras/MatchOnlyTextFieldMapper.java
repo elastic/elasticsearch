@@ -319,6 +319,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return fieldDataContext.fielddataOperation() == FielddataOperation.SCRIPT;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");

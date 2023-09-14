@@ -138,7 +138,7 @@ public class TDigestState {
             state.tdigest.reserve(size);
         }
         for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.readVInt());
+            state.add(in.readDouble(), in.readVLong());
         }
         return state;
     }
@@ -189,7 +189,7 @@ public class TDigestState {
         h = 31 * h + Integer.hashCode(centroidCount());
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
-            h = 31 * h + centroid.count();
+            h = 31 * h + (int) centroid.count();
         }
         h = 31 * h + Double.hashCode(getMax());
         h = 31 * h + Double.hashCode(getMin());
@@ -205,7 +205,7 @@ public class TDigestState {
         tdigest.add(other.tdigest);
     }
 
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         tdigest.add(x, w);
     }
 

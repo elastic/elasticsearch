@@ -25,11 +25,12 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
- *
+ * <p>
  * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
  * completed exceptionally then the exception is passed to subscribed listeners without modification.
  */
@@ -37,6 +38,40 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private static final Logger logger = LogManager.getLogger(SubscribableListener.class);
     private static final Object EMPTY = new Object();
+
+    /**
+     * Create a {@link SubscribableListener} which is incomplete.
+     */
+    public SubscribableListener() {
+        this(EMPTY);
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already succeeded with the given result.
+     */
+    public static <T> SubscribableListener<T> newSucceeded(T result) {
+        return new SubscribableListener<>(new SuccessResult<>(result));
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already failed with the given exception.
+     */
+    public static <T> SubscribableListener<T> newFailed(Exception exception) {
+        return new SubscribableListener<>(new FailureResult(exception, exception));
+    }
+
+    /**
+     * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener.
+     */
+    public static <T> SubscribableListener<T> newForked(Consumer<ActionListener<T>> fork) {
+        final var listener = new SubscribableListener<T>();
+        fork.accept(listener);
+        return listener;
+    }
+
+    private SubscribableListener(Object initialState) {
+        state = initialState;
+    }
 
     /**
      * If we are incomplete, {@code state} may be one of the following depending on how many waiting subscribers there are:
@@ -50,7 +85,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * subsequent subscribers.
      */
     @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
-    private volatile Object state = EMPTY;
+    private volatile Object state;
 
     /**
      * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing

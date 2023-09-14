@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
@@ -48,7 +48,7 @@ public class Driver implements Releasable, Describable {
     private final Releasable releasable;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
-    private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
+    private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
     private final AtomicReference<DriverStatus> status;
 
     /**
@@ -107,12 +107,12 @@ public class Driver implements Releasable, Describable {
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    private ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
+    private SubscribableListener<Void> run(TimeValue maxTime, int maxIterations) {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         int iter = 0;
         while (isFinished() == false) {
-            ListenableActionFuture<Void> fut = runSingleLoopIteration();
+            SubscribableListener<Void> fut = runSingleLoopIteration();
             if (fut.isDone() == false) {
                 return fut;
             }
@@ -146,7 +146,7 @@ public class Driver implements Releasable, Describable {
         drainAndCloseOperators(null);
     }
 
-    private ListenableActionFuture<Void> runSingleLoopIteration() {
+    private SubscribableListener<Void> runSingleLoopIteration() {
         ensureNotCancelled();
         boolean movedPage = false;
 
@@ -207,7 +207,7 @@ public class Driver implements Releasable, Describable {
     public void cancel(String reason) {
         if (cancelReason.compareAndSet(null, reason)) {
             synchronized (this) {
-                ListenableActionFuture<Void> fut = this.blocked.get();
+                SubscribableListener<Void> fut = this.blocked.get();
                 if (fut != null) {
                     fut.onFailure(new TaskCancelledException(reason));
                 }
@@ -256,7 +256,7 @@ public class Driver implements Releasable, Describable {
                     listener.onResponse(null);
                     return;
                 }
-                ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, executor, driver, listener);
                 } else {
@@ -279,15 +279,15 @@ public class Driver implements Releasable, Describable {
         });
     }
 
-    private static ListenableActionFuture<Void> oneOf(List<ListenableActionFuture<Void>> futures) {
+    private static SubscribableListener<Void> oneOf(List<SubscribableListener<Void>> futures) {
         if (futures.isEmpty()) {
             return Operator.NOT_BLOCKED;
         }
         if (futures.size() == 1) {
             return futures.get(0);
         }
-        ListenableActionFuture<Void> oneOf = new ListenableActionFuture<>();
-        for (ListenableActionFuture<Void> fut : futures) {
+        SubscribableListener<Void> oneOf = new SubscribableListener<>();
+        for (SubscribableListener<Void> fut : futures) {
             fut.addListener(oneOf);
         }
         return oneOf;

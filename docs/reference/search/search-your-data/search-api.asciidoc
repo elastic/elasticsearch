@@ -1,6 +1,14 @@
 [[search-your-data]]
 == The search API
 
+A _search_ consists of one or more queries that are combined and sent to {es}.
+Documents that match a search's queries are returned in the _hits_, or
+_search results_, of the response.
+
+A search may also contain additional information used to better process its
+queries. For example, a search may be limited to a specific index or only return
+a specific number of results.
+
 You can use the <<search-search,search API>> to search and
 <<search-aggregations,aggregate>> data stored in {es} data streams or indices.
 The API's `query` request body parameter accepts queries written in

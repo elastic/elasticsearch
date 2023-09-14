@@ -12,15 +12,42 @@ Depending on your data, you can use a query to get answers to questions like:
 * What users on my network ran `regsvr32.exe` within the last week?
 * What pages on my website contain a specific word or phrase?
 
-A _search_ consists of one or more queries that are combined and sent to {es}.
-Documents that match a search's queries are returned in the _hits_, or
-_search results_, of the response.
+{es} supports several search methods:
 
-A search may also contain additional information used to better process its
-queries. For example, a search may be limited to a specific index or only return
-a specific number of results.
+<<search-for-exact-values,Search for exact values>>::
+Search for exact values or ranges for numbers, dates, IPs, or strings.
+
+<<full-text-search,Full-text search>>::
+Search unstructured textual data to find documents that best match search
+terms.
+
+<<semantic-search,Semantic search>>::
+Find data based on the intent and contextual meaning of a search query, instead
+of a match on query terms (lexical search).
+
+<<knn-search,Vector search>>::
+Store vectors, numeric representations of data, in {es} and use approximate
+nearest neighbor (ANN) or k-nearest neighbor (kNN) algorithms to find vectors
+that are similar.
+
+[discrete]
+=== Run a search
+
+To run a search request, you can use the search API or search applications.
+
+<<search-your-data,Search API>>::
+The <<search-search,search API>> enables you to search and
+<<search-aggregations,aggregate>> data stored in {es} using a query language
+called the <<query-dsl,Query DSL>>.
+
+<<search-applications,Search Applications>>::
+Search Applications enable you to leverage the full power of {es} and its Query
+DSL, with a simplified user experience. Create search applications based on your
+{es} indices, build queries using search templates, and easily preview your
+results directly in the Kibana Search UI.
 
 include::search-api.asciidoc[]
+include::search-applications.asciidoc[]
 include::search-for-exact-values.asciidoc[]
 include::full-text-search.asciidoc[]
 include::knn-search.asciidoc[]

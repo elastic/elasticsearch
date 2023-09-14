@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a IntVector.
@@ -70,5 +71,10 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

@@ -121,4 +121,9 @@ $else$
 $endif$
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

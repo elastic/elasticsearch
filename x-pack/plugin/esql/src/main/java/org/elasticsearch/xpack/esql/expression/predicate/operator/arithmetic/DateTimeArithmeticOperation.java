@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -20,7 +20,6 @@ import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -28,7 +27,15 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
-    interface DatetimeArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, TemporalAmount, ExpressionEvaluator> {};
+    /** Arithmetic (quad) function. */
+    interface DatetimeArithmeticEvaluator {
+        ExpressionEvaluator apply(
+            Source source,
+            ExpressionEvaluator expressionEvaluator,
+            TemporalAmount temporalAmount,
+            DriverContext driverContext
+        );
+    }
 
     private final DatetimeArithmeticEvaluator datetimes;
 
@@ -115,12 +122,13 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return dataType() == DataTypes.DATETIME
-            ? () -> datetimes.apply(
+            ? dvrCtx -> datetimes.apply(
                 source(),
-                toEvaluator.apply(argumentWhich(DataTypes::isDateTime)).get(),
-                (TemporalAmount) argumentWhich(EsqlDataTypes::isTemporalAmount).fold()
+                toEvaluator.apply(argumentWhich(DataTypes::isDateTime)).get(dvrCtx),
+                (TemporalAmount) argumentWhich(EsqlDataTypes::isTemporalAmount).fold(),
+                dvrCtx
             )
             : super.toEvaluator(toEvaluator);
     }

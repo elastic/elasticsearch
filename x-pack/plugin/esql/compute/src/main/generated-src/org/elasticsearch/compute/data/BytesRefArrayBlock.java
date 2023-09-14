@@ -96,4 +96,9 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
             + values.size()
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

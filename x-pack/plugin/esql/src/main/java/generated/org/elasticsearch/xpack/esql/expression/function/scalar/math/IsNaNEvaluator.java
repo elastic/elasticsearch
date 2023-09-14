@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,8 +22,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class IsNaNEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public IsNaNEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public IsNaNEvaluator(EvalOperator.ExpressionEvaluator val, DriverContext driverContext) {
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override

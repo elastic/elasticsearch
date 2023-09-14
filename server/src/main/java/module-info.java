@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -393,7 +394,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
-    uses org.elasticsearch.plugins.internal.CatExtension;
+    uses RestExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

@@ -12,8 +12,9 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
 import java.util.ServiceLoader;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
-public interface CatExtension {
+public interface RestExtension {
     /**
      * Returns a filter that determines which cat actions are exposed in /_cat.
      *
@@ -22,16 +23,13 @@ public interface CatExtension {
      */
     Predicate<AbstractCatAction> getCatActionsFilter();
 
-    /**
-     * Loads a CatExtension.
-     */
-    static CatExtension load(Predicate<AbstractCatAction> defaultFilter) {
-        var loader = ServiceLoader.load(CatExtension.class);
+    static RestExtension load(Supplier<RestExtension> fallback) {
+        var loader = ServiceLoader.load(RestExtension.class);
         var extensions = loader.stream().toList();
         if (extensions.size() > 1) {
-            throw new IllegalStateException("More than one cat extension found");
+            throw new IllegalStateException("More than one rest extension found");
         } else if (extensions.size() == 0) {
-            return () -> defaultFilter;
+            return fallback.get();
         }
         return extensions.get(0).get();
     }

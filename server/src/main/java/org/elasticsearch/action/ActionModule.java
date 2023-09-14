@@ -306,7 +306,7 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
-import org.elasticsearch.plugins.internal.CatExtension;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -851,7 +851,13 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
-        Predicate<AbstractCatAction> catActionsFilter = CatExtension.load(a -> true).getCatActionsFilter();
+        var restExtension = RestExtension.load(() -> new RestExtension() {
+            @Override
+            public Predicate<AbstractCatAction> getCatActionsFilter() {
+                return action -> true;
+            }
+        });
+        Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
             if (shouldKeepRestHandler(handler)) {
                 if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {

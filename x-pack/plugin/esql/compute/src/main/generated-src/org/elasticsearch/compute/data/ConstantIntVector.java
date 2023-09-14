@@ -70,4 +70,9 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

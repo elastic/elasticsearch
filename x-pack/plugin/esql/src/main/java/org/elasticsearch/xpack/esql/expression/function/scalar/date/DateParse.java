@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -27,7 +27,6 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -95,13 +94,11 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         ZoneId zone = UTC; // TODO session timezone?
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), DEFAULT_FORMATTER);
+            return dvrCtx -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), DEFAULT_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
@@ -109,13 +106,13 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
         if (format.foldable()) {
             try {
                 DateFormatter formatter = toFormatter(format.fold(), zone);
-                return () -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(), formatter);
+                return dvrCtx -> new DateParseConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
             } catch (IllegalArgumentException e) {
                 throw new EsqlIllegalArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());
             }
         }
-        Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
-        return () -> new DateParseEvaluator(source(), fieldEvaluator.get(), formatEvaluator.get(), zone);
+        ExpressionEvaluator.Factory formatEvaluator = toEvaluator.apply(format);
+        return dvrCtx -> new DateParseEvaluator(source(), fieldEvaluator.get(dvrCtx), formatEvaluator.get(dvrCtx), zone, dvrCtx);
     }
 
     private static DateFormatter toFormatter(Object format, ZoneId zone) {

@@ -40,7 +40,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     private final int requestedUpgradeNode;
 
     protected ParameterizedRollingUpgradeTestCase(@Name("upgradeNode") int upgradeNode, @Name("totalNodes") int totalNodes) {
-        if (totalNodes == -1) {
+        if (ParameterizedRollingUpgradeTestCase.totalNodes == -1) {
             ParameterizedRollingUpgradeTestCase.totalNodes = totalNodes;
         } else {
             assertThat("The total number of nodes has changed", totalNodes, equalTo(ParameterizedRollingUpgradeTestCase.totalNodes));

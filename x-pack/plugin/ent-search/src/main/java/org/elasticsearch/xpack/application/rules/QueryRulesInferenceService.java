@@ -60,7 +60,7 @@ public class QueryRulesInferenceService {
         for (InferenceResults result : results) {
             @SuppressWarnings("unchecked")
             Map<String, Float> predictedValues = (Map<String, Float>) result.asMap().get(result.getResultsField());
-            if (predictedValues.containsKey(queryString)) {
+            if (predictedValues.containsKey(matchValue)) {
                 Float predictedValue = predictedValues.get(matchValue);
                 if (predictedValue >= threshold) {
                     return true;

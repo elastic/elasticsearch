@@ -87,7 +87,7 @@ load everything:
 load a document:
   - do:
       allowed_warnings_regex:
-        - "Field .* cannot be retrieved, probably it is unsupported or not indexed; returning null"
+        - "Field \\[.*\\] cannot be retrieved, probably it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'

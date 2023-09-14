@@ -122,7 +122,7 @@ public final class ValueSources {
                     default -> throw e;
                 }
                 HeaderWarning.addWarning(
-                    "Field {} cannot be retrieved, probably it is unsupported or not indexed; returning null",
+                    "Field [{}] cannot be retrieved, probably it is unsupported or not indexed; returning null",
                     fieldName
                 );
                 continue;

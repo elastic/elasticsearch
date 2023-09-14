@@ -286,7 +286,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
             List<EsQueryExec.FieldSort> sorts = new ArrayList<>(orders.size());
             for (Order o : orders) {
-                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
+                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
         }
@@ -296,6 +296,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         @Override
         public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
             if (field instanceof FieldAttribute fa) {
+                if (fa.getExactInfo().hasExact()) {
+                    var exact = fa.exactAttribute();
+                    if (exact != fa) {
+                        fa = exact;
+                    }
+                }
                 return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
             }
             if (field instanceof MetadataAttribute) {

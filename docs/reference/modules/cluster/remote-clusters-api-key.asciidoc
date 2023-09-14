@@ -1,7 +1,6 @@
 [[remote-clusters-api-key]]
 === Add remote clusters using API key authentication
 
-coming::[8.10]
 beta::[]
 
 API key authentication enables a local cluster to authenticate itself with a
@@ -193,4 +192,4 @@ remote cluster earlier.
 include::remote-clusters-connect.asciidoc[]
 :!trust-mechanism: 
 
-include::../../../../x-pack/docs/en/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]
+include::{es-repo-dir}/security/authentication/remote-clusters-privileges-api-key.asciidoc[leveloffset=+1]

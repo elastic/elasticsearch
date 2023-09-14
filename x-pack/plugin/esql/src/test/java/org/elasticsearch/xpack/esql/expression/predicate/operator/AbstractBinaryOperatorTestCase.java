@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -92,7 +93,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                 Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
                 if (isRepresentable(lhsType) && isRepresentable(rhsType)) {
                     op = build(src, field("lhs", lhsType), field("rhs", rhsType));
-                    result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
+                    result = toJavaObject(evaluator(op).get(new DriverContext()).eval(row(List.of(lhs.value(), rhs.value()))), 0);
                 } else {
                     op = build(src, lhs, rhs);
                     result = op.fold();

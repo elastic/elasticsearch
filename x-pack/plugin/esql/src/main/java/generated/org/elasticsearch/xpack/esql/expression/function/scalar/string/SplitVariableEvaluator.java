@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -24,11 +25,14 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   private final BytesRef scratch;
 
+  private final DriverContext driverContext;
+
   public SplitVariableEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator delim, BytesRef scratch) {
+      EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
+    this.driverContext = driverContext;
   }
 
   @Override

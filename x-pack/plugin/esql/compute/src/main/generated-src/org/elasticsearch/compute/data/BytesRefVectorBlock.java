@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a BytesRefVector.
@@ -71,5 +72,10 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

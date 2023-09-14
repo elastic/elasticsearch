@@ -915,36 +915,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateFormatWithNumericFormat() {
         verifyUnsupported("""
             from test
-            | eval date_format(date, 1)
-            """, "second argument of [date_format(date, 1)] must be [string], found value [1] type [integer]");
+            | eval date_format(1, date)
+            """, "first argument of [date_format(1, date)] must be [string], found value [1] type [integer]");
     }
 
     public void testDateFormatWithDateFormat() {
         verifyUnsupported("""
             from test
             | eval date_format(date, date)
-            """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
+            """, "first argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
     }
 
     public void testDateParseOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_parse(int, keyword)
-            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
+            | eval date_parse(keyword, int)
+            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
     }
 
     public void testDateParseOnDate() {
         verifyUnsupported("""
             from test
-            | eval date_parse(date, keyword)
-            """, "first argument of [date_parse(date, keyword)] must be [string], found value [date] type [datetime]");
+            | eval date_parse(keyword, date)
+            """, "second argument of [date_parse(keyword, date)] must be [string], found value [date] type [datetime]");
     }
 
     public void testDateParseOnIntPattern() {
         verifyUnsupported("""
             from test
-            | eval date_parse(keyword, int)
-            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
+            | eval date_parse(int, keyword)
+            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
     }
 
     public void testDateTruncOnInt() {
@@ -973,6 +973,20 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval date_trunc(1, date)
             """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+    }
+
+    public void testDateExtractWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_extract(date, "year")
+            """, "function definition has been updated, please swap arguments in [date_extract(date, \"year\")]");
+    }
+
+    public void testDateFormatWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(date, "yyyy-MM-dd")
+            """, "function definition has been updated, please swap arguments in [date_format(date, \"yyyy-MM-dd\")]");
     }
 
     public void testDateTruncWithSwappedArguments() {

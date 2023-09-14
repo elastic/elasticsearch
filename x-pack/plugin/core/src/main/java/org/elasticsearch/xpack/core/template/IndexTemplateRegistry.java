@@ -394,14 +394,17 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
                 ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
-                boolean componentTemplatesAvailable = componentTemplatesExist(state, newTemplate.getValue());
+                boolean componentTemplatesAvailable = componentTemplatesInstalled(state, newTemplate.getValue());
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
-                    logger.trace(
-                        "not adding composable template [{}] for [{}] because its required component templates do not exist",
-                        templateName,
-                        getOrigin()
-                    );
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "not adding composable template [{}] for [{}] because its required component templates do not exist or do not "
+                                + "have the right version",
+                            templateName,
+                            getOrigin()
+                        );
+                    }
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putComposableTemplate(state, templateName, newTemplate.getValue(), creationCheck, false);
@@ -436,10 +439,32 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
-     * Returns true if the cluster state contains all of the component templates needed by the composable template
+     * Returns true if the cluster state contains all of the component templates needed by the composable template. If this registry
+     * requires automatic rollover after index template upgrades (see {@link #applyRolloverAfterTemplateV2Upgrade()}), this method also
+     * verifies that the installed components templates are of the right version.
      */
-    private static boolean componentTemplatesExist(ClusterState state, ComposableIndexTemplate indexTemplate) {
-        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
+    private boolean componentTemplatesInstalled(ClusterState state, ComposableIndexTemplate indexTemplate) {
+        if (applyRolloverAfterTemplateV2Upgrade() == false) {
+            // component templates and index templates can be updated independently, we only need to know that the required component
+            // templates are available
+            return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
+        }
+        Map<String, ComponentTemplate> componentTemplateConfigs = getComponentTemplateConfigs();
+        Map<String, ComponentTemplate> installedTemplates = state.metadata().componentTemplates();
+        for (String templateName : indexTemplate.getRequiredComponentTemplates()) {
+            ComponentTemplate installedTemplate = installedTemplates.get(templateName);
+            // if a required component templates is not installed - the current cluster state cannot allow this index template yet
+            if (installedTemplate == null) {
+                return false;
+            }
+            ComponentTemplate templateConfig = componentTemplateConfigs.get(templateName);
+            // note: currently we only take care of component templates that are installed by the same registry as the index template. We
+            // don't enforce proper version for component templates that come from outside of this registry
+            if (templateConfig != null && templateConfig.version().equals(installedTemplate.version()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void putLegacyTemplate(final IndexTemplateConfig config, final AtomicBoolean creationCheck) {

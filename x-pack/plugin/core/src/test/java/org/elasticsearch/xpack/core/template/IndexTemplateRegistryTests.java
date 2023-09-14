@@ -242,6 +242,49 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
     }
 
+    public void testThatComposableTemplateIsAddedIfDependenciesHaveRightVersion() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutComposableIndexTemplateAction) {
+                assertPutComposableIndexTemplateAction(calledTimes, action, request, listener);
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComponentTemplateAction) {
+                // ignore the component template upgrade
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // ignore lifecycle policies in this case
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
+                // ignore pipelines in this case
+                return AcknowledgedResponse.TRUE;
+            } else {
+                // other components should be added as they already exist with the right version already
+                fail("client called with unexpected request: " + request.toString());
+                return null;
+            }
+        });
+
+        // unless the registry requires rollovers after index template updates, the dependencies only need to be available, without regard
+        // to their version
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap("custom-plugin-settings", 2), nodes);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+
+        // when a registry requires rollovers after index template updates, the upgrade should occur only if the dependencies are have
+        // the required version
+        registry.setApplyRollover(true);
+        calledTimes.set(0);
+        registry.clusterChanged(event);
+        Thread.sleep(100L);
+        assertThat(calledTimes.get(), equalTo(0));
+        event = createClusterChangedEvent(Collections.singletonMap("custom-plugin-settings", 3), nodes);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+    }
+
     public void testThatTemplatesAreUpgradedWhenNeeded() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -288,9 +331,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterState state = createClusterState(
-            Map.of("custom-plugin-settings", 2, "custom-plugin-template", 2),
+            Map.of("custom-plugin-settings", 3, "custom-plugin-template", 3),
             Collections.emptyMap(),
-            Map.of("custom-plugin-default_pipeline", 2, "custom-plugin-final_pipeline", 2),
+            Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
             nodes
         );
         Map<String, ComposableIndexTemplate> composableTemplateConfigs = registry.getComposableTemplateConfigs();
@@ -342,8 +385,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // no rollover on upgrade because the test registry doesn't support automatic rollover by default
-
-        // todo - what's the right way to verify that the result doesn't change from 0 (like assertBusy, but assertNotChanged)?
+        Thread.sleep(100L);
         assertThat(rolloverCounter.get(), equalTo(0));
 
         // test successful rollovers
@@ -395,9 +437,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterState state = createClusterState(
-            Map.of("custom-plugin-settings", 2, "custom-plugin-template", 2),
+            Map.of("custom-plugin-settings", 3, "custom-plugin-template", 3),
             Collections.emptyMap(),
-            Map.of("custom-plugin-default_pipeline", 2, "custom-plugin-final_pipeline", 2),
+            Map.of("custom-plugin-default_pipeline", 3, "custom-plugin-final_pipeline", 3),
             nodes
         );
         state = ClusterState.builder(state)
@@ -429,7 +471,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // the index component is first installed, not upgraded, therefore rollover should not be triggered
-        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(0)));
+        Thread.sleep(100L);
+        assertThat(rolloverCounter.get(), equalTo(0));
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {

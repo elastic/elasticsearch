@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -21,7 +21,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
-    Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator);
+    ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator);
 
     /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
@@ -30,6 +30,9 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        return toJavaObject(toEvaluator(e -> () -> p -> fromArrayRow(e.fold())[0]).get().eval(new Page(1)), 0);
+        return toJavaObject(
+            toEvaluator(e -> driverContext -> p -> fromArrayRow(e.fold())[0]).get(DriverContext.DEFAULT).eval(new Page(1)),
+            0
+        );
     }
 }

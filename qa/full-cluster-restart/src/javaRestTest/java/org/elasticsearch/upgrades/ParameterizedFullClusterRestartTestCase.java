@@ -65,8 +65,8 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
                 if (ix != null) {
                     version = IndexVersion.fromId(ix.intValue());
                 } else {
-                    String ver = objectPath.evaluate("nodes." + id + ".version");
-                    version = IndexVersion.fromId(org.elasticsearch.Version.fromString(ver).id);
+                    // it doesn't have index version (pre 8.11) - just infer it from the release version
+                    version = IndexVersion.fromId(getOldClusterVersion().id);
                 }
 
                 if (indexVersion == null) {

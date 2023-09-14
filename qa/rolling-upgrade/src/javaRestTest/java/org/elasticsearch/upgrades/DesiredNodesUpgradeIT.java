@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     private enum ProcessorsPrecision {
         DOUBLE,

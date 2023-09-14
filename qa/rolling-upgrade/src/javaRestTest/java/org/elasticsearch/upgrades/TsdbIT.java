@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
@@ -24,6 +25,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class TsdbIT extends AbstractRollingTestCase {
 
     private static final String TEMPLATE = """

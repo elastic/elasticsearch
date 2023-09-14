@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
@@ -21,6 +22,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")

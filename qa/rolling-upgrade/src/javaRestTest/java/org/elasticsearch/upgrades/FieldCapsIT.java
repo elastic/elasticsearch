@@ -9,6 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  * In 8.2 we also added the ability to filter fields by type and metadata, with some post-hoc filtering applied on
  * the co-ordinating node if older nodes were included in the system
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class FieldCapsIT extends AbstractRollingTestCase {
     private static boolean indicesCreated = false;
 

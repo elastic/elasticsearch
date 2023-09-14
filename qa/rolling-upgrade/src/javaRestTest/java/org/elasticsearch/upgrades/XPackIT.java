@@ -8,6 +8,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.junit.Before;
 
@@ -20,6 +21,7 @@ import static org.junit.Assume.assumeThat;
  * Basic tests for simple xpack functionality that are only run if the
  * cluster is the on the default distribution.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class XPackIT extends AbstractRollingTestCase {
     @Before
     public void skipIfNotXPack() {

@@ -9,37 +9,79 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
-import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
-@TestCaseOrdering(RollingUpgradeTestOrdering.class)
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private static RollingUpgradeStatus lastUpgradeStatus = RollingUpgradeStatus.OLD;
+    private static int totalNodes = -1;
+    private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static boolean upgradeFailed = false;
-    private final RollingUpgradeStatus requestedUpgradeStatus;
+    private static IndexVersion oldIndexVersion;
+    private final int requestedUpgradeNode;
 
-    public ParameterizedRollingUpgradeTestCase(@Name("cluster") RollingUpgradeStatus upgradeStatus) {
-        assertThat("Test parameters are trying to downgrade a cluster", upgradeStatus.ordinal(), lessThanOrEqualTo(lastUpgradeStatus.ordinal()));
-        this.requestedUpgradeStatus = upgradeStatus;
+    protected ParameterizedRollingUpgradeTestCase(@Name("node") UpgradeNode upgradeNode) {
+        if (totalNodes == -1) {
+            totalNodes = upgradeNode.totalNodes;
+        } else {
+            assertThat("The total number of nodes has changed", upgradeNode.totalNodes, equalTo(totalNodes));
+        }
+        this.requestedUpgradeNode = upgradeNode.node;
     }
 
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return Arrays.stream(RollingUpgradeStatus.values()).map(v -> new Object[] { v }).toList();
+    public record UpgradeNode(int node, int totalNodes) {}
+
+    protected static Iterable<Object[]> testNodes(int numNodes) {
+        return IntStream.rangeClosed(0, numNodes).mapToObj(n -> new Object[] { new UpgradeNode(n, numNodes)}).toList();
+    }
+
+    @Before
+    public void extractOldIndexVersion() throws Exception {
+        if (upgradedNodes.isEmpty()) {
+            IndexVersion indexVersion = null;   // these should all be the same version
+
+            Response response = client().performRequest(new Request("GET", "_nodes"));
+            ObjectPath objectPath = ObjectPath.createFromResponse(response);
+            Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+            for (String id : nodeMap.keySet()) {
+                String name = objectPath.evaluate("nodes." + id + ".name");
+
+                Number ix = objectPath.evaluate("nodes." + id + ".index_version");
+                IndexVersion version;
+                if (ix != null) {
+                    version = IndexVersion.fromId(ix.intValue());
+                } else {
+                    String ver = objectPath.evaluate("nodes." + id + ".version");
+                    version = IndexVersion.fromId(org.elasticsearch.Version.fromString(ver).id);
+                }
+
+                if (indexVersion == null) {
+                    indexVersion = version;
+                } else {
+                    assertThat("Node " + name + " has a different index version to other nodes", version, equalTo(indexVersion));
+                }
+            }
+
+            assertThat("Index version could not be read", indexVersion, notNullValue());
+            oldIndexVersion = indexVersion;
+        }
     }
 
     @Before
@@ -47,31 +89,51 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
-        if (lastUpgradeStatus != requestedUpgradeStatus) {
+        if (upgradedNodes.add(requestedUpgradeNode)) {
             try {
-                getUpgradeCluster().upgradeNodeToVersion();
+                getUpgradeCluster().upgradeNodeToVersion(requestedUpgradeNode, Version.CURRENT);
                 closeClients();
                 initClient();
             } catch (Exception e) {
                 upgradeFailed = true;
                 throw e;
-            } finally {
-                lastUpgradeStatus = requestedUpgradeStatus;
             }
         }
     }
 
+    @AfterClass
+    public static void resetNodes() {
+        totalNodes = -1;
+        upgradedNodes.clear();
+        upgradeFailed = false;
+    }
+
+    protected static org.elasticsearch.Version getOldClusterVersion() {
+        return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION.toString());
+    }
+
     protected static IndexVersion getOldClusterIndexVersion() {
-        var version = OLD_CLUSTER_VERSION;
-        if (version.equals(org.elasticsearch.Version.CURRENT)) {
-            return IndexVersion.current();
-        } else {
-            assertThat("Index version needs to be added to rolling test parameters", version, lessThan(org.elasticsearch.Version.V_8_11_0));
-            return IndexVersion.fromId(version.id);
-        }
+        assert oldIndexVersion != null;
+        return oldIndexVersion;
+    }
+
+    protected static Version getOldClusterTestVersion() {
+        return Version.fromString(OLD_CLUSTER_VERSION.toString());
     }
 
     protected abstract ElasticsearchCluster getUpgradeCluster();
+
+    protected boolean isOldCluster() {
+        return upgradedNodes.isEmpty();
+    }
+
+    protected boolean isMixedCluster() {
+        return upgradedNodes.isEmpty() == false && upgradedNodes.size() < totalNodes;
+    }
+
+    protected boolean isUpgradedCluster() {
+        return upgradedNodes.size() == totalNodes;
+    }
 
     @Override
     protected final boolean resetFeatureStates() {

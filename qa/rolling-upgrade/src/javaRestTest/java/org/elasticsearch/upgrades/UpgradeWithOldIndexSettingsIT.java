@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -22,6 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
 public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
 
     private static final String INDEX_NAME = "test_index_old_settings";

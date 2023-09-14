@@ -8,10 +8,20 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,14 +31,45 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends AbstractRollingTestCase {
+public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    @SuppressWarnings("unchecked")
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(3)
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        // some tests rely on the translog not being flushed
+        .setting("logger.org.elasticsearch.cluster.service.MasterService", "TRACE")
+        .setting("logger.org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator", "TRACE")
+        .setting("logger.org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders", "TRACE")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    public FeatureUpgradeIT(@Name("node") UpgradeNode upgradeNode) {
+        super(upgradeNode);
+    }
+
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return testNodes(3);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     public void testGetFeatureUpgradeStatus() throws Exception {
 
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             // setup - put something in the tasks index
             // create index
             Request createTestIndex = new Request("PUT", "/feature_test_index_old");
@@ -79,7 +120,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                 }
             });
 
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             // check results
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_migration/system_features");
@@ -95,7 +136,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature, aMapWithSize(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
-                if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
+                if (getOldClusterVersion().before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
@@ -103,5 +144,4 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             });
         }
     }
-
 }

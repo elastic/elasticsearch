@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
@@ -39,8 +40,8 @@ public class ExtensionLoader {
             // in effectively twice in the call site, once to ServiceLoader, and then to this method directly as well.
             // It's annoying that ServiceLoader hangs onto the service class, but does not expose it. It does at least
             // print the service class from its toString, which is better tha nothing
-            throw new IllegalStateException("More than one extension found for %s".formatted(loader));
-        } else if (extensions.size() == 0) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", loader));
+        } else if (extensions.isEmpty()) {
             return fallback.get();
         }
         return extensions.get(0).get();

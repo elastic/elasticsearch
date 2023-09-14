@@ -54,12 +54,12 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         if (upgraded == false) {
             IndexVersion indexVersion = null;   // these should all be the same version
 
-            Response response = client().performRequest(new Request("GET", "_nodes"));
+            Request request = new Request("GET", "_nodes");
+            request.addParameter("filter_path", "nodes.*.index_version,nodes.*.name");
+            Response response = client().performRequest(request);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
             Map<String, Object> nodeMap = objectPath.evaluate("nodes");
             for (String id : nodeMap.keySet()) {
-                String name = objectPath.evaluate("nodes." + id + ".name");
-
                 Number ix = objectPath.evaluate("nodes." + id + ".index_version");
                 IndexVersion version;
                 if (ix != null) {
@@ -72,6 +72,7 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
                 if (indexVersion == null) {
                     indexVersion = version;
                 } else {
+                    String name = objectPath.evaluate("nodes." + id + ".name");
                     assertThat("Node " + name + " has a different index version to other nodes", version, equalTo(indexVersion));
                 }
             }

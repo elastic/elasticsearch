@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,7 +26,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
@@ -61,11 +61,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
-     * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener.
+     * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
+     * exception then the exception is caught and fed to the returned listener.
      */
-    public static <T> SubscribableListener<T> newForked(Consumer<ActionListener<T>> fork) {
+    public static <T> SubscribableListener<T> newForked(CheckedConsumer<ActionListener<T>, ? extends Exception> fork) {
         final var listener = new SubscribableListener<T>();
-        fork.accept(listener);
+        ActionListener.run(listener, fork::accept);
         return listener;
     }
 

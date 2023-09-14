@@ -10,6 +10,7 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +20,7 @@ import static java.util.Collections.unmodifiableMap;
  * {@linkplain AbstractProfileBreakdown} customized to work with aggregations.
  */
 public class AggregationProfileBreakdown extends AbstractProfileBreakdown<AggregationTimingType> {
-    private final Map<String, Object> extra = new HashMap<>();
+    private final Map<String, Object> extra = Collections.synchronizedMap(new HashMap<>());
 
     public AggregationProfileBreakdown() {
         super(AggregationTimingType.class);
@@ -28,9 +29,12 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
     /**
      * Add extra debugging information about the aggregation.
      */
-    public void addDebugInfo(String key, Object value) {
+    public synchronized void addDebugInfo(String key, Object value) {
         Object old = extra.put(key, value);
-        assert old == null : "debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]";
+        if (old != null && value instanceof Integer) {
+            extra.put(key, ((Integer) value + (Integer) old));
+        }
+        //assert old == null : "debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]";
     }
 
     @Override

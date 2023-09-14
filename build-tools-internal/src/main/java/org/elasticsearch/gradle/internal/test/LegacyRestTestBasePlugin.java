@@ -8,11 +8,11 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.DeprecationService;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.internal.RestrictedBuildApiService;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -55,10 +55,10 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // Register the service
-        Provider<DeprecationService> serviceProvider = project.getGradle()
+        Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
             .getSharedServices()
-            .registerIfAbsent("deprecations", DeprecationService.class, spec -> {});
-        serviceProvider.get().failOnDeprecatedUsage(getClass(), project);
+            .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {});
+        serviceProvider.get().failOnUsageRestriction(getClass(), project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);

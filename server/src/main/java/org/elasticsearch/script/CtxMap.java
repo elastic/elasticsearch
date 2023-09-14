@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.AbstractCollection;
@@ -335,15 +334,11 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if ((o instanceof CtxMap) == false) return false;
-        CtxMap<?> ctxMap = (CtxMap<?>) o;
-        if (Maps.deepEquals(this, ctxMap) == false) return false;
-        return Maps.deepEquals(source, ctxMap.source) && metadata.equals(ctxMap.metadata);
+        throw new IllegalArgumentException();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, metadata);
+        throw new IllegalArgumentException();
     }
 }

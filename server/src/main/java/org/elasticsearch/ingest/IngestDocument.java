@@ -913,20 +913,12 @@ public final class IngestDocument {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Maps.deepEquals(ingestMetadata, other.ingestMetadata);
+        throw new IllegalArgumentException();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ctxMap, ingestMetadata);
+        throw new IllegalArgumentException();
     }
 
     @Override

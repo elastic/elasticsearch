@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -142,19 +141,12 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        WriteableIngestDocument that = (WriteableIngestDocument) o;
-        return Objects.equals(ingestDocument, that.ingestDocument);
+        throw new IllegalArgumentException();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ingestDocument);
+        throw new IllegalArgumentException();
     }
 
     @Override

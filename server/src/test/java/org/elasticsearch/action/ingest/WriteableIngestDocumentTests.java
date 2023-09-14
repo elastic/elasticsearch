@@ -97,8 +97,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         sourceAndMetadata.putAll(toXContentSource);
         ingestDocument.getMetadata().keySet().forEach(k -> sourceAndMetadata.put(k, ingestDocument.getMetadata().get(k)));
         IngestDocument serializedIngestDocument = new IngestDocument(sourceAndMetadata, toXContentIngestMetadata);
-        // TODO(stu): is this test correct? Comparing against ingestDocument fails due to incorrectly failed byte array comparisons
-        assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
+        assertIngestDocument(writeableIngestDocument.getIngestDocument(), serializedIngestDocument);
     }
 
     public void testXContentHashSetSerialization() throws Exception {
@@ -120,7 +119,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         IngestDocument document = createRandomIngestDoc();
         WriteableIngestDocument wid = new WriteableIngestDocument(document);
 
-        assertThat(wid.getIngestDocument(), equalTo(document));
+        assertIngestDocument(wid.getIngestDocument(), document);
         assertThat(wid.getIngestDocument(), not(sameInstance(document)));
     }
 

@@ -38,7 +38,6 @@ public class ParsedDocument {
     private Mapping dynamicMappingsUpdate;
     private final long mappingUpdateMappingVersion;
 
-
     /**
      * Create a no-op tombstone document
      * @param reason    the reason for the no-op

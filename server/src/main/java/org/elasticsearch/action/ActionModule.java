@@ -574,6 +574,7 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        this.restExtension = restExtension;
     }
 
     private static <T> T getRestServerComponent(

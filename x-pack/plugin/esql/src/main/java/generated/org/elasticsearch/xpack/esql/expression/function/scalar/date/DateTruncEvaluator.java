@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -22,9 +23,13 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final Rounding.Prepared rounding;
 
-  public DateTruncEvaluator(EvalOperator.ExpressionEvaluator fieldVal, Rounding.Prepared rounding) {
+  private final DriverContext driverContext;
+
+  public DateTruncEvaluator(EvalOperator.ExpressionEvaluator fieldVal, Rounding.Prepared rounding,
+      DriverContext driverContext) {
     this.fieldVal = fieldVal;
     this.rounding = rounding;
+    this.driverContext = driverContext;
   }
 
   @Override

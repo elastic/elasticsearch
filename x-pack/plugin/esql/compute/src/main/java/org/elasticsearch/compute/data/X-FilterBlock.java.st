@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for $Type$Blocks.
@@ -145,5 +146,10 @@ $endif$
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(block);
     }
 }

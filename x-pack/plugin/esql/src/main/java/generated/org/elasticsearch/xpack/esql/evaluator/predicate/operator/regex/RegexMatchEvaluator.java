@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -25,10 +26,13 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final CharacterRunAutomaton pattern;
 
-  public RegexMatchEvaluator(EvalOperator.ExpressionEvaluator input,
-      CharacterRunAutomaton pattern) {
+  private final DriverContext driverContext;
+
+  public RegexMatchEvaluator(EvalOperator.ExpressionEvaluator input, CharacterRunAutomaton pattern,
+      DriverContext driverContext) {
     this.input = input;
     this.pattern = pattern;
+    this.driverContext = driverContext;
   }
 
   @Override

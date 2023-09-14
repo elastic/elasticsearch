@@ -213,6 +213,7 @@ public class EnrichLookupService {
                 queryOperator,
                 intermediateOperators,
                 outputOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
                 searchContext
             );
             task.addListener(() -> {

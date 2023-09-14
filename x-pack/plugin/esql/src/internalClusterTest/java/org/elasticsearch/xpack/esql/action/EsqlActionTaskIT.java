@@ -162,6 +162,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         assertThat(response.get().values(), equalTo(List.of(List.of((long) NUM_DOCS))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99582")
     public void testCancelRead() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         List<TaskInfo> infos = getTasksStarting();

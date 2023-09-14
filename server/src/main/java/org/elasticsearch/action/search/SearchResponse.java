@@ -709,14 +709,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         /**
          * @param clusterAlias key with which the specified value is associated
-         * @param oldValue value expected to be associated with the specified key
-         * @param newValue value to be associated with the specified key
-         * @return {@code true} if the value was replaced
+         * @param remappingFunction function to transform the oldCluster to a newCluster
+         * @return the new Cluster object
          */
-        public boolean replaceCluster(String clusterAlias, Cluster oldValue, Cluster newValue) {
-            return clusterInfo.replace(clusterAlias, oldValue, newValue);
-        }
-
         public Cluster compute(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
             return clusterInfo.compute(clusterAlias, remappingFunction);
         }

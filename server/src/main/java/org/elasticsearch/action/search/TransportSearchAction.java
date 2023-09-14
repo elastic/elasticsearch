@@ -766,7 +766,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     /**
      * Creates a new Cluster object using the {@link ShardSearchFailure} info and skip_unavailable
-     * flag to set Status. The new Cluster object is swapped into the cluster {@link AtomicReference}.
+     * flag to set Status. Then it swaps it in the clusters CHM at key clusterAlias
      */
     static void ccsClusterInfoUpdate(
         ShardSearchFailure failure,

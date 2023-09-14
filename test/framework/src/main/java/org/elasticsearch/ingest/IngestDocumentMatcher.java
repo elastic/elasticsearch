@@ -12,7 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class IngestDocumentMatcher {
+public final class IngestDocumentMatcher {
+
+    private IngestDocumentMatcher() {
+        // utility class
+    }
+
     /**
      * Helper method to assert the equivalence between two IngestDocuments.
      *

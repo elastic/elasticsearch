@@ -10,8 +10,6 @@ package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
 
-import java.util.ServiceLoader;
-
 /**
  * Allows plugging in current build info.
  */

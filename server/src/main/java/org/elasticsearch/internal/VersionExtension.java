@@ -11,8 +11,6 @@ package org.elasticsearch.internal;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexVersion;
 
-import java.util.ServiceLoader;
-
 /**
  * Allows plugging in current version elements.
  */

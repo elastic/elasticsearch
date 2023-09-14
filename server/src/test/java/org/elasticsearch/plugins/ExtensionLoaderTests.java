@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -42,8 +41,10 @@ public class ExtensionLoaderTests extends ESTestCase {
             jarEntries.put(filename, classToBytes.get(classname));
         }
         String serviceFile = String.join("\n", sources.keySet());
-        jarEntries.put("META-INF/services/org.elasticsearch.plugins.ExtensionLoaderTests$TestService",
-            serviceFile.getBytes(StandardCharsets.UTF_8));
+        jarEntries.put(
+            "META-INF/services/org.elasticsearch.plugins.ExtensionLoaderTests$TestService",
+            serviceFile.getBytes(StandardCharsets.UTF_8)
+        );
 
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("provider.jar");
@@ -77,9 +78,9 @@ public class ExtensionLoaderTests extends ESTestCase {
         assertThat(service.getValue(), equalTo(2));
     }
 
-    public void testOneProvider() throws Exception  {
+    public void testOneProvider() throws Exception {
         Map<String, CharSequence> sources = Map.of("p.FooService", defineProvider("FooService", 1));
-        try (var loader = buildProviderJar(sources)){
+        try (var loader = buildProviderJar(sources)) {
             TestService service = ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()), () -> null);
             assertThat(service, not(nullValue()));
             assertThat(service.getValue(), equalTo(1));
@@ -88,11 +89,16 @@ public class ExtensionLoaderTests extends ESTestCase {
 
     public void testManyProviders() throws Exception {
         Map<String, CharSequence> sources = Map.of(
-            "p.FooService", defineProvider("FooService", 1),
-            "p.BarService", defineProvider("BarService", 2));
-        try (var loader = buildProviderJar(sources)){
-            var e = expectThrows(IllegalStateException.class, () ->
-                ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()), () -> null));
+            "p.FooService",
+            defineProvider("FooService", 1),
+            "p.BarService",
+            defineProvider("BarService", 2)
+        );
+        try (var loader = buildProviderJar(sources)) {
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> ExtensionLoader.loadSingleton(ServiceLoader.load(TestService.class, loader.classloader()), () -> null)
+            );
             assertThat(e.getMessage(), containsString("More than one extension found"));
             assertThat(e.getMessage(), containsString("TestService"));
         }

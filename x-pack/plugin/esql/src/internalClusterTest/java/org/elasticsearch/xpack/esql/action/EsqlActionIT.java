@@ -1062,9 +1062,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> source = new HashMap<>();
             source.put("kw", "key-" + randomIntBetween(1, 20));
-            int values = between(0, 2);
-            for (int v = 0; v < values; v++) {
-                source.put("v", randomIntBetween(1, 1000));
+            List<Integer> values = new ArrayList<>();
+            int numValues = between(0, 2);
+            for (int v = 0; v < numValues; v++) {
+                values.add(randomIntBetween(1, 1000));
+            }
+            if (values.isEmpty() == false) {
+                source.put("v", values);
             }
             client().prepareIndex(indexName).setSource(source).get();
             if (randomInt(100) < 20) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.DeprecationService;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
@@ -22,6 +23,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.bundling.Zip;
@@ -52,6 +54,11 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        // Register the service
+        Provider<DeprecationService> serviceProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("deprecations", DeprecationService.class, spec -> {});
+        serviceProvider.get().failOnDeprecatedUsage(getClass(), project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);

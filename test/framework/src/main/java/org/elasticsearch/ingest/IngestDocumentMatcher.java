@@ -21,13 +21,13 @@ public final class IngestDocumentMatcher {
     /**
      * Helper method to assert the equivalence between two IngestDocuments.
      *
-     * @param docA first document to compare
-     * @param docB second document to compare
+     * @param expected first document to compare
+     * @param actual second document to compare
      */
-    public static void assertIngestDocument(IngestDocument docA, IngestDocument docB) {
-        if ((deepEquals(docA.getIngestMetadata(), docB.getIngestMetadata(), true)
-            && deepEquals(docA.getSourceAndMetadata(), docB.getSourceAndMetadata(), false)) == false) {
-            throw new AssertionError("Expected [" + docA + "] but received [" + docB + "].");
+    public static void assertIngestDocument(IngestDocument expected, IngestDocument actual) {
+        if ((deepEquals(expected.getIngestMetadata(), actual.getIngestMetadata(), true)
+            && deepEquals(expected.getSourceAndMetadata(), actual.getSourceAndMetadata(), false)) == false) {
+            throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");
         }
     }
 

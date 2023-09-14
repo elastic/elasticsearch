@@ -294,7 +294,7 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
-        updateBuilder.setJobVersion(MlConfigVersion.fromVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+        updateBuilder.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));
         updateBuilder.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         JobUpdate update = updateBuilder.build();
 

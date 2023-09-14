@@ -183,7 +183,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
             pageSize
-        ).get(new DriverContext());
+        ).get(driverContext());
         long actualEmpty = RamUsageTester.ramUsed(op) - RamUsageTester.ramUsed(LONG) - RamUsageTester.ramUsed(DEFAULT_UNSORTABLE);
         assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
         // But when we fill it then we're quite close
@@ -452,7 +452,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
                 driverContext,
@@ -536,7 +536,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             expectedTop.add(eTop);
         }
 
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
@@ -569,7 +569,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
     ) {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
@@ -611,7 +611,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             + sorts
             + "]]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
-        try (Operator operator = factory.get(new DriverContext())) {
+        try (Operator operator = factory.get(driverContext())) {
             assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));
         }
     }
@@ -831,7 +831,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         int topCount = randomIntBetween(1, values.size());
         try (
             Driver driver = new Driver(
-                new DriverContext(),
+                driverContext(),
                 new CannedSourceOperator(List.of(page).iterator()),
                 List.of(new TopNOperator(topCount, List.of(blockType), List.of(encoder), List.of(sortOrders), randomPageSize())),
                 new PageConsumerOperator(p -> readInto(actualValues, p)),
@@ -965,7 +965,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actual = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                new DriverContext(),
+                driverContext(),
                 new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                 List.of(
                     new TopNOperator(
@@ -1088,7 +1088,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actual = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                new DriverContext(),
+                driverContext(),
                 new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                 List.of(
                     new TopNOperator(
@@ -1169,7 +1169,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actual = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                new DriverContext(),
+                driverContext(),
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
                     new TopNOperator(

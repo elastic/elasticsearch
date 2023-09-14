@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.planner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -53,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
@@ -127,9 +130,9 @@ public class EvalMapperTests extends ESTestCase {
         lb.append(LONG);
         Layout layout = lb.build();
 
-        Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
+        var supplier = EvalMapper.toEvaluator(expression, layout);
+        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
+        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);
@@ -142,5 +145,11 @@ public class EvalMapperTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+        );
     }
 }

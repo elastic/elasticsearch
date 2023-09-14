@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -44,13 +43,13 @@ public class MvMedian extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> () -> new MvMedianDoubleEvaluator(fieldEval.get());
-            case INT -> () -> new MvMedianIntEvaluator(fieldEval.get());
+            case DOUBLE -> dvrCtx -> new MvMedianDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case INT -> dvrCtx -> new MvMedianIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? () -> new MvMedianUnsignedLongEvaluator(fieldEval.get())
-                : () -> new MvMedianLongEvaluator(fieldEval.get());
+                ? dvrCtx -> new MvMedianUnsignedLongEvaluator(fieldEval.get(dvrCtx), dvrCtx)
+                : dvrCtx -> new MvMedianLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,33 +51,25 @@ public interface Layout {
      */
     Layout.Builder builder();
 
-    Map<Integer, Set<NameId>> inverse();
+    /**
+     * Build a list whose index is each channel id and who's values are
+     * all link {@link NameId}s at that position and their {@link DataType}.
+     */
+    List<ChannelSet> inverse();
 
     /**
      * Builder class for Layout. The builder ensures that layouts cannot be altered after creation (through references to the underlying
      * map).
      */
     class Builder {
-        private final List<ChannelSet> channels = new ArrayList<>();
+        private final List<ChannelSet> channels;
 
-        public Builder() {}
+        public Builder() {
+            channels = new ArrayList<>();
+        }
 
-        Builder(int numberOfChannels, Map<NameId, ChannelAndType> layout) {
-            for (int i = 0; i < numberOfChannels; i++) {
-                channels.add(null);
-            }
-            for (Map.Entry<NameId, ChannelAndType> entry : layout.entrySet()) {
-                ChannelSet set = channels.get(entry.getValue().channel);
-                if (set == null) {
-                    set = new ChannelSet(new HashSet<>(), entry.getValue().type());
-                    channels.set(entry.getValue().channel, set);
-                } else {
-                    if (set.type != entry.getValue().type()) {
-                        throw new IllegalArgumentException();
-                    }
-                }
-                set.nameIds.add(entry.getKey());
-            }
+        Builder(List<ChannelSet> channels) {
+            this.channels = channels;
         }
 
         /**

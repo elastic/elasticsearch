@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -376,7 +377,8 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.metering,
             org.elasticsearch.settings.secure,
-            org.elasticsearch.serverless.constants;
+            org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.apifiltering;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -392,6 +394,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
+    uses RestExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

@@ -143,7 +143,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(int size, int limit) {
-        DriverContext ctx = new DriverContext();
+        DriverContext ctx = driverContext();
         LuceneSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(
             reader,

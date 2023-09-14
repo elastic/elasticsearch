@@ -13,8 +13,12 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
@@ -94,16 +99,15 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 finish();
             }
 
-            Block[] fakeSourceAttributesBlocks = new Block[1];
-            // a block that contains the position of each document as int
-            // will be used to "filter" and extract the block's values later on. Basically, a replacement for _doc, _shard and _segment ids
-            IntBlock.Builder docIndexBlockBuilder = IntBlock.newBlockBuilder(testData.getPositionCount());
-            for (int i = 0; i < testData.getPositionCount(); i++) {
-                docIndexBlockBuilder.appendInt(i);
-            }
-            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); // instead of _doc
-            Page newPageWithSourceAttributes = new Page(fakeSourceAttributesBlocks);
-            return newPageWithSourceAttributes;
+            return new Page(
+                new Block[] {
+                    new DocVector(
+                        IntBlock.newConstantBlockWith(0, testData.getPositionCount()).asVector(),
+                        IntBlock.newConstantBlockWith(0, testData.getPositionCount()).asVector(),
+                        new IntArrayVector(IntStream.range(0, testData.getPositionCount()).toArray(), testData.getPositionCount()),
+                        true
+                    ).asBlock() }
+            );
         }
 
         @Override
@@ -285,13 +289,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         if (columnIndex < 0) {
             throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, columnNames);
         }
-        // this is the first block added by TestSourceOperator
-        IntBlock docIndexBlock = page.getBlock(0);
-        // use its filtered position to extract the data needed for "columnName" block
+        DocBlock docBlock = page.getBlock(0);
+        IntVector docIndices = docBlock.asVector().docs();
         Block loadedBlock = testData.getBlock(columnIndex);
-        int[] filteredPositions = new int[docIndexBlock.getPositionCount()];
-        for (int c = 0; c < docIndexBlock.getPositionCount(); c++) {
-            filteredPositions[c] = (Integer) docIndexBlock.getInt(c);
+        int[] filteredPositions = new int[docIndices.getPositionCount()];
+        for (int c = 0; c < docIndices.getPositionCount(); c++) {
+            filteredPositions[c] = docIndices.getInt(c);
         }
         return loadedBlock.filter(filteredPositions);
     }

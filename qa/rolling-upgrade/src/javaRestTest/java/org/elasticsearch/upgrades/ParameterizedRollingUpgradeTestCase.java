@@ -31,25 +31,25 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+
     private static int totalNodes = -1;
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
+
     private final int requestedUpgradeNode;
 
-    protected ParameterizedRollingUpgradeTestCase(@Name("node") UpgradeNode upgradeNode) {
+    protected ParameterizedRollingUpgradeTestCase(@Name("upgradeNode") int upgradeNode, @Name("totalNodes") int totalNodes) {
         if (totalNodes == -1) {
-            totalNodes = upgradeNode.totalNodes;
+            ParameterizedRollingUpgradeTestCase.totalNodes = totalNodes;
         } else {
-            assertThat("The total number of nodes has changed", upgradeNode.totalNodes, equalTo(totalNodes));
+            assertThat("The total number of nodes has changed", totalNodes, equalTo(ParameterizedRollingUpgradeTestCase.totalNodes));
         }
-        this.requestedUpgradeNode = upgradeNode.node;
+        this.requestedUpgradeNode = upgradeNode;
     }
 
-    public record UpgradeNode(int node, int totalNodes) {}
-
     protected static Iterable<Object[]> testNodes(int numNodes) {
-        return IntStream.rangeClosed(0, numNodes).mapToObj(n -> new Object[] { new UpgradeNode(n, numNodes)}).toList();
+        return IntStream.rangeClosed(0, numNodes).mapToObj(n -> new Object[] { n, numNodes }).toList();
     }
 
     @Before
@@ -103,6 +103,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @AfterClass
     public static void resetNodes() {
+        oldIndexVersion = null;
         totalNodes = -1;
         upgradedNodes.clear();
         upgradeFailed = false;

@@ -51,8 +51,8 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    public FeatureUpgradeIT(@Name("node") UpgradeNode upgradeNode) {
-        super(upgradeNode);
+    protected FeatureUpgradeIT(@Name("upgradeNode") int upgradeNode, @Name("totalNodes") int totalNodes) {
+        super(upgradeNode, totalNodes);
     }
 
     @ParametersFactory(shuffle = false)

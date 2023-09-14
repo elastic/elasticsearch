@@ -1,0 +1,7 @@
+pr: 99577
+summary: Refactor `SearchResponseClusters` to use `ConcurrentHashMap` for immutable
+  cluster object swaps
+area: Search
+type: enhancement
+issues:
+ - 99101

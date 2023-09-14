@@ -35,8 +35,9 @@ public class ParsedDocument {
 
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
+    private final long mappingUpdateMappingVersion;
+
 
     /**
      * Create a no-op tombstone document
@@ -97,6 +98,20 @@ public class ParsedDocument {
         XContentType xContentType,
         Mapping dynamicMappingsUpdate
     ) {
+        this(version, seqID, id, routing, documents, source, xContentType, dynamicMappingsUpdate, -1);
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate,
+        long mappingUpdateMappingVersion
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -105,6 +120,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
+        this.mappingUpdateMappingVersion = mappingUpdateMappingVersion;
     }
 
     public String id() {
@@ -154,6 +170,10 @@ public class ParsedDocument {
      */
     public Mapping dynamicMappingsUpdate() {
         return dynamicMappingsUpdate;
+    }
+
+    public long getMappingUpdateMappingVersion() {
+        return mappingUpdateMappingVersion;
     }
 
     public void addDynamicMappingsUpdate(Mapping update) {

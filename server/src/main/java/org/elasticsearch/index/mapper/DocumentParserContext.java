@@ -95,6 +95,7 @@ public abstract class DocumentParserContext {
     private SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
+    private long mappingVersion;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -128,6 +129,7 @@ public abstract class DocumentParserContext {
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
+        this.mappingVersion = indexSettings().getIndexMetadata().getMappingVersion();
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -294,6 +296,10 @@ public abstract class DocumentParserContext {
 
     public boolean isCopyToField(String name) {
         return copyToFields.contains(name);
+    }
+
+    public long getMappingVersion() {
+        return mappingVersion;
     }
 
     /**

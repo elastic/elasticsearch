@@ -379,7 +379,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
-                onMappingUpdateFailure(e, primary, isDelete, version, result.getId(), context, updateResult);
+                onMappingUpdateFailure(e, primary, isDelete, version, result, context, updateResult);
                 return true;
             }
 
@@ -403,7 +403,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onMappingUpdateFailure(e, primary, isDelete, version, result.getId(), context, updateResult);
+                    onMappingUpdateFailure(e, primary, isDelete, version, result, context, updateResult);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -421,14 +421,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         boolean isDelete,
         long version,
-        String id,
+        Engine.Result result,
         BulkPrimaryExecutionContext context,
         UpdateHelper.Result updateResult
     ) {
-        Engine.Result r = exceptionToResult(e, primary, isDelete, version, id);
-        if (context.isMappingUpdateRetry() == false) {
-            // retry all mapping update errors once
-            // the errors may be a result of a concurrent modification of the mapping
+        Engine.Result r = exceptionToResult(e, primary, isDelete, version, result.getId());
+        long currentMappingVersion = primary.mapperService().mappingLookup().getTotalFieldsCount();
+        boolean mappingWasConcurrentlyUpdated = currentMappingVersion > result.getMappingUpdateMappingVersion();
+        if (mappingWasConcurrentlyUpdated && context.isMappingUpdateRetry() == false) {
+            // retry mapping updates once if the mapping has been updated concurrently
+            // as the errors may be a result of a concurrent modification of the mapping
             // for example, when adding a dynamic field under the premise that the field limit has not been reached, yet
             // (see Dynamic.TRUE_UNTIL_LIMIT)
             // but the field limit has been reached by a another concurrent operation

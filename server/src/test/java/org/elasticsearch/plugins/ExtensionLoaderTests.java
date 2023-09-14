@@ -18,6 +18,7 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.ServiceLoader;
 
@@ -55,7 +56,7 @@ public class ExtensionLoaderTests extends ESTestCase {
     }
 
     private String defineProvider(String name, int value) {
-        return String.format("""
+        return String.format(Locale.ROOT, """
             package p;
             import org.elasticsearch.plugins.ExtensionLoaderTests.TestService;
             public class %s implements TestService {

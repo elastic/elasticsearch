@@ -396,4 +396,82 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  multivalueDedupeInputFile
     it.outputFile = "org/elasticsearch/compute/operator/MultivalueDedupeBytesRef.java"
   }
+  File keyExtractorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-KeyExtractor.java.st")
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForBytesRef.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForBoolean.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  keyExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/KeyExtractorForDouble.java"
+  }
+  File valueExtractorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ValueExtractor.java.st")
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForBytesRef.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForBoolean.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  valueExtractorInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ValueExtractorForDouble.java"
+  }
+  File resultBuilderInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/topn/X-ResultBuilder.java.st")
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForBytesRef.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForBoolean.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  resultBuilderInputFile
+    it.outputFile = "org/elasticsearch/compute/operator/topn/ResultBuilderForDouble.java"
+  }
 }

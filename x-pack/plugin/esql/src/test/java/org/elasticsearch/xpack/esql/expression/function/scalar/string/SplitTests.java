@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -86,7 +85,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     public void testConstantDelimiter() {
         EvalOperator.ExpressionEvaluator eval = evaluator(
             new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-        ).get(new DriverContext());
+        ).get(driverContext());
         /*
          * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
          * string because we aren't really sure it's printable. It could be a tab or a bell or some

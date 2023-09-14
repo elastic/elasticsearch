@@ -912,16 +912,6 @@ public final class IngestDocument {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        throw new IllegalArgumentException();
-    }
-
-    @Override
-    public int hashCode() {
-        throw new IllegalArgumentException();
-    }
-
-    @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }

@@ -140,16 +140,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object o) {
-        throw new IllegalArgumentException();
-    }
-
-    @Override
-    public int hashCode() {
-        throw new IllegalArgumentException();
-    }
-
-    @Override
     public String toString() {
         return ingestDocument.toString();
     }

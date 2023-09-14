@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class FixedLengthTopNEncoder extends SortableTopNEncoder {
     private final int length;
@@ -18,7 +18,7 @@ class FixedLengthTopNEncoder extends SortableTopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }

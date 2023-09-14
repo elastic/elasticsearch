@@ -60,7 +60,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
         Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new DriverContext(nonBreakingBigArrays());
         try (Operator op = factory.get(driverContext)) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
@@ -74,7 +74,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext())) {
+        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext(nonBreakingBigArrays()))) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }

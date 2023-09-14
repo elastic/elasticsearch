@@ -110,8 +110,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     boolean useTSDBDocValuesFormat(final String field) {
         return mapperService.getIndexSettings().isES87TSDBCodecEnabled()
             && isTimeSeriesModeIndex()
-            && isNotSpecialField(field)
-            && (isCounterOrGaugeMetricType(field) || isTimestampField(field));
+            && isNotSpecialField(field);
     }
 
     private boolean isTimeSeriesModeIndex() {

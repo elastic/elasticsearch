@@ -178,6 +178,44 @@ public class ES87TSDBDocValuesEncoder {
         deltaEncode(0, 0, in, out);
     }
 
+    void encodeOrdinals(long[] in, DataOutput out) throws IOException {
+        assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+        long previous = in[0];
+        int repetitions = -1;
+        for (long l : in) {
+            assert l >= 0 : "Ordinals are expected to be positive";
+            if (previous == l) {
+                repetitions++;
+            } else {
+                out.writeZLong(previous);
+                if (repetitions > 0) {
+                    out.writeZLong(repetitions * -1);
+                }
+                repetitions = 0;
+                previous = l;
+            }
+        }
+        out.writeZLong(previous);
+        if (repetitions > 0) {
+            out.writeZLong(repetitions * -1);
+        }
+    }
+
+    void decodeOrdinals(DataInput in, long[] out) throws IOException {
+        assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
+        for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;) {
+            long l = in.readZLong();
+            if (l >= 0) {
+                out[i] = l;
+                i++;
+            } else {
+                int repetitions = (int) (-1 * l);
+                Arrays.fill(out, i, i + repetitions, out[i - 1]);
+                i += repetitions;
+            }
+        }
+    }
+
     /** Decode longs that have been encoded with {@link #encode}. */
     void decode(DataInput in, long[] out) throws IOException {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;

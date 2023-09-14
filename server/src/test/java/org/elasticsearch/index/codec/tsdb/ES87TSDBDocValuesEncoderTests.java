@@ -189,4 +189,59 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
             }
         }
     }
+
+    public void testEncodeOrdinalsSmall() throws IOException {
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < 64; ++i) {
+            arr[i] = 1;
+        }
+        for (int i = 64; i < blockSize; ++i) {
+            arr[i] = 2;
+        }
+        final long expectedNumBytes = 2 // 2 zig-zag-encoded ordinals
+            + 2; // 2 zig-zag-encoded negative longs, indicating repetitions
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSmallLarge() throws IOException {
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < 64; ++i) {
+            arr[i] = Long.MAX_VALUE - 1;
+        }
+        for (int i = 64; i < blockSize; ++i) {
+            arr[i] = Long.MAX_VALUE;
+        }
+        final long expectedNumBytes = 10 * 2 // 2 zig-zag-encoded ordinals
+            + 1 * 2; // 2 zig-zag-encoded negative longs, indicating repetitions
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsNoRepetitions() throws IOException {
+        long[] arr = new long[blockSize];
+        for (int i = 0; i < blockSize; ++i) {
+            arr[i] = i;
+        }
+        doTestOrdinals(arr, 192);
+    }
+
+    private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
+        final long[] expected = arr.clone();
+        try (Directory dir = newDirectory()) {
+            try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
+                encoder.encodeOrdinals(arr, out);
+                assertEquals(expectedNumBytes, out.getFilePointer());
+            }
+            try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
+                long[] decoded = new long[blockSize];
+                for (int i = 0; i < decoded.length; ++i) {
+                    decoded[i] = random().nextLong();
+                }
+                encoder.decodeOrdinals(in, decoded);
+                assertEquals(in.length(), in.getFilePointer());
+                assertArrayEquals(expected, decoded);
+            }
+        }
+    }
 }

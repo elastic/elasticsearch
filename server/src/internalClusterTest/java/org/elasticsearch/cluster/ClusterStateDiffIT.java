@@ -249,7 +249,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             versions.put(id, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
         }
 
-        return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersionsMap(versions);
+        return ClusterState.builder(clusterState).nodes(nodes).nodeIdsToCompatibilityVersions(versions);
     }
 
     /**

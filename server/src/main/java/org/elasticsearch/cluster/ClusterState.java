@@ -802,10 +802,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         // Deprecate to keep downstream projects compiling
         @Deprecated(forRemoval = true)
         public Builder compatibilityVersions(Map<String, CompatibilityVersions> versions) {
-            return compatibilityVersionsMap(versions);
+            return nodeIdsToCompatibilityVersions(versions);
         }
 
-        public Builder compatibilityVersionsMap(Map<String, CompatibilityVersions> versions) {
+        public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in the new map
             this.compatibilityVersions.keySet().retainAll(versions.keySet());
@@ -945,7 +945,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            builder.compatibilityVersionsMap(in.readMap(CompatibilityVersions::readVersion));
+            builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now
@@ -1102,7 +1102,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
             if (versions != null) {
-                builder.compatibilityVersionsMap(this.versions.apply(state.compatibilityVersions));
+                builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
             } else {
                 // infer the versions from discoverynodes for now
                 // leave mappings versions empty

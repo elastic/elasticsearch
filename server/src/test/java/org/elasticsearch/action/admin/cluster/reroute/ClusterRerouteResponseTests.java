@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -323,7 +324,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putCompatibilityVersions(node0.getId(), TransportVersions.V_8_0_0, Map.of())
+            .putCompatibilityVersions(node0.getId(), TransportVersions.V_8_0_0, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
             .metadata(
                 Metadata.builder()
                     .put(

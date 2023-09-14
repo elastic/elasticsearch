@@ -152,7 +152,7 @@ public class AllocationBenchmark {
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(nb)
-            .compatibilityVersionsMap(compatibilityVersions)
+            .nodeIdsToCompatibilityVersions(compatibilityVersions)
             .build();
     }
 

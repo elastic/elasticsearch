@@ -17,7 +17,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -172,15 +171,10 @@ public final class InnerHitsContext {
                     leafCollector.collect(docId);
                 }
             }
-        } catch (CollectionTerminatedException | TimeLimitingCollector.TimeExceededException e) {
-            leafCollector.finish();
-            // We didn't terminate collection early, bubble up the timeout
-            // Otherwise
+        } catch (CollectionTerminatedException e) {
             // collection was terminated prematurely
             // continue with the following leaf
-            if (e instanceof TimeLimitingCollector.TimeExceededException) {
-                throw e;
-            }
+            leafCollector.finish();
         }
     }
 }

@@ -30,7 +30,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BitSet;
@@ -511,15 +510,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
                 try {
                     bulkScorer.score(leafCollector, liveDocs);
-                } catch (CollectionTerminatedException | TimeLimitingCollector.TimeExceededException e) {
-                    leafCollector.finish();
-                    // We did not terminate collection early, rethrow the time exceeded exception
-                    // Otherwise
+                } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
-                    if (e instanceof TimeLimitingCollector.TimeExceededException) {
-                        throw e;
-                    }
                 }
             }
         } else {
@@ -533,18 +526,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                         leafCollector,
                         this.cancellable.isEnabled() ? cancellable::checkCancelled : () -> {}
                     );
-                } catch (CollectionTerminatedException | TimeLimitingCollector.TimeExceededException e) {
-                    leafCollector.finish();
-                    // We did not terminate collection early, rethrow the time exceeded exception
-                    // Otherwise
+                } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
-                    if (e instanceof TimeLimitingCollector.TimeExceededException) {
-                        throw e;
-                    }
                 }
             }
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {

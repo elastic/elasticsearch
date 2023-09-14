@@ -7,10 +7,16 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -24,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,8 +78,9 @@ public final class ValueSources {
             try {
                 fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
             } catch (IllegalArgumentException e) {
-                if (asUnsupportedSource) {
-                    sources.add(
+                // if (asUnsupportedSource) {
+                switch (elementType) {
+                    case BYTES_REF -> sources.add(
                         new ValueSourceInfo(
                             new UnsupportedValueSourceType(fieldType.typeName()),
                             new UnsupportedValueSource(null),
@@ -80,10 +88,44 @@ public final class ValueSources {
                             ctx.getIndexReader()
                         )
                     );
-                    continue;
-                } else {
-                    throw e;
+
+                    case LONG, INT -> sources.add(
+                        new ValueSourceInfo(CoreValuesSourceType.NUMERIC, ValuesSource.Numeric.EMPTY, elementType, ctx.getIndexReader())
+                    );
+
+                    case BOOLEAN -> sources.add(
+                        new ValueSourceInfo(CoreValuesSourceType.BOOLEAN, ValuesSource.Numeric.EMPTY, elementType, ctx.getIndexReader())
+                    );
+
+                    case DOUBLE -> sources.add(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, new ValuesSource.Numeric() {
+                        @Override
+                        public boolean isFloatingPoint() {
+                            return true;
+                        }
+
+                        @Override
+                        public SortedNumericDocValues longValues(LeafReaderContext context) {
+                            return DocValues.emptySortedNumeric();
+                        }
+
+                        @Override
+                        public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
+                            return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles();
+                        }
+
+                        @Override
+                        public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                            return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                        }
+
+                    }, elementType, ctx.getIndexReader()));
+                    default -> throw e;
                 }
+                HeaderWarning.addWarning("Field {} cannot be retrieved, probably it is not indexed; returning null", fieldName);
+                continue;
+                // } else {
+                // throw e;
+                // }
             }
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
             var vsType = fieldData.getValuesSourceType();

@@ -57,7 +57,6 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public void close() {
-
     }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
@@ -97,7 +96,7 @@ public abstract class LuceneOperator extends SourceOperator {
     static final class LuceneScorer {
         private final int shardIndex;
         private final SearchContext searchContext;
-        private final Weight weight;
+        final Weight weight;
         private final LeafReaderContext leafReaderContext;
 
         private BulkScorer bulkScorer;

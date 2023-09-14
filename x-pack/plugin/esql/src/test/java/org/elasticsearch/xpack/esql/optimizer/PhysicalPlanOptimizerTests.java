@@ -1837,6 +1837,47 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(), equalTo(10));
     }
 
+    public void testCountOneFieldWithFilter() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where salary > 1000
+            | stats c = count(salary)
+            """));
+    }
+
+    public void testCountOneFieldWithFilterAndLimit() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where salary > 1000
+            | limit 10
+            | stats c = count(salary)
+            """));
+    }
+
+    public void testCountMultipleFieldsWithFilter() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where salary > 1000 and emp_no > 10010
+            | stats cs = count(salary), ce = count(emp_no)
+            """));
+    }
+
+    public void testCountAllWithFilter() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 10010
+            | stats c = count(), call = count(*), c_literal = count(1)
+            """));
+    }
+
+    public void testCountFieldsAndAllWithFilter() {
+        var plan = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 10010
+            | stats c = count(), cs = count(salary), ce = count(emp_no)
+            """));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();

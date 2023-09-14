@@ -84,16 +84,16 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 try {
                     leafCollector = collector.getLeafCollector(context);
                     scorer.score(leafCollector, context.reader().getLiveDocs());
-                    // We need to call finish as TopSuggestDocsCollector#finish() populates the pendingResults
-                    // This is important when skipping duplicates
-                    leafCollector.finish();
                 } catch (CollectionTerminatedException e) {
                     // collection was terminated prematurely
                     // continue with the following leaf
-                    // We can only finish the leaf collector if it was actually created
-                    if (leafCollector != null) {
-                        leafCollector.finish();
-                    }
+                }
+                // We can only finish the leaf collector if it was actually created
+                if (leafCollector != null) {
+                    // We need to call finish as TopSuggestDocsCollector#finish() populates the pendingResults
+                    // This is important when skipping duplicates
+                    leafCollector.finish();
+                    leafCollector.finish();
                 }
             }
         }

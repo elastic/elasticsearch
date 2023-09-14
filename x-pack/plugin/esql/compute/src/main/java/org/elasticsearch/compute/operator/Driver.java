@@ -40,15 +40,25 @@ import java.util.stream.Collectors;
 public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
+    /**
+     * Minimum time between updating status.
+     */
+    public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final String sessionId;
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
     private final Releasable releasable;
+    private final long statusNanos;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
+    /**
+     * Status reported to the tasks API. We write the status at most once every
+     * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
+     * have passed.
+     */
     private final AtomicReference<DriverStatus> status;
 
     /**
@@ -58,6 +68,7 @@ public class Driver implements Releasable, Describable {
      * @param source source operator
      * @param intermediateOperators  the chain of operators to execute
      * @param sink sink operator
+     * @param statusInterval minimum status reporting interval
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(
@@ -67,6 +78,7 @@ public class Driver implements Releasable, Describable {
         SourceOperator source,
         List<Operator> intermediateOperators,
         SinkOperator sink,
+        TimeValue statusInterval,
         Releasable releasable
     ) {
         this.sessionId = sessionId;
@@ -76,6 +88,7 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(source);
         this.activeOperators.addAll(intermediateOperators);
         this.activeOperators.add(sink);
+        this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
     }
@@ -95,7 +108,7 @@ public class Driver implements Releasable, Describable {
         SinkOperator sink,
         Releasable releasable
     ) {
-        this("unset", driverContext, () -> null, source, intermediateOperators, sink, releasable);
+        this("unset", driverContext, () -> null, source, intermediateOperators, sink, DEFAULT_STATUS_INTERVAL, releasable);
     }
 
     public DriverContext driverContext() {
@@ -110,26 +123,33 @@ public class Driver implements Releasable, Describable {
     private ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
+        long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (isFinished() == false) {
             ListenableActionFuture<Void> fut = runSingleLoopIteration();
             if (fut.isDone() == false) {
+                status.set(updateStatus(DriverStatus.Status.ASYNC));
                 return fut;
             }
-            if (++iter >= maxIterations) {
+            if (iter >= maxIterations) {
                 break;
             }
             long now = System.nanoTime();
+            if (now > nextStatus) {
+                status.set(updateStatus(DriverStatus.Status.RUNNING));
+                nextStatus = now + statusNanos;
+            }
+            iter++;
             if (now - startTime > maxTimeNanos) {
                 break;
             }
         }
         if (isFinished()) {
-            status.set(updateStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
             releasable.close();
         } else {
-            status.set(updateStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.WAITING));
         }
         return Operator.NOT_BLOCKED;
     }
@@ -227,7 +247,7 @@ public class Driver implements Releasable, Describable {
     }
 
     public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
+        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 

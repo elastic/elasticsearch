@@ -15,8 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless;
+package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -47,6 +49,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
@@ -528,6 +531,15 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
+        AtomicInteger countNewCommitNotifications = new AtomicInteger();
+        var indexTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
+        indexTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportNewCommitNotificationAction.NAME)) {
+                countNewCommitNotifications.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
         client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
 
         if (indexingActivityAfterScrollCloses) {
@@ -542,6 +554,15 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
+        assertThat(countNewCommitNotifications.get(), greaterThan(0));
+
+        if (indexingActivityAfterScrollCloses == false) {
+            // Verify that there is no more new commit notifications sent
+            int currentCount = countNewCommitNotifications.get();
+            var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+            indexShardCommitService.runInactivityMonitor(() -> Long.MAX_VALUE);
+            assertThat(countNewCommitNotifications.get(), equalTo(currentCount));
+        }
 
         var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
         assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));

@@ -205,18 +205,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (lifecycleState() != Lifecycle.State.STARTED) {
                 return;
             }
-
-            shardsCommitsStates.forEach((shardId, commitState) -> {
-                if (commitState.isClosed == false) {
-                    long elapsed = threadPool.relativeTimeInMillis() - commitState.lastNewCommitNotificationSentTimestamp;
-                    // TODO (ES-6726) improvement: there should be unpromotable searches registered in order to send out the notification.
-                    if (elapsed > shardInactivityDuration.getMillis()) {
-                        logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
-                        commitState.resendLatestNewCommitNotification();
-                    }
-                }
-            });
+            runInactivityMonitor(threadPool::relativeTimeInMillis);
         }
+    }
+
+    // package private for testing
+    void runInactivityMonitor(Supplier<Long> time) {
+        shardsCommitsStates.forEach((shardId, commitState) -> {
+            if (commitState.isClosed == false && commitState.lastNewCommitNotificationSentTimestamp > 0) {
+                long elapsed = time.get() - commitState.lastNewCommitNotificationSentTimestamp;
+                if (elapsed > shardInactivityDuration.getMillis()) {
+                    commitState.maybeResendLatestNewCommitNotification();
+                }
+            }
+        });
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
@@ -825,6 +827,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
             trackOutstandingUnpromotableShardCommitRef(nodes, blobReference);
+            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
             NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewCommitNotificationResponse(commit.generation(), nodes, response.getUsedPrimaryTermAndGenerations());
@@ -840,7 +843,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ));
         }
 
-        private void resendLatestNewCommitNotification() {
+        private void maybeResendLatestNewCommitNotification() {
             StatelessCompoundCommit latestStatelessCompoundCommitUploaded = null;
             BlobReference latestBlobReference = null;
 
@@ -858,6 +861,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
             }
 
+            // Resend new commit notification only if there are unpromotable references for older blob references
+            if (unpromotableBlobReferences.size() == 1 && unpromotableBlobReferences.keySet().contains(latestBlobReference)) {
+                lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+                return;
+            }
+
+            logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
             sendNewCommitNotification(latestBlobReference, latestStatelessCompoundCommitUploaded);
         }
 

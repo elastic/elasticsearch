@@ -10,9 +10,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -29,37 +28,29 @@ public class IngestDocumentMatcherTests extends ESTestCase {
 
     public void testDifferentLengthListData() {
         String rootKey = "foo";
-        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")));
-        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Collections.emptyList()));
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, List.of("bar", "baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, List.of()));
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testDifferentNestedListFieldData() {
         String rootKey = "foo";
-        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "baz")));
-        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Collections.singletonMap(rootKey, Arrays.asList("bar", "blub")));
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, List.of("bar", "baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, List.of("bar", "blub")));
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testDifferentNestedMapFieldData() {
         String rootKey = "foo";
-        IngestDocument document1 = TestIngestDocument.withDefaultVersion(
-            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "baz"))
-        );
-        IngestDocument document2 = TestIngestDocument.withDefaultVersion(
-            Collections.singletonMap(rootKey, Collections.singletonMap("bar", "blub"))
-        );
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, Map.of("bar", "baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, Map.of("bar", "blub")));
         assertThrowsOnComparision(document1, document2);
     }
 
     public void testOnTypeConflict() {
         String rootKey = "foo";
-        IngestDocument document1 = TestIngestDocument.withDefaultVersion(
-            Collections.singletonMap(rootKey, Collections.singletonList("baz"))
-        );
-        IngestDocument document2 = TestIngestDocument.withDefaultVersion(
-            Collections.singletonMap(rootKey, Collections.singletonMap("blub", "blab"))
-        );
+        IngestDocument document1 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, List.of("baz")));
+        IngestDocument document2 = TestIngestDocument.withDefaultVersion(Map.of(rootKey, Map.of("blub", "blab")));
         assertThrowsOnComparision(document1, document2);
     }
 

@@ -46,7 +46,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         }
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
-            case 2 -> new SearchResponse.Clusters(1, 1, 0);
+            case 2 -> new SearchResponse.Clusters(1, 1, 0, 0, 0, 0);
             case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true);
             default -> null;  // case 0
         };
@@ -79,7 +79,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
-            case 2 -> new SearchResponse.Clusters(1, 1, 0);
+            case 2 -> new SearchResponse.Clusters(1, 1, 0, 0, 0, 0);
             case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true); // new SearchResponse.Clusters(4, 1, 0, 3, true);
             default -> null;  // case 0
         };
@@ -153,48 +153,11 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                     response.getSkippedShards(),
                     response.getFailedShards(),
                     clusters.getTotal(),
-                    clusters.getSuccessful(),
-                    clusters.getSkipped(),
-                    response.getCompletionStatus() == null ? "" : Strings.format("""
-                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
-
-                expectedJson = Strings.format("""
-                    {
-                      "id" : "%s",
-                      "is_running" : %s,
-                      "is_partial" : %s,
-                      "start_time_in_millis" : %s,
-                      "expiration_time_in_millis" : %s,
-                      %s
-                      "_shards" : {
-                        "total" : %s,
-                        "successful" : %s,
-                        "skipped" : %s,
-                        "failed" : %s
-                      },
-                      "_clusters": {
-                       "total": %s,
-                       "successful": %s,
-                       "skipped": %s
-                      }
-                      %s
-                    }
-                    """, args);
-            } else {
-                Object[] args = new Object[] {
-                    response.getId(),
-                    response.isRunning(),
-                    response.isPartial(),
-                    response.getStartTime(),
-                    response.getExpirationTime(),
-                    completionTimeEntry,
-                    response.getTotalShards(),
-                    response.getSuccessfulShards(),
-                    response.getSkippedShards(),
-                    response.getFailedShards(),
-                    clusters.getTotal(),
-                    clusters.getSuccessful(),
-                    clusters.getSkipped(),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
                     response.getCompletionStatus() == null ? "" : Strings.format("""
                         ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
 
@@ -216,6 +179,55 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                        "total": %s,
                        "successful": %s,
                        "skipped": %s,
+                       "running": %s,
+                       "partial": %s,
+                       "failed": %s
+                      }
+                      %s
+                    }
+                    """, args);
+            } else {
+                Object[] args = new Object[] {
+                    response.getId(),
+                    response.isRunning(),
+                    response.isPartial(),
+                    response.getStartTime(),
+                    response.getExpirationTime(),
+                    completionTimeEntry,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    response.getSkippedShards(),
+                    response.getFailedShards(),
+                    clusters.getTotal(),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+                    response.getCompletionStatus() == null ? "" : Strings.format("""
+                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+
+                expectedJson = Strings.format("""
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      %s
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                      },
+                      "_clusters": {
+                       "total": %s,
+                       "successful": %s,
+                       "skipped": %s,
+                       "running": %s,
+                       "partial": %s,
+                       "failed": %s,
                         "details": {
                           "(local)": {
                             "status": "running",
@@ -305,7 +317,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1);
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1, 0, 0, 0);
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -369,15 +381,14 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             totalClusters = 1;
             successfulClusters = 1;
             skippedClusters = 0;
-            clusters = new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+            clusters = new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, 0, 0, 0);
         } else {
             // CCS search
             totalClusters = 80;
-            int successful = randomInt(60);
+            successfulClusters = randomInt(60);
             int partial = randomInt(20);
-            successfulClusters = successful + partial;
-            skippedClusters = totalClusters - successfulClusters;
-            clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successful, skippedClusters, partial);
+            skippedClusters = totalClusters - (successfulClusters + partial);
+            clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successfulClusters, skippedClusters, partial);
         }
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
@@ -396,8 +407,11 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
         assertEquals(totalClusters, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getSkipped());
-        assertEquals(successfulClusters, statusFromStoredSearch.getClusters().getSuccessful());
+        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+        assertEquals(
+            successfulClusters,
+            statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+        );
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98706")
@@ -432,7 +446,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertNull("completion_status should not be present if still running", statusFromStoredSearch.getCompletionStatus());
         assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(successful + partial, statusFromStoredSearch.getClusters().getSuccessful());
-        assertEquals(skipped, statusFromStoredSearch.getClusters().getSkipped());
+        assertEquals(successful, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertEquals(partial, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+        assertEquals(skipped, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -58,10 +59,29 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
 
     private static SearchResponse.Clusters randomClusters() {
-        int totalClusters = randomIntBetween(0, 10);
-        int successfulClusters = randomIntBetween(0, totalClusters);
-        int skippedClusters = totalClusters - successfulClusters;
-        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        int totalClusters = randomIntBetween(30, 50);
+        int sum = 0;
+        Random r = new Random();
+
+        int successfulClusters = r.nextInt((totalClusters - sum) / 5) + 1;
+        sum += successfulClusters;
+        int skippedClusters = r.nextInt((totalClusters - sum) / 4) + 1;
+        sum += skippedClusters;
+        int runningClusters = r.nextInt((totalClusters - sum) / 3) + 1;
+        sum += runningClusters;
+        int partialClusters = r.nextInt((totalClusters - sum) / 2) + 1;
+        sum += partialClusters;
+        int failedClusters = totalClusters - (runningClusters + successfulClusters + partialClusters + skippedClusters);
+        sum += failedClusters;
+        assert sum == totalClusters;
+        return new SearchResponse.Clusters(
+            totalClusters,
+            successfulClusters,
+            skippedClusters,
+            runningClusters,
+            partialClusters,
+            failedClusters
+        );
     }
 
     private static MultiSearchTemplateResponse createTestInstanceWithFailures() {

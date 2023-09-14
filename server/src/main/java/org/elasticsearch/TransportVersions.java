@@ -136,6 +136,7 @@ public class TransportVersions {
     public static final TransportVersion SHARD_SIZE_PRIMARY_TERM_GEN_ADDED = def(8_500_072);
     public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
     public static final TransportVersion V_8_500_074 = def(8_500_074);
+    public static final TransportVersion SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED = def(8_500_075);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

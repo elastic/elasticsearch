@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -85,11 +86,14 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Before
-    public void maybeUpgrade() throws Exception {
+    public void checkUpgrade() {
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
+    }
 
-        if (upgradedNodes.add(requestedUpgradeNode)) {
+    @After
+    public void maybeUpgrade() throws Exception {
+        if (requestedUpgradeNode < totalNodes && upgradedNodes.add(requestedUpgradeNode)) {
             try {
                 getUpgradeCluster().upgradeNodeToVersion(requestedUpgradeNode, Version.CURRENT);
                 closeClients();

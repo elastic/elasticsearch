@@ -82,6 +82,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() throws IOException {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         PAGE_SIZE = between(10, 100);
         NUM_DOCS = between(4 * PAGE_SIZE, 5 * PAGE_SIZE);
         READ_DESCRIPTION = """

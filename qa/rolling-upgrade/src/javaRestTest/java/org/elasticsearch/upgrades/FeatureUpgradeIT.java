@@ -41,10 +41,6 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
         .nodes(3)
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
-        // some tests rely on the translog not being flushed
-        .setting("logger.org.elasticsearch.cluster.service.MasterService", "TRACE")
-        .setting("logger.org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator", "TRACE")
-        .setting("logger.org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders", "TRACE")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

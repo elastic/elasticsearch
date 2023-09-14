@@ -8,8 +8,10 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpHost;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
@@ -18,8 +20,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,9 +46,40 @@ import static org.hamcrest.Matchers.equalTo;
  * In 8.2 we also added the ability to filter fields by type and metadata, with some post-hoc filtering applied on
  * the co-ordinating node if older nodes were included in the system
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
-public class FieldCapsIT extends AbstractRollingTestCase {
-    private static boolean indicesCreated = false;
+public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
+
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(3)
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    private final boolean firstMixedRound;
+
+    public FieldCapsIT(@Name("upgradeNode") int upgradeNode, @Name("totalNodes") int totalNodes) {
+        super(upgradeNode, totalNodes);
+        firstMixedRound = upgradeNode == 1;
+    }
+
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        return testNodes(3);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
+    private boolean indicesCreated = false;
 
     @Before
     public void setupIndices() throws Exception {
@@ -65,7 +105,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
                "timestamp": {"type": "date"}
              }
             """;
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createIndex("old_red_1", Settings.EMPTY, redMapping);
             createIndex("old_red_2", Settings.EMPTY, redMapping);
             createIndex("old_red_empty", Settings.EMPTY, redMapping);
@@ -80,7 +120,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
                 );
                 assertOK(client().performRequest(indexRequest));
             }
-        } else if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
+        } else if (isMixedCluster() && firstMixedRound) {
             createIndex("new_red_1", Settings.EMPTY, redMapping);
             createIndex("new_red_2", Settings.EMPTY, redMapping);
             createIndex("new_red_empty", Settings.EMPTY, redMapping);
@@ -151,7 +191,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     public void testNewIndicesOnly() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null, null, null);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty" }));
@@ -179,7 +219,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     public void testNewIndicesOnlyWithIndexFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter, null, null);
@@ -205,7 +245,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     public void testAllIndices() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, null);
         assertThat(
             resp.getIndices(),
@@ -237,7 +277,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     }
 
     public void testAllIndicesWithIndexFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter, null, null);
         assertThat(
@@ -287,7 +327,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     // because we are testing that the upgraded node will correctly apply filtering
     // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         RestClient restClient = getUpgradedNodeClient();
         FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
@@ -300,7 +340,7 @@ public class FieldCapsIT extends AbstractRollingTestCase {
     // because we are testing that the upgraded node will correctly apply filtering
     // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithExclusionFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeFalse("required mixed or upgraded cluster", isOldCluster());
         RestClient client = getUpgradedNodeClient();
         {
             FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, null);

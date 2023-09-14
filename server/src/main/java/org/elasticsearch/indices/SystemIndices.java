@@ -124,14 +124,11 @@ public class SystemIndices {
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =
-        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values().stream()
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values()
+            .stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .collect(Collectors.toMap(
-                SystemIndexDescriptor::getIndexPattern,
-                SystemIndexDescriptor::getMappingsVersion
-            ));
-
+            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
 
     /**
      * The node's full list of system features is stored here. The map is keyed

@@ -232,9 +232,11 @@ public class DeploymentManager {
         Map<String, Object> metadata,
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
     ) {
-        String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
-        if (modelPlatformArchitecture != null) {
-            verifyMLNodeArchitectureMatchesModelPlatformArchitecture(failedDeploymentListener, modelPlatformArchitecture);
+        if (metadata != null) {
+            String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
+            if (modelPlatformArchitecture != null) {
+                verifyMLNodeArchitectureMatchesModelPlatformArchitecture(failedDeploymentListener, modelPlatformArchitecture);
+            }
         }
     }
 

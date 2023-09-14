@@ -121,7 +121,10 @@ public final class ValueSources {
                     }, elementType, ctx.getIndexReader()));
                     default -> throw e;
                 }
-                HeaderWarning.addWarning("Field {} cannot be retrieved, probably it is not indexed; returning null", fieldName);
+                HeaderWarning.addWarning(
+                    "Field {} cannot be retrieved, probably it is unsupported or not indexed; returning null",
+                    fieldName
+                );
                 continue;
                 // } else {
                 // throw e;

@@ -56,8 +56,10 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
@@ -120,9 +122,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testConcurrentDynamicUpdates() throws Throwable {
         int numberOfFieldsToCreate = 32;
         Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder(), Map.of());
-        assertThat(properties.size(), equalTo(numberOfFieldsToCreate));
+        assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
         for (int i = 0; i < numberOfFieldsToCreate; i++) {
-            assertTrue("Could not find [field" + i + "] in " + properties, properties.containsKey("field" + i));
+            assertThat(properties, hasKey("field" + i));
         }
     }
 
@@ -134,7 +136,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             Map.of("dynamic", "true_until_limit")
         );
         // every field is a multi-field (text + keyword)
-        assertThat(properties.size(), equalTo(16));
+        assertThat(properties, aMapWithSize(16));
         SearchResponse response = client().prepareSearch("index")
             .setQuery(new MatchAllQueryBuilder())
             .setSize(numberOfFieldsToCreate)
@@ -146,7 +148,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
     private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings, Map<String, Object> mapping)
         throws Throwable {
-        client().admin().indices().prepareCreate("index").setSettings(settings).setMapping(mapping).get();
+        indicesAdmin().prepareCreate("index").setSettings(settings).setMapping(mapping).get();
         ensureGreen("index");
         final Thread[] indexThreads = new Thread[numberOfFieldsToCreate];
         final CountDownLatch startLatch = new CountDownLatch(1);
@@ -335,7 +337,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testFieldLimitRuntimeAndDynamic() throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate("test")
-                .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5).build())
+                .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5))
                 .setMapping("""
                     {
                       "dynamic": "runtime",
@@ -374,12 +376,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private SearchHit indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source) throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("index")
-            .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit).build())
-            .setMapping(Map.of("dynamic", "true_until_limit"))
-            .get();
+        prepareCreate("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit)).setMapping(
+            Map.of("dynamic", "true_until_limit")
+        ).get();
         ensureGreen("index");
         client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
         return client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0];

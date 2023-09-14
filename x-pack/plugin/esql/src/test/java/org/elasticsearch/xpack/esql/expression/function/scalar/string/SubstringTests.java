@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -68,7 +67,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     public void testNoLengthToString() {
         assertThat(
             evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get(
-                new DriverContext()
+                driverContext()
             ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
@@ -137,7 +136,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 new Literal(Source.EMPTY, start, DataTypes.INTEGER),
                 length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
             )
-        ).get(new DriverContext()).eval(row(List.of(new BytesRef(str))));
+        ).get(driverContext()).eval(row(List.of(new BytesRef(str))));
         return result == null ? null : ((BytesRef) toJavaObject(result, 0)).utf8ToString();
     }
 

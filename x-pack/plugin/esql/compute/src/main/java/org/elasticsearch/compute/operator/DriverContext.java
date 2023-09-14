@@ -35,20 +35,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DriverContext {
 
-    /** A default driver context. The returned bigArrays is non recycling. */
-    public static DriverContext DEFAULT = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE);
-
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
     private final BigArrays bigArrays;
-
-    // For testing
-    public DriverContext() {
-        this(BigArrays.NON_RECYCLING_INSTANCE);
-    }
 
     public DriverContext(BigArrays bigArrays) {
         Objects.requireNonNull(bigArrays);

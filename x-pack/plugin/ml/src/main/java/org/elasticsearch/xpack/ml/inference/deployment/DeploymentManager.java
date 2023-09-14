@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,8 +57,11 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -167,6 +174,9 @@ public class DeploymentManager {
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             assert getModelResponse.getResources().results().size() == 1;
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+
+            validateMLNodeArchitecturesAndModelMetadata(modelConfig.getMetadata(), failedDeploymentListener);
+
             processContext.modelInput.set(modelConfig.getInput());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
@@ -216,6 +226,69 @@ public class DeploymentManager {
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
             getModelListener
         );
+    }
+
+    private void validateMLNodeArchitecturesAndModelMetadata(
+        Map<String, Object> metadata,
+        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
+    ) {
+
+        ActionListener<NodesInfoResponse> architectureValidationListener = ActionListener.wrap(nodesInfoResponse -> {
+
+            Set<String> architectures = Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse));
+            try {
+                verifyArchitectureMatchesModelMetadata(architectures, metadata);
+            } catch (IllegalArgumentException iae) {
+                verifyArchitectureOfMLNodesIsHomogenous(architectures);
+                throw iae;
+            }
+
+        }, failedDeploymentListener::onFailure);
+
+        getNodesInfoBuilderWithOSAndPlugins().execute(architectureValidationListener);
+    }
+
+    private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
+        return nodesInfoResponse.getNodes().stream().filter(node -> {
+            return node.getInfo(PluginsAndModules.class).getPluginInfos().stream().anyMatch(pluginRuntimeInfo -> {
+                return pluginRuntimeInfo.descriptor().getName().equals("ml");
+            });
+        }).map(node -> { return node.getInfo(OsInfo.class).getArch(); }).toList();
+    }
+
+    private void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures) throws IllegalStateException {
+        if (architectures.size() > 1) {
+            throw new IllegalStateException(
+                format(
+                    "ML nodes in this cluster have multiple platform architectures, but can only have one; " + "was [%s];" + " %s",
+                    architectures.toString(),
+                    "<link to documentation?>"
+                )
+            );
+        }
+    }
+
+    private void verifyArchitectureMatchesModelMetadata(Set<String> architectures, Map<String, Object> metadata)
+        throws IllegalArgumentException {
+        String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
+
+        String architecture = architectures.iterator().next();
+
+        if (architecture.equals(modelPlatformArchitecture) == false) {
+            throw new IllegalArgumentException(
+                format(
+                    "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "
+                        + "expected [%s]; "
+                        + "but was [%s]",
+                    modelPlatformArchitecture,
+                    architectures.toString()
+                )
+            );
+        }
+    }
+
+    private NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins() {
+        return client.admin().cluster().prepareNodesInfo().clear().setOs(true).setPlugins(true);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
@@ -394,11 +467,11 @@ public class DeploymentManager {
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
+        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
-        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
-        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile boolean isStopped;
 
         private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);

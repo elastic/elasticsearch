@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
@@ -80,7 +79,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
         project.getPluginManager().apply(getBasePlugin());
 

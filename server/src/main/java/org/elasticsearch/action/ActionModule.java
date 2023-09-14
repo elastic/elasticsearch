@@ -510,6 +510,7 @@ public class ActionModule extends AbstractModule {
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
     private final boolean serverlessEnabled;
+    private final RestExtension restExtension;
 
     public ActionModule(
         Settings settings,
@@ -525,7 +526,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        RestExtension restExtension
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -851,15 +853,10 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
-        var restExtension = RestExtension.load(() -> new RestExtension() {
-            @Override
-            public Predicate<AbstractCatAction> getCatActionsFilter() {
-                return action -> true;
-            }
-        });
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
+        Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (shouldKeepRestHandler(handler)) {
+            if (restFilter.test(handler)) {
                 if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
                     catActions.add(catAction);
                 }

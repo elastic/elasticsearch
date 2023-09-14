@@ -230,7 +230,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
             if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
-                return true;
+                return f.exactAttribute().field().isAggregatable();
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
                 return operation == null
@@ -280,7 +280,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> o.child() instanceof FieldAttribute fa && fa.getExactInfo().hasExact());
+            return orders.stream()
+                .allMatch(
+                    o -> o.child() instanceof FieldAttribute fa
+                        && fa.getExactInfo().hasExact()
+                        && fa.exactAttribute().field().isAggregatable()
+                );
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {

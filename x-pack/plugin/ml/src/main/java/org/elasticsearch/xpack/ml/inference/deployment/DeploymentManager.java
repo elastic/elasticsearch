@@ -232,17 +232,24 @@ public class DeploymentManager {
         Map<String, Object> metadata,
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
     ) {
+        String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
+        if (modelPlatformArchitecture != null) {
+            verifyMLNodeArchitectureMatchesModelPlatformArchitecture(failedDeploymentListener, modelPlatformArchitecture);
+        }
+    }
 
+    private void verifyMLNodeArchitectureMatchesModelPlatformArchitecture(
+        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener,
+        String modelPlatformArchitecture
+    ) {
         ActionListener<NodesInfoResponse> architectureValidationListener = ActionListener.wrap(nodesInfoResponse -> {
-
             Set<String> architectures = Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse));
             try {
-                verifyArchitectureMatchesModelMetadata(architectures, metadata);
+                verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
             } catch (IllegalArgumentException iae) {
                 verifyArchitectureOfMLNodesIsHomogenous(architectures);
                 throw iae;
             }
-
         }, failedDeploymentListener::onFailure);
 
         getNodesInfoBuilderWithOSAndPlugins().execute(architectureValidationListener);
@@ -268,9 +275,8 @@ public class DeploymentManager {
         }
     }
 
-    private void verifyArchitectureMatchesModelMetadata(Set<String> architectures, Map<String, Object> metadata)
+    private void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
         throws IllegalArgumentException {
-        String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
 
         String architecture = architectures.iterator().next();
 

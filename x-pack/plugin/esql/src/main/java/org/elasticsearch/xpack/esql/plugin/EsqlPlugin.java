@@ -76,6 +76,22 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> QUERY_DEFAULT_TIMEOUT = Setting.intSetting(
+        "esql.query.default_timeout",
+        -1,
+        -1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> QUERY_MAX_TIMEOUT = Setting.intSetting(
+        "esql.query.max_timeout",
+        -1,
+        -1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public Collection<Object> createComponents(
         Client client,

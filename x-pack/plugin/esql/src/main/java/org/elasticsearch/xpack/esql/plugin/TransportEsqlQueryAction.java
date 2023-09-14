@@ -40,8 +40,6 @@ import java.util.concurrent.TimeUnit;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
-    public static TimeValue DEFAULT_TIMEOUT = new TimeValue(4, TimeUnit.MINUTES);
-    public static TimeValue MAX_TIMEOUT = new TimeValue(4, TimeUnit.MINUTES);
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
@@ -88,8 +86,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        TimeValue timeout = timeout(request);
-
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -98,7 +94,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService.getClusterName().value(),
             request.pragmas(),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
-            timeout
+            timeout(request)
         );
         String sessionId = sessionID(task);
 
@@ -119,15 +115,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private TimeValue timeout(EsqlQueryRequest request) {
-        TimeValue rTimeout = request.timeout();
-        if (rTimeout == null) {
-            return DEFAULT_TIMEOUT;
+        Integer defaultTimeoutMillis = EsqlPlugin.QUERY_DEFAULT_TIMEOUT.get(settings);
+        Integer maxTimeoutMillis = EsqlPlugin.QUERY_MAX_TIMEOUT.get(settings);
+        TimeValue defaultTimeout = defaultTimeoutMillis < 0 ? null : new TimeValue(defaultTimeoutMillis, TimeUnit.MILLISECONDS);
+        TimeValue maxTimeout = maxTimeoutMillis < 0 ? null : new TimeValue(maxTimeoutMillis, TimeUnit.MILLISECONDS);
+        TimeValue requestTimeout = request.timeout();
+        if (requestTimeout == null) {
+            return defaultTimeout;
         }
-        TimeValue timeout = rTimeout.compareTo(MAX_TIMEOUT) > 0 ? MAX_TIMEOUT : rTimeout;
-        if (timeout.duration() < 0) {
-            return MAX_TIMEOUT;
+        if (requestTimeout.millis() < 0) {
+            return maxTimeout;
         }
-        return timeout;
+        return maxTimeoutMillis >= 0 && requestTimeout.millis() > maxTimeoutMillis ? maxTimeout : requestTimeout;
     }
 
     /**

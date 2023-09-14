@@ -147,35 +147,40 @@ public class ComputeService {
             requestFilter,
             concreteIndices,
             originalIndices,
-            wrapTimeout(configuration, transportService.getThreadPool(), listener.delegateFailureAndWrap((delegate, targetNodes) -> {
-                final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
-                    sessionId,
-                    queryPragmas.exchangeBufferSize(),
-                    ESQL_THREAD_POOL_NAME
-                );
-                try (
-                    Releasable ignored = exchangeSource::decRef;
-                    RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
-                ) {
-                    final AtomicBoolean cancelled = new AtomicBoolean();
-                    // wait until the source handler is completed
-                    exchangeSource.addCompletionListener(requestRefs.acquire());
-                    // run compute on the coordinator
-                    var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
-                    runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
-                    // run compute on remote nodes
-                    // TODO: This is wrong, we need to be able to cancel
-                    runComputeOnRemoteNodes(
+            wrapTimeout(
+                configuration,
+                transportService.getThreadPool(),
+                rootTask,
+                listener.delegateFailureAndWrap((delegate, targetNodes) -> {
+                    final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
                         sessionId,
-                        rootTask,
-                        configuration,
-                        dataNodePlan,
-                        exchangeSource,
-                        targetNodes,
-                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                        queryPragmas.exchangeBufferSize(),
+                        ESQL_THREAD_POOL_NAME
                     );
-                }
-            }))
+                    try (
+                        Releasable ignored = exchangeSource::decRef;
+                        RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
+                    ) {
+                        final AtomicBoolean cancelled = new AtomicBoolean();
+                        // wait until the source handler is completed
+                        exchangeSource.addCompletionListener(requestRefs.acquire());
+                        // run compute on the coordinator
+                        var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
+                        runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
+                        // run compute on remote nodes
+                        // TODO: This is wrong, we need to be able to cancel
+                        runComputeOnRemoteNodes(
+                            sessionId,
+                            rootTask,
+                            configuration,
+                            dataNodePlan,
+                            exchangeSource,
+                            targetNodes,
+                            () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
+                        );
+                    }
+                })
+            )
         );
 
     }
@@ -183,12 +188,14 @@ public class ComputeService {
     private ActionListener<List<TargetNode>> wrapTimeout(
         EsqlConfiguration configuration,
         ThreadPool pool,
+        CancellableTask task,
         ActionListener<List<TargetNode>> l
     ) {
         if (configuration.timeout() != null) {
             return ListenerTimeouts.wrapWithTimeout(pool, configuration.timeout(), esqlExecutor, l, (x) -> {
-                String timeoutMessage = "ESQL query timed out after {}";
-                l.onFailure(new ElasticsearchTimeoutException(timeoutMessage, configuration.timeout()));
+                LOGGER.debug("cancelling ESQL task {} on failure", task);
+                transportService.getTaskManager().cancelTaskAndDescendants(task, "timeout", false, ActionListener.noop());
+                l.onFailure(new ElasticsearchTimeoutException("ESQL query timed out after {}", configuration.timeout()));
             });
         }
         return l;

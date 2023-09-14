@@ -25,6 +25,16 @@ public final class IngestDocumentMatcher {
      * @param actual second document to compare
      */
     public static void assertIngestDocument(IngestDocument expected, IngestDocument actual) {
+        // trivially true: if they're both null, then all is well
+        if (expected == null && actual == null) {
+            return;
+        }
+
+        // if only one is null, however, then that's not okay
+        if ((expected == null || actual == null)) {
+            throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");
+        }
+
         if ((deepEquals(expected.getIngestMetadata(), actual.getIngestMetadata(), true)
             && deepEquals(expected.getSourceAndMetadata(), actual.getSourceAndMetadata(), false)) == false) {
             throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");

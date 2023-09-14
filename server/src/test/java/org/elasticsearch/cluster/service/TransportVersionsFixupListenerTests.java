@@ -86,6 +86,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
                         null,
                         e.getValue(),
                         null,
+                        null,
                         DiscoveryNodeUtils.create(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 9200)),
                         null,
                         null,

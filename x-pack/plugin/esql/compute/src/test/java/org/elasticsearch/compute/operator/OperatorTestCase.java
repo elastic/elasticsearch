@@ -171,6 +171,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                     new SequenceLongBlockSourceOperator(LongStream.range(0, between(1, 100)), between(1, 100)),
                     List.of(),
                     new PageConsumerOperator(page -> {}),
+                    Driver.DEFAULT_STATUS_INTERVAL,
                     () -> {}
                 )
             );

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -71,18 +72,25 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
         BytesRef bar = new BytesRef("bar");
         BytesRef delim = new BytesRef(";");
         Expression expression = buildFieldExpression(testCase);
+        DriverContext dvrCtx = new DriverContext();
 
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(Arrays.asList(foo, bar), null))), 0), nullValue());
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(foo, null))), 0), nullValue());
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(null, null))), 0), nullValue());
+        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(Arrays.asList(foo, bar), null))), 0), nullValue());
+        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(foo, null))), 0), nullValue());
+        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, null))), 0), nullValue());
 
         assertThat(
-            toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(Arrays.asList(foo, bar), Arrays.asList(delim, bar)))), 0),
+            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(Arrays.asList(foo, bar), Arrays.asList(delim, bar)))), 0),
             nullValue()
         );
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(foo, Arrays.asList(delim, bar)))), 0), nullValue());
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(null, Arrays.asList(delim, bar)))), 0), nullValue());
+        assertThat(
+            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(foo, Arrays.asList(delim, bar)))), 0),
+            nullValue()
+        );
+        assertThat(
+            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, Arrays.asList(delim, bar)))), 0),
+            nullValue()
+        );
 
-        assertThat(toJavaObject(evaluator(expression).get().eval(row(Arrays.asList(null, delim))), 0), nullValue());
+        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, delim))), 0), nullValue());
     }
 }

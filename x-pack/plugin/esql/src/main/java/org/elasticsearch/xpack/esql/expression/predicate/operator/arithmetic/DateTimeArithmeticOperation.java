@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,6 +28,17 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
+
+    private class IllegalTemporalValueException extends EsqlClientException {
+        protected IllegalTemporalValueException(String message, Object... args) {
+            super(message, args);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
+        }
+    }
 
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
@@ -110,13 +123,25 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Period l = (Period) left().fold();
             Period r = (Period) right().fold();
-            return processDatePeriods(l, r);
+            try {
+                return processDatePeriods(l, r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually.
+                throw new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", sourceText(), e.getMessage());
+            }
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Duration l = (Duration) left().fold();
             Duration r = (Duration) right().fold();
-            return processTimeDurations(l, r);
+            try {
+                return processTimeDurations(l, r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually.
+                throw new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", sourceText(), e.getMessage());
+            }
         }
         return super.fold();
     }

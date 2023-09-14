@@ -174,7 +174,9 @@ public final class InnerHitsContext {
         } catch (CollectionTerminatedException e) {
             // collection was terminated prematurely
             // continue with the following leaf
-            leafCollector.finish();
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

@@ -342,7 +342,8 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // no rollover on upgrade because the test registry doesn't support automatic rollover by default
-        // todo - what's the right way to verify that the result doesn't change from 0 (like assertBusy, but assertNotChanged)
+
+        // todo - what's the right way to verify that the result doesn't change from 0 (like assertBusy, but assertNotChanged)?
         assertThat(rolloverCounter.get(), equalTo(0));
 
         // test successful rollovers
@@ -355,6 +356,13 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertNotNull(rolloverResponsesRef.get()));
         Collection<RolloverResponse> rolloverResponses = rolloverResponsesRef.get();
         assertThat(rolloverResponses, hasSize(2));
+
+        // test again, to verify that the per-index-template creation lock gets released for reuse
+        putIndexTemplateCounter.set(0);
+        rolloverCounter.set(0);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
 
         // test rollover failures
         putIndexTemplateCounter.set(0);

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
+public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
 
     private long now;
 
@@ -59,7 +59,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
             Settings.EMPTY,
             dataStreamName,
             firstGeneration,
@@ -96,13 +96,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
-            Settings.EMPTY,
-            dataStreamName,
-            firstGenIndex,
-            downsampleIndex,
-            null
-        ).execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -135,7 +130,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new ReplaceSourceWithDownsampleIndexTask(Settings.EMPTY, dataStreamName, writeIndex, downsampleIndex, null).execute(
+            () -> new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, writeIndex, downsampleIndex, null).execute(
                 previousState
             )
         );
@@ -176,13 +171,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, String.valueOf(now)));
         Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata()).put(firstGenBuilder);
         previousState = ClusterState.builder(previousState).metadata(metaBuilder).build();
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
-            Settings.EMPTY,
-            dataStreamName,
-            firstGenIndex,
-            downsampleIndex,
-            null
-        ).execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -229,13 +219,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
-            Settings.EMPTY,
-            dataStreamName,
-            firstGenIndex,
-            downsampleIndex,
-            null
-        ).execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -275,13 +260,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
-            Settings.EMPTY,
-            dataStreamName,
-            firstGenIndex,
-            downsampleIndex,
-            null
-        ).execute(previousState);
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -299,7 +279,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLengthBetween(10, 100);
         String sourceBackingIndex = randomAlphaOfLengthBetween(10, 100);
         String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
-        ReplaceSourceWithDownsampleIndexTask withoutListener = new ReplaceSourceWithDownsampleIndexTask(
+        DeleteSourceAndAddDownsampleToDS withoutListener = new DeleteSourceAndAddDownsampleToDS(
             Settings.EMPTY,
             dataStreamName,
             sourceBackingIndex,
@@ -307,7 +287,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
             null
         );
 
-        ReplaceSourceWithDownsampleIndexTask withListener = new ReplaceSourceWithDownsampleIndexTask(
+        DeleteSourceAndAddDownsampleToDS withListener = new DeleteSourceAndAddDownsampleToDS(
             Settings.EMPTY,
             dataStreamName,
             sourceBackingIndex,

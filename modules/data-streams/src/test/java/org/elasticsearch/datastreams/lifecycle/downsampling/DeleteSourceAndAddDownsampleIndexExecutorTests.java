@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class ReplaceBackingWithDownsampleIndexExecutorTests extends ESTestCase {
+public class DeleteSourceAndAddDownsampleIndexExecutorTests extends ESTestCase {
 
     public void testExecutorNotifiesListenerAndReroutesAllocationService() {
         String dataStreamName = randomAlphaOfLengthBetween(10, 100);
@@ -29,11 +29,11 @@ public class ReplaceBackingWithDownsampleIndexExecutorTests extends ESTestCase {
         String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
 
         AllocationService allocationService = mock(AllocationService.class);
-        ReplaceBackingWithDownsampleIndexExecutor executor = new ReplaceBackingWithDownsampleIndexExecutor(allocationService);
+        DeleteSourceAndAddDownsampleIndexExecutor executor = new DeleteSourceAndAddDownsampleIndexExecutor(allocationService);
 
         AtomicBoolean taskListenerCalled = new AtomicBoolean(false);
         executor.taskSucceeded(
-            new ReplaceSourceWithDownsampleIndexTask(Settings.EMPTY, dataStreamName, sourceIndex, downsampleIndex, new ActionListener<>() {
+            new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, sourceIndex, downsampleIndex, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     taskListenerCalled.set(true);

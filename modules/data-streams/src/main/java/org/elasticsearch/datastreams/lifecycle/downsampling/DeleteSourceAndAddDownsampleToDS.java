@@ -30,19 +30,19 @@ import java.util.Set;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 
 /**
- * Cluster state task that replaces a source index in a data stream with its downsample index.
+ * Cluster state task that deletes a source index in a data stream and adds its downsample index.
  * In the process it will configure the origination date for the downsample index (so it can
  * have a correct generation time).
  */
-public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskListener {
-    private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
+public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListener {
+    private static final Logger LOGGER = LogManager.getLogger(DeleteSourceAndAddDownsampleToDS.class);
     private final Settings settings;
     private ActionListener<Void> listener;
     private final String dataStreamName;
     private final String sourceBackingIndex;
     private final String downsampleIndex;
 
-    public ReplaceSourceWithDownsampleIndexTask(
+    public DeleteSourceAndAddDownsampleToDS(
         Settings settings,
         String dataStreamName,
         String sourceBackingIndex,
@@ -221,7 +221,7 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        ReplaceSourceWithDownsampleIndexTask that = (ReplaceSourceWithDownsampleIndexTask) o;
+        DeleteSourceAndAddDownsampleToDS that = (DeleteSourceAndAddDownsampleToDS) o;
         return Objects.equals(dataStreamName, that.dataStreamName)
             && Objects.equals(sourceBackingIndex, that.sourceBackingIndex)
             && Objects.equals(downsampleIndex, that.downsampleIndex);

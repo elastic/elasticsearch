@@ -53,8 +53,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceBackingWithDownsampleIndexExecutor;
-import org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask;
+import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
+import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -81,7 +81,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 
@@ -144,7 +143,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
-    private final MasterServiceTaskQueue<ReplaceSourceWithDownsampleIndexTask> swapSourceWithDownsampleIndexQueue;
+    private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
 
@@ -195,7 +194,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.swapSourceWithDownsampleIndexQueue = clusterService.createTaskQueue(
             "data-stream-lifecycle-swap-source-with-downsample",
             Priority.URGENT, // urgent priority as this deletes indices
-            new ReplaceBackingWithDownsampleIndexExecutor(allocationService)
+            new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
     }
 
@@ -569,7 +568,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
-            new ReplaceSourceWithDownsampleIndexTask(settings, dataStream.getName(), backingIndexName, downsampleIndexName, null),
+            new DeleteSourceAndAddDownsampleToDS(settings, dataStream.getName(), backingIndexName, downsampleIndexName, null),
             new ErrorRecordingActionListener(
                 backingIndexName,
                 errorStore,
@@ -589,7 +588,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
                 swapSourceWithDownsampleIndexQueue.submitTask(
                     "data-stream-lifecycle-replace-source[" + backingIndexName + "]-with-[" + downsampleIndexName + "]",
-                    new ReplaceSourceWithDownsampleIndexTask(
+                    new DeleteSourceAndAddDownsampleToDS(
                         settings,
                         dataStream.getName(),
                         backingIndexName,

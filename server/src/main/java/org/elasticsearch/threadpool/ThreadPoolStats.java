@@ -136,7 +136,7 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
     }
 
     public ThreadPoolStats(StreamInput in) throws IOException {
-        this(in.readList(Stats::new));
+        this(in.readCollectionAsList(Stats::new));
     }
 
     @Override

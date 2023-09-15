@@ -282,7 +282,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testOnlySystem() {
         SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         indicesLookup.put(
             ".foo",
             new ConcreteIndex(IndexMetadata.builder(".foo").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())

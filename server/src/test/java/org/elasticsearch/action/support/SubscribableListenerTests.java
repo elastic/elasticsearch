@@ -322,7 +322,11 @@ public class SubscribableListenerTests extends ESTestCase {
         });
         try (var ignored = threadPool.getThreadContext().stashContext()) {
             threadPool.getThreadContext().putHeader(headerName, headerValue);
-            listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            listener.addTimeout(
+                TimeValue.timeValueSeconds(30),
+                threadPool,
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+            );
         }
 
         if (randomBoolean()) {
@@ -359,7 +363,11 @@ public class SubscribableListenerTests extends ESTestCase {
                 fail("should not fail");
             }
         });
-        listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+        listener.addTimeout(
+            TimeValue.timeValueSeconds(30),
+            threadPool,
+            randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic())
+        );
 
         deterministicTaskQueue.scheduleAt(
             deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueSeconds(30).millis() - 1),
@@ -373,4 +381,21 @@ public class SubscribableListenerTests extends ESTestCase {
         assertTrue(listener.isDone());
     }
 
+    public void testCreateUtils() throws Exception {
+        final var succeeded = SubscribableListener.newSucceeded("result");
+        assertTrue(succeeded.isDone());
+        assertEquals("result", succeeded.rawResult());
+
+        final var failed = SubscribableListener.newFailed(new ElasticsearchException("simulated"));
+        assertTrue(failed.isDone());
+        assertEquals("simulated", expectThrows(ElasticsearchException.class, failed::rawResult).getMessage());
+
+        final var forkedListenerRef = new AtomicReference<ActionListener<Object>>();
+        final var forked = SubscribableListener.newForked(forkedListenerRef::set);
+        assertSame(forked, forkedListenerRef.get());
+
+        final var forkFailed = SubscribableListener.newForked(l -> { throw new ElasticsearchException("simulated fork failure"); });
+        assertTrue(forkFailed.isDone());
+        assertEquals("simulated fork failure", expectThrows(ElasticsearchException.class, forkFailed::rawResult).getMessage());
+    }
 }

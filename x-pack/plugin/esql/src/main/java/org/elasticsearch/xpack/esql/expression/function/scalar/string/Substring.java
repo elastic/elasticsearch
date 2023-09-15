@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -32,7 +31,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class Substring extends ScalarFunction implements OptionalArgument, Mappable {
+public class Substring extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
 
     private final Expression str, start, length;
 
@@ -74,7 +73,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "NoLength")
@@ -128,19 +127,17 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> startSupplier = toEvaluator.apply(start);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var strSupplier = toEvaluator.apply(str);
+        var startSupplier = toEvaluator.apply(start);
         if (length == null) {
-            return () -> new SubstringNoLengthEvaluator(strSupplier.get(), startSupplier.get());
+            return dvrCtx -> new SubstringNoLengthEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), dvrCtx);
         }
-        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
-        return () -> new SubstringEvaluator(strSupplier.get(), startSupplier.get(), lengthSupplier.get());
+        var lengthSupplier = toEvaluator.apply(length);
+        return dvrCtx -> new SubstringEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
     }
 }

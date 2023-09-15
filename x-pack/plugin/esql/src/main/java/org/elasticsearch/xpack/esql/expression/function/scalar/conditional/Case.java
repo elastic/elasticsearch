@@ -11,9 +11,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -27,27 +29,27 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
-public class Case extends ScalarFunction implements Mappable {
+public class Case extends ScalarFunction implements EvaluatorMapper {
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
     private final Expression elseValue;
     private DataType dataType;
 
-    public Case(Source source, List<Expression> fields) {
-        super(source, fields);
-        int conditionCount = fields.size() / 2;
+    public Case(Source source, Expression first, List<Expression> rest) {
+        super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+        int conditionCount = children().size() / 2;
         conditions = new ArrayList<>(conditionCount);
         for (int c = 0; c < conditionCount; c++) {
-            conditions.add(new Condition(fields.get(c * 2), fields.get(c * 2 + 1)));
+            conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = fields.size() % 2 == 0 ? new Literal(source, null, NULL) : fields.get(fields.size() - 1);
+        elseValue = children().size() % 2 == 0 ? new Literal(source, null, NULL) : children().get(children().size() - 1);
     }
 
     @Override
@@ -110,17 +112,17 @@ public class Case extends ScalarFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Case(source(), newChildren);
+        return new Case(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Case::new, children());
+        return NodeInfo.create(this, Case::new, children().get(0), children().subList(1, children().size()));
     }
 
     @Override
@@ -150,27 +152,25 @@ public class Case extends ScalarFunction implements Mappable {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+
         List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
             .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
-        Supplier<EvalOperator.ExpressionEvaluator> elseValueEval = toEvaluator.apply(elseValue);
-        return () -> new CaseEvaluator(
+        var elseValueEval = toEvaluator.apply(elseValue);
+        return dvrCtx -> new CaseEvaluator(
             LocalExecutionPlanner.toElementType(dataType()),
-            conditionsEval.stream().map(Supplier::get).toList(),
-            elseValueEval.get()
+            conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
+            elseValueEval.get(dvrCtx)
         );
     }
 
-    record ConditionEvaluatorSupplier(
-        Supplier<EvalOperator.ExpressionEvaluator> condition,
-        Supplier<EvalOperator.ExpressionEvaluator> value
-    ) implements Supplier<ConditionEvaluator> {
+    record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
+        implements
+            Function<DriverContext, ConditionEvaluator> {
         @Override
-        public ConditionEvaluator get() {
-            return new ConditionEvaluator(condition.get(), value.get());
+        public ConditionEvaluator apply(DriverContext driverContext) {
+            return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
         }
     }
 

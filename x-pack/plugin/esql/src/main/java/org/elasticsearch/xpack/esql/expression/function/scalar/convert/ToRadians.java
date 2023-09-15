@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
  * Converts from <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
-public class ToRadians extends AbstractConvertFunction implements Mappable {
+public class ToRadians extends AbstractConvertFunction implements EvaluatorMapper {
     private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
         Map.of(
             DOUBLE,

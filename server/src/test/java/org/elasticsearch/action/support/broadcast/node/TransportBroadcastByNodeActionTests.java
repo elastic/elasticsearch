@@ -90,6 +90,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -135,6 +136,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public String toString() {
+            return "testrequest" + Arrays.toString(indices);
         }
     }
 
@@ -397,6 +403,14 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
             // check one request was sent to each node
             assertEquals(1, entry.getValue().size());
+            assertThat(
+                entry.getValue().iterator().next().request().toString(),
+                allOf(
+                    containsString('[' + action.transportNodeBroadcastAction + ']'),
+                    containsString('[' + entry.getKey() + ']'),
+                    containsString("[testrequest[" + TEST_INDEX + "]]")
+                )
+            );
         }
 
         assertFalse(request.hasReferences());

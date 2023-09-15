@@ -41,10 +41,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class DriverContextTests extends ESTestCase {
 
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
     public void testEmptyFinished() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new AssertingDriverContext();
         driverContext.finish();
         assertTrue(driverContext.isFinished());
         var snapshot = driverContext.getSnapshot();
@@ -52,7 +52,7 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testAddByIdentity() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new AssertingDriverContext();
         ReleasablePoint point1 = new ReleasablePoint(1, 2);
         ReleasablePoint point2 = new ReleasablePoint(1, 2);
         assertThat(point1, equalTo(point2));
@@ -66,9 +66,11 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testAddFinish() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new AssertingDriverContext();
         int count = randomInt(128);
-        Set<Releasable> releasables = IntStream.range(0, count).mapToObj(i -> randomReleasable()).collect(toIdentitySet());
+        Set<Releasable> releasables = IntStream.range(0, count)
+            .mapToObj(i -> randomReleasable(driverContext.bigArrays()))
+            .collect(toIdentitySet());
         assertThat(releasables, hasSize(count));
 
         releasables.forEach(driverContext::addReleasable);
@@ -82,7 +84,7 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testRemoveAbsent() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new AssertingDriverContext();
         boolean removed = driverContext.removeReleasable(new NoOpReleasable());
         assertThat(removed, equalTo(false));
         driverContext.finish();
@@ -92,9 +94,11 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testAddRemoveFinish() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = new AssertingDriverContext();
         int count = randomInt(128);
-        Set<Releasable> releasables = IntStream.range(0, count).mapToObj(i -> randomReleasable()).collect(toIdentitySet());
+        Set<Releasable> releasables = IntStream.range(0, count)
+            .mapToObj(i -> randomReleasable(driverContext.bigArrays()))
+            .collect(toIdentitySet());
         assertThat(releasables, hasSize(count));
 
         releasables.forEach(driverContext::addReleasable);
@@ -107,12 +111,10 @@ public class DriverContextTests extends ESTestCase {
     }
 
     public void testMultiThreaded() throws Exception {
-        ExecutorService executor = threadPool.executor("esql_test_executor");
+        ExecutorService executor = threadPool.executor(ESQL_TEST_EXECUTOR);
 
         int tasks = randomIntBetween(4, 32);
-        List<TestDriver> testDrivers = IntStream.range(0, tasks)
-            .mapToObj(i -> new TestDriver(new AssertingDriverContext(), randomInt(128), bigArrays))
-            .toList();
+        List<TestDriver> testDrivers = IntStream.range(0, tasks).mapToObj(DriverContextTests::newTestDriver).toList();
         List<Future<Void>> futures = executor.invokeAll(testDrivers, 1, TimeUnit.MINUTES);
         assertThat(futures, hasSize(tasks));
         for (var fut : futures) {
@@ -133,8 +135,17 @@ public class DriverContextTests extends ESTestCase {
         finishedReleasables.stream().flatMap(Set::stream).forEach(Releasable::close);
     }
 
+    static TestDriver newTestDriver(int unused) {
+        var driverContext = new AssertingDriverContext();
+        return new TestDriver(driverContext, randomInt(128), driverContext.bigArrays());
+    }
+
     static class AssertingDriverContext extends DriverContext {
         volatile Thread thread;
+
+        AssertingDriverContext() {
+            super(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()));
+        }
 
         @Override
         public boolean addReleasable(Releasable releasable) {
@@ -217,10 +228,6 @@ public class DriverContextTests extends ESTestCase {
         return result;
     }
 
-    Releasable randomReleasable() {
-        return randomReleasable(bigArrays);
-    }
-
     static Releasable randomReleasable(BigArrays bigArrays) {
         return switch (randomInt(3)) {
             case 0 -> new NoOpReleasable();
@@ -265,7 +272,7 @@ public class DriverContextTests extends ESTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 

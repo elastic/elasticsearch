@@ -43,6 +43,9 @@ import static org.hamcrest.Matchers.startsWith;
  * shape of "single", "initial", "intermediate", and "final" modes.
  */
 public abstract class ForkingOperatorTestCase extends OperatorTestCase {
+
+    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
+
     protected abstract Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode);
 
     @Override
@@ -52,7 +55,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
@@ -76,7 +79,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testManyInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
@@ -97,7 +100,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialIntermediateFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
@@ -120,9 +123,10 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
@@ -159,7 +163,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 10000), listener);
+                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -181,7 +185,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner() {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor("esql_test_executor"), driver, between(1, 1000), listener);
+                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -200,10 +204,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
 
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
-        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(
-            randomIntBetween(1, 4),
-            threadPool.executor("esql_test_executor")
-        );
+        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 
         Iterator<? extends Operator> intermediateOperatorItr;
@@ -216,7 +217,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         for (List<Page> pages : splitInput) {
-            DriverContext driver1Context = new DriverContext();
+            DriverContext driver1Context = driverContext();
             drivers.add(
                 new Driver(
                     driver1Context,
@@ -233,7 +234,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 )
             );
         }
-        DriverContext driver2Context = new DriverContext();
+        DriverContext driver2Context = driverContext();
         drivers.add(
             new Driver(
                 driver2Context,
@@ -342,7 +343,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, "esql_test_executor", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
     }
 

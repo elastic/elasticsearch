@@ -96,7 +96,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 name,
                 new HistogramFieldType(context.buildFullName(name), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }
@@ -276,6 +276,11 @@ public class HistogramFieldMapper extends FieldMapper {
                 "[" + CONTENT_TYPE + "] field do not support searching, " + "use dedicated aggregations instead: [" + name() + "]"
             );
         }
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

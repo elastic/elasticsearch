@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -40,8 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -81,15 +80,15 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     public EsqlQueryResponse(StreamInput in) throws IOException {
         super(in);
-        this.columns = in.readList(ColumnInfo::new);
-        this.pages = in.readList(Page::new);
+        this.columns = in.readCollectionAsList(ColumnInfo::new);
+        this.pages = in.readCollectionAsList(Page::new);
         this.columnar = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(columns);
-        out.writeList(pages);
+        out.writeCollection(columns);
+        out.writeCollection(pages);
         out.writeBoolean(columnar);
     }
 
@@ -101,7 +100,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return pages;
     }
 
-    public List<List<Object>> values() {
+    public Iterator<Iterator<Object>> values() {
         return pagesToValues(columns.stream().map(ColumnInfo::type).toList(), pages);
     }
 
@@ -111,49 +110,55 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
-        BytesRef scratch = new BytesRef();
-        final Iterator<ToXContent> valuesIt;
+        final BytesRef scratch = new BytesRef();
+        final Iterator<? extends ToXContent> valuesIt;
         if (pages.isEmpty()) {
             valuesIt = Collections.emptyIterator();
         } else if (columnar) {
-            valuesIt = IntStream.range(0, columns().size()).mapToObj(column -> {
-                Stream<ToXContent> values = pages.stream().flatMap(page -> {
-                    ColumnInfo.PositionToXContent toXContent = columns.get(column).positionToXContent(page.getBlock(column), scratch);
-                    return IntStream.range(0, page.getPositionCount())
-                        .mapToObj(position -> (builder, params) -> toXContent.positionToXContent(builder, params, position));
-                });
-                return Stream.concat(
-                    Stream.of((builder, params) -> builder.startArray()),
-                    Stream.concat(values, Stream.of((builder, params) -> builder.endArray()))
-                );
-            }).flatMap(Function.identity()).iterator();
+            valuesIt = Iterators.flatMap(
+                Iterators.forRange(
+                    0,
+                    columns().size(),
+                    column -> Iterators.concat(
+                        Iterators.single(((builder, params) -> builder.startArray())),
+                        Iterators.flatMap(pages.iterator(), page -> {
+                            ColumnInfo.PositionToXContent toXContent = columns.get(column)
+                                .positionToXContent(page.getBlock(column), scratch);
+                            return Iterators.forRange(
+                                0,
+                                page.getPositionCount(),
+                                position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
+                            );
+                        }),
+                        ChunkedToXContentHelper.endArray()
+                    )
+                ),
+                Function.identity()
+            );
         } else {
-            valuesIt = pages.stream().flatMap(page -> {
-                List<ColumnInfo.PositionToXContent> toXContents = IntStream.range(0, page.getBlockCount())
-                    .mapToObj(column -> columns.get(column).positionToXContent(page.getBlock(column), scratch))
-                    .toList();
-                return IntStream.range(0, page.getPositionCount()).mapToObj(position -> (ToXContent) (builder, params) -> {
+            valuesIt = Iterators.flatMap(pages.iterator(), page -> {
+                final int columnCount = columns.size();
+                assert page.getBlockCount() == columnCount;
+                final ColumnInfo.PositionToXContent[] toXContents = new ColumnInfo.PositionToXContent[columnCount];
+                for (int column = 0; column < columnCount; column++) {
+                    toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
+                }
+                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                     builder.startArray();
-                    for (int c = 0; c < columns.size(); c++) {
-                        toXContents.get(c).positionToXContent(builder, params, position);
+                    for (int c = 0; c < columnCount; c++) {
+                        toXContents[c].positionToXContent(builder, params, position);
                     }
                     return builder.endArray();
                 });
-            }).iterator();
+            });
         }
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(), //
-            ChunkedToXContentHelper.singleChunk((builder, params) -> {
-                builder.startArray("columns");
-                for (ColumnInfo col : columns) {
-                    col.toXContent(builder, params);
-                }
-                builder.endArray();
-                return builder;
-            }),//
-            ChunkedToXContentHelper.array("values", valuesIt),//
-            ChunkedToXContentHelper.endObject()
-        );
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((builder, params) -> {
+            builder.startArray("columns");
+            for (ColumnInfo col : columns) {
+                col.toXContent(builder, params);
+            }
+            return builder.endArray();
+        }), ChunkedToXContentHelper.array("values", valuesIt), ChunkedToXContentHelper.endObject());
     }
 
     @Override
@@ -170,12 +175,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EsqlQueryResponse that = (EsqlQueryResponse) o;
-        return Objects.equals(columns, that.columns) && Objects.equals(values(), that.values()) && columnar == that.columnar;
+        return Objects.equals(columns, that.columns)
+            && columnar == that.columnar
+            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(columns, values(), columnar);
+        return Objects.hash(columns, Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)), columnar);
     }
 
     @Override
@@ -183,40 +190,33 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         return Strings.toString(ChunkedToXContent.wrapAsToXContent(this));
     }
 
-    public static List<List<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {
+    public static Iterator<Iterator<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {
         BytesRef scratch = new BytesRef();
-        List<List<Object>> result = new ArrayList<>();
-        for (Page page : pages) {
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                List<Object> row = new ArrayList<>(page.getBlockCount());
-                for (int b = 0; b < page.getBlockCount(); b++) {
-                    Block block = page.getBlock(b);
-                    if (block.isNull(p)) {
-                        row.add(null);
-                        continue;
-                    }
-                    /*
-                     * Use the ESQL data type to map to the output to make sure compute engine
-                     * respects its types. See the INTEGER clause where is doesn't always
-                     * respect it.
-                     */
-                    int count = block.getValueCount(p);
-                    int start = block.getFirstValueIndex(p);
-                    if (count == 1) {
-                        row.add(valueAt(dataTypes.get(b), block, start, scratch));
-                        continue;
-                    }
-                    List<Object> thisResult = new ArrayList<>(count);
-                    int end = count + start;
-                    for (int i = start; i < end; i++) {
-                        thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
-                    }
-                    row.add(thisResult);
+        return Iterators.flatMap(
+            pages.iterator(),
+            page -> Iterators.forRange(0, page.getPositionCount(), p -> Iterators.forRange(0, page.getBlockCount(), b -> {
+                Block block = page.getBlock(b);
+                if (block.isNull(p)) {
+                    return null;
                 }
-                result.add(row);
-            }
-        }
-        return result;
+                /*
+                 * Use the ESQL data type to map to the output to make sure compute engine
+                 * respects its types. See the INTEGER clause where is doesn't always
+                 * respect it.
+                 */
+                int count = block.getValueCount(p);
+                int start = block.getFirstValueIndex(p);
+                if (count == 1) {
+                    return valueAt(dataTypes.get(b), block, start, scratch);
+                }
+                List<Object> thisResult = new ArrayList<>(count);
+                int end = count + start;
+                for (int i = start; i < end; i++) {
+                    thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
+                }
+                return thisResult;
+            }))
+        );
     }
 
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
@@ -237,7 +237,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
-            default -> throw new UnsupportedOperationException("unsupported data type [" + dataType + "]");
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 
@@ -247,7 +247,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
      */
     private static Page valuesToPage(List<String> dataTypes, List<List<Object>> values) {
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromEs(c)).newBlockBuilder(values.size()))
+            .map(c -> LocalExecutionPlanner.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
             .toList();
 
         for (List<Object> row : values) {
@@ -270,7 +270,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
                     case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
-                    default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
+                    default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }
             }
         }

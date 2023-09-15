@@ -8,10 +8,61 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.time.DateTimeException;
+import java.time.temporal.TemporalAmount;
+
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
-public class Add {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
+
+    public Add(Source source, Expression left, Expression right) {
+        super(
+            source,
+            left,
+            right,
+            ADD,
+            AddIntsEvaluator::new,
+            AddLongsEvaluator::new,
+            AddUnsignedLongsEvaluator::new,
+            (s, l, r, dvrCtx) -> new AddDoublesEvaluator(l, r, dvrCtx),
+            AddDatetimesEvaluator::new
+        );
+    }
+
+    @Override
+    protected NodeInfo<Add> info() {
+        return NodeInfo.create(this, Add::new, left(), right());
+    }
+
+    @Override
+    protected Add replaceChildren(Expression left, Expression right) {
+        return new Add(source(), left, right);
+    }
+
+    @Override
+    public Add swapLeftAndRight() {
+        return new Add(source(), right(), left());
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Sub::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
+    }
+
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
         return Math.addExact(lhs, rhs);
@@ -30,5 +81,11 @@ public class Add {
     @Evaluator(extraName = "Doubles")
     static double processDoubles(double lhs, double rhs) {
         return lhs + rhs;
+    }
+
+    @Evaluator(extraName = "Datetimes", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
+        // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
+        return asMillis(asDateTime(datetime).plus(temporalAmount));
     }
 }

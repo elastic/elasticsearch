@@ -117,7 +117,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(limit.child(), Eval.class);
 
         assertEquals(1, eval.fields().size());
-        Alias eeField = (Alias) eval.fields().get(0);
+        Alias eeField = eval.fields().get(0);
         assertEquals("ee", eeField.name());
         assertEquals("e", ((ReferenceAttribute) eeField.child()).name());
 
@@ -212,13 +212,13 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep *
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
         assertProjectionTypes(
             """
                 from test
@@ -227,6 +227,8 @@ public class AnalyzerTests extends ESTestCase {
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
             DataTypes.TEXT,
+            DataTypes.TEXT,
+            DataTypes.KEYWORD,
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
             DataTypes.INTEGER
@@ -237,7 +239,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "gender", "languages", "salary", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary", "last_name");
     }
 
     public void testProjectThenDropName() {
@@ -269,21 +271,21 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
     }
 
     public void testProjectDropNoStarPattern() {
         assertProjection("""
             from test
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | keep *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "gender", "languages", "salary", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "gender", "job", "job.raw", "languages", "salary", "emp_no");
     }
 
     public void testProjectDropPatternAndKeepOthers() {
@@ -420,7 +422,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop *ala*
-            """, "_meta_field", "emp_no", "first_name", "gender", "languages", "last_name");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name");
     }
 
     public void testDropUnsupportedPattern() {
@@ -488,7 +490,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename emp_no as e, first_name as e
-            """, "_meta_field", "e", "gender", "languages", "last_name", "salary");
+            """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "salary");
     }
 
     public void testRenameUnsupportedField() {
@@ -948,29 +950,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(int, "1M")
-            """, "first argument of [date_trunc(int, \"1M\")] must be [datetime], found value [int] type [integer]");
+            | eval date_trunc("1M", int)
+            """, "first argument of [date_trunc(\"1M\", int)] must be [datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(float, "1M")
-            """, "first argument of [date_trunc(float, \"1M\")] must be [datetime], found value [float] type [double]");
+            | eval date_trunc("1M", float)
+            """, "first argument of [date_trunc(\"1M\", float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(keyword, "1M")
-            """, "first argument of [date_trunc(keyword, \"1M\")] must be [datetime], found value [keyword] type [keyword]");
+            | eval date_trunc("1M", keyword)
+            """, "first argument of [date_trunc(\"1M\", keyword)] must be [datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {
         verifyUnsupported("""
             from test
-            | eval date_trunc(date, 1)
-            """, "second argument of [date_trunc(date, 1)] must be [dateperiod or timeduration], found value [1] type [integer]");
+            | eval date_trunc(1, date)
+            """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+    }
+
+    public void testDateTruncWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_trunc(date, 1 month)
+            """, "function definition has been updated, please swap arguments in [date_trunc(date, 1 month)]");
     }
 
     public void testDateTruncWithDateInterval() {
@@ -1158,7 +1167,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, unsigned_long or version";
+        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, text, unsigned_long or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"

@@ -21,7 +21,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
 
     public static String simpleToJson() {
         return """
-            {"current_leaf":0,"total_leaves":1,"leaf_position":123,"leaf_size":99990,"pages_emitted":5}""";
+            {"processed_sliced":0,"total_slices":1,"slice_position":123,"slice_size":99990,"pages_emitted":5}""";
     }
 
     public void testToXContent() {
@@ -51,36 +51,36 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 randomValueOtherThan(instance.currentLeaf(), ESTestCase::randomNonNegativeInt),
                 instance.totalLeaves(),
                 instance.pagesEmitted(),
-                instance.leafPosition(),
-                instance.leafSize()
+                instance.slicePosition(),
+                instance.sliceSize()
             );
             case 1 -> new LuceneSourceOperator.Status(
                 instance.currentLeaf(),
                 randomValueOtherThan(instance.totalLeaves(), ESTestCase::randomNonNegativeInt),
                 instance.pagesEmitted(),
-                instance.leafPosition(),
-                instance.leafSize()
+                instance.slicePosition(),
+                instance.sliceSize()
             );
             case 2 -> new LuceneSourceOperator.Status(
                 instance.currentLeaf(),
                 instance.totalLeaves(),
                 randomValueOtherThan(instance.pagesEmitted(), ESTestCase::randomNonNegativeInt),
-                instance.leafPosition(),
-                instance.leafSize()
+                instance.slicePosition(),
+                instance.sliceSize()
             );
             case 3 -> new LuceneSourceOperator.Status(
                 instance.currentLeaf(),
                 instance.totalLeaves(),
                 instance.pagesEmitted(),
-                randomValueOtherThan(instance.leafPosition(), ESTestCase::randomNonNegativeInt),
-                instance.leafSize()
+                randomValueOtherThan(instance.slicePosition(), ESTestCase::randomNonNegativeInt),
+                instance.sliceSize()
             );
             case 4 -> new LuceneSourceOperator.Status(
                 instance.currentLeaf(),
                 instance.totalLeaves(),
                 instance.pagesEmitted(),
-                instance.leafPosition(),
-                randomValueOtherThan(instance.leafSize(), ESTestCase::randomNonNegativeInt)
+                instance.slicePosition(),
+                randomValueOtherThan(instance.sliceSize(), ESTestCase::randomNonNegativeInt)
             );
             default -> throw new UnsupportedOperationException();
         };

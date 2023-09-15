@@ -11,17 +11,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-
-import java.util.function.Supplier;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
  */
-public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements Mappable {
+public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements EvaluatorMapper {
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -29,7 +28,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected abstract Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval);
+    protected abstract ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval);
 
     @Override
     protected final TypeResolution resolveType() {
@@ -43,13 +42,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
     @Override
     public final Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override
-    public final Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        java.util.function.Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

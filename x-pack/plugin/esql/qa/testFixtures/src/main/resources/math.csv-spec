@@ -266,45 +266,44 @@ d: double | s:double
 ;
 
 log10ofNegative
-row d = -1.0 | eval s = is_nan(log10(d));
+row d = -1.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--1.0     | true
-;
-
-log10ofNan
-row d = 0.0/0.0 | eval s = is_nan(log10(d));
-
-d:double | s:boolean
-NaN      | true
+d:double | s:double
+-1.0     | null
 ;
 
 log10ofZero
-row d = 0.0 |eval s = is_infinite(log10(d));
+row d = 0.0 | eval s = log10(d);
+warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
-0.0     | true
+d:double | s:double
+0.0     | null
 ;
 
 log10ofNegativeZero
-row d = -0.0 |eval s = is_infinite(log10(d));
+row d = -0.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--0.0     | true
-;
-
-log10ofInfinite
-row d = 1/0.0 | eval s = is_infinite(log10(d));
-
-d:double | s:boolean
-Infinity | true
+d:double | s:double
+-0.0     | null
 ;
 
 log10ofLong
-row d = 10 | eval l = log10(10);
+row l = to_long(1000000000000) | eval s = log10(l);
 
-d:i | l:double
-10  | 1
+l:long         | s:double
+1000000000000  | 12
+;
+
+log10ofUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = log10(l);
+
+l:ul                  | s:double
+1000000000000000000   | 18
 ;
 
 powDoubleDouble
@@ -923,9 +922,23 @@ TAU():double
 // end::tau-result[]
 ;
 
+ceil
+// tag::ceil[]
+ROW a=1.8
+| EVAL a=CEIL(a)
+// end::ceil[]
+;
+
+// tag::ceil-result[]
+a:double
+2
+// end::ceil-result[]
+;
+
 floor
 // tag::floor[]
-ROW a=1.8 | EVAL a=FLOOR(a)
+ROW a=1.8
+| EVAL a=FLOOR(a)
 // end::floor[]
 ;
 
@@ -935,11 +948,48 @@ a:double
 // end::floor-result[]
 ;
 
+ceilFloorOfInfinite
+row i = 1.0/0.0 | eval c = ceil(i), f = floor(i);
+
+i:double | c:double | f:double
+Infinity | Infinity | Infinity
+;
+
+ceilFloorOfNegativeInfinite
+row i = -1.0/0.0 | eval c = ceil(i), f = floor(i);
+
+i:double  | c:double  | f:double
+-Infinity | -Infinity | -Infinity
+;
+
+
+ceilFloorOfInteger
+row i = 1 | eval c = ceil(i), f = floor(i);
+
+i:integer | c:integer | f:integer
+1         | 1         | 1
+;
+
+ceilFloorOfLong
+row i = to_long(1000000000000) | eval c = ceil(i), f = floor(i);
+
+i:long        | c:long        | f:long
+1000000000000 | 1000000000000 | 1000000000000
+;
+
+ceilFloorOfUnsignedLong
+row i = to_ul(1000000000000000000) | eval c = ceil(i), f = floor(i);
+
+i:ul                | c:ul                | f:ul
+1000000000000000000 | 1000000000000000000 | 1000000000000000000
+;
+
 sqrt
 // tag::sqrt[]
 ROW d = 100.0
-| EVAL s = SQRT(d);
+| EVAL s = SQRT(d)
 // end::sqrt[]
+;
 
 // tag::sqrt-result[]
 d: double | s:double
@@ -954,11 +1004,27 @@ i:integer | s:double
 81        | 9
 ;
 
-sqrtOfNegative
-row d = -1.0 | eval s = is_nan(sqrt(d));
+sqrtOfLong
+row l = to_long(1000000000000) | eval s = sqrt(l);
 
-d:double | s:boolean
--1.0     | true
+l:long            | s:double
+1000000000000     | 1000000
+;
+
+sqrtOfUnsignedLong
+row l = to_ul(1000000000000000000) | eval s = sqrt(l);
+
+l:ul                  | s:double
+1000000000000000000   | 1000000000
+;
+
+sqrtOfNegative
+row d = -1.0 | eval s = sqrt(d);
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Square root of negative
+
+d:double | s:double
+-1.0     | null
 ;
 
 sqrtOfNan
@@ -987,4 +1053,82 @@ row d = 1/0.0 | eval s = is_infinite(sqrt(d));
 
 d:double | s:boolean
 Infinity | true
+;
+
+least
+// tag::least[]
+ROW a = 10, b = 20
+| EVAL l = LEAST(a, b)
+// end::least[]
+;
+
+// tag::least-result[]
+a:integer | b:integer | l:integer
+       10 |        20 | 10
+// end::least-result[]
+;
+
+leastNull
+ROW l=LEAST(10, 5, null);
+
+l:integer
+null
+;
+
+leastMany
+ROW l=LEAST(10, 5, 1, -100, 0, 1234, -10000);
+
+l:integer
+-10000
+;
+
+
+greatest
+// tag::greatest[]
+ROW a = 10, b = 20
+| EVAL g = GREATEST(a, b)
+// end::greatest[]
+;
+
+// tag::greatest-result[]
+a:integer | b:integer | g:integer
+       10 |        20 | 20
+// end::greatest-result[]
+;
+
+greatestNull
+ROW g=GREATEST(10, 5, null);
+
+g:integer
+null
+;
+
+greatestMany
+ROW g=GREATEST(10, 5, 1, -100, 0, 1234, -10000);
+
+g:integer
+1234
+;
+
+greatestMv
+ROW g=GREATEST([10, 4], 1);
+
+g:integer
+10
+;
+
+leastGreatestMany
+FROM employees
+| EVAL min_plus_max = LEAST(languages, 2) + GREATEST(languages, 2),
+       are_equal = LEAST(languages, 2) + GREATEST(languages, 2) == languages * 2
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, min_plus_max, are_equal;
+
+emp_no:integer | min_plus_max:integer | are_equal:boolean
+         10001 |                    4 | true
+         10002 |                    7 | false
+         10003 |                    6 | false
+         10004 |                    7 | false
+         10005 |                    3 | false
 ;

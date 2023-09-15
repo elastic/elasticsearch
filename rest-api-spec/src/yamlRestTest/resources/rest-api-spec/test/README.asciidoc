@@ -605,3 +605,11 @@ This depends on the data type of the value being examined, eg:
     - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
     - length: { _source: 5 }   # the `_source` hash has 5 keys
 ....
+
+=== `exists`
+
+Checks if specified path exists with any value (empty string/list/object is permitted).
+
+....
+    - exists:  fields._source  # checks if the fields._source exist
+....

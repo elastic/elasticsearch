@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
@@ -79,7 +81,7 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, false)).toList();
+        return doMapping(aggregates, false);
     }
 
     public List<? extends NamedExpression> mapNonGrouping(Expression aggregate) {
@@ -87,7 +89,13 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, true)).toList();
+        return doMapping(aggregates, true);
+    }
+
+    private List<? extends NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
+        AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
+        aggregates.stream().flatMap(agg -> map(agg, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
+        return attrToExpressions.values().stream().toList();
     }
 
     public List<? extends NamedExpression> mapGrouping(Expression aggregate) {
@@ -110,7 +118,7 @@ public class AggregateMapper {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them
             return List.of();
         } else {
-            throw new UnsupportedOperationException("unknown: " + aggregate.getClass() + ": " + aggregate);
+            throw new EsqlIllegalArgumentException("unknown agg: " + aggregate.getClass() + ": " + aggregate);
         }
     }
 
@@ -118,7 +126,7 @@ public class AggregateMapper {
     private List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
         var l = mapper.get(aggDef);
         if (l == null) {
-            throw new AssertionError("Cannot find intermediate state for: " + aggDef);
+            throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
         }
         return l;
     }
@@ -156,7 +164,8 @@ public class AggregateMapper {
         try {
             return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
-            throw new AssertionError(t);
+            // invokeExact forces us to handle any Throwable thrown by lookup.
+            throw new EsqlIllegalArgumentException(t);
         }
     }
 
@@ -170,7 +179,7 @@ public class AggregateMapper {
                     MethodType.methodType(List.class)
                 );
         } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new AssertionError(e);
+            throw new EsqlIllegalArgumentException(e);
         }
     }
 
@@ -199,7 +208,7 @@ public class AggregateMapper {
             case INT -> DataTypes.INTEGER;
             case LONG -> DataTypes.LONG;
             case DOUBLE -> DataTypes.DOUBLE;
-            default -> throw new UnsupportedOperationException("unsupported agg type: " + elementType);
+            default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
@@ -219,7 +228,7 @@ public class AggregateMapper {
         } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
             return "BytesRef";
         } else {
-            throw new UnsupportedOperationException("unsupported agg type: " + type);
+            throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
         }
     }
 

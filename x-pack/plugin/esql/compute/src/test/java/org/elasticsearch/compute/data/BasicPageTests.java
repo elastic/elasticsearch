@@ -182,10 +182,10 @@ public class BasicPageTests extends SerializationTestCase {
             new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("Hello World"), positions))
         );
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeList(origPages);
+        out.writeCollection(origPages);
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
 
-        List<Page> deserPages = in.readList(new Page.PageReader());
+        List<Page> deserPages = in.readCollectionAsList(new Page.PageReader());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, unused -> deserPages);
     }
 

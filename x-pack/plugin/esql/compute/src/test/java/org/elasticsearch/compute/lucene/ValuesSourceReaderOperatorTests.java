@@ -18,6 +18,8 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.mockfile.HandleLimitFS;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
@@ -63,9 +65,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSearchContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Tests for {@link ValuesSourceReaderOperator}. Turns off {@link HandleLimitFS}
+ * because it can make a large number of documents and doesn't want to allow
+ * lucene to merge. It intentionally tries to create many files to make sure
+ * that {@link ValuesSourceReaderOperator} works with it.
+ */
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
     private static final boolean[][] BOOLEANS = new boolean[][] {
@@ -142,7 +152,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), OperatorTestCase.randomPageSize(), LuceneOperator.NO_LIMIT);
+        var luceneFactory = new LuceneSourceOperator.Factory(
+            List.of(mockSearchContext(reader)),
+            ctx -> new MatchAllDocsQuery(),
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT
+        );
+        return luceneFactory.get(driverContext());
     }
 
     @Override
@@ -208,7 +226,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void loadSimpleAndAssert(List<Page> input) {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(
@@ -372,11 +390,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reader = w.getReader();
         }
 
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
+        var luceneFactory = new LuceneSourceOperator.Factory(
+            List.of(mockSearchContext(reader)),
+            ctx -> new MatchAllDocsQuery(),
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT
+        );
         try (
             Driver driver = new Driver(
                 driverContext,
-                new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), LuceneOperator.NO_LIMIT),
+                luceneFactory.get(driverContext),
                 List.of(
                     factory(reader, CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(driverContext),
                     factory(reader, CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(driverContext),

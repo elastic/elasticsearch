@@ -148,14 +148,14 @@ public class ShardSplittingQueryTests extends ESTestCase {
 
     void assertSplit(Directory dir, IndexMetadata metadata, int targetShardId, boolean hasNested) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             searcher.setQueryCache(null);
             final Weight splitWeight = searcher.createWeight(
                 searcher.rewrite(new ShardSplittingQuery(metadata, targetShardId, hasNested)),
                 ScoreMode.COMPLETE_NO_SCORES,
                 1f
             );
-            final List<LeafReaderContext> leaves = reader.leaves();
+            final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);
                 DocIdSetIterator iterator = scorer.iterator();

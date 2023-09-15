@@ -10,9 +10,19 @@ package org.elasticsearch.xpack.esql.planner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -22,6 +32,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,16 +46,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -51,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
@@ -73,6 +78,7 @@ public class EvalMapperTests extends ESTestCase {
             new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Neg(Source.EMPTY, DOUBLE1),
             new Abs(Source.EMPTY, DOUBLE1),
             new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
@@ -101,7 +107,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, DATE, dateInterval) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 
@@ -118,15 +124,15 @@ public class EvalMapperTests extends ESTestCase {
 
     public void testEvaluatorSuppliers() {
         Layout.Builder lb = new Layout.Builder();
-        lb.appendChannel(DOUBLE1.id());
-        lb.appendChannel(DOUBLE2.id());
-        lb.appendChannel(DATE.id());
-        lb.appendChannel(LONG.id());
+        lb.append(DOUBLE1);
+        lb.append(DOUBLE2);
+        lb.append(DATE);
+        lb.append(LONG);
         Layout layout = lb.build();
 
-        Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
+        var supplier = EvalMapper.toEvaluator(expression, layout);
+        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
+        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);
@@ -139,5 +145,11 @@ public class EvalMapperTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+        );
     }
 }

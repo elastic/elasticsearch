@@ -27,10 +27,12 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - ':Delivery/Packaging'
           black-list-labels:
             - '>test-mute'
+            - 'buildkite-opt-in'
     axes:
       - axis:
           type: label-expression

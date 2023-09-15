@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -49,7 +50,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -97,18 +97,20 @@ public class EnrichLookupService {
     private final SearchService searchService;
     private final TransportService transportService;
     private final Executor executor;
+    private final BigArrays bigArrays;
 
-    public EnrichLookupService(ClusterService clusterService, SearchService searchService, TransportService transportService) {
+    public EnrichLookupService(
+        ClusterService clusterService,
+        SearchService searchService,
+        TransportService transportService,
+        BigArrays bigArrays
+    ) {
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
-        transportService.registerRequestHandler(
-            LOOKUP_ACTION_NAME,
-            EsqlPlugin.ESQL_THREAD_POOL_NAME,
-            LookupRequest::new,
-            new TransportHandler()
-        );
+        this.bigArrays = bigArrays;
+        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
     }
 
     public void lookupAsync(
@@ -146,11 +148,7 @@ public class EnrichLookupService {
                 lookupRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener.map(r -> r.page),
-                    LookupResponse::new,
-                    TransportResponseHandler.TRANSPORT_WORKER
-                )
+                new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
             );
         }
     }
@@ -181,7 +179,7 @@ public class EnrichLookupService {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
                     yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
                 }
-                default -> throw new UnsupportedOperationException("unsupported match type " + matchType);
+                default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
@@ -210,11 +208,12 @@ public class EnrichLookupService {
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
             Driver driver = new Driver(
                 "enrich-lookup:" + sessionId,
-                new DriverContext(),
+                new DriverContext(bigArrays),
                 () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
                 queryOperator,
                 intermediateOperators,
                 outputOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
                 searchContext
             );
             task.addListener(() -> {
@@ -297,7 +296,7 @@ public class EnrichLookupService {
             this.matchField = in.readString();
             this.inputPage = new Page(in);
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
-            this.extractFields = planIn.readList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
+            this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
 
         @Override

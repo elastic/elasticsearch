@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
 module org.elasticsearch.server {
@@ -170,6 +171,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.routing.allocation.command;
     exports org.elasticsearch.cluster.routing.allocation.decider;
     exports org.elasticsearch.cluster.service;
+    exports org.elasticsearch.cluster.version;
     exports org.elasticsearch.common;
     exports org.elasticsearch.common.blobstore;
     exports org.elasticsearch.common.blobstore.fs;
@@ -371,7 +373,12 @@ module org.elasticsearch.server {
 
     exports org.elasticsearch.action.datastreams.lifecycle;
     exports org.elasticsearch.action.downsample;
-    exports org.elasticsearch.plugins.internal to org.elasticsearch.metering, org.elasticsearch.settings.secure;
+    exports org.elasticsearch.plugins.internal
+        to
+            org.elasticsearch.metering,
+            org.elasticsearch.settings.secure,
+            org.elasticsearch.serverless.constants,
+            org.elasticsearch.serverless.apifiltering;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -386,6 +393,8 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.plugins.internal.SettingsExtension;
+    uses RestExtension;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

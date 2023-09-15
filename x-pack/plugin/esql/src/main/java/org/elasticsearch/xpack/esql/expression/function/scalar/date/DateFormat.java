@@ -11,8 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -36,7 +35,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class DateFormat extends ConfigurationFunction implements OptionalArgument, Mappable {
+public class DateFormat extends ConfigurationFunction implements OptionalArgument, EvaluatorMapper {
 
     private final Expression field;
     private final Expression format;
@@ -79,7 +78,7 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "Constant")
@@ -93,22 +92,25 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
+            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
-            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), formatter);
+            return dvrCtx -> new DateFormatConstantEvaluator(fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
         }
-        Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
-        return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get(), ((EsqlConfiguration) configuration()).locale());
+        var formatEvaluator = toEvaluator.apply(format);
+        return dvrCtx -> new DateFormatEvaluator(
+            fieldEvaluator.get(dvrCtx),
+            formatEvaluator.get(dvrCtx),
+            ((EsqlConfiguration) configuration()).locale(),
+            dvrCtx
+        );
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
@@ -128,6 +130,6 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

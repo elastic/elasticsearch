@@ -42,12 +42,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
-import org.elasticsearch.search.query.QueryPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -489,10 +487,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private void doAggregationPostCollection(Collector collector) throws IOException {
-        if (collector instanceof QueryPhaseCollector queryPhaseCollector) {
-            queryPhaseCollector.doPostCollection();
-        } else if (collector instanceof InternalProfileCollector profilerCollector) {
-            profilerCollector.doPostCollection();
+        if (collector instanceof TwoPhaseCollector twoPhaseCollector) {
+            twoPhaseCollector.doPostCollection();
         }
     }
 

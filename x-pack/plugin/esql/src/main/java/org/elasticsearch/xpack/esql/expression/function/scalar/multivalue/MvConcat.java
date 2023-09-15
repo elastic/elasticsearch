@@ -13,7 +13,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -23,14 +24,13 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
-public class MvConcat extends BinaryScalarFunction implements Mappable {
+public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     public MvConcat(Source source, Expression field, Expression delim) {
         super(source, field, delim);
     }
@@ -55,17 +55,15 @@ public class MvConcat extends BinaryScalarFunction implements Mappable {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEval = toEvaluator.apply(left());
-        Supplier<EvalOperator.ExpressionEvaluator> delimEval = toEvaluator.apply(right());
-        return () -> new MvConcatEvaluator(fieldEval.get(), delimEval.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEval = toEvaluator.apply(left());
+        var delimEval = toEvaluator.apply(right());
+        return dvrCtx -> new MvConcatEvaluator(fieldEval.get(dvrCtx), delimEval.get(dvrCtx));
     }
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override

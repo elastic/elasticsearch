@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -24,6 +25,7 @@ import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
@@ -74,13 +76,16 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        return client().execute(EsqlQueryAction.INSTANCE, request).actionGet();
+        try {
+            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new AssertionError("timeout", e);
+        }
     }
 
     protected static QueryPragmas randomPragmas() {
         Settings.Builder settings = Settings.builder();
-        // pragmas are only enabled on snapshot builds
-        if (Build.current().isSnapshot()) {
+        if (canUseQueryPragmas()) {
             if (randomBoolean()) {
                 settings.put("task_concurrency", randomLongBetween(1, 10));
             }
@@ -112,4 +117,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return new QueryPragmas(settings.build());
     }
 
+    protected static boolean canUseQueryPragmas() {
+        return Build.current().isSnapshot();
+    }
 }

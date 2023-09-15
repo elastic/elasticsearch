@@ -14,6 +14,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -27,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class ValueSources {
+
+    public static final String MATCH_ONLY_TEXT = "match_only_text";
 
     private ValueSources() {}
 
@@ -46,18 +49,22 @@ public final class ValueSources {
                 continue; // the field does not exist in this context
             }
 
-            // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
-            // for the field type name to avoid adding a dependency to the module
-            if (fieldType instanceof TextFieldMapper.TextFieldType || "match_only_text".equals(fieldType.typeName())) {
-                ValuesSource vs = textValueSource(ctx, fieldType);
-                sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
-                continue;
-            }
+            if (fieldType.hasDocValues() == false) {
+                // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
+                // for the field type name to avoid adding a dependency to the module
+                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType
+                    || fieldType instanceof TextFieldMapper.TextFieldType
+                    || MATCH_ONLY_TEXT.equals(fieldType.typeName())) {
+                    ValuesSource vs = textValueSource(ctx, fieldType);
+                    sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
+                    continue;
+                }
 
-            if (IdFieldMapper.NAME.equals(fieldType.name())) {
-                ValuesSource vs = new IdValueSource(new IdFieldIndexFieldData(CoreValuesSourceType.KEYWORD));
-                sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
-                continue;
+                if (IdFieldMapper.NAME.equals(fieldType.name())) {
+                    ValuesSource vs = new IdValueSource(new IdFieldIndexFieldData(CoreValuesSourceType.KEYWORD));
+                    sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));
+                    continue;
+                }
             }
 
             IndexFieldData<?> fieldData;

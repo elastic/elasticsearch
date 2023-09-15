@@ -31,8 +31,11 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'build-benchmark'
+          black-list-labels:
+            - 'buildkite-opt-in'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

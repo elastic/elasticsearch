@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.esql.expression.function.Named;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
@@ -47,31 +50,35 @@ public class ShowFunctions extends LeafPlan {
         for (var def : functionRegistry.listFunctions(null)) {
             List<Object> row = new ArrayList<>();
             row.add(asBytesRefOrNull(def.name()));
-
-            var constructors = def.clazz().getConstructors();
-            StringBuilder sb = new StringBuilder(def.name());
-            sb.append('(');
-            if (constructors.length > 0) {
-                var params = constructors[0].getParameters(); // no multiple c'tors supported
-                for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-                    if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                        if (i > 1) {
-                            sb.append(", ");
-                        }
-                        sb.append(params[i].getName());
-                        if (List.class.isAssignableFrom(params[i].getType())) {
-                            sb.append("...");
-                        }
-                    }
-                }
-            }
-            sb.append(')');
-            row.add(asBytesRefOrNull(sb.toString()));
-
+            row.add(new BytesRef(def.name() + "(" + signature(def).stream().collect(Collectors.joining(", ")) + ")"));
             rows.add(row);
         }
         rows.sort(Comparator.comparing(x -> ((BytesRef) x.get(0))));
         return rows;
+    }
+
+    /**
+     * Render the function's signature to a string.
+     */
+    public static List<String> signature(FunctionDefinition def) {
+        var constructors = def.clazz().getConstructors();
+        if (constructors.length == 0) {
+            return List.of();
+        }
+        var params = constructors[0].getParameters(); // no multiple c'tors supported
+        List<String> args = new ArrayList<>(params.length);
+        for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+            if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                Named namedAnn = params[i].getAnnotation(Named.class);
+                String name = namedAnn == null ? params[i].getName() : namedAnn.value();
+
+                if (List.class.isAssignableFrom(params[i].getType())) {
+                    name = name + "...";
+                }
+                args.add(name);
+            }
+        }
+        return args;
     }
 
     private static BytesRef asBytesRefOrNull(String string) {

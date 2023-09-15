@@ -16,7 +16,6 @@ import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -137,7 +136,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
             """));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
-            SearchExecutionContext searcherContext = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
+            SearchExecutionContext searcherContext = createSearchExecutionContext(mapperService, newSearcher(ir));
             Query query = combinedFieldsQuery("quick fox").field("field*").toQuery(searcherContext);
             assertThat(query, instanceOf(BooleanQuery.class));
 

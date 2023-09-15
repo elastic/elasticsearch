@@ -11,12 +11,14 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -25,19 +27,19 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
  * Function returning the first non-null value.
  */
-public class Coalesce extends ScalarFunction implements Mappable {
+public class Coalesce extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Coalesce(Source source, List<Expression> expressions) {
-        super(source, expressions);
+    public Coalesce(Source source, Expression first, List<Expression> rest) {
+        super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
     @Override
@@ -91,17 +93,17 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Coalesce(source(), newChildren);
+        return new Coalesce(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Coalesce::new, children());
+        return NodeInfo.create(this, Coalesce::new, children().get(0), children().subList(1, children().size()));
     }
 
     @Override
@@ -111,17 +113,14 @@ public class Coalesce extends ScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return Mappable.super.fold();
+        return EvaluatorMapper.super.fold();
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> evaluatorSuppliers = children().stream().map(toEvaluator).toList();
-        return () -> new CoalesceEvaluator(
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return dvrCxt -> new CoalesceEvaluator(
             LocalExecutionPlanner.toElementType(dataType()),
-            evaluatorSuppliers.stream().map(Supplier::get).toList()
+            children().stream().map(toEvaluator).map(x -> x.get(dvrCxt)).toList()
         );
     }
 
@@ -157,6 +156,11 @@ public class Coalesce extends ScalarFunction implements Mappable {
                 result.appendNull();
             }
             return result.build();
+        }
+
+        @Override
+        public String toString() {
+            return "CoalesceEvaluator[values=" + evaluators + ']';
         }
     }
 }

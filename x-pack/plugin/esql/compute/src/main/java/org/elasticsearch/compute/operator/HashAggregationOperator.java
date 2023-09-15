@@ -14,9 +14,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
@@ -40,7 +39,7 @@ public class HashAggregationOperator implements Operator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize), driverContext);
+            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize, false), driverContext);
         }
 
         @Override
@@ -97,8 +96,8 @@ public class HashAggregationOperator implements Operator {
 
         blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
             @Override
-            public void add(int positionOffset, LongBlock groupIds) {
-                LongVector groupIdsVector = groupIds.asVector();
+            public void add(int positionOffset, IntBlock groupIds) {
+                IntVector groupIdsVector = groupIds.asVector();
                 if (groupIdsVector != null) {
                     add(positionOffset, groupIdsVector);
                 } else {
@@ -109,7 +108,7 @@ public class HashAggregationOperator implements Operator {
             }
 
             @Override
-            public void add(int positionOffset, LongVector groupIds) {
+            public void add(int positionOffset, IntVector groupIds) {
                 for (GroupingAggregatorFunction.AddInput p : prepared) {
                     p.add(positionOffset, groupIds);
                 }

@@ -1069,6 +1069,17 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
             assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
         }
+
+        {
+            // the copy constructor rejects self-references
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            List<Object> someList = new ArrayList<>();
+            someList.add("some string");
+            someList.add(someList); // the list contains itself
+            ingestDocument.setFieldValue("someList", someList);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+        }
     }
 
     public void testCopyConstructorWithZonedDateTime() {
@@ -1157,5 +1168,17 @@ public class IngestDocumentTests extends ESTestCase {
         // an index cycle cannot be introduced, however
         assertFalse(ingestDocument.updateIndexHistory(index1));
         assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
+
+    public void testEqualsAndHashCodeWithArray() {
+        // Test that equality still works when the ingest document uses primitive arrays,
+        // since normal .equals() methods would not work for Maps containing these arrays.
+        byte[] numbers = new byte[] { 0, 1, 2 };
+        ingestDocument.setFieldValue("some.nested.array", numbers);
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        byte[] copiedNumbers = copy.getFieldValue("some.nested.array", byte[].class);
+        assertArrayEquals(numbers, copiedNumbers);
+        assertNotEquals(numbers, copiedNumbers);
+        assertThat(copy, equalTo(ingestDocument));
     }
 }

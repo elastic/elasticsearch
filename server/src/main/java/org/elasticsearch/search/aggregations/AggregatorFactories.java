@@ -303,8 +303,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
-            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteableCollection(this.aggregationBuilders);
+            out.writeNamedWriteableCollection(this.pipelineAggregatorBuilders);
         }
 
         public boolean mustVisitAllDocs() {

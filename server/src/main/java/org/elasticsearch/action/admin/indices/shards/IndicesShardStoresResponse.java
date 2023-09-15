@@ -245,8 +245,10 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
-        storeStatuses = in.readImmutableMap(i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new)));
-        failures = in.readImmutableList(Failure::readFailure);
+        storeStatuses = in.readImmutableMap(
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readCollectionAsImmutableList(StoreStatus::new))
+        );
+        failures = in.readCollectionAsImmutableList(Failure::readFailure);
     }
 
     /**
@@ -267,12 +269,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(
-            storeStatuses,
-            StreamOutput::writeString,
-            (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection)
-        );
-        out.writeList(failures);
+        out.writeMap(storeStatuses, (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection));
+        out.writeCollection(failures);
     }
 
     @Override

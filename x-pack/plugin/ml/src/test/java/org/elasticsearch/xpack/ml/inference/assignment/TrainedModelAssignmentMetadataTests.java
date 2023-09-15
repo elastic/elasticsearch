@@ -113,7 +113,9 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomFrom(Priority.values())
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 }

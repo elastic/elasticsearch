@@ -230,13 +230,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 )
             );
         }
-        {
-            Exception e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector")))
-            );
-            assertThat(e.getMessage(), equalTo("Failed to parse mapping: Missing required parameter [dims] for field [field]"));
-        }
     }
 
     public void testDefaults() throws Exception {
@@ -998,6 +991,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     b.field("ef_construction", 50);
                     b.endObject();
                 }
+            } else {
+                b.field("index", false);
             }
         }
 

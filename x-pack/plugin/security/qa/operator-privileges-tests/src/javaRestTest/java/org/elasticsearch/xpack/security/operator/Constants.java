@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.operator;
 
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -132,6 +130,9 @@ public class Constants {
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
         "cluster:admin/xpack/enrich/reindex",
+        "cluster:admin/xpack/inference/delete",
+        "cluster:admin/xpack/inference/get",
+        "cluster:admin/xpack/inference/put",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
         "cluster:admin/xpack/license/feature_usage",
@@ -320,6 +321,7 @@ public class Constants {
         "cluster:monitor/xpack/enrich/stats",
         "cluster:monitor/xpack/eql/stats/dist",
         "cluster:monitor/xpack/esql/stats/dist",
+        "cluster:monitor/xpack/inference",
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
         "cluster:monitor/xpack/info/analytics",
@@ -431,10 +433,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/delete" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/get" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/put" : null,
-        DataStreamLifecycle.isFeatureEnabled() ? "indices:admin/data_stream/lifecycle/explain" : null,
+        "indices:admin/data_stream/lifecycle/delete",
+        "indices:admin/data_stream/lifecycle/get",
+        "indices:admin/data_stream/lifecycle/put",
+        "indices:admin/data_stream/lifecycle/explain",
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",

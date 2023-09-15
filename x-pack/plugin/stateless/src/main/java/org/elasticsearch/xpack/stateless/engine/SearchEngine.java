@@ -28,7 +28,7 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -84,7 +84,7 @@ import java.util.stream.Collectors;
  */
 public class SearchEngine extends Engine {
 
-    private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
+    private final Map<Long, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
     private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
@@ -692,7 +692,7 @@ public class SearchEngine extends Engine {
             }
 
             // register this listener before checking current state again
-            segmentGenerationListeners.computeIfAbsent(minGeneration, ignored -> new ListenableActionFuture<>()).addListener(listener);
+            segmentGenerationListeners.computeIfAbsent(minGeneration, ignored -> new SubscribableListener<>()).addListener(listener);
 
             // current state may have moved forwards in the meantime, in which case we must undo what we just did
             final long currentGeneration = getCurrentGeneration();

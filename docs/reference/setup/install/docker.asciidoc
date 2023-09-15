@@ -167,10 +167,18 @@ cosign verify --key cosign.pub {kib-docker-image}
 
 . Start a {kib} container.
 +
+--
+ifeval::["{version}"=="8.10.0"]
+IMPORTANT: {kib} 8.10.0 has been withdrawn.
+endif::[]
+
+ifeval::["{version}"!="8.10.0"]
 [source,sh,subs="attributes"]
 ----
 docker run --name kib01 --net elastic -p 5601:5601 {kib-docker-image}
 ----
+endif::[]
+--
 
 . When {kib} starts, it outputs a unique generated link to the terminal. To
 access {kib}, open this link in a web browser.

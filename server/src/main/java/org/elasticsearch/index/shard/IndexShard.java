@@ -970,7 +970,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update, operation.parsedDoc().getMappingUpdateMappingVersion(), operation.parsedDoc().id());
+                return new Engine.IndexResult(update, operation.parsedDoc().getTotalFieldsCountBeforeUpdate(), operation.parsedDoc().id());
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure

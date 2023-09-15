@@ -450,7 +450,7 @@ public abstract class Engine implements Closeable {
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
         private final Mapping requiredMappingUpdate;
-        private long mappingUpdateMappingVersion;
+        private final long totalFieldsCountBeforeUpdate;
         private final String id;
         private Translog.Location translogLocation;
         private long took;
@@ -464,7 +464,7 @@ public abstract class Engine implements Closeable {
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
             this.id = id;
-            this.mappingUpdateMappingVersion = -1;
+            this.totalFieldsCountBeforeUpdate = -1;
         }
 
         protected Result(Operation.TYPE operationType, long version, long term, long seqNo, String id) {
@@ -476,17 +476,17 @@ public abstract class Engine implements Closeable {
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
             this.id = id;
-            this.mappingUpdateMappingVersion = -1;
+            this.totalFieldsCountBeforeUpdate = -1;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, long mappingUpdateMappingVersion, String id) {
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, long totalFieldsCountBeforeUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
             this.term = UNASSIGNED_PRIMARY_TERM;
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
-            this.mappingUpdateMappingVersion = mappingUpdateMappingVersion;
+            this.totalFieldsCountBeforeUpdate = totalFieldsCountBeforeUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
             this.id = id;
         }
@@ -522,8 +522,8 @@ public abstract class Engine implements Closeable {
             return requiredMappingUpdate;
         }
 
-        public long getMappingUpdateMappingVersion() {
-            return mappingUpdateMappingVersion;
+        public long getTotalFieldsCountBeforeUpdate() {
+            return totalFieldsCountBeforeUpdate;
         }
 
         /** get the translog location after executing the operation */
@@ -597,8 +597,8 @@ public abstract class Engine implements Closeable {
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate, long mappingUpdateMappingVersion, String id) {
-            super(Operation.TYPE.INDEX, requiredMappingUpdate, mappingUpdateMappingVersion, id);
+        public IndexResult(Mapping requiredMappingUpdate, long totalFieldsCountBeforeUpdate, String id) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate, totalFieldsCountBeforeUpdate, id);
             this.created = false;
         }
 

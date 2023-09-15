@@ -48,11 +48,11 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -105,8 +104,6 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
-
-    private static Object COUNT_ALL_MARKER = new Object();
 
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -186,6 +183,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof EsStatsQueryExec statsQuery) {
+            return planEsStats(statsQuery, context);
         } else if (node instanceof RowExec row) {
             return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -210,50 +209,8 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
-        var child = aggregate.child();
-        PhysicalOperation operation;
-        // optimize Lucene count
-        if (child instanceof EsQueryExec queryExec) {
-            var target = nonGroupedCountTarget(aggregate);
-            if (target != null) {
-                return luceneCount(context, target instanceof String ? target.toString() : null);
-            }
-        }
-
-        var source = plan(child, context);
-        operation = physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
-        return operation;
-    }
-
-    /**
-     * Returns the target count - null if it doesn't apply, Boolean.TRUE for count all or a String representing the underlying field name.
-     *
-     * TODO: need to handle runtime fields
-     */
-    private Object nonGroupedCountTarget(AggregateExec aggregate) {
-        if (aggregate.groupings().isEmpty()) {
-            var aggs = aggregate.aggregates();
-            if (aggs.size() == 1) {
-                var agg = aggs.get(0);
-                if (agg instanceof Alias as && as.child() instanceof Count count) {
-                    var expression = count.field();
-                    // if the count points to an actual field, push it down
-                    if (expression instanceof FieldAttribute fa) {
-                        return fa.name();
-                    }
-                    // literal means count all
-                    if (expression.foldable()) {
-                        return Boolean.TRUE;
-                    }
-                }
-            }
-        }
-        // count cannot be pushed
-        return null;
-    }
-
-    private PhysicalOperation luceneCount(LocalExecutionPlannerContext context, String fieldName) {
-        throw new UnsupportedOperationException();
+        var source = plan(aggregate.child(), context);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
@@ -269,6 +226,10 @@ public class LocalExecutionPlanner {
             );
         }
         return physicalOperationProviders.sourcePhysicalOperation(esQuery, context);
+    }
+
+    private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
+        throw new UnsupportedOperationException();
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {

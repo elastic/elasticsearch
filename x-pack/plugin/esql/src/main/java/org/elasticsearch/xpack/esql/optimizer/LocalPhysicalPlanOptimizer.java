@@ -11,11 +11,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -27,11 +30,14 @@ import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -48,6 +54,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,6 +65,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -90,6 +98,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushStatsToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -289,6 +298,65 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
+        }
+    }
+
+    /**
+     * Looks for the case where certain stats exist right before the query and thus can be pushed down.
+     */
+    private static class PushStatsToSource extends OptimizerRule<AggregateExec> {
+
+        @SuppressWarnings("unchecked")
+        @Override
+        protected PhysicalPlan rule(AggregateExec aggregateExec) {
+            PhysicalPlan plan = aggregateExec;
+            if (aggregateExec.child() instanceof EsQueryExec queryExec) {
+                List<?>[] lists = pushableStats(aggregateExec);
+
+                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
+                if (lists[0].size() == aggregateExec.aggregates().size()) {
+                    plan = new EsStatsQueryExec(
+                        aggregateExec.source(),
+                        queryExec.index(),
+                        queryExec.query(),
+                        queryExec.limit(),
+                        (List<Attribute>) lists[0],
+                        (List<Stat>) lists[1]
+                    );
+                }
+            }
+            return plan;
+        }
+
+        @SuppressWarnings("rawtypes")
+        private List[] pushableStats(AggregateExec aggregate) {
+            AttributeMap<Stat> stats = new AttributeMap<>();
+            var lists = new List[] { new ArrayList<Attribute>(), new ArrayList<Stat>() };
+
+            if (aggregate.groupings().isEmpty()) {
+                for (NamedExpression agg : aggregate.aggregates()) {
+                    var attribute = agg.toAttribute();
+                    Stat stat = stats.computeIfAbsent(attribute, a -> {
+                        if (agg instanceof Alias as) {
+                            Expression child = as.child();
+                            if (child instanceof Count count) {
+                                var target = count.field();
+                                // TODO: add count over field (has to be field attribute)
+                                if (target.foldable()) {
+                                    return new Stat(StringUtils.WILDCARD, COUNT);
+                                }
+                            }
+                        }
+                        return null;
+                    });
+                    if (stat != null) {
+                        lists[0].add(attribute);
+                        lists[1].add(stat);
+                    }
+                }
+            }
+
+            return lists;
         }
     }
 

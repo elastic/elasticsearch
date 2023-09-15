@@ -66,8 +66,9 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     public void testNoLengthToString() {
         assertThat(
-            evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get()
-                .toString(),
+            evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get(
+                driverContext()
+            ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
     }
@@ -135,7 +136,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 new Literal(Source.EMPTY, start, DataTypes.INTEGER),
                 length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
             )
-        ).get().eval(row(List.of(new BytesRef(str))));
+        ).get(driverContext()).eval(row(List.of(new BytesRef(str))));
         return result == null ? null : ((BytesRef) toJavaObject(result, 0)).utf8ToString();
     }
 

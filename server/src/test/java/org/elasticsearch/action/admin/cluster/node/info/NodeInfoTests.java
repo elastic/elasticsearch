@@ -38,6 +38,7 @@ public class NodeInfoTests extends ESTestCase {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
+            IndexVersion.current(),
             Build.current(),
             DiscoveryNodeUtils.builder("test_node")
                 .roles(emptySet())

@@ -200,7 +200,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
     private String process(String str, int length) {
         Block result = evaluator(
             new Right(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
-        ).get().eval(row(List.of(new BytesRef(str))));
+        ).get(driverContext()).eval(row(List.of(new BytesRef(str))));
         if (null == result) {
             return null;
         }

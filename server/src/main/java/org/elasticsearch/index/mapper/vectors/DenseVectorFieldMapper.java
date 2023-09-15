@@ -667,13 +667,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             float score(float similarity, ElementType elementType, int dim) {
                 return switch (elementType) {
-                    case BYTE, FLOAT -> {
-                        if (similarity < 1) {
-                            yield -1 * (1f / similarity - 1);
-                        } else {
-                            yield similarity - 1f;
-                        }
-                    }
+                    case BYTE, FLOAT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
                 };
             }
         };

@@ -58,7 +58,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
 
     ClusterState execute(ClusterState state) {
         LOGGER.trace(
-            "Updating cluster state to replace index [{}] with [{}] in data stream [{}]",
+            "Updating cluster state to replace and delete index [{}] with [{}] in data stream [{}]",
             sourceBackingIndex,
             downsampleIndex,
             dataStreamName
@@ -67,7 +67,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
         if (downsampleIndexMeta == null) {
             // the downsample index doesn't exist anymore so nothing to replace here
             LOGGER.trace(
-                "Received request replace index [{}] with [{}] in data stream [{}] but the replacement index [{}] doesn't exist."
+                "Received request to replace index [{}] with [{}] in data stream [{}] but the replacement index [{}] doesn't exist."
                     + "Nothing to do here.",
                 sourceBackingIndex,
                 downsampleIndex,

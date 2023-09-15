@@ -36,10 +36,11 @@ public class DeleteSourceAndAddDownsampleIndexExecutor extends SimpleBatchedExec
     @Override
     public void taskSucceeded(DeleteSourceAndAddDownsampleToDS task, Void unused) {
         LOGGER.trace(
-            "Updated cluster state and replaced index [{}] with index [{}] in data stream [{}]",
+            "Updated cluster state and replaced index [{}] with index [{}] in data stream [{}]. Index [{}] was deleted",
             task.getSourceBackingIndex(),
             task.getDownsampleIndex(),
-            task.getDataStreamName()
+            task.getDataStreamName(),
+            task.getSourceBackingIndex()
         );
         task.getListener().onResponse(null);
     }

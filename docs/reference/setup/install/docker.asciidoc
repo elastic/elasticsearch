@@ -143,11 +143,6 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_c
 [[run-kibana-docker]]
 ===== Run {kib}
 
-ifeval::["{version}"=="8.10.0"]
-IMPORTANT: {kib} 8.10.0 has been withdrawn.
-endif::[]
-
-ifeval::["{version}"!="8.10.0"]
 . Pull the {kib} Docker image.
 +
 --
@@ -176,7 +171,6 @@ cosign verify --key cosign.pub {kib-docker-image}
 ----
 docker run --name kib01 --net elastic -p 5601:5601 {kib-docker-image}
 ----
-endif::[]
 
 . When {kib} starts, it outputs a unique generated link to the terminal. To
 access {kib}, open this link in a web browser.
@@ -233,11 +227,6 @@ lets you start multiple containers with a single command.
 
 ===== Configure and start the cluster
 
-ifeval::["{version}"=="8.10.0"]
-IMPORTANT: {kib} 8.10.0 has been withdrawn.
-endif::[]
-
-ifeval::["{version}"!="8.10.0"]
 . Install Docker Compose. Visit the
 https://docs.docker.com/compose/install/[Docker Compose docs] to install Docker
 Compose for your environment.
@@ -308,7 +297,6 @@ access {kib}.
 
 . Log in to {kib} as the `elastic` user using the `ELASTIC_PASSWORD` you set
 earlier.
-endif::[]
 
 ===== Stop and remove the cluster
 To stop the cluster, run `docker-compose down`. The data in the Docker volumes

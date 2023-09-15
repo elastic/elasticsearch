@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -168,7 +169,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Clock clock,
         ThreadPool threadPool,
         LongSupplier nowSupplier,
-        DataStreamLifecycleErrorStore errorStore
+        DataStreamLifecycleErrorStore errorStore,
+        AllocationService allocationService
     ) {
         this.settings = settings;
         this.client = client;
@@ -192,8 +194,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
         this.swapSourceWithDownsampleIndexQueue = clusterService.createTaskQueue(
             "data-stream-lifecycle-swap-source-with-downsample",
-            Priority.NORMAL,
-            new ReplaceBackingWithDownsampleIndexExecutor(client)
+            Priority.URGENT, // urgent priority as this deletes indices
+            new ReplaceBackingWithDownsampleIndexExecutor(allocationService)
         );
     }
 
@@ -394,7 +396,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
 
             String indexName = index.getName();
-            IndexMetadata.DownsampleTaskStatus backingIndexDownsamplingStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndexMeta.getSettings());
             String downsamplingSourceIndex = IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(backingIndexMeta.getSettings());
 
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
@@ -402,21 +403,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
-            } else if (org.elasticsearch.common.Strings.hasText(downsamplingSourceIndex)
-                && backingIndexDownsamplingStatus.equals(SUCCESS)) {
-                    // if the backing index is a downsample index itself, let's check if its source index still exists as we must delete it
-                    IndexMetadata downsampleSourceIndex = metadata.index(downsamplingSourceIndex);
-                    if (downsampleSourceIndex != null) {
-                        // we mark the backing index as affected as we don't want subsequent operations that might change its state to
-                        // be performed, as we might lose the way to identify that we must delete its replacement source index
-                        affectedIndices.add(index);
-                        // delete downsampling source index (that's not part of the data stream anymore) before doing any more
-                        // downsampling
-                        deleteIndexOnce(downsamplingSourceIndex, "replacement with its downsampled index in the data stream");
-                    }
-                }
-
-            if (affectedIndices.contains(index) == false) {
+            } else {
                 // we're not performing any operation for this index which means that it:
                 // - has matching downsample rounds
                 // - is read-only
@@ -582,7 +569,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
-            new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, null),
+            new ReplaceSourceWithDownsampleIndexTask(settings, dataStream.getName(), backingIndexName, downsampleIndexName, null),
             new ErrorRecordingActionListener(
                 backingIndexName,
                 errorStore,
@@ -602,7 +589,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
                 swapSourceWithDownsampleIndexQueue.submitTask(
                     "data-stream-lifecycle-replace-source[" + backingIndexName + "]-with-[" + downsampleIndexName + "]",
-                    new ReplaceSourceWithDownsampleIndexTask(dataStream.getName(), backingIndexName, downsampleIndexName, reqListener),
+                    new ReplaceSourceWithDownsampleIndexTask(
+                        settings,
+                        dataStream.getName(),
+                        backingIndexName,
+                        downsampleIndexName,
+                        reqListener
+                    ),
                     null
                 );
             }

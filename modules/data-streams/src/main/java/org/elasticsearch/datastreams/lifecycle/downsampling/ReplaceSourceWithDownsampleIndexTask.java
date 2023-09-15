@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 
@@ -34,17 +36,20 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
  */
 public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskListener {
     private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
+    private final Settings settings;
     private ActionListener<Void> listener;
     private final String dataStreamName;
     private final String sourceBackingIndex;
     private final String downsampleIndex;
 
     public ReplaceSourceWithDownsampleIndexTask(
+        Settings settings,
         String dataStreamName,
         String sourceBackingIndex,
         String downsampleIndex,
         ActionListener<Void> listener
     ) {
+        this.settings = settings;
         this.dataStreamName = dataStreamName;
         this.sourceBackingIndex = sourceBackingIndex;
         this.downsampleIndex = downsampleIndex;
@@ -58,7 +63,6 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
             downsampleIndex,
             dataStreamName
         );
-        IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
         IndexMetadata downsampleIndexMeta = state.metadata().index(downsampleIndex);
         if (downsampleIndexMeta == null) {
             // the downsample index doesn't exist anymore so nothing to replace here
@@ -72,7 +76,7 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
             );
             return state;
         }
-        IndexMetadata sourceIndexMeta = state.metadata().index(sourceBackingIndex);
+        IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
         DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         if (sourceIndexAbstraction == null) {
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the
@@ -91,8 +95,21 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
                 return ClusterState.builder(state).metadata(newMetaData).build();
             }
         } else {
-            // the source index exists
             DataStream sourceParentDataStream = sourceIndexAbstraction.getParentDataStream();
+            if (sourceParentDataStream != null && sourceParentDataStream.getWriteIndex().getName().equals(sourceBackingIndex)) {
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "index [%s] is the write index for data stream [%s] and cannot be replaced",
+                    sourceBackingIndex,
+                    sourceParentDataStream.getName()
+                );
+                throw new IllegalStateException(errorMessage);
+            }
+
+            IndexMetadata sourceIndexMeta = state.metadata().index(sourceBackingIndex);
+            assert sourceIndexMeta != null : "the source index abstraction exists already";
+            // the source index exists so let's start by deleting it
+            state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)
                     : "the backing index must be part of the provided data "
@@ -101,31 +118,20 @@ public class ReplaceSourceWithDownsampleIndexTask implements ClusterStateTaskLis
                         + "] but it is instead part of data stream ["
                         + sourceParentDataStream.getName()
                         + "]";
-                if (sourceParentDataStream.getWriteIndex().getName().equals(sourceBackingIndex)) {
-                    String errorMessage = String.format(
-                        Locale.ROOT,
-                        "index [%s] is the write index for data stream [%s] and cannot be replaced",
-                        sourceBackingIndex,
-                        sourceParentDataStream.getName()
-                    );
-                    throw new IllegalStateException(errorMessage);
-                }
-                if (sourceIndexMeta != null) {
-                    // both indices exist, let's copy the origination date from the source index to the downsample index
-                    Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
-                    TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
-                    assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
-                    IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
-                        sourceIndexMeta,
-                        downsampleIndexMeta,
-                        generationLifecycleDate.millis()
-                    );
+                // both indices exist, let's copy the origination date from the source index to the downsample index
+                Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+                TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
+                assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
+                IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
+                    sourceIndexMeta,
+                    downsampleIndexMeta,
+                    generationLifecycleDate.millis()
+                );
 
-                    newMetaData.put(updatedDownsampleMetadata, true);
-                    // replace source with downsample
-                    newMetaData.put(dataStream.replaceBackingIndex(sourceIndexMeta.getIndex(), downsampleIndexMeta.getIndex()));
-                    return ClusterState.builder(state).metadata(newMetaData).build();
-                }
+                newMetaData.put(updatedDownsampleMetadata, true);
+                // replace source with downsample
+                newMetaData.put(dataStream.replaceBackingIndex(sourceIndexMeta.getIndex(), downsampleIndexMeta.getIndex()));
+                return ClusterState.builder(state).metadata(newMetaData).build();
             } else {
                 // the source index is not part of a data stream, so let's check if we can make sure the downsample index ends up in the
                 // data stream

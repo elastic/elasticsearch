@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -103,6 +104,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class DataStreamLifecycleServiceTests extends ESTestCase {
 
@@ -136,7 +138,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clock,
             threadPool,
             () -> now,
-            new DataStreamLifecycleErrorStore()
+            new DataStreamLifecycleErrorStore(),
+            mock(AllocationService.class)
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();

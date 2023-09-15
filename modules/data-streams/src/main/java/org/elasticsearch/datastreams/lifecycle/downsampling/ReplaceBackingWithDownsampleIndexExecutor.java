@@ -10,16 +10,12 @@ package org.elasticsearch.datastreams.lifecycle.downsampling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
+
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Cluster service task (batched) executor that executes the replacement of data stream backing index with its
@@ -32,10 +28,10 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
  */
 public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExecutor<ReplaceSourceWithDownsampleIndexTask, Void> {
     private static final Logger LOGGER = LogManager.getLogger(ReplaceSourceWithDownsampleIndexTask.class);
-    private final Client client;
+    private final AllocationService allocationService;
 
-    public ReplaceBackingWithDownsampleIndexExecutor(Client client) {
-        this.client = client;
+    public ReplaceBackingWithDownsampleIndexExecutor(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -52,57 +48,17 @@ public class ReplaceBackingWithDownsampleIndexExecutor extends SimpleBatchedExec
             task.getDataStreamName()
         );
         task.getListener().onResponse(null);
+    }
 
-        LOGGER.trace(
-            "Issuing request to delete index [{}] as it's not part of data stream [{}] anymore",
-            task.getSourceBackingIndex(),
-            task.getDataStreamName()
-        );
-        // chain an optimistic delete of the source index call here (if it fails it'll be retried by the data stream lifecycle loop)
-        client.admin().indices().delete(new DeleteIndexRequest(task.getSourceBackingIndex()), new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                if (acknowledgedResponse.isAcknowledged()) {
-                    LOGGER.info(
-                        "Data stream lifecycle successfully deleted index [{}] due to being replaced by the downsampled index [{}] in"
-                            + " data stream [{}]",
-                        task.getSourceBackingIndex(),
-                        task.getDownsampleIndex(),
-                        task.getDataStreamName()
-                    );
-                } else {
-                    LOGGER.trace(
-                        "The delete request for index [{}] was not acknowledged. Data stream lifecycle service will retry on the"
-                            + " next run if the index still exists",
-                        task.getSourceBackingIndex()
-                    );
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof IndexNotFoundException) {
-                    // index was already deleted, treat this as a success
-                    LOGGER.trace("Did not delete index [{}] as it was already deleted", task.getSourceBackingIndex());
-                    return;
-                }
-
-                if (e instanceof SnapshotInProgressException) {
-                    LOGGER.info(
-                        "Data stream lifecycle is unable to delete index [{}] because it's part of an ongoing snapshot. Retrying on "
-                            + "the next data stream lifecycle run",
-                        task.getSourceBackingIndex()
-                    );
-                } else {
-                    LOGGER.error(
-                        () -> Strings.format(
-                            "Data stream lifecycle encountered an error trying to delete index [%s]. It will retry on its next run.",
-                            task.getSourceBackingIndex()
-                        ),
-                        e
-                    );
-                }
-            }
-        });
+    @Override
+    public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+        if (clusterStateChanged) {
+            return allocationService.reroute(
+                clusterState,
+                "deleted indices",
+                rerouteCompletionIsNotRequired() // it is not required to balance shard to report index deletion success
+            );
+        }
+        return clusterState;
     }
 }

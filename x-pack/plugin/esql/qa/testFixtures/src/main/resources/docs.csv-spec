@@ -384,6 +384,26 @@ Bernatsky      |true
 // end::startsWith-result[]
 ;
 
+docsEndsWith
+// tag::endsWith[]
+FROM employees
+| KEEP last_name
+| EVAL ln_E = ENDS_WITH(last_name, "d")
+// end::endsWith[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::endsWith-result[]
+last_name:keyword | ln_E:boolean
+Awdeh          |false
+Azuma          |false
+Baek           |false
+Bamford        |true
+Bernatsky      |false
+// end::endsWith-result[]
+;
+
 docsRound
 // tag::round[]
 FROM employees

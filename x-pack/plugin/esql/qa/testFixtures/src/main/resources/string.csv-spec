@@ -776,3 +776,19 @@ emp_no:integer | first_name:keyword  | f_a:boolean
 10009 | Sumant    | false
 10010 | Duangkaew | false
 ;
+
+endsWithSequence
+from employees | sort emp_no | limit 10 | eval f_a = ends_with(first_name, "an") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | true
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | true
+10008 | Saniya    | false
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;

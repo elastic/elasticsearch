@@ -47,12 +47,24 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 equalTo(str.endsWith(suffix))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Ends with on char suffix", () -> {
+        suppliers.add(new TestCaseSupplier("Ends with empty str", () -> {
+            String str = "";
+            String suffix = randomAlphaOfLength(5);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                ),
+                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
+                equalTo(str.endsWith(suffix))
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Ends with one char suffix", () -> {
             String str = randomAlphaOfLength(5);
             String suffix = randomAlphaOfLength(1);
-            if (randomBoolean()) {
-                str = str + suffix;
-            }
+            str = str + suffix;
+
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
@@ -66,9 +78,8 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("Ends with randomized test", () -> {
             String str = randomAlphaOfLength(5);
             String suffix = randomAlphaOfLength(5);
-            if (randomBoolean()) {
-                str = str + suffix;
-            }
+            str = str + suffix;
+
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),

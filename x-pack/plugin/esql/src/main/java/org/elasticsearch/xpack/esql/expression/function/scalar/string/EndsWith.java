@@ -71,7 +71,14 @@ public class EndsWith extends ScalarFunction implements EvaluatorMapper {
         if (str.length < suffix.length) {
             return false;
         }
-        return Arrays.equals(str.bytes, str.offset+str.length-suffix.length, str.offset+str.length, suffix.bytes, suffix.offset, suffix.offset + suffix.length);
+        return Arrays.equals(
+            str.bytes,
+            str.offset + str.length - suffix.length,
+            str.offset + str.length,
+            suffix.bytes,
+            suffix.offset,
+            suffix.offset + suffix.length
+        );
     }
 
     @Override

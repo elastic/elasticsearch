@@ -147,7 +147,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Left.class, Left::new, "left"),
                 def(Right.class, Right::new, "right"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
-                def(EndsWith.class, EndsWith::new, "ends_with")},
+                def(EndsWith.class, EndsWith::new, "ends_with") },
             // date
             new FunctionDefinition[] {
                 def(DateExtract.class, DateExtract::new, "date_extract"),

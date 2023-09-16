@@ -685,5 +685,10 @@ public class MockBigArrays extends BigArrays {
         public void addWithoutBreaking(long bytes) {
             used.addAndGet(bytes);
         }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
     }
 }

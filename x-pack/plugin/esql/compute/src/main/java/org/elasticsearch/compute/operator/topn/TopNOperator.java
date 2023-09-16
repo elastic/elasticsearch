@@ -416,7 +416,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
-        // NOCOMMIT all rows. There should be a test failure pointing you here.
+        Releasables.closeExpectNoException(() -> Releasables.close(inputQueue));
     }
 
     private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator

@@ -10,9 +10,11 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -1229,6 +1231,23 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(actual.get(1).size(), equalTo(2));
         assertThat((Integer) actual.get(1).get(0), equalTo(100));
         assertThat((Integer) actual.get(1).get(1), equalTo(100));
+    }
+
+    public void testCloseWithoutCompleting() {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
+        try (
+            TopNOperator op = new TopNOperator(
+                breaker,
+                2,
+                List.of(INT),
+                List.of(DEFAULT_UNSORTABLE),
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                randomPageSize()
+            )
+        ) {
+            op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 

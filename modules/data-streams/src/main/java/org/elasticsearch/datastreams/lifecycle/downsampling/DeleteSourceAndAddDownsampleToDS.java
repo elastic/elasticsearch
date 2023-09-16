@@ -77,8 +77,8 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             return state;
         }
         IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
         if (sourceIndexAbstraction == null) {
+            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the
             // data stream (if not already there)
             if (dataStream != null
@@ -110,6 +110,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             assert sourceIndexMeta != null : "the source index abstraction exists already";
             // the source index exists so let's start by deleting it
             state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
+            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)
                     : "the backing index must be part of the provided data "
@@ -129,8 +130,8 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                 );
 
                 newMetaData.put(updatedDownsampleMetadata, true);
-                // replace source with downsample
-                newMetaData.put(dataStream.replaceBackingIndex(sourceIndexMeta.getIndex(), downsampleIndexMeta.getIndex()));
+                // we deleted the source already so let's add the downsample index to the data stream
+                newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
                 return ClusterState.builder(state).metadata(newMetaData).build();
             } else {
                 // the source index is not part of a data stream, so let's check if we can make sure the downsample index ends up in the

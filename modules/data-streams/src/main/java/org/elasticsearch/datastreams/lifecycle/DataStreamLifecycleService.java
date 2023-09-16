@@ -587,7 +587,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     dataStream
                 );
                 swapSourceWithDownsampleIndexQueue.submitTask(
-                    "data-stream-lifecycle-replace-source[" + backingIndexName + "]-with-[" + downsampleIndexName + "]",
+                    "data-stream-lifecycle-delete-source[" + backingIndexName + "]-add-to-datastream-[" + downsampleIndexName + "]",
                     new DeleteSourceAndAddDownsampleToDS(
                         settings,
                         dataStream.getName(),

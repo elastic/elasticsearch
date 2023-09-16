@@ -164,6 +164,26 @@ You can override how `min_age` is calculated using the `index.lifecycle.originat
 
 
 [discrete]
+==== Stuck on transient steps
+
+Since {ilm-init} performs some tasks asynchronously, e.g. <<ilm-forcemerge,Force Merge>> and <<ilm-migrate,Migrate>>, then its actions can sometimes get stuck on `step`'s requiring setting line-up to these other cluster features' settings. You can check for indices currently in non-erring but expectedly transient ILM steps by using link:https://stedolan.github.io/jq[third-party tool JQ] to process the JSON response of <<ilm-explain-lifecycle,ILM Explain>>.
+
+To see a summary of `phase/action/step` across all ILM-managed indices:
+
+[source, sh]
+----
+$ cat ilm_explain.json | jq -c '.indices[]|select(.managed==true and .action!="complete" and .step!="check-rollover-ready")|.phase+"/"+.action+"/"+.step' | sort | uniq -c | sort -r
+----
+
+To see a list of indices with their ILM `policy`, `phase`, `action`, and `step`:
+
+[source, sh]
+----
+$ cat ilm_explain.json | jq -c '.indices[]|select(.managed==true and .action!="complete" and .step!="check-rollover-ready")|{phase,action,step,policy,index}' | sort
+----
+
+
+[discrete]
 === Common {ilm-init} errors
 
 Here's how to resolve the most common errors reported in the `ERROR` step.

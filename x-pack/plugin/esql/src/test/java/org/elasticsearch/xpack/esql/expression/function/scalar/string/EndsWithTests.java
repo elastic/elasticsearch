@@ -33,7 +33,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        suppliers.add(new TestCaseSupplier("Ends with empty suffix", () -> {
+        suppliers.add(new TestCaseSupplier("ends_with empty suffix", () -> {
             String str = randomAlphaOfLength(5);
             String suffix = "";
             return new TestCaseSupplier.TestCase(
@@ -46,7 +46,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 equalTo(str.endsWith(suffix))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Ends with empty str", () -> {
+        suppliers.add(new TestCaseSupplier("ends_with empty str", () -> {
             String str = "";
             String suffix = randomAlphaOfLength(5);
             return new TestCaseSupplier.TestCase(
@@ -59,7 +59,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 equalTo(str.endsWith(suffix))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Ends with one char suffix", () -> {
+        suppliers.add(new TestCaseSupplier("ends_with one char suffix", () -> {
             String str = randomAlphaOfLength(5);
             String suffix = randomAlphaOfLength(1);
             str = str + suffix;
@@ -74,7 +74,22 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 equalTo(str.endsWith(suffix))
             );
         }));
-        suppliers.add(new TestCaseSupplier("Ends with randomized test", () -> {
+        suppliers.add(new TestCaseSupplier("ends_with no match suffix", () -> {
+            String str = randomAlphaOfLength(5);
+            String suffix = "no_match_suffix";
+            str = suffix + str;
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.KEYWORD, "suffix")
+                ),
+                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
+                equalTo(str.endsWith(suffix))
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("ends_with randomized test", () -> {
             String str = randomAlphaOfLength(5);
             String suffix = randomAlphaOfLength(5);
             str = str + suffix;

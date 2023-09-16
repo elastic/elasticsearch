@@ -172,7 +172,7 @@ To see a summary of `phase/action/step` across all ILM-managed indices:
 
 [source, sh]
 ----
-$ cat ilm_explain.json | jq -c '.indices[]|select(.managed==true and .action!="complete" and .step!="check-rollover-ready")|.phase+"/"+.action+"/"+.step' | sort | uniq -c | sort -r
+$ cat ilm_explain.json | jq -c '.indices[]|select(.managed==true and .action!="complete" and .step!="check-rollover-ready")|.phase+"/"+.action+"/"+.step' | sort | uniq -c | sort -nr
 ----
 
 To see a list of indices with their ILM `policy`, `phase`, `action`, and `step`:

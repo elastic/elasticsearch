@@ -1,5 +1,5 @@
 pr: 99432
-summary: "ESQL: Allow adding/subtracting durations"
+summary: "ESQL: Enable arithmetics for durations and periods"
 area: ES|QL
 type: enhancement
-issues: []
+issues: [99293]

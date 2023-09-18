@@ -472,6 +472,15 @@ then:datetime
 1957-07-19T00:00:00.000Z
 ;
 
+datePlusMixedPeriodsFromLeft
+row n = to_dt("1953-04-01T00:00:00.000Z")
+| eval then = 4 years + 3 months + 1 year + 2 weeks + 1 month + 1 day + 1 week + 1 day + n
+| keep then;
+
+then:datetime
+1958-08-24T00:00:00.000Z
+;
+
 datePlusSumOfPeriodsFromLeft
 row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
 
@@ -505,8 +514,7 @@ dateMinusPeriodsFromLeftMultipleEvals
 row n = to_dt("1953-04-04T00:00:00.000Z")
 | eval x = -4 years + n
 | eval y = -3 months + x, then = y + (-2 weeks - 1 day)
-| keep then
-;
+| keep then;
 
 then:datetime
 1948-12-20T00:00:00.000Z
@@ -525,6 +533,15 @@ row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = 1 hour + 1 minute + 1 se
 
 then:datetime
 1953-04-04T01:01:01.001Z
+;
+
+datePlusMixedDurationsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z")
+| eval then = 1 hour + 1 minute + 2 hour + 1 second + 2 minute + 1 milliseconds + 2 second + 2 millisecond + n
+| keep then;
+
+then:datetime
+1953-04-04T03:03:03.003Z
 ;
 
 datePlusSumOfDurationsFromLeft
@@ -554,6 +571,17 @@ row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-1 hour - 1 minute 
 
 then:datetime
 1953-04-04T01:01:01.001Z
+;
+
+dateMinusDurationsFromLeftMultipleEvals
+row n = to_dt("1953-04-04T04:03:02.001Z")
+| eval x = -4 hour + n
+| eval y = -3 minute + x, then = y + (-2 second - 1 millisecond)
+| keep then
+;
+
+then:datetime
+1953-04-04T00:00:00.000Z
 ;
 
 datePlusPeriodAndDuration

@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
+import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
@@ -79,16 +79,16 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
         return new NormalizeOutputGradleRunner(
-            new ConfigurationCacheCompatibleAwareGradleRunner(
+            new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(
-                            GradleRunner.create()
-                                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                            .toString().indexOf("-agentlib:jdwp") > 0
-                                    )
-                                    .withProjectDir(projectDir)
-                                    .withPluginClasspath()
-                                    .forwardOutput()
-                    ), configurationCacheCompatible),
+                        GradleRunner.create()
+                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                        .toString().indexOf("-agentlib:jdwp") > 0
+                                )
+                                .withProjectDir(projectDir)
+                                .withPluginClasspath()
+                                .forwardOutput()
+            ), configurationCacheCompatible)
         ).withArguments(arguments.collect { it.toString() })
     }
 

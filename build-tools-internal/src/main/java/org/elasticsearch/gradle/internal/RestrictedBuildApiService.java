@@ -14,24 +14,23 @@ import com.google.common.collect.ListMultimap;
 import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
-public class RestrictedBuildApiService implements BuildService<BuildServiceParameters.None> {
+public abstract class RestrictedBuildApiService implements BuildService<RestrictedBuildApiService.Params> {
+
+    public static final String BUILD_API_RESTRICTIONS_SYS_PROPERTY = "org.elasticsearch.gradle.build-api-restriction.disabled";
 
     private static ListMultimap<Class<?>, String> usageWhitelist = createLegacyRestTestBasePluginUsage();
 
     private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         map.put(LegacyRestTestBasePlugin.class, ":docs");
-        map.put(LegacyRestTestBasePlugin.class, ":rest-api-spec");
         map.put(LegacyRestTestBasePlugin.class, ":distribution:docker");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:aggregations");
         map.put(LegacyRestTestBasePlugin.class, ":modules:analysis-common");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:data-streams");
         map.put(LegacyRestTestBasePlugin.class, ":modules:ingest-attachment");
         map.put(LegacyRestTestBasePlugin.class, ":modules:ingest-common");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:ingest-geoip");
         map.put(LegacyRestTestBasePlugin.class, ":modules:ingest-user-agent");
         map.put(LegacyRestTestBasePlugin.class, ":modules:kibana");
         map.put(LegacyRestTestBasePlugin.class, ":modules:lang-expression");
@@ -44,7 +43,6 @@ public class RestrictedBuildApiService implements BuildService<BuildServiceParam
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
         map.put(LegacyRestTestBasePlugin.class, ":modules:repository-s3");
         map.put(LegacyRestTestBasePlugin.class, ":modules:repository-url");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:rest-root");
         map.put(LegacyRestTestBasePlugin.class, ":modules:runtime-fields-common");
         map.put(LegacyRestTestBasePlugin.class, ":modules:transport-netty4");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-icu");
@@ -59,7 +57,6 @@ public class RestrictedBuildApiService implements BuildService<BuildServiceParam
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-gce");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-annotated-text");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-murmur3");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-size");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:repository-hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
@@ -142,7 +139,6 @@ public class RestrictedBuildApiService implements BuildService<BuildServiceParam
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:multi-cluster-with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:single-node");
@@ -205,12 +201,10 @@ public class RestrictedBuildApiService implements BuildService<BuildServiceParam
         return map;
     }
 
-    @Override
-    public BuildServiceParameters.None getParameters() {
-        return null;
-    }
-
     public void failOnUsageRestriction(Class<?> aClass, Project project) {
+        if (getParameters().getDisabled().getOrElse(false)) {
+            return;
+        }
         if (isSupported(aClass, project.getPath()) == false) {
             throw new GradleException("Usage of deprecated " + aClass.getName() + " in " + project.getPath());
         }
@@ -218,5 +212,9 @@ public class RestrictedBuildApiService implements BuildService<BuildServiceParam
 
     private boolean isSupported(Class<?> aClass, String path) {
         return usageWhitelist.get(aClass).contains(path);
+    }
+
+    public abstract static class Params implements BuildServiceParameters {
+        public abstract Property<Boolean> getDisabled();
     }
 }

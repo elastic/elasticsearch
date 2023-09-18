@@ -30,6 +30,7 @@ import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.RestrictedBuildApiService.BUILD_API_RESTRICTIONS_SYS_PROPERTY;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
@@ -54,10 +55,11 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // Register the service
         Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
             .getSharedServices()
-            .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {});
+            .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {
+                spec.getParameters().getDisabled().set(Boolean.getBoolean(BUILD_API_RESTRICTIONS_SYS_PROPERTY));
+            });
         serviceProvider.get().failOnUsageRestriction(getClass(), project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);

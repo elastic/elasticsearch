@@ -74,7 +74,6 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
         return cluster;
     }
 
-
     private enum ProcessorsPrecision {
         DOUBLE,
         FLOAT

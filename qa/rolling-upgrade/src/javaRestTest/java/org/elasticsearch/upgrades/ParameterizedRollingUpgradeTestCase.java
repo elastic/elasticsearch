@@ -50,17 +50,19 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static Iterable<Object[]> testNodes(int numNodes) {
-        return Stream.concat(
-            Stream.of((Integer)null),
-            IntStream.range(0, numNodes).boxed()).map(n -> new Object[] { n, numNodes }).toList();
+        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, numNodes).boxed())
+            .map(n -> new Object[] { n, numNodes })
+            .toList();
     }
 
     @Before
     public void extractOldIndexVersion() throws Exception {
         if (oldIndexVersion == null && upgradedNodes.isEmpty()) {
-            IndexVersion indexVersion = null;
+            IndexVersion indexVersion = null;   // these should all be the same version
 
-            Response response = client().performRequest(new Request("GET", "_nodes"));
+            Request request = new Request("GET", "_nodes");
+            request.addParameter("filter_path", "nodes.*.index_version,nodes.*.name");
+            Response response = client().performRequest(request);
             ObjectPath objectPath = ObjectPath.createFromResponse(response);
             Map<String, Object> nodeMap = objectPath.evaluate("nodes");
             for (String id : nodeMap.keySet()) {
@@ -69,14 +71,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
                 if (ix != null) {
                     version = IndexVersion.fromId(ix.intValue());
                 } else {
-                    String ver = objectPath.evaluate("nodes." + id + ".version");
-                    version = IndexVersion.fromId(org.elasticsearch.Version.fromString(ver).id);
+                    // it doesn't have index version (pre 8.11) - just infer it from the release version
+                    version = IndexVersion.fromId(getOldClusterVersion().id);
                 }
 
                 if (indexVersion == null) {
                     indexVersion = version;
                 } else {
-                    // these should all be the same version
                     String name = objectPath.evaluate("nodes." + id + ".name");
                     assertThat("Node " + name + " has a different index version to other nodes", version, equalTo(indexVersion));
                 }

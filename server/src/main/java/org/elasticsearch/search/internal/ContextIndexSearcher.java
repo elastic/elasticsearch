@@ -517,7 +517,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        if (timeoutOverwrites.contains(Thread.currentThread())) {
+        if (timeoutOverwrites.contains(Thread.currentThread()) == false) {
             throw new TimeExceededException();
         }
     }

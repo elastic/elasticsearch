@@ -177,7 +177,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(blobNames, null);
+        deleteBlobsIgnoringIfNotExists(blobNames, Purpose.GENERIC);
     }
 
     @Override

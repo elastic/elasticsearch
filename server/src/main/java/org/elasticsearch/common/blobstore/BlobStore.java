@@ -8,7 +8,6 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.common.blobstore.BlobPath.Purpose;
-import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -33,7 +32,7 @@ public interface BlobStore extends Closeable {
     @Deprecated(forRemoval = true)
     void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException;
 
-    default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, @Nullable Purpose purpose) throws IOException {
+    default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, Purpose purpose) throws IOException {
         if (purpose == null) {
             deleteBlobsIgnoringIfNotExists(blobNames);
         } else {

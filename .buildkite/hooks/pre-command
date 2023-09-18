@@ -76,5 +76,6 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
-  .buildkite/scripts/setup-monitoring.sh
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 fi

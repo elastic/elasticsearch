@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
+import org.elasticsearch.xpack.ml.inference.deployment.SupportedPlatformArchitectures;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -78,6 +80,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private final NodeLoadDetector nodeLoadDetector;
     private final SystemAuditor systemAuditor;
     private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private final Client client;
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
@@ -91,7 +94,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ThreadPool threadPool,
         NodeLoadDetector nodeLoadDetector,
         SystemAuditor systemAuditor,
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper
+        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper,
+        Client client
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -104,6 +108,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         this.allocatedProcessorsScale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
+        this.client = client;
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
@@ -165,6 +170,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
+        logMlNodeHeterogeneity();
+
         Optional<String> rebalanceReason = detectReasonToRebalanceModels(event);
         if (rebalanceReason.isPresent()) {
             // As this produces a cluster state update task, we are certain that if the persistent
@@ -185,6 +192,31 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 )
             );
         }
+    }
+
+    private void logMlNodeHeterogeneity() {
+        ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
+            @Override
+            public void onResponse(Set<String> architectures) {
+                if (architectures.size() > 1) {
+                    String architecturesList = String.join(", ", architectures.stream().toList());
+                    logger.warn(
+                        format(
+                            "Heterogeneous platform architectures were detected among ML nodes. "
+                                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: [%s]",
+                            architecturesList
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
+            }
+        };
+
+        SupportedPlatformArchitectures.getNodesOsArchitectures(threadPool, client, architecturesListener);
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {

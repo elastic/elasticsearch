@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -60,8 +62,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
         Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
-        DriverContext driverContext = new DriverContext();
-        try (Operator op = factory.get(driverContext)) {
+        try (Operator op = factory.get(driverContext())) {
             if (op instanceof GroupingAggregatorFunction) {
                 assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
             } else {
@@ -74,15 +75,26 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(new DriverContext())) {
+        try (Operator operator = simple(nonBreakingBigArrays()).get(driverContext())) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }
 
     /**
      * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     * <p>
+     *     Rather than using the {@link NoneCircuitBreakerService} we use a
+     *     very large limit so tests can call {@link CircuitBreaker#getUsed()}.
+     * </p>
      */
     protected final BigArrays nonBreakingBigArrays() {
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
+    }
+
+    /**
+     * A {@link DriverContext} with a nonBreakingBigArrays.
+     */
+    protected final DriverContext driverContext() {
+        return new DriverContext(nonBreakingBigArrays());
     }
 }

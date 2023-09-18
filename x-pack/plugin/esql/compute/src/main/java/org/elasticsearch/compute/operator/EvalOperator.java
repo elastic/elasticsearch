@@ -25,7 +25,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get(DriverContext.DEFAULT) + "]";
+            return "EvalOperator[evaluator=" + evaluator.get(new ThrowingDriverContext()) + "]";
         }
     }
 

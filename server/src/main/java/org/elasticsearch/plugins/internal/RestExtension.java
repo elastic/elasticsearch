@@ -8,11 +8,10 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
-import java.util.ServiceLoader;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 public interface RestExtension {
     /**
@@ -23,14 +22,29 @@ public interface RestExtension {
      */
     Predicate<AbstractCatAction> getCatActionsFilter();
 
-    static RestExtension load(Supplier<RestExtension> fallback) {
-        var loader = ServiceLoader.load(RestExtension.class);
-        var extensions = loader.stream().toList();
-        if (extensions.size() > 1) {
-            throw new IllegalStateException("More than one rest extension found");
-        } else if (extensions.size() == 0) {
-            return fallback.get();
-        }
-        return extensions.get(0).get();
+    /**
+     * Returns a filter that determines which rest actions are exposed.
+     *
+     * The filter should return {@code false} if an action should be included,
+     * or {@code false} if the paths
+     * @return
+     */
+    Predicate<RestHandler> getActionsFilter();
+
+    /**
+     * Returns a rest extension which allows all rest endpoints through.
+     */
+    static RestExtension allowAll() {
+        return new RestExtension() {
+            @Override
+            public Predicate<AbstractCatAction> getCatActionsFilter() {
+                return action -> true;
+            }
+
+            @Override
+            public Predicate<RestHandler> getActionsFilter() {
+                return handler -> true;
+            }
+        };
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -38,5 +38,5 @@ public interface ExchangeSource {
     /**
      * Allows callers to stop reading from the source when it's blocked
      */
-    ListenableActionFuture<Void> waitForReading();
+    SubscribableListener<Void> waitForReading();
 }

@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
@@ -133,12 +134,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(CompatibilityVersions value, StreamOutput out) throws IOException {
-                TransportVersion.writeVersion(value.transportVersion(), out);
+                value.writeTo(out);
             }
 
             @Override
             public CompatibilityVersions read(StreamInput in, String key) throws IOException {
-                return new CompatibilityVersions(TransportVersion.readVersion(in));
+                return CompatibilityVersions.readVersion(in);
             }
         };
 
@@ -222,8 +223,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE)
-            : CompatibilityVersions.minimumVersions(compatibilityVersions);
+            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -285,6 +286,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingVersions() {
+        return this.minVersions.systemIndexMappingsVersion();
     }
 
     public Metadata metadata() {
@@ -629,21 +634,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 (builder, params) -> builder.endObject()
             ),
 
-            // transportVersions - redundant with the nodes_versions section but has to stay for backwards compatibility
-            // just use NODES again, its node-related information
-            chunkedSection(
-                metrics.contains(Metric.NODES),
-                (builder, params) -> builder.startArray("transport_versions"),
-                compatibilityVersions.entrySet().iterator(),
-                e -> Iterators.single(
-                    (builder, params) -> builder.startObject()
-                        .field("node_id", e.getKey())
-                        .field("transport_version", e.getValue().transportVersion().toString())
-                        .endObject()
-                ),
-                (builder, params) -> builder.endArray()
-            ),
-
             // per-node version information
             chunkedSection(
                 metrics.contains(Metric.NODES),
@@ -788,7 +778,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
-            compatibilityVersions.put(nodeId, new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId)));
+            // TODO[wrb]: system index mappings versions will be added in a followup
+            compatibilityVersions.put(nodeId, new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), Map.of()));
             return this;
         }
 

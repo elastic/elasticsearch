@@ -30,7 +30,7 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToBoolean";
+    return "ToBooleanFromString";
   }
 
   @Override

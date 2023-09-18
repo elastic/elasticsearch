@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -44,14 +44,14 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> () -> new MvAvgDoubleEvaluator(fieldEval.get());
-            case INT -> () -> new MvAvgIntEvaluator(fieldEval.get());
+            case DOUBLE -> dvrCtx -> new MvAvgDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case INT -> dvrCtx -> new MvAvgIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? () -> new MvAvgUnsignedLongEvaluator(fieldEval.get())
-                : () -> new MvAvgLongEvaluator(fieldEval.get());
-            case NULL -> () -> EvalOperator.CONSTANT_NULL;
+                ? dvrCtx -> new MvAvgUnsignedLongEvaluator(fieldEval.get(dvrCtx), dvrCtx)
+                : dvrCtx -> new MvAvgLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

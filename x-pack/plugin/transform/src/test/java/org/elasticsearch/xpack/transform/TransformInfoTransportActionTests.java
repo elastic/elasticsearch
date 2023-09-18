@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
@@ -29,12 +30,14 @@ import static org.mockito.Mockito.when;
 public class TransformInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
-        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
-        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(transportService, mock(ActionFilters.class));
         assertTrue(featureSet.enabled());
     }
 

@@ -49,7 +49,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     public void testOverflowSucceeds() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
@@ -67,7 +67,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     public void testSummationAccuracy() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
@@ -96,7 +96,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
                 : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
             sum += values[i];
         }
-        driverContext = new DriverContext();
+        driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,
@@ -118,7 +118,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         for (int i = 0; i < n; i++) {
             largeValues[i] = Double.MAX_VALUE;
         }
-        driverContext = new DriverContext();
+        driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,
@@ -137,7 +137,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         for (int i = 0; i < n; i++) {
             largeValues[i] = -Double.MAX_VALUE;
         }
-        driverContext = new DriverContext();
+        driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,

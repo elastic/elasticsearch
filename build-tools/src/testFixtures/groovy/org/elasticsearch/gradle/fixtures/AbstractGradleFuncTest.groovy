@@ -79,7 +79,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
-        println "AbstractGradleFuncTest.gradleRunner"
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(

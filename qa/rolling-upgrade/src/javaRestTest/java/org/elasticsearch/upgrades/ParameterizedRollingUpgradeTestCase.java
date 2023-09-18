@@ -116,15 +116,20 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
-        if (requestedUpgradeNode != null && upgradedNodes.add(requestedUpgradeNode)) {
-            try {
-                cluster.upgradeNodeToVersion(requestedUpgradeNode, Version.CURRENT);
-                closeClients();
-                initClient();
-            } catch (Exception e) {
-                upgradeFailed = true;
-                throw e;
+        if (requestedUpgradeNode != null) {
+            closeClients();
+            // we might be running a specific upgrade test by itself - check previous nodes too
+            for (int n = 0; n <= requestedUpgradeNode; n++) {
+                if (upgradedNodes.add(n)) {
+                    try {
+                        cluster.upgradeNodeToVersion(n, Version.CURRENT);
+                    } catch (Exception e) {
+                        upgradeFailed = true;
+                        throw e;
+                    }
+                }
             }
+            initClient();
         }
     }
 

@@ -52,12 +52,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertExistsQuery(MapperService mapperService) {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
-        assertEquals("[sparse_vector] fields do not support [exists] queries", iae.getMessage());
-    }
-
-    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "sparse_vector");
     }

@@ -45,48 +45,53 @@ public class ExistsIT extends ESIntegTestCase {
 
     public void testExists() throws Exception {
         XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "text")
-            .endObject()
-            .startObject("bar")
-            .field("type", "object")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "text")
-            .endObject()
-            .startObject("bar")
-            .field("type", "object")
-            .startObject("properties")
-            .startObject("bar")
-            .field("type", "text")
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("baz")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "text")
+                .endObject()
+                .startObject("bar")
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "text")
+                .endObject()
+                .startObject("bar")
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("bar")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("baz")
+                .field("type", "long")
+                .endObject()
+                .endObject()
+                .endObject().startObject("vec")
+                .field("type", "sparse_vector")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
 
         assertAcked(indicesAdmin().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        final Map<String, Object>[] sources = new Map[] {
-            // simple property
-            singletonMap("foo", "bar"),
-            // object fields
-            singletonMap("bar", barObject),
-            singletonMap("bar", singletonMap("baz", 42)),
-            // empty doc
-            emptyMap() };
+        @SuppressWarnings({"rawtypes", "unchecked"}) final Map<String, Object>[] sources = new Map[]{
+                // simple property
+                singletonMap("foo", "bar"),
+                // object fields
+                singletonMap("bar", barObject),
+                singletonMap("bar", singletonMap("baz", 42)),
+                // sparse_vector field empty
+                singletonMap("vec", emptyMap()),
+                // sparse_vector field non-empty
+                singletonMap("vec", singletonMap("1", 100)),
+                // empty doc
+                emptyMap()};
         List<IndexRequestBuilder> reqs = new ArrayList<>();
         for (Map<String, Object> source : sources) {
             reqs.add(client().prepareIndex("idx").setSource(source));
@@ -105,6 +110,7 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar", 1);
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
+        expected.put("vec", 1);
 
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
@@ -118,30 +124,30 @@ public class ExistsIT extends ESIntegTestCase {
             assertSearchResponse(resp);
             try {
                 assertEquals(
-                    String.format(
-                        Locale.ROOT,
-                        "exists(%s, %d) mapping: %s response: %s",
-                        fieldName,
+                        String.format(
+                                Locale.ROOT,
+                                "exists(%s, %d) mapping: %s response: %s",
+                                fieldName,
+                                count,
+                                Strings.toString(mapping),
+                                resp
+                        ),
                         count,
-                        Strings.toString(mapping),
-                        resp
-                    ),
-                    count,
-                    resp.getHits().getTotalHits().value
+                        resp.getHits().getTotalHits().value
                 );
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
                     final String id = searchHit.getId();
                     final ExplainResponse explanation = client().prepareExplain(index, id)
-                        .setQuery(QueryBuilders.existsQuery(fieldName))
-                        .get();
+                            .setQuery(QueryBuilders.existsQuery(fieldName))
+                            .get();
                     logger.info(
-                        "Explanation for [{}] / [{}] / [{}]: [{}]",
-                        fieldName,
-                        id,
-                        searchHit.getSourceAsString(),
-                        explanation.getExplanation()
+                            "Explanation for [{}] / [{}] / [{}]: [{}]",
+                            fieldName,
+                            id,
+                            searchHit.getSourceAsString(),
+                            explanation.getExplanation()
                     );
                 }
                 throw e;
@@ -151,27 +157,27 @@ public class ExistsIT extends ESIntegTestCase {
 
     public void testFieldAlias() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("bar")
-            .field("type", "long")
-            .endObject()
-            .startObject("foo")
-            .field("type", "object")
-            .startObject("properties")
-            .startObject("bar")
-            .field("type", "double")
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("foo-bar")
-            .field("type", "alias")
-            .field("path", "foo.bar")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("bar")
+                .field("type", "long")
+                .endObject()
+                .startObject("foo")
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("bar")
+                .field("type", "double")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("foo-bar")
+                .field("type", "alias")
+                .field("path", "foo.bar")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 
@@ -201,20 +207,20 @@ public class ExistsIT extends ESIntegTestCase {
 
     public void testFieldAliasWithNoDocValues() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "long")
-            .field("doc_values", false)
-            .endObject()
-            .startObject("foo-alias")
-            .field("type", "alias")
-            .field("path", "foo")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "long")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("foo-alias")
+                .field("type", "alias")
+                .field("path", "foo")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         assertAcked(prepareCreate("idx").setMapping(mapping));
         ensureGreen("idx");
 

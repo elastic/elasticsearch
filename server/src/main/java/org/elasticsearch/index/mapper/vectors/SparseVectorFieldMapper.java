@@ -93,11 +93,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[sparse_vector] fields do not support sorting, scripting or aggregating");
         }
@@ -161,6 +156,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         String feature = null;
+        float value = 0;
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
@@ -176,7 +172,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
                     final String key = name() + "." + feature;
-                    float value = context.parser().floatValue(true);
+                    value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
                             "[sparse_vector] fields do not support indexing multiple values for the same feature ["
@@ -193,6 +189,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     );
                 }
             }
+            if(value > 0) context.addToFieldNames(fieldType().name());
         } finally {
             context.path().setWithinLeafObject(false);
         }

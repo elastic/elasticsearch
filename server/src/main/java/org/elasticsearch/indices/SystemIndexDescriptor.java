@@ -550,6 +550,28 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @return the standardized error message
      */
+    public String getMinimumMappingsVersionMessage(String cause) {
+        Objects.requireNonNull(cause);
+        final MappingsVersion actualMinimumMappingsVersion = priorSystemIndexDescriptors.isEmpty()
+            ? getMappingsVersion()
+            : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
+        return String.format(
+            Locale.ROOT,
+            "[%s] failed - system index [%s] requires all data and master nodes to have mappings versions at least of version [%s]",
+            cause,
+            this.getPrimaryIndex(),
+            actualMinimumMappingsVersion
+        );
+    }
+
+    /**
+     * Gets a standardized message when the node contains a data or master node whose version is less
+     * than that of the minimum supported version of this descriptor and its prior descriptors.
+     *
+     * @param cause the action being attempted that triggered the check. Used in the error message.
+     * @return the standardized error message
+     */
+    @Deprecated
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
         final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()

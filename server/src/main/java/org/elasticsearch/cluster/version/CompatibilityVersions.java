@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,6 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -106,6 +108,19 @@ public record CompatibilityVersions(
         }
 
         return new CompatibilityVersions(transportVersion, mappingsVersions);
+    }
+
+    public static Set<CompatibilityVersions> getNonClientCompatibilityVersions(ClusterState currentState) {
+        Map<String, CompatibilityVersions> compatibilityVersions = currentState.compatibilityVersions();
+        return currentState.nodes()
+            .getNodes()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().isMasterNode() || e.getValue().canContainData())
+            .map(Map.Entry::getKey)
+            // compatibility versions for a node
+            .map(compatibilityVersions::get)
+            .collect(Collectors.toSet());
     }
 
     @Override

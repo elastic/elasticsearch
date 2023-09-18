@@ -18,9 +18,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -32,9 +37,11 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.net.InetAddress;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,6 +57,20 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
+        .nodes(
+            DiscoveryNodes.builder()
+                .add(
+                    new DiscoveryNode(
+                        "node-1",
+                        "node-1",
+                        new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        Map.of(),
+                        Set.of(DiscoveryNodeRole.DATA_ROLE),
+                        VersionInformation.CURRENT
+                    )
+                )
+                .build()
+        )
         .compatibilityVersions(
             Map.of(
                 "node-1",

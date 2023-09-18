@@ -244,7 +244,7 @@ public class Verifier {
             DataType dataType = field.dataType();
             if (EsqlDataTypes.isRepresentable(dataType) == false) {
                 failures.add(
-                    fail(field, "eval does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                    fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
                 );
             }
         });

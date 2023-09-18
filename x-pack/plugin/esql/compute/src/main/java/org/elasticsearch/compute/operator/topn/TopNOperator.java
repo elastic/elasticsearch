@@ -72,8 +72,16 @@ public class TopNOperator implements Operator, Accountable {
         final BreakingBytesRefBuilder values;
 
         Row(CircuitBreaker breaker) {
-            keys = new BreakingBytesRefBuilder(breaker, "topn");
-            values = new BreakingBytesRefBuilder(breaker, "topn");
+            boolean success = false;
+            try {
+                keys = new BreakingBytesRefBuilder(breaker, "topn");
+                values = new BreakingBytesRefBuilder(breaker, "topn");
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override
@@ -95,19 +103,11 @@ public class TopNOperator implements Operator, Accountable {
 
     record KeyFactory(KeyExtractor extractor, boolean ascending) {}
 
-    static final class RowFactory {
-        private final CircuitBreaker breaker;
+    static final class RowFiller {
         private final ValueExtractor[] valueExtractors;
         private final KeyFactory[] keyFactories;
 
-        RowFactory(
-            CircuitBreaker breaker,
-            List<ElementType> elementTypes,
-            List<TopNEncoder> encoders,
-            List<SortOrder> sortOrders,
-            Page page
-        ) {
-            this.breaker = breaker;
+        RowFiller(List<ElementType> elementTypes, List<TopNEncoder> encoders, List<SortOrder> sortOrders, Page page) {
             valueExtractors = new ValueExtractor[page.getBlockCount()];
             for (int b = 0; b < valueExtractors.length; b++) {
                 valueExtractors[b] = ValueExtractor.extractorFor(
@@ -132,21 +132,12 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        Row row(int position, Row spare) {
-            Row result;
-            if (spare == null) {
-                result = new Row(breaker);
-            } else {
-                result = spare;
-                result.keys.clear();
-                result.orderByCompositeKeyAscending.clear();
-                result.values.clear();
-            }
-
-            writeKey(position, result);
-            writeValues(position, result.values);
-
-            return result;
+        /**
+         * Fill a {@link Row} for {@code position}.
+         */
+        void row(int position, Row destination) {
+            writeKey(position, destination);
+            writeValues(position, destination.values);
         }
 
         private void writeKey(int position, Row row) {
@@ -305,12 +296,33 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        RowFactory rowFactory = new RowFactory(breaker, elementTypes, encoders, sortOrders, page);
+        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
 
-        Row removed = null;
-        for (int i = 0; i < page.getPositionCount(); i++) {
-            Row x = rowFactory.row(i, removed);
-            removed = inputQueue.insertWithOverflow(x);
+        /*
+         * Since row tracks memory we have to be careful to close any unused rows,
+         * including any rows that fail while constructing because they allocate
+         * too much memory. The simplest way to manage that is this try/finally
+         * block and the mutable row variable here.
+         *
+         * If you exit the try/finally block and row is non-null it's always unused
+         * and must be closed. That happens either because it's overflow from the
+         * inputQueue or because we hit an allocation failure while building it.
+         */
+        Row row = null;
+        try {
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                if (row == null) {
+                    row = new Row(breaker);
+                } else {
+                    row.keys.clear();
+                    row.orderByCompositeKeyAscending.clear();
+                    row.values.clear();
+                }
+                rowFiller.row(i, row);
+                row = inputQueue.insertWithOverflow(row);
+            }
+        } finally {
+            Releasables.close(row);
         }
     }
 
@@ -416,6 +428,10 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void close() {
+        /*
+         * If everything went well we'll have drained inputQueue to this'll
+         * be a noop. But if inputQueue
+         */
         Releasables.closeExpectNoException(() -> Releasables.close(inputQueue));
     }
 

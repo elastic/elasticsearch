@@ -143,7 +143,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> ESTestCase.randomLong()));
+        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> ESTestCase.randomLong()), between(1, size * 2));
     }
 
     @Override
@@ -171,7 +171,11 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(100);
+        /*
+         * 775 causes us to blow up while collecting values and 780 doesn't
+         * trip the breaker. So 775 is the max on this range.
+         */
+        return ByteSizeValue.ofBytes(between(1, 775));
     }
 
     public void testRamBytesUsed() {
@@ -372,14 +376,15 @@ public class TopNOperatorTests extends OperatorTestCase {
         Page page,
         int position
     ) {
-        TopNOperator.RowFactory rf = new TopNOperator.RowFactory(
-            nonBreakingBigArrays().breakerService().getBreaker("request"),
+        TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
             List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst)),
             page
         );
-        return rf.row(position, null);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"));
+        rf.row(position, row);
+        return row;
     }
 
     public void testTopNTwoColumns() {

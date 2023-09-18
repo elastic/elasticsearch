@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,6 +23,13 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BreakingBytesRefBuilderTests extends ESTestCase {
+    public void testBreakOnBuild() {
+        String label = randomAlphaOfLength(4);
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(0));
+        Exception e = expectThrows(CircuitBreakingException.class, () -> new BreakingBytesRefBuilder(breaker, label));
+        assertThat(e.getMessage(), equalTo("over test limit"));
+    }
+
     public void testAddByte() {
         testAgainstOracle(() -> new TestIteration() {
             byte b = randomByte();
@@ -101,24 +110,39 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         int limit = between(1_000, 10_000);
         String label = randomAlphaOfLength(4);
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
-        BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, label);
-        BytesRefBuilder oracle = new BytesRefBuilder();
+        assertThat(breaker.getUsed(), equalTo(0L));
+        try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, label)) {
+            assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
+            BytesRefBuilder oracle = new BytesRefBuilder();
 
-        assertThat(builder.bytesRefView(), equalTo(oracle.get()));
-        while (true) {
-            TestIteration iteration = iterations.get();
-            boolean willResize = builder.length() + iteration.size() >= builder.bytes().length;
-            if (willResize) {
-                int resizeMemoryUsage = builder.bytes().length + ArrayUtil.oversize(builder.bytes().length + iteration.size(), Byte.BYTES);
-                if (resizeMemoryUsage > limit) {
-                    Exception e = expectThrows(CircuitBreakingException.class, () -> iteration.applyToBuilder(builder));
-                    assertThat(e.getMessage(), equalTo("over test limit"));
-                    break;
-                }
-            }
-            iteration.applyToBuilder(builder);
-            iteration.applyToOracle(oracle);
             assertThat(builder.bytesRefView(), equalTo(oracle.get()));
+            while (true) {
+                TestIteration iteration = iterations.get();
+                boolean willResize = builder.length() + iteration.size() >= builder.bytes().length;
+                if (willResize) {
+                    long resizeMemoryUsage = BreakingBytesRefBuilder.SHALLOW_SIZE + ramForArray(builder.bytes().length);
+                    resizeMemoryUsage += ramForArray(ArrayUtil.oversize(builder.bytes().length + iteration.size(), Byte.BYTES));
+                    if (resizeMemoryUsage > limit) {
+                        Exception e = expectThrows(CircuitBreakingException.class, () -> iteration.applyToBuilder(builder));
+                        assertThat(e.getMessage(), equalTo("over test limit"));
+                        break;
+                    }
+                }
+                iteration.applyToBuilder(builder);
+                iteration.applyToOracle(oracle);
+                assertThat(builder.bytesRefView(), equalTo(oracle.get()));
+                assertThat(
+                    builder.ramBytesUsed(),
+                    // Label and breaker aren't counted in ramBytesUsed because they are usually shared with other instances.
+                    equalTo(RamUsageTester.ramUsed(builder) - RamUsageTester.ramUsed(label) - RamUsageTester.ramUsed(breaker))
+                );
+                assertThat(builder.ramBytesUsed(), equalTo(breaker.getUsed()));
+            }
         }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private long ramForArray(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
     }
 }

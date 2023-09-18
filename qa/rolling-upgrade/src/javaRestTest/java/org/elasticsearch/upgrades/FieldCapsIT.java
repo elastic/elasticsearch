@@ -62,11 +62,8 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    private final boolean firstMixedRound;
-
-    public FieldCapsIT(@Name("upgradeNode") int upgradeNode, @Name("totalNodes") int totalNodes) {
+    public FieldCapsIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
         super(upgradeNode, totalNodes);
-        firstMixedRound = upgradeNode == 1;
     }
 
     @ParametersFactory(shuffle = false)
@@ -79,14 +76,11 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
         return cluster;
     }
 
-    private boolean indicesCreated = false;
+    private static boolean oldIndicesCreated;
+    private static boolean newIndicesCreated;
 
     @Before
     public void setupIndices() throws Exception {
-        if (indicesCreated) {
-            return;
-        }
-        indicesCreated = true;
         final String redMapping = """
              "properties": {
                "red_field": { "type": "keyword" },
@@ -105,7 +99,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                "timestamp": {"type": "date"}
              }
             """;
-        if (isOldCluster()) {
+        if (isOldCluster() && oldIndicesCreated == false) {
             createIndex("old_red_1", Settings.EMPTY, redMapping);
             createIndex("old_red_2", Settings.EMPTY, redMapping);
             createIndex("old_red_empty", Settings.EMPTY, redMapping);
@@ -120,7 +114,8 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                 );
                 assertOK(client().performRequest(indexRequest));
             }
-        } else if (isMixedCluster() && firstMixedRound) {
+            oldIndicesCreated = true;
+        } else if (isFirstMixedCluster() && newIndicesCreated == false) {
             createIndex("new_red_1", Settings.EMPTY, redMapping);
             createIndex("new_red_2", Settings.EMPTY, redMapping);
             createIndex("new_red_empty", Settings.EMPTY, redMapping);
@@ -135,6 +130,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                 );
                 assertOK(client().performRequest(indexRequest));
             }
+            newIndicesCreated = true;
         }
     }
 

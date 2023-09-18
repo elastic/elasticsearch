@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
@@ -47,6 +50,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final Executor requestExecutor;
     private final EnrichLookupService enrichLookupService;
     private final Settings settings;
+    private final TransportService transportService;
 
     @Inject
     public TransportEsqlQueryAction(
@@ -77,12 +81,27 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.settings = settings;
+        this.transportService = transportService;
     }
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        requestExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+        final ActionListener<EsqlQueryResponse> wrappedListener;
+        final TimeValue timeout = timeout(request);
+        if (timeout != null) {
+            final ThreadPool threadPool = transportService.getThreadPool();
+            final var executor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
+            wrappedListener = ListenerTimeouts.wrapWithTimeout(threadPool, timeout, executor, listener, l -> {
+                logger.debug("cancelling ESQL task {} on timeout", task);
+                final TaskManager taskManager = transportService.getTaskManager();
+                taskManager.cancelTaskAndDescendants((CancellableTask) task, "timeout", false, ActionListener.noop());
+                listener.onFailure(new ElasticsearchTimeoutException("ESQL query timed out after {}", timeout));
+            });
+        } else {
+            wrappedListener = listener;
+        }
+        requestExecutor.execute(ActionRunnable.wrap(wrappedListener, l -> doExecuteForked(task, request, l)));
     }
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
@@ -17,7 +16,6 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -141,64 +139,41 @@ public class ComputeService {
         LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
 
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
-
         computeTargetNodes(
             rootTask,
             requestFilter,
             concreteIndices,
             originalIndices,
-            wrapTimeout(
-                configuration,
-                transportService.getThreadPool(),
-                rootTask,
-                listener.delegateFailureAndWrap((delegate, targetNodes) -> {
-                    final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
+            listener.delegateFailureAndWrap((delegate, targetNodes) -> {
+                final ExchangeSourceHandler exchangeSource = exchangeService.createSourceHandler(
+                    sessionId,
+                    queryPragmas.exchangeBufferSize(),
+                    ESQL_THREAD_POOL_NAME
+                );
+                try (
+                    Releasable ignored = exchangeSource::decRef;
+                    RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
+                ) {
+                    final AtomicBoolean cancelled = new AtomicBoolean();
+                    // wait until the source handler is completed
+                    exchangeSource.addCompletionListener(requestRefs.acquire());
+                    // run compute on the coordinator
+                    var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
+                    runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
+                    // run compute on remote nodes
+                    // TODO: This is wrong, we need to be able to cancel
+                    runComputeOnRemoteNodes(
                         sessionId,
-                        queryPragmas.exchangeBufferSize(),
-                        ESQL_THREAD_POOL_NAME
+                        rootTask,
+                        configuration,
+                        dataNodePlan,
+                        exchangeSource,
+                        targetNodes,
+                        () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
                     );
-                    try (
-                        Releasable ignored = exchangeSource::decRef;
-                        RefCountingListener requestRefs = new RefCountingListener(delegate.map(unused -> collectedPages))
-                    ) {
-                        final AtomicBoolean cancelled = new AtomicBoolean();
-                        // wait until the source handler is completed
-                        exchangeSource.addCompletionListener(requestRefs.acquire());
-                        // run compute on the coordinator
-                        var computeContext = new ComputeContext(sessionId, List.of(), configuration, exchangeSource, null);
-                        runCompute(rootTask, computeContext, coordinatorPlan, cancelOnFailure(rootTask, cancelled, requestRefs.acquire()));
-                        // run compute on remote nodes
-                        // TODO: This is wrong, we need to be able to cancel
-                        runComputeOnRemoteNodes(
-                            sessionId,
-                            rootTask,
-                            configuration,
-                            dataNodePlan,
-                            exchangeSource,
-                            targetNodes,
-                            () -> cancelOnFailure(rootTask, cancelled, requestRefs.acquire()).map(unused -> null)
-                        );
-                    }
-                })
-            )
+                }
+            })
         );
-
-    }
-
-    private ActionListener<List<TargetNode>> wrapTimeout(
-        EsqlConfiguration configuration,
-        ThreadPool pool,
-        CancellableTask task,
-        ActionListener<List<TargetNode>> l
-    ) {
-        if (configuration.timeout() != null) {
-            return ListenerTimeouts.wrapWithTimeout(pool, configuration.timeout(), esqlExecutor, l, (x) -> {
-                LOGGER.debug("cancelling ESQL task {} on failure", task);
-                transportService.getTaskManager().cancelTaskAndDescendants(task, "timeout", false, ActionListener.noop());
-                l.onFailure(new ElasticsearchTimeoutException("ESQL query timed out after {}", configuration.timeout()));
-            });
-        }
-        return l;
     }
 
     private void runComputeOnRemoteNodes(

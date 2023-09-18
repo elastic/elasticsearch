@@ -233,6 +233,24 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             );
             assertThat(exception.getMessage(), equalTo("Downsampling configuration supports maximum 10 configured rounds. Found: 12"));
         }
+
+        {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueDays(10),
+                            new DownsampleConfig(new DateHistogramInterval("2m"))
+                        )
+                    )
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("A downsampling round must have a fixed interval of at least five minutes but found: 2m")
+            );
+        }
     }
 
     @Nullable

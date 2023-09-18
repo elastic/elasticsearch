@@ -25,9 +25,9 @@ import java.util.Objects;
 public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
-    public static final String API_TOKEN = "api_token";
+    public static final String API_TOKEN = "api_key";
 
-    private final SecureString apiToken;
+    private final SecureString apiKey;
 
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -50,24 +50,24 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return new OpenAiEmbeddingsServiceSettings(secureApiToken);
     }
 
-    public OpenAiEmbeddingsServiceSettings(SecureString apiToken) {
-        this.apiToken = apiToken;
+    public OpenAiEmbeddingsServiceSettings(SecureString apiKey) {
+        this.apiKey = apiKey;
     }
 
     public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
         // TODO should this be readString?
-        apiToken = in.readSecureString();
+        apiKey = in.readSecureString();
     }
 
-    public SecureString getApiToken() {
-        return apiToken;
+    public SecureString getApiKey() {
+        return apiKey;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         // TODO encrypt here
-        builder.field(API_TOKEN, apiToken.toString());
+        builder.field(API_TOKEN, apiKey.toString());
         builder.endObject();
         return builder;
     }
@@ -86,12 +86,12 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // TODO do we need to encrypt here?
-        out.writeSecureString(apiToken);
+        out.writeSecureString(apiKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(apiToken);
+        return Objects.hash(apiKey);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OpenAiEmbeddingsServiceSettings that = (OpenAiEmbeddingsServiceSettings) o;
-        return apiToken.equals(that.apiToken);
+        return apiKey.equals(that.apiKey);
     }
 
 }

@@ -5,27 +5,30 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.action.openai.OpenAiEmbeddingsAction;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.services.InferenceService;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 
-public class OpenAiService implements InferenceService {
+public class OpenAiEmbeddingsService implements InferenceService {
 
-    public static final String NAME = "openai_embeddings";
+    public static final String NAME = "openai";
+
+    private final ThreadPool threadPool;
+    private final HttpClient httpClient;
 
     public static OpenAiEmbeddingsModel parseConfig(
         boolean throwOnUnknownFields,
@@ -51,7 +54,10 @@ public class OpenAiService implements InferenceService {
     // TODO add http client and CryptoService here
     // private final OriginSettingClient client;
 
-    public OpenAiService() {}
+    public OpenAiEmbeddingsService(ThreadPool threadPool, HttpClient httpClient) {
+        this.threadPool = threadPool;
+        this.httpClient = httpClient;
+    }
 
     @Override
     public OpenAiEmbeddingsModel parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config) {
@@ -69,35 +75,37 @@ public class OpenAiService implements InferenceService {
     }
 
     @Override
-    public void infer(
-        String modelId,
-        TaskType taskType,
-        String input,
-        Map<String, Object> config,
-        ActionListener<InferenceResult> listener
-    ) {
-
-        if (taskType != TaskType.TEXT_EMBEDDING) {
+    public void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener) {
+        if (model.getTaskType() != TaskType.TEXT_EMBEDDING) {
             listener.onFailure(
-                new ElasticsearchStatusException("The [{}] service does not support task type [{}]", RestStatus.BAD_REQUEST, NAME, taskType)
+                new ElasticsearchStatusException(
+                    "The [{}] service does not support task type [{}]",
+                    RestStatus.BAD_REQUEST,
+                    NAME,
+                    model.getTaskType()
+                )
             );
             return;
         }
 
-        OpenAiEmbeddingsTaskSettings taskSettings = taskSettingsFromMap(taskType, config);
+        if (model instanceof OpenAiEmbeddingsModel == false) {
+            listener.onFailure(new ElasticsearchStatusException("The internal model was invalid", RestStatus.INTERNAL_SERVER_ERROR));
+            return;
+        }
 
-        // TODO make http request
-        // var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-        // modelId,
-        // TextExpansionConfigUpdate.EMPTY_UPDATE,
-        // List.of(input),
-        // TimeValue.timeValueSeconds(10) // TODO get timeout from request
-        // );
-        // client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-        // var textExpansionResult = (TextExpansionResults) inferenceResult.getResults().get(0);
-        // var sparseEmbeddingResult = new SparseEmbeddingResult(textExpansionResult.getWeightedTokens());
-        // listener.onResponse(sparseEmbeddingResult);
-        // }, listener::onFailure));
+        OpenAiEmbeddingsAction action = getOpenAiEmbeddingsAction((OpenAiEmbeddingsModel) model, input, listener);
+        action.execute();
+    }
+
+    private OpenAiEmbeddingsAction getOpenAiEmbeddingsAction(
+        OpenAiEmbeddingsModel model,
+        String input,
+        ActionListener<InferenceResult> listener
+    ) {
+        // TODO figure out how to merge these settings together
+        // OpenAiEmbeddingsTaskSettings parsedRequestTaskSettings = taskSettingsFromMap(model.getTaskType(), requestTaskSettings);
+
+        return new OpenAiEmbeddingsAction(threadPool, input, httpClient, model.getServiceSettings(), model.getTaskSettings(), listener);
     }
 
     private static OpenAiEmbeddingsServiceSettings serviceSettingsFromMap(Map<String, Object> config) {

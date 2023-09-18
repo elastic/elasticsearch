@@ -7,18 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 
 import java.io.IOException;
 
 public class OpenAiClient {
-    // TODO this should handle sending the request
 
-    // TODO this needs an http client
     // TODO this should handle throttling and retries
-    // TODO maybe this won't have an account instance so it shouldn't handle building the request
-
     // TODO maybe we don't need specific request types?
 
     private final HttpClient httpClient;
@@ -28,6 +26,8 @@ public class OpenAiClient {
     }
 
     public void send(OpenAiEmbeddingsRequest request) throws IOException {
-        httpClient.send(request.createRequest());
+        byte[] body = httpClient.send(request.createRequest());
+        ObjectMapper a = new ObjectMapper();
+
     }
 }

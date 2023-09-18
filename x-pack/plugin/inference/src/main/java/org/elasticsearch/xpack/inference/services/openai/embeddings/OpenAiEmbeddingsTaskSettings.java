@@ -43,9 +43,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
         String user = MapParsingUtils.removeAsType(map, USER, String.class);
 
-        if (user == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(USER, Model.TASK_SETTINGS));
-        } else if (user.isEmpty()) {
+        if (user != null && user.isEmpty()) {
             validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(USER));
         }
 

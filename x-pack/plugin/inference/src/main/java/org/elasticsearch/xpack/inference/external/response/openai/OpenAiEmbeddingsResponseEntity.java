@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.external.response.openai;
 
-public class OpenAiConstants {
-    public static final String URL = "https://api.openai.com";
-    public static final String VERSION = "v1";
+import java.io.InputStream;
 
-    private OpenAiConstants() {}
+public class OpenAiEmbeddingsResponseEntity {
+    public OpenAiEmbeddingsResponseEntity(InputStream in) {
+
+    }
 }

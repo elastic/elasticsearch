@@ -15,10 +15,10 @@ esplugin {
 }
 
 dependencies {
-  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  implementation "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  implementation "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+//  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+//  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+//  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+//  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
 
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")

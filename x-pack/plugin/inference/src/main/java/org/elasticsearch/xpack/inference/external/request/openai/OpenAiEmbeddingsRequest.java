@@ -33,9 +33,9 @@ public class OpenAiEmbeddingsRequest implements Request {
     // TODO this should be given an openai account so it can access the api key
 
     private final OpenAiAccount account;
-    private final OpenAiEmbeddingsEntity entity;
+    private final OpenAiEmbeddingsRequestEntity entity;
 
-    public OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsEntity entity) {
+    public OpenAiEmbeddingsRequest(OpenAiAccount account, OpenAiEmbeddingsRequestEntity entity) {
         this.account = Objects.requireNonNull(account);
         this.entity = Objects.requireNonNull(entity);
     }

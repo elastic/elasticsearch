@@ -14,17 +14,19 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
-public record OpenAiEmbeddingsEntity(String input, String user) implements ToXContentObject {
+public record OpenAiEmbeddingsRequestEntity(String input, String model, String user) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
+    private static final String MODEL_FIELD = "model";
     private static final String USER_FIELD = "user";
 
-    public OpenAiEmbeddingsEntity {
+    public OpenAiEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
+        Objects.requireNonNull(model);
     }
 
-    public OpenAiEmbeddingsEntity(String input) {
-        this(input, null);
+    public OpenAiEmbeddingsRequestEntity(String input, String model) {
+        this(input, model, null);
     }
 
     public Optional<String> getUser() {
@@ -35,6 +37,7 @@ public record OpenAiEmbeddingsEntity(String input, String user) implements ToXCo
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INPUT_FIELD, input);
+        builder.field(MODEL_FIELD, model);
 
         var optionalUser = getUser();
         if (optionalUser.isPresent()) {

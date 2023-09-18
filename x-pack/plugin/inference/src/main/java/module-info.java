@@ -14,6 +14,7 @@ module org.elasticsearch.xpack.inference {
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.logging.log4j;
     requires org.apache.httpcomponents.httpcore;
+    requires org.apache.httpcomponents.httpasyncclient;
 
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.action;

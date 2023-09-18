@@ -22,6 +22,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
@@ -33,6 +36,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -53,7 +59,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -66,6 +72,19 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
     public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
+    public static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting(
+        "xpack.inference.http.max_response_size",
+        new ByteSizeValue(10, ByteSizeUnit.MB),   // default
+        ByteSizeValue.ONE, // min
+        new ByteSizeValue(50, ByteSizeUnit.MB),   // max
+        Setting.Property.NodeScope
+    );
+
+    private final Settings settings;
+
+    public InferencePlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -122,9 +141,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        HttpClient httpClient = new HttpClient(settings);
         ModelRegistry modelRegistry = new ModelRegistry(client);
         // TODO we'll need to initialize the crypto and http client probably
-        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService(client), new OpenAiService());
+        ServiceRegistry serviceRegistry = new ServiceRegistry(
+            new ElserMlNodeService(client),
+            new OpenAiEmbeddingsService(threadPool, httpClient)
+        );
         return List.of(modelRegistry, serviceRegistry);
     }
 
@@ -157,5 +180,19 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     @Override
     public String getFeatureDescription() {
         return "Inference plugin for managing inference services and inference";
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
+        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
+            UTILITY_THREAD_POOL_NAME,
+            1,
+            512 * 4,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_thread_pool"
+        );
+
+        return List.of(utility);
     }
 }

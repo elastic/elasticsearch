@@ -29,19 +29,24 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -75,13 +80,7 @@ class S3BlobStore implements BlobStore {
     private final Executor snapshotExecutor;
 
     private final Stats stats = new Stats();
-
-    final RequestMetricCollector getMetricCollector;
-    final RequestMetricCollector listMetricCollector;
-    final RequestMetricCollector putMetricCollector;
-    final RequestMetricCollector multiPartUploadMetricCollector;
-    final RequestMetricCollector deleteMetricCollector;
-    final RequestMetricCollector abortPartUploadMetricCollector;
+    private final StatsCollectors statsCollectors = new StatsCollectors();
 
     S3BlobStore(
         S3Service service,
@@ -104,48 +103,14 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("GET");
-                stats.getCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("GET");
-                stats.listCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("PUT");
-                stats.putCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                stats.postCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("POST");
-                stats.deleteCount.addAndGet(getRequestCount(request));
-            }
-        };
-        this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("DELETE");
-                stats.abortCount.addAndGet(getRequestCount(request));
-            }
-        };
+    }
+
+    RequestMetricCollector getMetricCollector(Operation operation, @Nullable Purpose purpose) {
+        return statsCollectors.getMetricCollector(operation, purpose);
+    }
+
+    RequestMetricCollector getMetricCollector(Operation operation) {
+        return statsCollectors.getMetricCollector(operation, null);
     }
 
     public Executor getSnapshotExecutor() {
@@ -210,6 +175,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
+        logger.warn("BlobContainer of [{}]", path.buildAsString());
         return new S3BlobContainer(path, this);
     }
 
@@ -267,7 +233,7 @@ class S3BlobStore implements BlobStore {
     private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
-            .withRequestMetricCollector(blobStore.deleteMetricCollector);
+            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS));
     }
 
     @Override
@@ -326,29 +292,128 @@ class S3BlobStore implements BlobStore {
         return threadPool;
     }
 
+    enum Operation {
+        GET_OBJECT("GetObject"),
+        LIST_OBJECTS("ListObjects"),
+        PUT_OBJECT("PutObject"),
+        PUT_MULTIPART_OBJECT("PutMultipartObject"),
+        DELETE_OBJECTS("DeleteObjects"),
+        ABORT_MULTIPART_OBJECT("AbortMultipartObject");
+
+        private final String value;
+
+        Operation(String value) {
+            this.value = value;
+        }
+    }
+
+    enum Purpose {
+        CLUSTER_STATE("ClusterState"),
+        INDICES("Indices"),
+        TRANSLOG("Translog");
+
+        private final String value;
+
+        Purpose(String value) {
+            this.value = value;
+        }
+    }
+
     static class Stats {
 
-        final AtomicLong listCount = new AtomicLong();
+        final ConcurrentMap<String, AtomicLong> counters = new ConcurrentHashMap<>(
+            Map.of(
+                Operation.GET_OBJECT.value,
+                new AtomicLong(),
+                Operation.LIST_OBJECTS.value,
+                new AtomicLong(),
+                Operation.PUT_OBJECT.value,
+                new AtomicLong(),
+                Operation.PUT_MULTIPART_OBJECT.value,
+                new AtomicLong(),
+                Operation.DELETE_OBJECTS.value,
+                new AtomicLong(),
+                Operation.ABORT_MULTIPART_OBJECT.value,
+                new AtomicLong()
+            )
+        );
 
-        final AtomicLong getCount = new AtomicLong();
-
-        final AtomicLong putCount = new AtomicLong();
-
-        final AtomicLong postCount = new AtomicLong();
-
-        final AtomicLong deleteCount = new AtomicLong();
-
-        final AtomicLong abortCount = new AtomicLong();
+        AtomicLong getCounter(Operation operation, Purpose purpose) {
+            final String key;
+            if (purpose == null) {
+                key = operation.value;
+            } else {
+                key = operation + "/" + purpose;
+                if (false == counters.containsKey(key)) {
+                    counters.put(key, new AtomicLong());
+                }
+            }
+            return counters.get(key);
+        }
 
         Map<String, Long> toMap() {
-            final Map<String, Long> results = new HashMap<>();
-            results.put("GetObject", getCount.get());
-            results.put("ListObjects", listCount.get());
-            results.put("PutObject", putCount.get());
-            results.put("PutMultipartObject", postCount.get());
-            results.put("DeleteObjects", deleteCount.get());
-            results.put("AbortMultipartObject", abortCount.get());
-            return results;
+            return counters.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get()));
+        }
+    }
+
+    class StatsCollectors {
+        final ConcurrentMap<String, RequestMetricCollector> collectors;
+
+        StatsCollectors() {
+            this.collectors = Stream.of(
+                Operation.GET_OBJECT,
+                Operation.LIST_OBJECTS,
+                Operation.PUT_OBJECT,
+                Operation.PUT_MULTIPART_OBJECT,
+                Operation.DELETE_OBJECTS,
+                Operation.ABORT_MULTIPART_OBJECT
+            ).collect(Collectors.toConcurrentMap(ops -> ops.value, ops -> buildMetricCollector(ops, null)));
+        }
+
+        RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
+            final String key;
+            if (purpose == null) {
+                key = operation.value;
+            } else {
+                key = operation + "/" + purpose;
+                if (false == collectors.containsKey(key)) {
+                    collectors.put(key, buildMetricCollector(operation, purpose));
+                }
+            }
+
+            return collectors.get(key);
+        }
+
+        RequestMetricCollector buildMetricCollector(Operation operation, Purpose purpose) {
+            final AtomicLong counter = stats.getCounter(operation, purpose);
+
+            return new IgnoreNoResponseMetricsCollector() {
+                @Override
+                public void collectMetrics(Request<?> request) {
+                    if (Assertions.ENABLED) {
+                        // assertions based on operation
+                        switch (operation) {
+                            case GET_OBJECT, LIST_OBJECTS -> {
+                                assert request.getHttpMethod().name().equals("GET");
+                            }
+                            case PUT_OBJECT -> {
+                                assert request.getHttpMethod().name().equals("PUT");
+                            }
+                            case PUT_MULTIPART_OBJECT -> {
+                                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
+                            }
+                            case DELETE_OBJECTS -> {
+                                assert request.getHttpMethod().name().equals("POST");
+                            }
+                            case ABORT_MULTIPART_OBJECT -> {
+                                assert request.getHttpMethod().name().equals("DELETE");
+                            }
+                            default -> throw new AssertionError("unknown operation category " + operation);
+                        }
+                    }
+                    counter.addAndGet(getRequestCount(request));
+                }
+            };
         }
     }
 }

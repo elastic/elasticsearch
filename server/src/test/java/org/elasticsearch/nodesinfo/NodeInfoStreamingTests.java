@@ -73,6 +73,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
+        assertThat(nodeInfo.getTransportVersion(), equalTo(readNodeInfo.getTransportVersion()));
+        assertThat(nodeInfo.getIndexVersion(), equalTo(readNodeInfo.getIndexVersion()));
         compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
         compareJsonOutput(nodeInfo.getInfo(RemoteClusterServerInfo.class), readNodeInfo.getInfo(RemoteClusterServerInfo.class));
         compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
@@ -230,6 +232,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
             TransportVersionUtils.randomVersion(random()),
+            IndexVersionUtils.randomVersion(random()),
             build,
             node,
             settings,

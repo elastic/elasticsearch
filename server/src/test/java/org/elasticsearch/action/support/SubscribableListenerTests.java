@@ -381,4 +381,21 @@ public class SubscribableListenerTests extends ESTestCase {
         assertTrue(listener.isDone());
     }
 
+    public void testCreateUtils() throws Exception {
+        final var succeeded = SubscribableListener.newSucceeded("result");
+        assertTrue(succeeded.isDone());
+        assertEquals("result", succeeded.rawResult());
+
+        final var failed = SubscribableListener.newFailed(new ElasticsearchException("simulated"));
+        assertTrue(failed.isDone());
+        assertEquals("simulated", expectThrows(ElasticsearchException.class, failed::rawResult).getMessage());
+
+        final var forkedListenerRef = new AtomicReference<ActionListener<Object>>();
+        final var forked = SubscribableListener.newForked(forkedListenerRef::set);
+        assertSame(forked, forkedListenerRef.get());
+
+        final var forkFailed = SubscribableListener.newForked(l -> { throw new ElasticsearchException("simulated fork failure"); });
+        assertTrue(forkFailed.isDone());
+        assertEquals("simulated fork failure", expectThrows(ElasticsearchException.class, forkFailed::rawResult).getMessage());
+    }
 }

@@ -648,7 +648,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
-                // assertRoundTrip(internalAggs);
+                for (InternalAggregations internalAggregation : internalAggs) {
+                    assertRoundTrip(internalAggregation.copyResults());
+                }
             }
 
             // now do the final reduce

@@ -11,6 +11,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -37,7 +38,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class NodeService implements Closeable {
     private final Settings settings;
@@ -116,6 +120,7 @@ public class NodeService implements Closeable {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            findComponentVersions(),
             Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
@@ -131,6 +136,12 @@ public class NodeService implements Closeable {
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
             indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
+    }
+
+    private static Map<String, Integer> findComponentVersions() {
+        return ServiceLoader.load(ComponentVersionNumber.class)
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(cvn -> cvn.get().componentId(), cvn -> cvn.get().versionNumber().id()));
     }
 
     public NodeStats stats(

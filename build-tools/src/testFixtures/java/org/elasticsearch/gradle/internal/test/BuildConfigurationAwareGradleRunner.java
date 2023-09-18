@@ -32,10 +32,10 @@ public class BuildConfigurationAwareGradleRunner extends GradleRunner {
     private final boolean ccCompatible;
     private final boolean buildApiRestrictionsDisabled;
 
-    public BuildConfigurationAwareGradleRunner(GradleRunner delegate, boolean ccCompatible) {
+    public BuildConfigurationAwareGradleRunner(GradleRunner delegate, boolean ccCompatible, boolean buildApiRestrictionsDisabled) {
         this.delegate = delegate;
         this.ccCompatible = ccCompatible;
-        this.buildApiRestrictionsDisabled = true;
+        this.buildApiRestrictionsDisabled = buildApiRestrictionsDisabled;
     }
 
     @Override

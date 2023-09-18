@@ -39,7 +39,8 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    boolean configurationCacheCompatible = true
+    protected boolean configurationCacheCompatible = true
+    protected boolean buildApiRestrictionsDisabled = false
 
     def setup() {
         projectDir = testProjectDir.root
@@ -78,6 +79,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        println "AbstractGradleFuncTest.gradleRunner"
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(
@@ -88,7 +90,8 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
                                 .forwardOutput()
-            ), configurationCacheCompatible)
+            ), configurationCacheCompatible,
+                buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() })
     }
 

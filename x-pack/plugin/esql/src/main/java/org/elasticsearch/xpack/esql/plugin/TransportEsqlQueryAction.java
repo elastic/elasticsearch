@@ -95,8 +95,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             wrappedListener = ListenerTimeouts.wrapWithTimeout(threadPool, timeout, executor, listener, l -> {
                 logger.debug("cancelling ESQL task {} on timeout", task);
                 final TaskManager taskManager = transportService.getTaskManager();
-                taskManager.cancelTaskAndDescendants((CancellableTask) task, "timeout", false, ActionListener.noop());
-                listener.onFailure(new ElasticsearchTimeoutException("ESQL query timed out after {}", timeout));
+                taskManager.cancelTaskAndDescendants((CancellableTask) task, "timeout", false, ActionListener.running(() -> {
+                    listener.onFailure(new ElasticsearchTimeoutException("ESQL query timed out after {}", timeout));
+                }));
             });
         } else {
             wrappedListener = listener;

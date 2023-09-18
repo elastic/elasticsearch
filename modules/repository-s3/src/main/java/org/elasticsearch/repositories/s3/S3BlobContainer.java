@@ -81,7 +81,6 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private final S3BlobStore blobStore;
     private final String keyPath;
-    @Nullable
     private final Purpose purpose;
 
     S3BlobContainer(BlobPath path, S3BlobStore blobStore) {

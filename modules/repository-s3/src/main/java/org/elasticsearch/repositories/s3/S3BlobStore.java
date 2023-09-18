@@ -106,12 +106,8 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
-    RequestMetricCollector getMetricCollector(Operation operation, @Nullable Purpose purpose) {
+    RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
         return statsCollectors.getMetricCollector(operation, purpose);
-    }
-
-    RequestMetricCollector getMetricCollector(Operation operation) {
-        return statsCollectors.getMetricCollector(operation, null);
     }
 
     public Executor getSnapshotExecutor() {
@@ -338,7 +334,7 @@ class S3BlobStore implements BlobStore {
 
         AtomicLong getCounter(Operation operation, Purpose purpose) {
             final String key;
-            if (purpose == null) {
+            if (purpose == Purpose.GENERIC) {
                 key = operation.value;
             } else {
                 key = operation.value + "/" + purpose.getValue();
@@ -365,12 +361,12 @@ class S3BlobStore implements BlobStore {
                 Operation.PUT_MULTIPART_OBJECT,
                 Operation.DELETE_OBJECTS,
                 Operation.ABORT_MULTIPART_OBJECT
-            ).collect(Collectors.toConcurrentMap(ops -> ops.value, ops -> buildMetricCollector(ops, null)));
+            ).collect(Collectors.toConcurrentMap(ops -> ops.value, ops -> buildMetricCollector(ops, Purpose.GENERIC)));
         }
 
         RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
             final String key;
-            if (purpose == null) {
+            if (purpose == Purpose.GENERIC) {
                 key = operation.value;
             } else {
                 key = operation + "/" + purpose.getValue();

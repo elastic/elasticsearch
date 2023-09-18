@@ -26,16 +26,15 @@ public class BlobPath {
 
     private final List<String> paths;
 
-    @Nullable
     private final Purpose purpose;
 
     private BlobPath(List<String> paths) {
-        this(paths, null);
+        this(paths, Purpose.GENERIC);
     }
 
-    private BlobPath(List<String> paths, @Nullable Purpose purpose) {
+    private BlobPath(List<String> paths, Purpose purpose) {
         this.paths = paths;
-        this.purpose = purpose;
+        this.purpose = Objects.requireNonNull(purpose, "purpose must not be null");
     }
 
     public List<String> parts() {
@@ -100,6 +99,7 @@ public class BlobPath {
     }
 
     public enum Purpose {
+        GENERIC("Generic"),
         CLUSTER_STATE("ClusterState"),
         INDICES("Indices"),
         TRANSLOG("Translog");

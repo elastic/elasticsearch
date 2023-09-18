@@ -38,7 +38,6 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
-        println "LegacyYamlRestCompatTestPluginFuncTest.yamlRestTestVxCompatTest does nothing when there are no tests"
         subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
@@ -79,14 +81,14 @@ public class EvalBenchmark {
         return switch (operation) {
             case "abs" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new Abs(Source.EMPTY, longField), layout(longField)).get();
+                yield EvalMapper.toEvaluator(new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext());
             }
             case "add" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataTypes.LONG)),
                     layout(longField)
-                ).get();
+                ).get(driverContext());
             }
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
@@ -97,28 +99,28 @@ public class EvalBenchmark {
                 yield EvalMapper.toEvaluator(
                     new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
-                ).get();
+                ).get(driverContext());
             }
             case "equal_to_const" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataTypes.LONG)),
                     layout(longField)
-                ).get();
+                ).get(driverContext());
             }
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = longField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get();
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext());
             }
             case "long_equal_to_int" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = intField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get();
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext());
             }
             case "mv_min", "mv_min_ascending" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get();
+                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext());
             }
             default -> throw new UnsupportedOperationException();
         };
@@ -257,5 +259,9 @@ public class EvalBenchmark {
             // We only check the last one
             checkExpected(operation, output);
         }
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE);
     }
 }

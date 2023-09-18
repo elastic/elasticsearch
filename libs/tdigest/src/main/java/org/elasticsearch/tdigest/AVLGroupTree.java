@@ -31,10 +31,10 @@ import java.util.Iterator;
 final class AVLGroupTree extends AbstractCollection<Centroid> {
     /* For insertions into the tree */
     private double centroid;
-    private int count;
+    private long count;
     private double[] centroids;
-    private int[] counts;
-    private int[] aggregatedCounts;
+    private long[] counts;
+    private long[] aggregatedCounts;
     private final IntAVLTree tree;
 
     AVLGroupTree() {
@@ -78,8 +78,8 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
 
         };
         centroids = new double[tree.capacity()];
-        counts = new int[tree.capacity()];
-        aggregatedCounts = new int[tree.capacity()];
+        counts = new long[tree.capacity()];
+        aggregatedCounts = new long[tree.capacity()];
     }
 
     /**
@@ -113,14 +113,14 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Return the count for the provided node.
      */
-    public int count(int node) {
+    public long count(int node) {
         return counts[node];
     }
 
     /**
      * Add the provided centroid to the tree.
      */
-    public void add(double centroid, int count) {
+    public void add(double centroid, long count) {
         this.centroid = centroid;
         this.count = count;
         tree.add();
@@ -135,7 +135,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Update values associated with a node, readjusting the tree if necessary.
      */
-    public void update(int node, double centroid, int count) {
+    public void update(int node, double centroid, long count) {
         // have to do full scale update
         this.centroid = centroid;
         this.count = count;
@@ -242,7 +242,7 @@ final class AVLGroupTree extends AbstractCollection<Centroid> {
     /**
      * Return the total count of points that have been added to the tree.
      */
-    public int sum() {
+    public long sum() {
         return aggregatedCounts[tree.root()];
     }
 

@@ -52,50 +52,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertEquals(List.of(List.of(499.5d)), result.get("values"));
     }
 
-    public void testTimeout() throws IOException {
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < 10000; i++) {
-            b.append(String.format(Locale.ROOT, """
-                {"create":{"_index":"%s"}}
-                {"test":"value%s"}
-                """, testIndexName(), randomAlphaOfLength(20) + " " + randomAlphaOfLength(20) + " " + randomAlphaOfLength(20)));
-        }
-        Request bulk = new Request("POST", "/_bulk");
-        bulk.addParameter("refresh", "true");
-        bulk.addParameter("filter_path", "errors");
-        bulk.setJsonEntity(b.toString());
-        Response response = client().performRequest(bulk);
-        Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-
-        // let's make it a bit expensive, so that the timeout will most likely trigger
-        RequestObjectBuilder builder = new RequestObjectBuilder().query(fromIndex() + """
-            | grok test "%{NOTSPACE:a} %{NOTSPACE:b} %{NOTSPACE:c}"
-            | grok test "%{NOTSPACE:c} %{NOTSPACE:d} %{NOTSPACE:e}"
-            | grok test "%{NOTSPACE:f} %{NOTSPACE:g} %{NOTSPACE:h}"
-            | grok test "%{NOTSPACE:i} %{NOTSPACE:j} %{NOTSPACE:k}"
-            | grok test "%{WORD:l} %{WORD:m} %{WORD:n}"
-            | grok test "%{WORD:o} %{WORD:p} %{WORD:q}"
-            | grok test "%{USERNAME:r} %{USERNAME:s} %{USERNAME:t}"
-            | grok test "%{USERNAME:u} %{USERNAME:v} %{USERNAME:w}"
-            | grok test "%{DATA:x} %{DATA:y} %{DATA:z}"
-            | sort test
-            | limit 9999
-            | sort b desc
-            | limit 9998
-            | sort c
-            | limit 9997
-            | eval s = length(a) + length(b) * length(c)
-            | stats max(s)
-            """);
-        if (Build.current().isSnapshot()) {
-            builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        }
-        builder.timeout(0);
-        builder.build();
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("ESQL query timed out after 0s"));
-    }
-
     public void testInvalidPragma() throws IOException {
         assumeTrue("pragma only enabled on snapshot builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");

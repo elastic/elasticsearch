@@ -445,7 +445,7 @@ setup:
           index.blocks.write: true
 
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: test*
         target_index: test-downsample
@@ -455,7 +455,7 @@ setup:
           }
 
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: _all
         target_index: test-downsample

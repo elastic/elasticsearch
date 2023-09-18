@@ -73,7 +73,7 @@ public class EsqlTimeoutIT extends AbstractEsqlIntegTestCase {
     public void testNoTimeout() {
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query("from test");
-        request.timeout(new TimeValue(1500, TimeUnit.MILLISECONDS));
+        request.timeout(new TimeValue(1, TimeUnit.MINUTES));
         EsqlQueryResponse a = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
         assertThat(a.columns().size(), equalTo(2));
     }

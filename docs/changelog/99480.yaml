@@ -1,6 +1,0 @@
-pr: 99480
-summary: Fix deadlock between Cache.put and Cache.invalidateAll
-area: Infra/Core
-type: bug
-issues:
- - 99326

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
@@ -65,6 +66,7 @@ import static org.hamcrest.Matchers.not;
     value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.tasks.TaskCancellationService:TRACE",
     reason = "These tests are failing frequently; we need logs before muting them"
 )
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99589")
 public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static int PAGE_SIZE;
     private static int NUM_DOCS;
@@ -80,6 +82,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() throws IOException {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         PAGE_SIZE = between(10, 100);
         NUM_DOCS = between(4 * PAGE_SIZE, 5 * PAGE_SIZE);
         READ_DESCRIPTION = """
@@ -168,6 +171,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99582")
     public void testCancelRead() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         List<TaskInfo> infos = getTasksStarting();

@@ -8,11 +8,11 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class DefaultSortableTopNEncoder extends SortableTopNEncoder {
     @Override
-    public int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 

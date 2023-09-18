@@ -120,11 +120,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("1s"))
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10s"))
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
                         )
                     )
                 )
@@ -144,11 +144,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("1s"))
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10s"))
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
                         )
                     )
                 )
@@ -188,8 +188,8 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     private void waitAndAssertDownsamplingCompleted(String dataStreamName) throws Exception {
         List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0).getName();
-        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
-        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+        String oneSecondDownsampleIndex = "downsample-5m-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10m-" + firstGenerationBackingIndex;
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
@@ -439,11 +439,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         List.of(
                             new DataStreamLifecycle.Downsampling.Round(
                                 TimeValue.timeValueMillis(0),
-                                new DownsampleConfig(new DateHistogramInterval("1s"))
+                                new DownsampleConfig(new DateHistogramInterval("5m"))
                             ),
                             new DataStreamLifecycle.Downsampling.Round(
                                 TimeValue.timeValueSeconds(10),
-                                new DownsampleConfig(new DateHistogramInterval("10s"))
+                                new DownsampleConfig(new DateHistogramInterval("10m"))
                             )
                         )
                     )

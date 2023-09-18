@@ -29,7 +29,7 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
 
   @Override
   public String name() {
-    return "ToLong";
+    return "ToLongFromInt";
   }
 
   @Override

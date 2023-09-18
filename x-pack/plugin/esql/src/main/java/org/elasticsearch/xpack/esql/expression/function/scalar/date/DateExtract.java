@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,7 +30,6 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -44,20 +43,24 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(children().get(0));
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEvaluator = toEvaluator.apply(children().get(0));
         if (children().get(1).foldable()) {
             ChronoField chrono = chronoField();
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(1).fold();
                 throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
-            return () -> new DateExtractConstantEvaluator(fieldEvaluator.get(), chrono, configuration().zoneId());
+            return dvrCtx -> new DateExtractConstantEvaluator(fieldEvaluator.get(dvrCtx), chrono, configuration().zoneId(), dvrCtx);
         }
-        Supplier<EvalOperator.ExpressionEvaluator> chronoEvaluator = toEvaluator.apply(children().get(1));
-        return () -> new DateExtractEvaluator(source(), fieldEvaluator.get(), chronoEvaluator.get(), configuration().zoneId());
+        var chronoEvaluator = toEvaluator.apply(children().get(1));
+        return dvrCtx -> new DateExtractEvaluator(
+            source(),
+            fieldEvaluator.get(dvrCtx),
+            chronoEvaluator.get(dvrCtx),
+            configuration().zoneId(),
+            dvrCtx
+        );
     }
 
     private ChronoField chronoField() {

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
@@ -76,5 +77,10 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(values);
     }
 }

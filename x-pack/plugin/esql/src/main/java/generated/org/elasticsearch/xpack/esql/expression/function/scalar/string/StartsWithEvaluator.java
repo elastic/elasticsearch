@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -24,10 +25,13 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator prefix;
 
+  private final DriverContext driverContext;
+
   public StartsWithEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator prefix) {
+      EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
     this.str = str;
     this.prefix = prefix;
+    this.driverContext = driverContext;
   }
 
   @Override

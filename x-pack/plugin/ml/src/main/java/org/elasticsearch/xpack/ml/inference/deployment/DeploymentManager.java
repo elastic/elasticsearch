@@ -12,9 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
-import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +53,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -244,8 +239,7 @@ public class DeploymentManager {
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener,
         String modelPlatformArchitecture
     ) {
-        ActionListener<NodesInfoResponse> architectureValidationListener = ActionListener.wrap(nodesInfoResponse -> {
-            Set<String> architectures = Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse));
+        ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
             try {
                 verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
             } catch (IllegalArgumentException iae) {
@@ -254,15 +248,7 @@ public class DeploymentManager {
             }
         }, failedDeploymentListener::onFailure);
 
-        getNodesInfoBuilderWithOSAndPlugins().execute(architectureValidationListener);
-    }
-
-    private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
-        return nodesInfoResponse.getNodes().stream().filter(node -> {
-            return node.getInfo(PluginsAndModules.class).getPluginInfos().stream().anyMatch(pluginRuntimeInfo -> {
-                return pluginRuntimeInfo.descriptor().getName().equals("ml");
-            });
-        }).map(node -> { return node.getInfo(OsInfo.class).getArch(); }).toList();
+        SupportedPlatformArchitectures.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
     }
 
     private void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures) throws IllegalStateException {
@@ -293,10 +279,6 @@ public class DeploymentManager {
                 )
             );
         }
-    }
-
-    private NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins() {
-        return client.admin().cluster().prepareNodesInfo().clear().setOs(true).setPlugins(true);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

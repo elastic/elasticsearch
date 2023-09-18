@@ -7,7 +7,18 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MachineLearning;
+
+import java.util.List;
+import java.util.Set;
 
 public enum SupportedPlatformArchitectures {
     PLATFORM_INDEPENDENT(""),
@@ -29,5 +40,27 @@ public enum SupportedPlatformArchitectures {
 
     public String toString() {
         return platformArchitecture;
+    }
+
+    public static void getNodesOsArchitectures(ThreadPool threadPool, Client client, ActionListener<Set<String>> architecturesListener) {
+
+        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = ActionListener.wrap(nodesInfoResponse -> {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                architecturesListener.onResponse(Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse)));
+            });
+        }, architecturesListener::onFailure);
+        getNodesInfoBuilderWithOSAndPlugins(client).execute(nodesInfoResponseActionListener);
+    }
+
+    private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
+        return nodesInfoResponse.getNodes().stream().filter(node -> {
+            return node.getInfo(PluginsAndModules.class).getPluginInfos().stream().anyMatch(pluginRuntimeInfo -> {
+                return pluginRuntimeInfo.descriptor().getName().equals("ml");
+            });
+        }).map(node -> { return node.getInfo(OsInfo.class).getArch(); }).toList();
+    }
+
+    private static NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins(Client client) {
+        return client.admin().cluster().prepareNodesInfo().clear().setOs(true).setPlugins(true);
     }
 }

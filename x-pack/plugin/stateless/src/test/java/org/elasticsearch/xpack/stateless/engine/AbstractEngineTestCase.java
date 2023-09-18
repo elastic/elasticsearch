@@ -102,6 +102,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
@@ -157,6 +158,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             argument.onResponse(null);
             return null;
         }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
+        when(commitService.closedLocalReadersForGeneration(any(ShardId.class))).thenReturn(v -> {});
         return commitService;
     }
 

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
@@ -25,8 +26,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
-public class TsdbIT extends AbstractRollingTestCase {
+public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
+
+    public TsdbIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
+        super(upgradeNode, totalNodes);
+    }
 
     private static final String TEMPLATE = """
         {
@@ -127,11 +131,11 @@ public class TsdbIT extends AbstractRollingTestCase {
 
     public void testTsdbDataStream() throws Exception {
         assumeTrue(
-            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0",
+            getOldClusterVersion().onOrAfter(Version.V_8_7_0)
         );
         String dataStreamName = "k8s";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             final String INDEX_TEMPLATE = """
                 {
                     "index_patterns": ["$PATTERN"],
@@ -146,20 +150,20 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertOK(client().performRequest(putIndexTemplateRequest));
 
             performOldClustertOperations(templateName, dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             performMixedClusterOperations(dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
         }
     }
 
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
         assumeTrue(
-            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0) && UPGRADE_FROM_VERSION.before(Version.V_8_11_0)
+            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
+            getOldClusterVersion().onOrAfter(Version.V_8_7_0) && getOldClusterVersion().before(Version.V_8_11_0)
         );
         String dataStreamName = "template-with-component-template";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             final String COMPONENT_TEMPLATE = """
                     {
                         "template": $TEMPLATE
@@ -183,9 +187,9 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertOK(client().performRequest(putIndexTemplateRequest));
 
             performOldClustertOperations(templateName, dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             performMixedClusterOperations(dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
 
             var dataStreams = getDataStream(dataStreamName);
@@ -244,7 +248,7 @@ public class TsdbIT extends AbstractRollingTestCase {
 
     private static void performMixedClusterOperations(String dataStreamName) throws IOException {
         ensureHealth(dataStreamName, request -> request.addParameter("wait_for_status", "yellow"));
-        if (FIRST_MIXED_ROUND) {
+        if (isFirstMixedCluster()) {
             indexDoc(dataStreamName);
         }
         assertSearch(dataStreamName, 9);

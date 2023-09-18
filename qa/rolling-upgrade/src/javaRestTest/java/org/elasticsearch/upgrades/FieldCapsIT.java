@@ -9,7 +9,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
@@ -20,15 +19,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,32 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(3)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
     public FieldCapsIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
         super(upgradeNode, totalNodes);
-    }
-
-    @ParametersFactory(shuffle = false)
-    public static Iterable<Object[]> parameters() {
-        return testNodes(3);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     private static boolean oldIndicesCreated;

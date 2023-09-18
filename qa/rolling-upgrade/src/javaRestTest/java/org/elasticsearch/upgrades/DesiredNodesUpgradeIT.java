@@ -9,7 +9,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
@@ -22,14 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,35 +36,11 @@ import static org.hamcrest.Matchers.is;
 
 public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(3)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
-
     private final int desiredNodesVersion;
 
     public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
         super(upgradeNode, totalNodes);
         desiredNodesVersion = Objects.requireNonNullElse(upgradeNode, -1) + 2;
-    }
-
-    @ParametersFactory(shuffle = false)
-    public static Iterable<Object[]> parameters() {
-        return testNodes(3);
-    }
-
-    @Override
-    protected ElasticsearchCluster getUpgradeCluster() {
-        return cluster;
     }
 
     private enum ProcessorsPrecision {

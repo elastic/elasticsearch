@@ -9,17 +9,24 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -32,6 +39,28 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(3)
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @ParametersFactory(shuffle = false)
+    public static Iterable<Object[]> parameters() {
+        final int numNodes = 3;
+        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, numNodes).boxed())
+            .map(n -> new Object[] { n, numNodes })
+            .toList();
+    }
 
     private static int totalNodes = -1;
     private static final Set<Integer> upgradedNodes = new HashSet<>();
@@ -47,12 +76,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             assertThat("The total number of nodes has changed", totalNodes, equalTo(ParameterizedRollingUpgradeTestCase.totalNodes));
         }
         this.requestedUpgradeNode = upgradeNode;
-    }
-
-    protected static Iterable<Object[]> testNodes(int numNodes) {
-        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, numNodes).boxed())
-            .map(n -> new Object[] { n, numNodes })
-            .toList();
     }
 
     @Before
@@ -95,7 +118,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
         if (requestedUpgradeNode != null && upgradedNodes.add(requestedUpgradeNode)) {
             try {
-                getUpgradeCluster().upgradeNodeToVersion(requestedUpgradeNode, Version.CURRENT);
+                cluster.upgradeNodeToVersion(requestedUpgradeNode, Version.CURRENT);
                 closeClients();
                 initClient();
             } catch (Exception e) {
@@ -126,8 +149,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return Version.fromString(OLD_CLUSTER_VERSION.toString());
     }
 
-    protected abstract ElasticsearchCluster getUpgradeCluster();
-
     protected static boolean isOldCluster() {
         return upgradedNodes.isEmpty();
     }
@@ -146,7 +167,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
-        return getUpgradeCluster().getHttpAddresses();
+        return cluster.getHttpAddresses();
     }
 
     @Override

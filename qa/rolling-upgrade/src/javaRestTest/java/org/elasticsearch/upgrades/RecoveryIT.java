@@ -7,8 +7,9 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -54,14 +55,17 @@ import static org.hamcrest.Matchers.oneOf;
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "Needs migrating")
-public class RecoveryIT extends AbstractRollingTestCase {
+public class RecoveryIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static String CLUSTER_NAME = System.getProperty("tests.clustername");
+    public RecoveryIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
+        super(upgradeNode, totalNodes);
+    }
+
+    private static final String CLUSTER_NAME = System.getProperty("tests.clustername");
 
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
@@ -71,7 +75,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build());
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             ensureGreen(index);
             Request shardStatsRequest = new Request("GET", index + "/_stats");
             shardStatsRequest.addParameter("level", "shards");
@@ -128,44 +132,39 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
         List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-                    // if the node with the replica is the first to be restarted, while a replica is still recovering
-                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
-                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
-                    // before timing out
-                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-                createIndex(index, settings.build());
-                indexDocs(index, 0, 10);
-                ensureGreen(index);
-                // make sure that we can index while the replicas are recovering
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
-            }
-            case MIXED -> {
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
-                asyncIndexDocs(index, 10, 50).get();
-                ensureGreen(index);
-                client().performRequest(new Request("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + nodes.get(0), 60);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 60);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 60);
-                // make sure that we can index while the replicas are recovering
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
-            }
-            case UPGRADED -> {
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
-                asyncIndexDocs(index, 60, 45).get();
-                ensureGreen(index);
-                client().performRequest(new Request("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
-            }
-            default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+        if (isOldCluster()) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            createIndex(index, settings.build());
+            indexDocs(index, 0, 10);
+            ensureGreen(index);
+            // make sure that we can index while the replicas are recovering
+            updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+        } else if (isMixedCluster()) {
+            updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
+            asyncIndexDocs(index, 10, 50).get();
+            ensureGreen(index);
+            client().performRequest(new Request("POST", index + "/_refresh"));
+            assertCount(index, "_only_nodes:" + nodes.get(0), 60);
+            assertCount(index, "_only_nodes:" + nodes.get(1), 60);
+            assertCount(index, "_only_nodes:" + nodes.get(2), 60);
+            // make sure that we can index while the replicas are recovering
+            updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+        } else {
+            updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
+            asyncIndexDocs(index, 60, 45).get();
+            ensureGreen(index);
+            client().performRequest(new Request("POST", index + "/_refresh"));
+            assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+            assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+            assertCount(index, "_only_nodes:" + nodes.get(2), 105);
         }
     }
 
@@ -217,78 +216,73 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+        if (isOldCluster()) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put("index.routing.allocation.include._tier_preference", "")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            createIndex(index, settings.build());
+            indexDocs(index, 0, 10);
+            ensureGreen(index);
+            // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
+            // node stops, we lose the master too, so a replica will not be promoted)
+            updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
+        } else if (isMixedCluster()) {
+            final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
+            final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
+            // remove the replica and guaranteed the primary is placed on the old node
+            updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)
+                    .put("index.routing.allocation.include._id", oldNode)
+                    .putNull("index.routing.allocation.include._tier_preference")
+            );
+            ensureGreen(index); // wait for the primary to be assigned
+            ensureNoInitializingShards(); // wait for all other shard activity to finish
+            updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                index,
+                Settings.builder().put("index.routing.allocation.include._id", newNode)
+            );
+            asyncIndexDocs(index, 10, 50).get();
+            // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
+            // return true even though shards haven't moved to the new node yet (allocation was throttled).
+            assertBusy(() -> {
+                Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+                String xpath = "routing_table.indices." + index + ".shards.0.node";
+                @SuppressWarnings("unchecked")
+                List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+                assertNotNull(state.toString(), assignedNodes);
+                assertThat(state.toString(), newNode, in(assignedNodes));
+            }, 60, TimeUnit.SECONDS);
+            ensureGreen(index);
+            client().performRequest(new Request("POST", index + "/_refresh"));
+            assertCount(index, "_only_nodes:" + newNode, 60);
+        } else {
+            updateIndexSettings(
+                index,
+                Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-                    // if the node with the replica is the first to be restarted, while a replica is still recovering
-                    // then delayed allocation will kick in. When the node comes back, the master will search for a copy
-                    // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
-                    // before timing out
-                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                    .put("index.routing.allocation.include._tier_preference", "")
-                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-                createIndex(index, settings.build());
-                indexDocs(index, 0, 10);
-                ensureGreen(index);
-                // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
-                // node stops, we lose the master too, so a replica will not be promoted)
-                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
-            }
-            case MIXED -> {
-                final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
-                final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
-                // remove the replica and guaranteed the primary is placed on the old node
-                updateIndexSettingsPermittingSlowlogDeprecationWarning(
-                    index,
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                        .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)
-                        .put("index.routing.allocation.include._id", oldNode)
-                        .putNull("index.routing.allocation.include._tier_preference")
-                );
-                ensureGreen(index); // wait for the primary to be assigned
-                ensureNoInitializingShards(); // wait for all other shard activity to finish
-                updateIndexSettingsPermittingSlowlogDeprecationWarning(
-                    index,
-                    Settings.builder().put("index.routing.allocation.include._id", newNode)
-                );
-                asyncIndexDocs(index, 10, 50).get();
-                // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
-                // return true even though shards haven't moved to the new node yet (allocation was throttled).
-                assertBusy(() -> {
-                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-                    String xpath = "routing_table.indices." + index + ".shards.0.node";
-                    @SuppressWarnings("unchecked")
-                    List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
-                    assertNotNull(state.toString(), assignedNodes);
-                    assertThat(state.toString(), newNode, in(assignedNodes));
-                }, 60, TimeUnit.SECONDS);
-                ensureGreen(index);
-                client().performRequest(new Request("POST", index + "/_refresh"));
-                assertCount(index, "_only_nodes:" + newNode, 60);
-            }
-            case UPGRADED -> {
-                updateIndexSettings(
-                    index,
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-                        .put("index.routing.allocation.include._id", (String) null)
-                        .putNull("index.routing.allocation.include._tier_preference")
-                );
-                asyncIndexDocs(index, 60, 45).get();
-                ensureGreen(index);
-                client().performRequest(new Request("POST", index + "/_refresh"));
-                Response response = client().performRequest(new Request("GET", "_nodes"));
-                ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
-                List<String> nodes = new ArrayList<>(nodeMap.keySet());
-                assertCount(index, "_only_nodes:" + nodes.get(0), 105);
-                assertCount(index, "_only_nodes:" + nodes.get(1), 105);
-                assertCount(index, "_only_nodes:" + nodes.get(2), 105);
-            }
-            default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+                    .put("index.routing.allocation.include._id", (String) null)
+                    .putNull("index.routing.allocation.include._tier_preference")
+            );
+            asyncIndexDocs(index, 60, 45).get();
+            ensureGreen(index);
+            client().performRequest(new Request("POST", index + "/_refresh"));
+            Response response = client().performRequest(new Request("GET", "_nodes"));
+            ObjectPath objectPath = ObjectPath.createFromResponse(response);
+            final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
+            List<String> nodes = new ArrayList<>(nodeMap.keySet());
+            assertCount(index, "_only_nodes:" + nodes.get(0), 105);
+            assertCount(index, "_only_nodes:" + nodes.get(1), 105);
+            assertCount(index, "_only_nodes:" + nodes.get(2), 105);
         }
         if (randomBoolean()) {
             flush(index, randomBoolean());
@@ -297,7 +291,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testRecovery() throws Exception {
         final String index = "test_recovery";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
@@ -336,7 +330,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testRetentionLeasesEstablishedWhenPromotingPrimary() throws Exception {
         final String index = "recover_and_create_leases_in_promotion";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
@@ -358,50 +352,46 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testRetentionLeasesEstablishedWhenRelocatingPrimary() throws Exception {
         final String index = "recover_and_create_leases_in_relocation";
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
-                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-                if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
-                    settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-                }
-                createIndex(index, settings.build());
-                int numDocs = randomInt(10);
-                indexDocs(index, 0, numDocs);
-                if (randomBoolean()) {
-                    client().performRequest(new Request("POST", "/" + index + "/_flush"));
-                }
-                ensureGreen(index);
+        if (isOldCluster()) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
-            case MIXED -> {
-                // trigger a primary relocation by excluding the last old node with a shard filter
-                final Map<?, ?> nodesMap = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")))
-                    .evaluate("nodes");
-                final List<String> oldNodeNames = new ArrayList<>();
-                for (Object nodeDetails : nodesMap.values()) {
-                    final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
-                    final String versionString = (String) nodeDetailsMap.get("version");
-                    if (versionString.equals(Version.CURRENT.toString()) == false) {
-                        oldNodeNames.add((String) nodeDetailsMap.get("name"));
-                    }
-                }
-                if (oldNodeNames.size() == 1) {
-                    final String oldNodeName = oldNodeNames.get(0);
-                    logger.info("--> excluding index [{}] from node [{}]", index, oldNodeName);
-                    final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
-                    putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
-                    assertOK(client().performRequest(putSettingsRequest));
-                }
-                ensureGreen(index);
-                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            createIndex(index, settings.build());
+            int numDocs = randomInt(10);
+            indexDocs(index, 0, numDocs);
+            if (randomBoolean()) {
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
             }
-            case UPGRADED -> {
-                ensureGreen(index);
-                ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+            ensureGreen(index);
+        } else if (isMixedCluster()) {
+            // trigger a primary relocation by excluding the last old node with a shard filter
+            final Map<?, ?> nodesMap = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")))
+                .evaluate("nodes");
+            final List<String> oldNodeNames = new ArrayList<>();
+            for (Object nodeDetails : nodesMap.values()) {
+                final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
+                final String versionString = (String) nodeDetailsMap.get("version");
+                if (versionString.equals(Version.CURRENT.toString()) == false) {
+                    oldNodeNames.add((String) nodeDetailsMap.get("name"));
+                }
             }
+            if (oldNodeNames.size() == 1) {
+                final String oldNodeName = oldNodeNames.get(0);
+                logger.info("--> excluding index [{}] from node [{}]", index, oldNodeName);
+                final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+                putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
+                assertOK(client().performRequest(putSettingsRequest));
+            }
+            ensureGreen(index);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
+        } else {
+            ensureGreen(index);
+            ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
         }
     }
 
@@ -412,7 +402,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testRecoveryClosedIndex() throws Exception {
         final String indexName = "closed_index_created_on_old";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createIndex(
                 indexName,
                 Settings.builder()
@@ -448,8 +438,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
         final Version minimumNodeVersion = minimumNodeVersion();
-        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id))
-            .toLowerCase(Locale.ROOT);
+        String type = isOldCluster() ? "OLD" : isMixedCluster() ? "MIXED" : "UPGRADED";
+        final String indexName = String.join("_", "index", type, Integer.toString(minimumNodeVersion.id)).toLowerCase(Locale.ROOT);
 
         if (indexExists(indexName) == false) {
             createIndex(
@@ -478,7 +468,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testClosedIndexNoopRecovery() throws Exception {
         final String indexName = "closed_index_replica_allocation";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createIndex(
                 indexName,
                 Settings.builder()
@@ -506,13 +496,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (CLUSTER_TYPE != ClusterType.OLD) {
-                assertNoopRecoveries(indexName, s -> CLUSTER_TYPE == ClusterType.UPGRADED || s.startsWith(CLUSTER_NAME + "-0"));
+            if (isOldCluster() == false) {
+                assertNoopRecoveries(indexName, s -> isUpgradedCluster() || s.startsWith(CLUSTER_NAME + "-0"));
             }
         } else {
             assertClosedIndex(indexName, false);
         }
-
     }
 
     /**
@@ -576,7 +565,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
     /** Ensure that we can always execute update requests regardless of the version of cluster */
     public void testUpdateDoc() throws Exception {
         final String index = "test_update_doc";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
@@ -646,7 +635,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testOperationBasedRecovery() throws Exception {
         final String index = "test_operation_based_recovery";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
@@ -665,7 +654,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureGreen(index);
             assertNoFileBasedRecovery(
                 index,
-                nodeName -> CLUSTER_TYPE == ClusterType.UPGRADED
+                nodeName -> isUpgradedCluster()
                     || nodeName.startsWith(CLUSTER_NAME + "-0")
                     || (nodeName.startsWith(CLUSTER_NAME + "-1") && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false)
             );
@@ -679,7 +668,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testTurnOffTranslogRetentionAfterUpgraded() throws Exception {
         final String index = "turn_off_translog_retention";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createIndex(
                 index,
                 Settings.builder()
@@ -693,7 +682,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             flush(index, randomBoolean());
             indexDocs(index, randomIntBetween(0, 100), randomIntBetween(0, 100));
         }
-        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        if (isUpgradedCluster()) {
             ensureGreen(index);
             flush(index, true);
             assertEmptyTranslog(index);
@@ -709,7 +698,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
         List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             createIndex(indexName, indexSettings(1, randomInt(2)).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all").build());
             ensureGreen(indexName);
             updateIndexSettings(
@@ -732,7 +721,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testSoftDeletesDisabledWarning() throws Exception {
         final String indexName = "test_soft_deletes_disabled_warning";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             boolean softDeletesEnabled = true;
             Settings.Builder settings = Settings.builder();
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class ValueExtractorForDoc implements ValueExtractor {
     private final DocVector vector;
@@ -19,7 +19,7 @@ class ValueExtractorForDoc implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(BytesRefBuilder values, int position) {
+    public void writeValue(BreakingBytesRefBuilder values, int position) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.shards().getInt(position), values);
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.segments().getInt(position), values);
         TopNEncoder.DEFAULT_UNSORTABLE.encodeInt(vector.docs().getInt(position), values);

@@ -10,8 +10,6 @@ package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
 
-import java.util.ServiceLoader;
-
 /**
  * Allows plugging in current build info.
  */
@@ -21,18 +19,4 @@ public interface BuildExtension {
      * Returns the {@link Build} that represents the running Elasticsearch code.
      */
     Build getCurrentBuild();
-
-    /**
-     * Loads a single BuildExtension, or returns {@code null} if none are found.
-     */
-    static BuildExtension load() {
-        var loader = ServiceLoader.load(BuildExtension.class);
-        var extensions = loader.stream().toList();
-        if (extensions.size() > 1) {
-            throw new IllegalStateException("More than one build extension found");
-        } else if (extensions.size() == 0) {
-            return null;
-        }
-        return extensions.get(0).get();
-    }
 }

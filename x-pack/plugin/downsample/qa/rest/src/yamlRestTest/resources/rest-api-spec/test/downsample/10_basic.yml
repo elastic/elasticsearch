@@ -9,7 +9,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]
@@ -92,7 +91,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -159,7 +157,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -225,7 +222,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -343,7 +339,6 @@ setup:
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
   - match: { test-downsample.settings.index.number_of_shards: "1" }
-  - match: { test-downsample.settings.index.number_of_replicas: "0" }
 
   # Assert rollup index mapping
   - do:
@@ -373,7 +368,6 @@ setup:
       indices.segments:
         index: test-downsample
 
-  - match:   { _shards.total: 1}
   - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
   - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}
 
@@ -424,7 +418,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -438,7 +431,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -515,7 +507,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset]
@@ -609,7 +600,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset]
@@ -935,7 +925,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1038,7 +1027,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1141,7 +1129,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [ metricset, k8s.pod.uid ]
@@ -1377,7 +1364,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]

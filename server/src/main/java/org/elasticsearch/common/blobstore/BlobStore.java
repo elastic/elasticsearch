@@ -30,6 +30,7 @@ public interface BlobStore extends Closeable {
      * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
      * @param blobNames the blobs to be deleted
      */
+    @Deprecated(forRemoval = true)
     void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException;
 
     default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, @Nullable Purpose purpose) throws IOException {

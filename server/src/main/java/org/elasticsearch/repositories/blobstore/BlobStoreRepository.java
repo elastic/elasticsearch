@@ -1741,6 +1741,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
 
         while (true) {
+            // retry loop, in case the state changes underneath us somehow
+
             if (lifecycle.started() == false) {
                 listener.onFailure(notStartedException());
                 return;
@@ -1763,7 +1765,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     cluster state""", metadata.name());
                 if (initializeRepoGenerationTracking(listener)) {
                     return;
-                }
+                } // else there was a concurrent modification, retry from the start
             } else {
                 logger.trace(
                     "[{}] loading un-cached repository data with best known repository generation [{}]",
@@ -1797,14 +1799,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         synchronized (this) {
             if (repoDataInitialized == null) {
-                // double check the generation since we checked it outside the mutex in the caller and it could have changed by a
+                // double-check the generation since we checked it outside the mutex in the caller and it could have changed by a
                 // concurrent initialization of the repo metadata and just load repository normally in case we already finished the
                 // initialization
                 if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
                     return false; // retry
                 }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
-                repoDataInitialized = listenerToSubscribe = new SubscribableListener<RepositoryData>();
+                repoDataInitialized = listenerToSubscribe = new SubscribableListener<>();
                 listenerToComplete = new ActionListener<>() {
                     private ActionListener<RepositoryData> acquireAndClearRepoDataInitialized() {
                         synchronized (BlobStoreRepository.this) {

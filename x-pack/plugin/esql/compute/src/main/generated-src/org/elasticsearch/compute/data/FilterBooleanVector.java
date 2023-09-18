@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for BooleanVectors.
@@ -87,5 +88,10 @@ public final class FilterBooleanVector extends AbstractFilterVector implements B
             }
             sb.append(getBoolean(i));
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

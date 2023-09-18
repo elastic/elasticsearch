@@ -39,7 +39,7 @@ public class SortingDigest extends AbstractTDigest {
     private boolean isSorted = true;
 
     @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         checkValue(x);
         isSorted = isSorted && (values.isEmpty() || values.get(values.size() - 1) <= x);
         for (int i = 0; i < w; i++) {

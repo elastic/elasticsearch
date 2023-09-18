@@ -62,7 +62,7 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     public void testRejectsDouble() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,

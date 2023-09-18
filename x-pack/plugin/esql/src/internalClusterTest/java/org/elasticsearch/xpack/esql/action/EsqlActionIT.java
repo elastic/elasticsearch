@@ -445,8 +445,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(0.034d, (double) getValuesList(results).get(0).get(0), 0.001d);
     }
 
-    public void testFromStatsEvalWithPragma() {
-        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
+    public void testFromStatsThenEval() {
         EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
         Assert.assertEquals(1, getValuesList(results).size());

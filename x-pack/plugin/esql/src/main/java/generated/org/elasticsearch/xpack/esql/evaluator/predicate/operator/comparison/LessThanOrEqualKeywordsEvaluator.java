@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -24,10 +25,13 @@ public final class LessThanOrEqualKeywordsEvaluator implements EvalOperator.Expr
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
+  private final DriverContext driverContext;
+
   public LessThanOrEqualKeywordsEvaluator(EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs) {
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.lhs = lhs;
     this.rhs = rhs;
+    this.driverContext = driverContext;
   }
 
   @Override

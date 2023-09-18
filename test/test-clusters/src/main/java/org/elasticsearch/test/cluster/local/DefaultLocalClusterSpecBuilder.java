@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.elasticsearch.test.cluster.DefaultElasticsearchCluster;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
@@ -27,9 +26,11 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuil
 
     @Override
     public ElasticsearchCluster build() {
-        return new DefaultElasticsearchCluster<>(
+        return new DefaultLocalElasticsearchCluster<>(
             this::buildClusterSpec,
-            new LocalClusterFactory(new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver())))
+            new DefaultLocalClusterFactory(
+                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+            )
         );
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Named;
@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
     public Abs(Source source, @Named("n") Expression n) {
@@ -48,21 +47,19 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return () -> new AbsDoubleEvaluator(field.get());
+            return dvrCtx -> new AbsDoubleEvaluator(field.get(dvrCtx), dvrCtx);
         }
         if (dataType() == DataTypes.UNSIGNED_LONG) {
             return field;
         }
         if (dataType() == DataTypes.LONG) {
-            return () -> new AbsLongEvaluator(field.get());
+            return dvrCtx -> new AbsLongEvaluator(field.get(dvrCtx), dvrCtx);
         }
         if (dataType() == DataTypes.INTEGER) {
-            return () -> new AbsIntEvaluator(field.get());
+            return dvrCtx -> new AbsIntEvaluator(field.get(dvrCtx), dvrCtx);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());
     }

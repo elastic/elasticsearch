@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
@@ -103,6 +104,15 @@ $if(BytesRef)$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
 $else$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+$endif$
+    }
+
+    @Override
+    public void close() {
+$if(BytesRef)$
+        Releasables.closeExpectNoException(values);
+$else$
+        // no-op
 $endif$
     }
 }

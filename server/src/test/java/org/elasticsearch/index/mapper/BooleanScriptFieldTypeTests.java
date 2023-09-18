@@ -320,7 +320,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     public void testDualingQueries() throws IOException {
         BooleanFieldMapper ootb = new BooleanFieldMapper.Builder("foo", ScriptCompiler.NONE, false, IndexVersion.current()).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);

@@ -338,7 +338,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("eval does not support type [byte] in expression [?]")
+            containsString("EVAL does not support type [byte] in expression [?]")
         );
     }
 
@@ -371,12 +371,12 @@ public class RestEsqlTestCase extends ESRestTestCase {
             () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + overflowExpression + ")").build())
         );
 
-        Response response = re.getResponse();
-        assertThat(
-            EntityUtils.toString(response.getEntity()),
-            containsString("arithmetic exception in expression [" + overflowExpression + "]: [" + expectedOverflowMessage + "]")
-        );
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        String responseMessage = EntityUtils.toString(re.getResponse().getEntity());
+        assertThat(responseMessage, containsString("arithmetic exception in expression [" + overflowExpression + "]:"));
+        // The second part of the error message might come after a newline, so we check for it separately.
+        assertThat(responseMessage, containsString("[" + expectedOverflowMessage + "]"));
+
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testErrorMessageForArrayValuesInParams() throws IOException {

@@ -71,7 +71,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                         List.of(
                             new DataStreamLifecycle.Downsampling.Round(
                                 TimeValue.timeValueMillis(0),
-                                new DownsampleConfig(new DateHistogramInterval("1s"))
+                                new DownsampleConfig(new DateHistogramInterval("5m"))
                             )
                         )
                     )
@@ -121,7 +121,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             );
             ensureStableCluster(cluster.numDataAndMasterNodes());
 
-            final String targetIndex = "downsample-1s-" + sourceIndex;
+            final String targetIndex = "downsample-5m-" + sourceIndex;
             assertBusy(() -> {
                 try {
                     GetSettingsResponse getSettingsResponse = client().admin()

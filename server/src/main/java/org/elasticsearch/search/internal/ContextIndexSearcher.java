@@ -37,6 +37,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
@@ -54,12 +55,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -93,7 +92,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
-    private final Map<Thread, Boolean> timeoutOverwrites = new ConcurrentHashMap<>();
+    private final Set<Thread> timeoutOverwrites = ConcurrentCollections.newConcurrentSet();
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
@@ -495,10 +494,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 try {
                     // Search phase has finished, no longer need to check for timeout
                     // otherwise the aggregation post-collection phase might get cancelled.
-                    timeoutOverwrites.put(Thread.currentThread(), true);
+                    boolean added = timeoutOverwrites.add(Thread.currentThread());
+                    assert added;
                     doAggregationPostCollection(collector);
                 } finally {
-                    timeoutOverwrites.remove(Thread.currentThread());
+                    boolean removed = timeoutOverwrites.remove(Thread.currentThread());
+                    assert removed;
                 }
             }
         }
@@ -516,7 +517,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        if (timeoutOverwrites.getOrDefault(Thread.currentThread(), false) == false) {
+        if (timeoutOverwrites.contains(Thread.currentThread())) {
             throw new TimeExceededException();
         }
     }

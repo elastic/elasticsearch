@@ -160,7 +160,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomPageSize(),
             LuceneOperator.NO_LIMIT
         );
-        return luceneFactory.get(new DriverContext());
+        return luceneFactory.get(driverContext());
     }
 
     @Override
@@ -226,7 +226,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void loadSimpleAndAssert(List<Page> input) {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(
@@ -390,7 +390,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reader = w.getReader();
         }
 
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         var luceneFactory = new LuceneSourceOperator.Factory(
             List.of(mockSearchContext(reader)),
             ctx -> new MatchAllDocsQuery(),

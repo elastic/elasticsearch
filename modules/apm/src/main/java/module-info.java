@@ -13,6 +13,7 @@ module org.elasticsearch.tracing.apm {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires io.opentelemetry.context;
+    requires io.opentelemetry.api;
 
     exports org.elasticsearch.tracing.apm;
 }

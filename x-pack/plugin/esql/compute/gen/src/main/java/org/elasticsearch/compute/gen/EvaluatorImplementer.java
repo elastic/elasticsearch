@@ -34,6 +34,7 @@ import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -77,6 +78,7 @@ public class EvaluatorImplementer {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
         processFunction.args.stream().forEach(a -> a.declareField(builder));
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
@@ -95,6 +97,8 @@ public class EvaluatorImplementer {
             builder.addStatement("this.warnings = new Warnings(source)");
         }
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 

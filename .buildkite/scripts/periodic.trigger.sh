@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-exit 0
-
 echo "steps:"
 
 source .buildkite/scripts/branches.sh
@@ -14,18 +12,6 @@ for BRANCH in "${BRANCHES[@]}"; do
   LAST_GOOD_COMMIT=$(echo "${BUILD_JSON}" | jq -r '.commit')
 
   cat <<EOF
-  - trigger: elasticsearch-periodic
-    label: Trigger periodic pipeline for $BRANCH
-    async: true
-    build:
-      branch: "$BRANCH"
-      commit: "$LAST_GOOD_COMMIT"
-  - trigger: elasticsearch-periodic-packaging
-    label: Trigger periodic-packaging pipeline for $BRANCH
-    async: true
-    build:
-      branch: "$BRANCH"
-      commit: "$LAST_GOOD_COMMIT"
   - trigger: elasticsearch-periodic-platform-support
     label: Trigger periodic-platform-support pipeline for $BRANCH
     async: true
@@ -33,4 +19,26 @@ for BRANCH in "${BRANCHES[@]}"; do
       branch: "$BRANCH"
       commit: "$LAST_GOOD_COMMIT"
 EOF
+
+### Only platform-support enabled for right now
+#   cat <<EOF
+#   - trigger: elasticsearch-periodic
+#     label: Trigger periodic pipeline for $BRANCH
+#     async: true
+#     build:
+#       branch: "$BRANCH"
+#       commit: "$LAST_GOOD_COMMIT"
+#   - trigger: elasticsearch-periodic-packaging
+#     label: Trigger periodic-packaging pipeline for $BRANCH
+#     async: true
+#     build:
+#       branch: "$BRANCH"
+#       commit: "$LAST_GOOD_COMMIT"
+#   - trigger: elasticsearch-periodic-platform-support
+#     label: Trigger periodic-platform-support pipeline for $BRANCH
+#     async: true
+#     build:
+#       branch: "$BRANCH"
+#       commit: "$LAST_GOOD_COMMIT"
+# EOF
 done

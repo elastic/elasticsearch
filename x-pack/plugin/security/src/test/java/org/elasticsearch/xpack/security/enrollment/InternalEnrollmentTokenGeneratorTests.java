@@ -26,6 +26,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -231,6 +232,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                     new NodeInfo(
                         Version.CURRENT,
                         TransportVersion.current(),
+                        IndexVersion.current(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
@@ -264,6 +266,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                     new NodeInfo(
                         Version.CURRENT,
                         TransportVersion.current(),
+                        IndexVersion.current(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,

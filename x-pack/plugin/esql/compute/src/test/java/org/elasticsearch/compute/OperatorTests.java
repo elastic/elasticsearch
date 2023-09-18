@@ -27,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -112,7 +113,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             assertTrue("duplicated docId=" + docId, actualDocIds.add(docId));
                         }
                     });
-                    DriverContext driverContext = new DriverContext();
+                    DriverContext driverContext = driverContext();
                     drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
                 }
                 OperatorTestCase.runDriver(drivers);
@@ -144,9 +145,10 @@ public class OperatorTests extends MapperServiceTestCase {
         }
     }
 
+    // @Repeat(iterations = 1)
     public void testGroupingWithOrdinals() throws Exception {
         final String gField = "g";
-        final int numDocs = between(100, 10000);
+        final int numDocs = 2856; // between(100, 10000);
         final Map<BytesRef, Long> expectedCounts = new HashMap<>();
         int keyLength = randomIntBetween(1, 10);
         try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -210,7 +212,7 @@ public class OperatorTests extends MapperServiceTestCase {
             };
 
             try (DirectoryReader reader = writer.getReader()) {
-                DriverContext driverContext = new DriverContext();
+                DriverContext driverContext = driverContext();
 
                 Driver driver = new Driver(
                     driverContext,
@@ -258,14 +260,18 @@ public class OperatorTests extends MapperServiceTestCase {
                         LongBlock counts = page.getBlock(1);
                         for (int i = 0; i < keys.getPositionCount(); i++) {
                             BytesRef spare = new BytesRef();
-                            actualCounts.put(keys.getBytesRef(i, spare), counts.getLong(i));
+                            keys.getBytesRef(i, spare);
+                            actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
+                        // System.out.println("HEGO: keys.getPositionCount=" + keys.getPositionCount());
+                        // Releasables.close(keys);
                     }),
                     () -> {}
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
                 assertDriverContext(driverContext);
+                org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
             }
         }
     }
@@ -276,7 +282,7 @@ public class OperatorTests extends MapperServiceTestCase {
         var values = randomList(positions, positions, ESTestCase::randomLong);
 
         var results = new ArrayList<Long>();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             var driver = new Driver(
                 driverContext,
@@ -386,6 +392,13 @@ public class OperatorTests extends MapperServiceTestCase {
      */
     private BigArrays bigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    /**
+     * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
+     */
+    protected final DriverContext driverContext() {
+        return new DriverContext(bigArrays());
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

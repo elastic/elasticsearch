@@ -27,10 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class OpenAiEmbeddingsRequest implements Request {
-    // TODO this should create the actual request to send via the http client
-    // similar to IncidentEvent
-
-    // TODO this should be given an openai account so it can access the api key
 
     private final OpenAiAccount account;
     private final OpenAiEmbeddingsRequestEntity entity;

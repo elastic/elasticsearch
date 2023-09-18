@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.action;
 
 public interface ExecutableAction {
-    // TODO figure out the return value
     // TODO should we pass in the listener?
     void execute();
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.openai;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestStatus;
@@ -20,8 +21,6 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbedding
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
-
-import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -56,13 +55,15 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         OpenAiClient client = new OpenAiClient(httpClient);
 
         // TODO when should we execute on another thread?
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> send(client, request));
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> send(client, request, listener));
     }
 
-    private void send(OpenAiClient client, OpenAiEmbeddingsRequest request) {
+    private void send(OpenAiClient client, OpenAiEmbeddingsRequest request, ActionListener<InferenceResult> listener) {
         try {
-            client.send(request);
-        } catch (IOException e) {
+            listener.onResponse(client.send(request));
+        } catch (ElasticsearchException e) {
+            listener.onFailure(e);
+        } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException("Failed to send open ai request", RestStatus.INTERNAL_SERVER_ERROR, e));
         }
     }

@@ -25,10 +25,6 @@ public record OpenAiEmbeddingsRequestEntity(String input, String model, String u
         Objects.requireNonNull(model);
     }
 
-    public OpenAiEmbeddingsRequestEntity(String input, String model) {
-        this(input, model, null);
-    }
-
     public Optional<String> getUser() {
         return Optional.ofNullable(user);
     }

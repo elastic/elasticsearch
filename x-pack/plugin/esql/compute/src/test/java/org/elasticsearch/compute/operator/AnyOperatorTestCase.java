@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -80,9 +82,13 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
 
     /**
      * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     * <p>
+     *     Rather than using the {@link NoneCircuitBreakerService} we use a
+     *     very large limit so tests can call {@link CircuitBreaker#getUsed()}.
+     * </p>
      */
     protected final BigArrays nonBreakingBigArrays() {
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking();
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
     }
 
     /**

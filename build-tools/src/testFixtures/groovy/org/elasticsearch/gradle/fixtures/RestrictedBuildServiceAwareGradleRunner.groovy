@@ -6,16 +6,12 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.build'
+package org.elasticsearch.gradle.fixtures
 
-base {
-  archivesName = 'elasticsearch-geoip-cli'
-}
+import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 
-dependencies {
-  compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  compileOnly project(":libs:elasticsearch-x-content")
-  testImplementation project(":test:framework")
-  testImplementation "org.apache.commons:commons-compress:1.24.0"
+class RestrictedBuildServiceAwareGradleRunner {
+    RestrictedBuildServiceAwareGradleRunner(InternalAwareGradleRunner delegate) {
+
+    }
 }

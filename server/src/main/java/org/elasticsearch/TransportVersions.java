@@ -137,6 +137,7 @@ public class TransportVersions {
     public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
     public static final TransportVersion V_8_500_074 = def(8_500_074);
     public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
+    public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -148,8 +149,24 @@ public class TransportVersions {
      * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
      * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
      *
-     * To add a new transport version, add a new constant at the bottom of the list, above this comment, which is one greater than the
-     * current highest version and ensure it has a fresh UUID. Don't add other lines, comments, etc.
+     * ADDING A TRANSPORT VERSION
+     * To add a new transport version, add a new constant at the bottom of the list, above this comment. Don't add other lines,
+     * comments, etc. The version id has the following layout:
+     *
+     * M_NNN_SS_P
+     *
+     * M - The major version of Elasticsearch
+     * NNN - The server version part
+     * SS - The serverless version part. It should always be 00 here, it is used by serverless only.
+     * P - The patch version part
+     *
+     * To determine the id of the next TransportVersion constant, do the following:
+     * - Use the same major version, unless bumping majors
+     * - Bump the server version part by 1, unless creating a patch version
+     * - Leave the serverless part as 00
+     * - Bump the patch part if creating a patch version
+     *
+     * If a patch version is created, it should be placed sorted among the other existing constants.
      *
      * REVERTING A TRANSPORT VERSION
      *

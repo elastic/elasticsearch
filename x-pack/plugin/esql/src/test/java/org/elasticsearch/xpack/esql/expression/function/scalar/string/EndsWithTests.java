@@ -90,8 +90,8 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("ends_with randomized test", () -> {
-            String str = randomAlphaOfLength(5);
-            String suffix = randomAlphaOfLength(5);
+            String str = randomRealisticUnicodeOfLength(5);
+            String suffix = randomRealisticUnicodeOfLength(5);
             str = str + suffix;
 
             return new TestCaseSupplier.TestCase(

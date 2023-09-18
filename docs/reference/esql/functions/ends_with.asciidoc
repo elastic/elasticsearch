@@ -1,5 +1,8 @@
 [[esql-ends_with]]
 === `ENDS_WITH`
+[.text-center]
+image::esql/functions/signature/ends_with.svg[Embedded,opts=inline]
+
 Returns a boolean that indicates whether a keyword string ends with another
 string:
 
@@ -11,3 +14,7 @@ include::{esql-specs}/docs.csv-spec[tag=endsWith]
 |===
 include::{esql-specs}/docs.csv-spec[tag=endsWith-result]
 |===
+
+Supported types:
+
+include::types/ends_with.asciidoc[]

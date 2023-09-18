@@ -1849,7 +1849,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ),
         API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065),
         RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
-            RecoveryCommitTooNewException.class, RecoveryCommitTooNewException::new, 172, TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED);
+            RecoveryCommitTooNewException.class,
+            RecoveryCommitTooNewException::new,
+            172,
+            TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

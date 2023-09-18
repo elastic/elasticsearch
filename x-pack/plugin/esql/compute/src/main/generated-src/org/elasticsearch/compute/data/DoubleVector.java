@@ -101,8 +101,13 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getGlobalInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newDoubleVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {

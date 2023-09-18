@@ -21,11 +21,12 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
@@ -37,6 +38,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return -1;
     }
 
     @Override
@@ -187,14 +193,19 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     @Override
     public BytesRefBlock build() {
         finish();
+        BytesRefBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+            block = new ConstantBytesRefVector(values.get(0, new BytesRef()), 1, blockFactory).asBlock();
         } else {
             if (isDense() && singleValued()) {
-                return new BytesRefArrayVector(values, positionCount).asBlock();
+                block = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }
+        // update the breaker with the actual bytes used.
+        // TODO: verify that this can also give back
+        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        return block;
     }
 }

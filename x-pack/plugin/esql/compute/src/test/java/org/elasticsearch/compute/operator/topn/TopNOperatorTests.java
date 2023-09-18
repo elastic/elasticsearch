@@ -14,11 +14,11 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -413,12 +413,15 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCollectAllValues() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
         int size = 10;
         int topCount = 3;
         List<Block> blocks = new ArrayList<>();
         List<List<? extends Object>> expectedTop = new ArrayList<>();
 
-        IntBlock keys = new IntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
+        IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
         List<Integer> topKeys = new ArrayList<>(IntStream.range(size - topCount, size).boxed().toList());
         Collections.reverse(topKeys);
         expectedTop.add(topKeys);
@@ -452,7 +455,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
-        DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
                 driverContext,
@@ -478,13 +480,16 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCollectAllValues_RandomMultiValues() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
         int rows = 10;
         int topCount = 3;
         int blocksCount = 20;
         List<Block> blocks = new ArrayList<>();
         List<List<?>> expectedTop = new ArrayList<>();
 
-        IntBlock keys = new IntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
+        IntBlock keys = blockFactory.newIntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
         List<Integer> topKeys = new ArrayList<>(IntStream.range(rows - topCount, rows).boxed().toList());
         Collections.reverse(topKeys);
         expectedTop.add(topKeys);
@@ -536,7 +541,6 @@ public class TopNOperatorTests extends OperatorTestCase {
             expectedTop.add(eTop);
         }
 
-        DriverContext driverContext = driverContext();
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(

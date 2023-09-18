@@ -10,11 +10,16 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.CountingCircuitBreaker;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -35,6 +40,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
+
+    static final CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
+    static final BlockFactory blockFactory = BlockFactory.getInstance(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
@@ -165,10 +174,13 @@ public class BlockHashRandomizedTests extends ESTestCase {
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        DriverContext driverContext = new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
+            blockFactory
+        );
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-            : BlockHash.build(specs, bigArrays, emitBatchSize, true);
+            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
+            : BlockHash.build(specs, driverContext, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

@@ -25,18 +25,22 @@ final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$V
 $if(BytesRef)$
     private BytesRefArray values;
 
-    BytesRefVectorBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
 $else$
     private $type$[] values;
 
-    $Type$VectorBuilder(int estimatedSize) {
+    $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new $type$[Math.max(estimatedSize, 2)];
     }
 $endif$
@@ -51,6 +55,11 @@ $else$
 $endif$
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$if(boolean)$Byte$elseif(int)$Integer$elseif(long)$Long$else$Double$endif$.BYTES$endif$;
     }
 
     @Override
@@ -73,17 +82,23 @@ $endif$
 
     @Override
     public $Type$Vector build() {
+        $Type$Vector vector;
         if (valueCount == 1) {
 $if(BytesRef)$
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
-        }
+            vector = new ConstantBytesRefVector(values.get(0, new BytesRef()), 1, blockFactory);
+        } else {
 $else$
-            return new Constant$Type$Vector(values[0], 1);
-        }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
+            vector = new Constant$Type$Vector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
 $endif$
-        return new $Type$ArrayVector(values, valueCount);
+            vector = new $Type$ArrayVector(values, valueCount, blockFactory);
+        }
+        // update the breaker with the actual bytes used.
+        // TODO: verify that this can also give back
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

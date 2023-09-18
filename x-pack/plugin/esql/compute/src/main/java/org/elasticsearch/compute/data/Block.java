@@ -58,6 +58,9 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      */
     ElementType elementType();
 
+    /** The block factory associated with this block. */
+    BlockFactory blockFactory();
+
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
      *
@@ -116,10 +119,14 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions}.
+     * {@return a constant null block with the given number of positions, using the global block factory}.
      */
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions);
+        return new ConstantNullBlock(positions, BlockFactory.getGlobalInstance());
+    }
+
+    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
+        return new ConstantNullBlock(positions, blockFactory);
     }
 
     interface Builder {

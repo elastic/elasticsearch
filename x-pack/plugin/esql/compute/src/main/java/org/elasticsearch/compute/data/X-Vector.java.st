@@ -142,8 +142,13 @@ $endif$
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newVectorBuilder(int estimatedSize) {
-        return new $Type$VectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getGlobalInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$VectorBuilder(estimatedSize);
     }
 
 $if(int)$

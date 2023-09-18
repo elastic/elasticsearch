@@ -13,13 +13,14 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
+import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
@@ -37,10 +38,12 @@ final class IntBlockHash extends BlockHash {
      * </p>
      */
     private boolean seenNull;
+    private final BlockFactory blockFactory;
 
-    IntBlockHash(int channel, BigArrays bigArrays) {
+    IntBlockHash(int channel, DriverContext driverContext) {
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        this.blockFactory = driverContext.blockFactory();
+        this.longHash = new LongHash(1, driverContext.bigArrays());
     }
 
     @Override
@@ -52,6 +55,7 @@ final class IntBlockHash extends BlockHash {
         } else {
             addInput.add(0, add(vector));
         }
+        Releasables.closeExpectNoException(block);
     }
 
     private IntVector add(IntVector vector) {
@@ -59,7 +63,7 @@ final class IntBlockHash extends BlockHash {
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getInt(i))));
         }
-        return new IntArrayVector(groups, groups.length);
+        return blockFactory.newIntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(IntBlock block) {
@@ -78,14 +82,14 @@ final class IntBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new IntBlock[] { new IntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+            return new IntBlock[] { blockFactory.newIntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
         }
         final int size = Math.toIntExact(longHash.size());
         final int[] keys = new int[size];
         for (int i = 0; i < size; i++) {
             keys[i] = (int) longHash.get(i);
         }
-        return new IntBlock[] { new IntArrayVector(keys, keys.length).asBlock() };
+        return new IntBlock[] { blockFactory.newIntArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

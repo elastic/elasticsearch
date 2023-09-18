@@ -22,7 +22,11 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     private final long[] values;
 
     public LongArrayVector(long[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getGlobalInstance());
+    }
+
+    public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -80,6 +84,6 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
 
     @Override
     public void close() {
-        // no-op
+        super.close();
     }
 }

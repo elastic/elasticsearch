@@ -34,12 +34,12 @@ $else$
     private final $type$[] values;
 $endif$
 
-$if(BytesRef)$
-    public $Type$ArrayVector(BytesRefArray values, int positionCount) {
-$else$
-    public $Type$ArrayVector($type$[] values, int positionCount) {
-$endif$
-        super(positionCount);
+    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
+        this(values, positionCount, BlockFactory.getGlobalInstance());
+    }
+
+    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -112,7 +112,7 @@ $endif$
 $if(BytesRef)$
         Releasables.closeExpectNoException(values);
 $else$
-        // no-op
+        super.close();
 $endif$
     }
 }

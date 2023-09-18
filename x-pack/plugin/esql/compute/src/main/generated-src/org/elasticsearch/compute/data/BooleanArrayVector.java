@@ -22,7 +22,11 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     private final boolean[] values;
 
     public BooleanArrayVector(boolean[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getGlobalInstance());
+    }
+
+    public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -80,6 +84,6 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     @Override
     public void close() {
-        // no-op
+        super.close();
     }
 }

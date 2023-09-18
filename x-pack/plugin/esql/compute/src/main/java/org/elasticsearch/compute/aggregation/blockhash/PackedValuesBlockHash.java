@@ -16,10 +16,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.logging.LogManager;
@@ -58,11 +60,13 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
+    private final BlockFactory blockFactory;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, DriverContext driverContext, int emitBatchSize) {
         this.groups = groups;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.blockFactory = driverContext.blockFactory();
+        this.bytesRefHash = new BytesRefHash(1, driverContext.bigArrays());
         this.nullTrackingBytes = groups.size() / 8 + 1;
     }
 

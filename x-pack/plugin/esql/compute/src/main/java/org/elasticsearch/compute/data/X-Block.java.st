@@ -190,12 +190,22 @@ $endif$
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getGlobalInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$BlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getGlobalInstance block factory}. */
     static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getGlobalInstance());
+    }
+
+    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {

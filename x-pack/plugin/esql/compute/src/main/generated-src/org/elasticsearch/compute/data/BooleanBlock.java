@@ -157,12 +157,22 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BooleanBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getGlobalInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getGlobalInstance block factory}. */
     static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return new ConstantBooleanVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getGlobalInstance());
+    }
+
+    static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {

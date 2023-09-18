@@ -160,12 +160,22 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BytesRefBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getGlobalInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getGlobalInstance block factory}. */
     static BytesRefBlock newConstantBlockWith(BytesRef value, int positions) {
-        return new ConstantBytesRefVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getGlobalInstance());
+    }
+
+    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {

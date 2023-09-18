@@ -100,8 +100,13 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newVectorBuilder(int estimatedSize) {
-        return new BytesRefVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getGlobalInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBytesRefVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {

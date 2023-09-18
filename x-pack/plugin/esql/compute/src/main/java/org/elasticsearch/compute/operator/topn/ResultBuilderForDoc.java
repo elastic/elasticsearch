@@ -9,8 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 
 class ResultBuilderForDoc implements ResultBuilder {
     private final int[] shards;
@@ -40,9 +40,9 @@ class ResultBuilderForDoc implements ResultBuilder {
     @Override
     public Block build() {
         return new DocVector(
-            new IntArrayVector(shards, position),
-            new IntArrayVector(segments, position),
-            new IntArrayVector(docs, position),
+            BlockFactory.getGlobalInstance().newIntArrayVector(shards, position),
+            BlockFactory.getGlobalInstance().newIntArrayVector(segments, position),
+            BlockFactory.getGlobalInstance().newIntArrayVector(docs, position),
             null
         ).asBlock();
     }

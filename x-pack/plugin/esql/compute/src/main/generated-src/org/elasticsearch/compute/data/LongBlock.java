@@ -158,12 +158,22 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getGlobalInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newLongBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getGlobalInstance block factory}. */
     static LongBlock newConstantBlockWith(long value, int positions) {
-        return new ConstantLongVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getGlobalInstance());
+    }
+
+    static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits LongBlockBuilder {

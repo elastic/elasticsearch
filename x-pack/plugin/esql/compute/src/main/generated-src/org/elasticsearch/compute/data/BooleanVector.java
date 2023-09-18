@@ -100,8 +100,13 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
     static Builder newVectorBuilder(int estimatedSize) {
-        return new BooleanVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getGlobalInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {

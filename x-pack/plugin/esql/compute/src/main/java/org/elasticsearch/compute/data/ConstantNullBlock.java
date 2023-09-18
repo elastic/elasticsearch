@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,10 +19,12 @@ import java.util.Objects;
  */
 public final class ConstantNullBlock extends AbstractBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
-
     ConstantNullBlock(int positionCount) {
-        super(positionCount);
+        this(positionCount, BlockFactory.getGlobalInstance());
+    }
+
+    ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
     }
 
     @Override
@@ -98,7 +99,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED;
+        return 0L;
     }
 
     @Override

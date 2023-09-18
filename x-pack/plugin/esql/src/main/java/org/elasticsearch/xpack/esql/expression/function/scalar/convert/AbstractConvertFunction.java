@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -40,13 +41,13 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType();
         var evaluator = evaluators().get(sourceType);
         if (evaluator == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return () -> evaluator.apply(fieldEval.get(), source());
+        return dvrCtx -> evaluator.apply(fieldEval.get(dvrCtx), source());
     }
 
     @Override
@@ -71,9 +72,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     }
 
     @Override
-    public final Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        java.util.function.Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

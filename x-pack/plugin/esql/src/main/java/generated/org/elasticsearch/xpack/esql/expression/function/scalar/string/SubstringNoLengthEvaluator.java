@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -24,10 +25,13 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
 
   private final EvalOperator.ExpressionEvaluator start;
 
+  private final DriverContext driverContext;
+
   public SubstringNoLengthEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator start) {
+      EvalOperator.ExpressionEvaluator start, DriverContext driverContext) {
     this.str = str;
     this.start = start;
+    this.driverContext = driverContext;
   }
 
   @Override

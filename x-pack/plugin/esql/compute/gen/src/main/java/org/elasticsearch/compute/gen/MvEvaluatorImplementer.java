@@ -35,6 +35,7 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -129,6 +130,7 @@ public class MvEvaluatorImplementer {
 
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addMethod(ctor());
         builder.addMethod(name());
@@ -159,6 +161,8 @@ public class MvEvaluatorImplementer {
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = new Warnings(source)");
         }
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 

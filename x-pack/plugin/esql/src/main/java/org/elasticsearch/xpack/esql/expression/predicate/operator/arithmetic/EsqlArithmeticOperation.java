@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -71,7 +69,15 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         }
     }
 
-    interface ArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, ExpressionEvaluator, ExpressionEvaluator> {};
+    /** Arithmetic (quad) function. */
+    interface ArithmeticEvaluator {
+        ExpressionEvaluator apply(
+            Source source,
+            ExpressionEvaluator expressionEvaluator1,
+            ExpressionEvaluator expressionEvaluator2,
+            DriverContext driverContext
+        );
+    }
 
     private final ArithmeticEvaluator ints;
     private final ArithmeticEvaluator longs;
@@ -110,13 +116,13 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            Supplier<EvalOperator.ExpressionEvaluator> l = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
-            Supplier<EvalOperator.ExpressionEvaluator> r = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
+            var l = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
+            var r = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
 
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {
@@ -130,7 +136,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             } else {
                 throw new EsqlIllegalArgumentException("Unsupported type " + commonType);
             }
-            return () -> eval.apply(source(), l.get(), r.get());
+            return dvrCtx -> eval.apply(source(), l.get(dvrCtx), r.get(dvrCtx), dvrCtx);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,8 +22,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public CastLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public CastLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v,
+      DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override

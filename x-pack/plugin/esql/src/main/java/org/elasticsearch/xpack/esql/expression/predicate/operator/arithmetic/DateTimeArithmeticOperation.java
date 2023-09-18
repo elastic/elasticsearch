@@ -29,7 +29,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
-    private class IllegalTemporalValueException extends EsqlClientException {
+    /**
+     * Custom exception to handle e.g. overflows when folding temporal values; we want to set the correct HTTP status (400).
+     */
+    private static class IllegalTemporalValueException extends EsqlClientException {
         protected IllegalTemporalValueException(String message, Object... args) {
             super(message, args);
         }
@@ -37,6 +40,10 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         @Override
         public RestStatus status() {
             return RestStatus.BAD_REQUEST;
+        }
+
+        public static IllegalTemporalValueException fromArithmeticException(Source source, ArithmeticException e) {
+            return new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", source.text(), e.getMessage());
         }
     }
 
@@ -127,8 +134,8 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 return processDatePeriods(l, r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
-                // manually.
-                throw new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", sourceText(), e.getMessage());
+                // manually and provide a user-friendly error message.
+                throw IllegalTemporalValueException.fromArithmeticException(source(), e);
             }
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
@@ -139,8 +146,8 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 return processTimeDurations(l, r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
-                // manually.
-                throw new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", sourceText(), e.getMessage());
+                // manually and provide a user-friendly error message.
+                throw IllegalTemporalValueException.fromArithmeticException(source(), e);
             }
         }
         return super.fold();

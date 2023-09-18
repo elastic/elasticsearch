@@ -17,10 +17,10 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -211,7 +211,7 @@ public class ComputeService {
         Supplier<ActionListener<DataNodeResponse>> listener
     ) {
         // Do not complete the exchange sources until we have linked all remote sinks
-        final ListenableActionFuture<Void> blockingSinkFuture = new ListenableActionFuture<>();
+        final SubscribableListener<Void> blockingSinkFuture = new SubscribableListener<>();
         exchangeSource.addRemoteSink(
             (sourceFinished, l) -> blockingSinkFuture.addListener(l.map(ignored -> new ExchangeResponse(null, true))),
             1

@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
@@ -37,11 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -107,14 +105,14 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     public void testShardDataPartitioning() {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(size, limit);
+        testCount(size, limit);
     }
 
     public void testEmpty() {
-        testSimple(0, between(10, 10_000));
+        testCount(0, between(10, 10_000));
     }
 
-    private void testSimple(int size, int limit) {
+    private void testCount(int size, int limit) {
         DriverContext ctx = new DriverContext();
         LuceneCountOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
 
@@ -124,17 +122,16 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         );
         OperatorTestCase.assertDriverContext(ctx);
 
-        for (Page page : results) {
-            assertThat(page.getPositionCount(), is(1));
-        }
-
-        for (Page page : results) {
-            LongBlock sBlock = page.getBlock(1);
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
-            }
-        }
         assertThat(results, hasSize(1));
+        Page page = results.get(0);
+
+        assertThat(page.getPositionCount(), is(1));
+        assertThat(page.getBlockCount(), is(2));
+        LongBlock lb = page.getBlock(0);
+        assertThat(lb.getPositionCount(), is(1));
+        assertThat(lb.getLong(0), is((long) Math.min(size, limit)));
+        BooleanBlock bb = page.getBlock(1);
+        assertThat(bb.getBoolean(1), is(true));
     }
 
     /**

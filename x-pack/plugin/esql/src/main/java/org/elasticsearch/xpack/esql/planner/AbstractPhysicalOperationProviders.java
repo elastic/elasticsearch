@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
+public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
 

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -65,6 +66,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
@@ -314,7 +317,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 List<?>[] lists = pushableStats(aggregateExec);
 
                 // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
-                if (lists[0].size() == aggregateExec.aggregates().size()) {
+                // use the stats since the attributes are larger in size (due to seen)
+                if (lists[1].size() == aggregateExec.aggregates().size()) {
                     plan = new EsStatsQueryExec(
                         aggregateExec.source(),
                         queryExec.index(),
@@ -328,7 +332,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        @SuppressWarnings("rawtypes")
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         private List[] pushableStats(AggregateExec aggregate) {
             AttributeMap<Stat> stats = new AttributeMap<>();
             var lists = new List[] { new ArrayList<Attribute>(), new ArrayList<Stat>() };
@@ -350,7 +354,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         return null;
                     });
                     if (stat != null) {
-                        lists[0].add(attribute);
+                        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
+                            singletonList(agg),
+                            emptyList()
+                        );
+                        lists[0].addAll(intermediateAttributes);
                         lists[1].add(stat);
                     }
                 }

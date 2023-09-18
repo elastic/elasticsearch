@@ -12,9 +12,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -27,13 +26,15 @@ import java.util.function.Function;
 
 /**
  * Source operator that incrementally counts the results in Lucene searches
+ * Returns always one entry that mimics the Count aggregation internal state:
+ * 1. the count as a long (0 if no doc is seen)
+ * 2. a bool flag (seen) that's always true meaning that the group (all items) always exists
  */
 public class LuceneCountOperator extends LuceneOperator {
 
     private int totalHits = 0;
     private int remainingDocs;
 
-    private IntVector.Builder docsBuilder;
     private final LeafCollector leafCollector;
 
     public static class Factory implements LuceneOperator.Factory {
@@ -72,11 +73,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public String describe() {
-            return "LuceneCountOperator[dataPartitioning = "
-                + dataPartitioning
-                + ", limit = "
-                + limit
-                + "]";
+            return "LuceneCountOperator[dataPartitioning = " + dataPartitioning + ", limit = " + limit + "]";
         }
     }
 
@@ -90,7 +87,7 @@ public class LuceneCountOperator extends LuceneOperator {
             @Override
             public void collect(int doc) {
                 if (remainingDocs > 0) {
-                    --remainingDocs;
+                    remainingDocs--;
                     totalHits++;
                 }
             }
@@ -110,35 +107,42 @@ public class LuceneCountOperator extends LuceneOperator {
     @Override
     public Page getOutput() {
         if (isFinished()) {
-            assert remainingDocs == 0 : remainingDocs;
+            assert remainingDocs <= 0 : remainingDocs;
             return null;
         }
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
+            // no scorer means no more docs
             if (scorer == null) {
-                return null;
-            }
-            Weight weight = scorer.weight;
-            var leafReaderContext = scorer.leafReaderContext();
-            // see org.apache.lucene.search.TotalHitCountCollector
-            int leafCount = weight == null ? -1 : weight.count(leafReaderContext);
-            if (leafCount != -1) {
-                // check to not go over limit
-                var count = Math.min(leafCount, remainingDocs);
-                totalHits += count;
-                remainingDocs -= count;
+                remainingDocs = 0;
             } else {
-                scorer.scoreNextRange(
-                    leafCollector,
-                    leafReaderContext.reader().getLiveDocs(),
-                    remainingDocs
-                );
+                Weight weight = scorer.weight();
+                var leafReaderContext = scorer.leafReaderContext();
+                // see org.apache.lucene.search.TotalHitCountCollector
+                int leafCount = weight == null ? -1 : weight.count(leafReaderContext);
+                if (leafCount != -1) {
+                    // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
+                    // handle doc partitioning where the same leaf can be seen multiple times
+                    // since the count is global, consider it only for the first partition and skip the rest
+                    // SHARD, SEGMENT and the first DOC_ reader in data partitioning contain the first doc (position 0)
+                    if (scorer.position() == 0) {
+                        // check to not count over the desired number of docs/limit
+                        var count = Math.min(leafCount, remainingDocs);
+                        totalHits += count;
+                        remainingDocs -= count;
+                        scorer.markAsDone();
+                    }
+                } else {
+                    // could not apply shortcut, trigger the search
+                    scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
+                }
             }
 
             Page page = null;
-            if (remainingDocs <= 0 || scorer.isDone()) {
+            // emit only one page
+            if (remainingDocs <= 0 && pagesEmitted == 0) {
                 pagesEmitted++;
-                page = new Page(1, IntBlock.newConstantBlockWith(totalHits, 1));
+                page = new Page(1, LongBlock.newConstantBlockWith(totalHits, 1), BooleanBlock.newConstantBlockWith(true, 1));
             }
             return page;
         } catch (IOException e) {

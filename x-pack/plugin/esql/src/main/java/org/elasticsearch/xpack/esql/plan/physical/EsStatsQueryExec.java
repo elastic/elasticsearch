@@ -74,6 +74,10 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         return attrs;
     }
 
+    public Expression limit() {
+        return limit;
+    }
+
     @Override
     // TODO - get the estimation outside the plan so it doesn't touch the plan
     public PhysicalPlan estimateRowSize(State state) {

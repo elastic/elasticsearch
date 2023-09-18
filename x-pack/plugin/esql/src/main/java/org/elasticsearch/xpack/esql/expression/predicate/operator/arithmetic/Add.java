@@ -92,12 +92,12 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Override
-    protected Period processDatePeriods(Period left, Period right) {
+    public Period processDatePeriods(Period left, Period right) {
         return left.plus(right);
     }
 
     @Override
-    protected Duration processTimeDurations(Duration left, Duration right) {
+    public Duration processTimeDurations(Duration left, Duration right) {
         return left.plus(right);
     }
 }

@@ -107,9 +107,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
      * @param right the right period
      * @return the result of the evaluation
      */
-    protected Period processDatePeriods(Period left, Period right) {
-        throw new UnsupportedOperationException("processing of time periods is unsupported for [" + op().symbol() + "]");
-    }
+    abstract public Period processDatePeriods(Period left, Period right);
 
     /**
      * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
@@ -118,9 +116,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
      * @param right the right duration
      * @return the result of the evaluation
      */
-    protected Duration processTimeDurations(Duration left, Duration right) {
-        throw new UnsupportedOperationException("processing of date durations is unsupported for [" + op().symbol() + "]");
-    }
+    abstract public Duration processTimeDurations(Duration left, Duration right);
 
     @Override
     public final Object fold() {

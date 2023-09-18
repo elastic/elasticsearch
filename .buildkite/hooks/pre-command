@@ -75,4 +75,6 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   export SNYK_TOKEN
 fi
 
-.buildkite/scripts/setup-monitoring.sh
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  .buildkite/scripts/setup-monitoring.sh
+fi

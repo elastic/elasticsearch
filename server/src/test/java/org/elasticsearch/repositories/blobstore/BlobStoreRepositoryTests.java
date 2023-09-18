@@ -9,8 +9,10 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -55,7 +57,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -439,6 +443,32 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
         listenerCalled.get();
+    }
+
+    public void testGetRepositoryDataThreadContext() {
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var headerName = "test-header";
+            final var threadPool = client().threadPool();
+            final var threadContext = threadPool.getThreadContext();
+            for (int i = 0; i < threads; i++) {
+                final var headerValue = randomAlphaOfLength(10);
+                try (var ignored = threadContext.stashContext()) {
+                    threadContext.putHeader(headerName, headerValue);
+                    threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                        safeAwait(barrier);
+                        repo.getRepositoryData(l.map(repositoryData -> {
+                            assertEquals(headerValue, threadContext.getHeader(headerName));
+                            return null;
+                        }));
+                    }));
+                }
+            }
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private Environment createEnvironment() {

@@ -391,7 +391,7 @@ public class CsvTests extends ESTestCase {
                 }
             };
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, future);
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)));
             future.actionGet(TimeValue.timeValueSeconds(30));
             var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
             return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);

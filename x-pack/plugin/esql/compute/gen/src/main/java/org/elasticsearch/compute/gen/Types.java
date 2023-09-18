@@ -113,6 +113,8 @@ public class Types {
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
+    static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
+
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return BOOLEAN_BLOCK;

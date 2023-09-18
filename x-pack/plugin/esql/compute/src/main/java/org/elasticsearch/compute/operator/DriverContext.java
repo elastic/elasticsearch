@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
 
@@ -49,6 +50,10 @@ public class DriverContext {
 
     public BigArrays bigArrays() {
         return bigArrays;
+    }
+
+    public CircuitBreaker breaker() {
+        return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
     /** A snapshot of the driver context. */

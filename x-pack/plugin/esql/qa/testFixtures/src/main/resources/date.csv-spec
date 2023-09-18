@@ -671,3 +671,14 @@ row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-1 hour - 1 minute 
 then:datetime
 1953-04-04T01:01:01.001Z
 ;
+
+dateMinusLeftMultipleEvals
+row n = to_dt("1953-04-04T00:00:00.000Z")
+| eval x = -4 years + n
+| eval y = -3 months + x, then = y + (-2 weeks - 1 day)
+| keep then
+;
+
+then:datetime
+1948-12-20T00:00:00.000Z
+;

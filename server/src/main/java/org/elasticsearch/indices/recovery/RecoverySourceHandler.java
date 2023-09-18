@@ -39,7 +39,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -541,41 +540,49 @@ public class RecoverySourceHandler {
             // TODO: is this still relevant today?
             if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = canUseSnapshots();
-                recoveryPlannerService.computeRecoveryPlan(
-                    shard.shardId(),
-                    shardStateIdentifier,
-                    recoverySourceMetadata,
-                    request.metadataSnapshot(),
-                    startingSeqNo,
-                    translogOps.getAsInt(),
-                    getRequest().targetNode().getMaxIndexVersion(),
-                    canUseSnapshots,
-                    request.isPrimaryRelocation(),
-                    listener.delegateFailureAndWrap((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
-                );
+                SubscribableListener
+                    // compute the plan
+                    .<ShardRecoveryPlan>newForked(
+                        l -> recoveryPlannerService.computeRecoveryPlan(
+                            shard.shardId(),
+                            shardStateIdentifier,
+                            recoverySourceMetadata,
+                            request.metadataSnapshot(),
+                            startingSeqNo,
+                            translogOps.getAsInt(),
+                            getRequest().targetNode().getMaxIndexVersion(),
+                            canUseSnapshots(),
+                            request.isPrimaryRelocation(),
+                            l
+                        )
+                    )
+                    // perform the file recovery
+                    .<SendFileResult>andThen((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
+                    // and respond
+                    .addListener(listener);
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
-
-                // but we must still create a retention lease
-                final SubscribableListener<RetentionLease> createRetentionLeaseStep = new SubscribableListener<>();
-                createRetentionLease(startingSeqNo, createRetentionLeaseStep);
-                createRetentionLeaseStep.addListener(listener.delegateFailureAndWrap((l, retentionLease) -> {
-                    final TimeValue took = stopWatch.totalTime();
-                    logger.trace("recovery [phase1]: took [{}]", took);
-                    l.onResponse(
-                        new SendFileResult(
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            took
-                        )
-                    );
-                }));
-
+                SubscribableListener
+                    // but we must still create a retention lease
+                    .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
+                    // and then compute the result of sending no files
+                    .<SendFileResult>andThen((l, ignored) -> {
+                        final TimeValue took = stopWatch.totalTime();
+                        logger.trace("recovery [phase1]: took [{}]", took);
+                        l.onResponse(
+                            new SendFileResult(
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                0L,
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                0L,
+                                took
+                            )
+                        );
+                    })
+                    // and finally respond
+                    .addListener(listener);
             }
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
@@ -594,15 +601,6 @@ public class RecoverySourceHandler {
         StopWatch stopWatch,
         ActionListener<SendFileResult> listener
     ) {
-        cancellableThreads.checkForCancel();
-
-        final List<String> filesToRecoverNames = shardRecoveryPlan.getFilesToRecoverNames();
-        final List<Long> filesToRecoverSizes = shardRecoveryPlan.getFilesToRecoverSizes();
-        final List<String> phase1ExistingFileNames = shardRecoveryPlan.getFilesPresentInTargetNames();
-        final List<Long> phase1ExistingFileSizes = shardRecoveryPlan.getFilesPresentInTargetSizes();
-        final long totalSize = shardRecoveryPlan.getTotalSize();
-        final long existingTotalSize = shardRecoveryPlan.getExistingSize();
-
         if (logger.isTraceEnabled()) {
             for (StoreFileMetadata md : shardRecoveryPlan.getFilesPresentInTarget()) {
                 logger.trace(
@@ -640,6 +638,9 @@ public class RecoverySourceHandler {
                 }
             }
 
+            final long totalSize = shardRecoveryPlan.getTotalSize();
+            final long existingTotalSize = shardRecoveryPlan.getExistingSize();
+
             logger.trace(
                 """
                     recovery [phase1]: total_size[{}], \
@@ -657,121 +658,118 @@ public class RecoverySourceHandler {
                         .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
                         .sum()
                 ),
-                phase1ExistingFileNames.size(),
+                shardRecoveryPlan.getFilesPresentInTarget().size(),
                 ByteSizeValue.ofBytes(existingTotalSize)
             );
         }
 
-        // We need to pass the ShardRecovery plan between steps instead of capturing it in the closures
+        new FileBasedRecoveryContext(store, stopWatch, shardRecoveryPlan).run(listener);
+    }
+
+    private class FileBasedRecoveryContext {
+        private final Store store;
+        private final StopWatch stopWatch;
+        private final int translogOps;
+
+        // We need to mutate the ShardRecovery plan instead of capturing it in the closures
         // since the plan can change after a failure recovering files from the snapshots that cannot be
         // recovered from the source node, in that case we have to start from scratch using the fallback
         // recovery plan that would be used in subsequent steps.
-        final SubscribableListener<Void> sendFileInfoStep = new SubscribableListener<>();
-        final SubscribableListener<Tuple<ShardRecoveryPlan, List<StoreFileMetadata>>> recoverSnapshotFilesStep =
-            new SubscribableListener<>();
-        final SubscribableListener<ShardRecoveryPlan> sendFilesStep = new SubscribableListener<>();
-        final SubscribableListener<Tuple<ShardRecoveryPlan, RetentionLease>> createRetentionLeaseStep = new SubscribableListener<>();
-        final SubscribableListener<ShardRecoveryPlan> cleanFilesStep = new SubscribableListener<>();
+        private ShardRecoveryPlan shardRecoveryPlan;
 
-        final int translogOps = shardRecoveryPlan.getTranslogOps();
-        recoveryTarget.receiveFileInfo(
-            filesToRecoverNames,
-            filesToRecoverSizes,
-            phase1ExistingFileNames,
-            phase1ExistingFileSizes,
-            translogOps,
-            sendFileInfoStep
-        );
+        FileBasedRecoveryContext(Store store, StopWatch stopWatch, ShardRecoveryPlan shardRecoveryPlan) {
+            this.store = store;
+            this.stopWatch = stopWatch;
+            this.translogOps = shardRecoveryPlan.getTranslogOps();
+            this.shardRecoveryPlan = shardRecoveryPlan;
+        }
 
-        sendFileInfoStep.addListener(
-            listener.delegateFailureAndWrap((l, unused) -> recoverSnapshotFiles(shardRecoveryPlan, new ActionListener<>() {
-                @Override
-                public void onResponse(List<StoreFileMetadata> filesFailedToRecoverFromSnapshot) {
-                    recoverSnapshotFilesStep.onResponse(Tuple.tuple(shardRecoveryPlan, filesFailedToRecoverFromSnapshot));
-                }
+        private void sendShardRecoveryPlanFileInfo(ActionListener<Void> fileInfoListener) {
+            recoveryTarget.receiveFileInfo(
+                shardRecoveryPlan.getFilesToRecoverNames(),
+                shardRecoveryPlan.getFilesToRecoverSizes(),
+                shardRecoveryPlan.getFilesPresentInTargetNames(),
+                shardRecoveryPlan.getFilesPresentInTargetSizes(),
+                shardRecoveryPlan.getTranslogOps(),
+                fileInfoListener
+            );
+        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
-                        && e instanceof CancellableThreads.ExecutionCancelledException == false) {
-                        ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
-                        recoveryTarget.receiveFileInfo(
-                            fallbackPlan.getFilesToRecoverNames(),
-                            fallbackPlan.getFilesToRecoverSizes(),
-                            fallbackPlan.getFilesPresentInTargetNames(),
-                            fallbackPlan.getFilesPresentInTargetSizes(),
-                            fallbackPlan.getTranslogOps(),
-                            recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
-                        );
+        void run(ActionListener<SendFileResult> listener) {
+            cancellableThreads.checkForCancel();
+
+            SubscribableListener
+                // send the original plan
+                .newForked(this::sendShardRecoveryPlanFileInfo)
+                // instruct the target to recover files from snapshot, possibly updating the plan on failure
+                .<List<StoreFileMetadata>>andThen(
+                    (l, ignored) -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
+                        if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
+                            && e instanceof CancellableThreads.ExecutionCancelledException == false) {
+                            shardRecoveryPlan = shardRecoveryPlan.getFallbackPlan();
+                            sendShardRecoveryPlanFileInfo(recoverSnapshotFilesListener.map(r -> Collections.emptyList()));
+                        } else {
+                            recoverSnapshotFilesListener.onFailure(e);
+                        }
+                    }))
+                )
+                // send local files which either aren't in the snapshot, or which failed to be recovered from the snapshot for some reason
+                .<Void>andThen((sendFilesListener, filesFailedToRecoverFromSnapshot) -> {
+                    final List<StoreFileMetadata> filesToRecoverFromSource;
+                    if (filesFailedToRecoverFromSnapshot.isEmpty()) {
+                        filesToRecoverFromSource = shardRecoveryPlan.getSourceFilesToRecover();
                     } else {
-                        recoverSnapshotFilesStep.onFailure(e);
+                        filesToRecoverFromSource = concatLists(
+                            shardRecoveryPlan.getSourceFilesToRecover(),
+                            filesFailedToRecoverFromSnapshot
+                        );
                     }
-                }
-            }))
-        );
 
-        recoverSnapshotFilesStep.addListener(listener.delegateFailureAndWrap((l, planAndFilesFailedToRecoverFromSnapshot) -> {
-            ShardRecoveryPlan recoveryPlan = planAndFilesFailedToRecoverFromSnapshot.v1();
-            List<StoreFileMetadata> filesFailedToRecoverFromSnapshot = planAndFilesFailedToRecoverFromSnapshot.v2();
-            final List<StoreFileMetadata> filesToRecoverFromSource;
-            if (filesFailedToRecoverFromSnapshot.isEmpty()) {
-                filesToRecoverFromSource = recoveryPlan.getSourceFilesToRecover();
-            } else {
-                filesToRecoverFromSource = concatLists(recoveryPlan.getSourceFilesToRecover(), filesFailedToRecoverFromSnapshot);
-            }
-
-            sendFiles(
-                store,
-                filesToRecoverFromSource.toArray(new StoreFileMetadata[0]),
-                recoveryPlan::getTranslogOps,
-                sendFilesStep.map(unused -> recoveryPlan)
-            );
-        }));
-
-        sendFilesStep.addListener(
-            listener.delegateFailureAndWrap(
-                (l, recoveryPlan) -> createRetentionLease(
-                    recoveryPlan.getStartingSeqNo(),
-                    createRetentionLeaseStep.map(retentionLease -> Tuple.tuple(recoveryPlan, retentionLease))
+                    sendFiles(
+                        store,
+                        filesToRecoverFromSource.toArray(new StoreFileMetadata[0]),
+                        shardRecoveryPlan::getTranslogOps,
+                        sendFilesListener
+                    );
+                })
+                // create a retention lease
+                .<RetentionLease>andThen(
+                    (createRetentionLeaseListener, ignored) -> createRetentionLease(
+                        shardRecoveryPlan.getStartingSeqNo(),
+                        createRetentionLeaseListener
+                    )
                 )
-            )
-        );
-
-        createRetentionLeaseStep.addListener(listener.delegateFailureAndWrap((l, recoveryPlanAndRetentionLease) -> {
-            final ShardRecoveryPlan recoveryPlan = recoveryPlanAndRetentionLease.v1();
-            final RetentionLease retentionLease = recoveryPlanAndRetentionLease.v2();
-            final Store.MetadataSnapshot recoverySourceMetadata = recoveryPlan.getSourceMetadataSnapshot();
-            final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-            assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
-                : retentionLease + " vs " + lastKnownGlobalCheckpoint;
-            // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
-            // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
-            // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
-            // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
-            cleanFiles(
-                store,
-                recoverySourceMetadata,
-                () -> translogOps,
-                lastKnownGlobalCheckpoint,
-                cleanFilesStep.map(unused -> recoveryPlan)
-            );
-        }));
-
-        cleanFilesStep.addListener(listener.delegateFailureAndWrap((l, recoveryPlan) -> {
-            final TimeValue took = stopWatch.totalTime();
-            logger.trace("recovery [phase1]: took [{}]", took);
-            l.onResponse(
-                new SendFileResult(
-                    recoveryPlan.getFilesToRecoverNames(),
-                    recoveryPlan.getFilesToRecoverSizes(),
-                    recoveryPlan.getTotalSize(),
-                    recoveryPlan.getFilesPresentInTargetNames(),
-                    recoveryPlan.getFilesPresentInTargetSizes(),
-                    recoveryPlan.getExistingSize(),
-                    took
-                )
-            );
-        }));
+                // run cleanFiles, renaming temp files, removing surplus ones, creating an empty translog and so on
+                .<Void>andThen((finalRecoveryPlanListener, retentionLease) -> {
+                    final Store.MetadataSnapshot recoverySourceMetadata = shardRecoveryPlan.getSourceMetadataSnapshot();
+                    final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                    assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                        : retentionLease + " vs " + lastKnownGlobalCheckpoint;
+                    // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+                    // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+                    // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+                    // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+                    cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, finalRecoveryPlanListener);
+                })
+                // compute the result
+                .<SendFileResult>andThen((resultListener, ignored) -> {
+                    final TimeValue took = stopWatch.totalTime();
+                    logger.trace("recovery [phase1]: took [{}]", took);
+                    resultListener.onResponse(
+                        new SendFileResult(
+                            shardRecoveryPlan.getFilesToRecoverNames(),
+                            shardRecoveryPlan.getFilesToRecoverSizes(),
+                            shardRecoveryPlan.getTotalSize(),
+                            shardRecoveryPlan.getFilesPresentInTargetNames(),
+                            shardRecoveryPlan.getFilesPresentInTargetSizes(),
+                            shardRecoveryPlan.getExistingSize(),
+                            took
+                        )
+                    );
+                })
+                // and finally respond
+                .addListener(listener);
+        }
     }
 
     /**

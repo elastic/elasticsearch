@@ -499,7 +499,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                             new ElasticsearchStatusException(
                                 "Could not start data frame analytics task, timed out after [{}] waiting for task assignment. "
                                     + "Assignment explanation [{}]",
-                                RestStatus.TOO_MANY_REQUESTS,
+                                RestStatus.CONFLICT,
                                 timeout,
                                 predicate.assignmentExplanation
                             ),

@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackVersionInformation;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -154,7 +155,7 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
 
         // finds the pluggable current version, or uses the given fallback
         private static TransformConfigVersion findCurrent(TransformConfigVersion fallback) {
-            var versionExtension = XPackVersionInformation.load();
+            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(TransformConfigVersionExtension.class), () -> null);
             if (versionExtension == null) {
                 return fallback;
             }

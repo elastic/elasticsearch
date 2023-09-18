@@ -510,6 +510,7 @@ public class ActionModule extends AbstractModule {
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
     private final boolean serverlessEnabled;
+    private final RestExtension restExtension;
 
     public ActionModule(
         Settings settings,
@@ -525,7 +526,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        RestExtension restExtension
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -572,6 +574,7 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        this.restExtension = restExtension;
     }
 
     private static <T> T getRestServerComponent(
@@ -851,15 +854,10 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
-        var restExtension = RestExtension.load(() -> new RestExtension() {
-            @Override
-            public Predicate<AbstractCatAction> getCatActionsFilter() {
-                return action -> true;
-            }
-        });
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
+        Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (shouldKeepRestHandler(handler)) {
+            if (restFilter.test(handler)) {
                 if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
                     catActions.add(catAction);
                 }
@@ -1064,16 +1062,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
-    }
-
-    /**
-     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
-     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
-     * @param handler
-     * @return
-     */
-    private boolean shouldKeepRestHandler(final RestHandler handler) {
-        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

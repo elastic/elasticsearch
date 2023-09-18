@@ -116,7 +116,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             List<Page> in = source.next();
             try (
                 Driver d = new Driver(
-                    new DriverContext(),
+                    driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
                     new PageConsumerOperator(result::add),
@@ -131,7 +131,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void assertSimple(BigArrays bigArrays, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
-        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(new DriverContext()), input.iterator());
+        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(driverContext()), input.iterator());
         assertSimpleOutput(input, results);
     }
 
@@ -143,7 +143,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
-                new DriverContext(),
+                driverContext(),
                 new CannedSourceOperator(input),
                 operators,
                 new PageConsumerOperator(results::add),
@@ -166,11 +166,12 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drivers.add(
                 new Driver(
                     "dummy-session",
-                    new DriverContext(),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(LongStream.range(0, between(1, 100)), between(1, 100)),
                     List.of(),
                     new PageConsumerOperator(page -> {}),
+                    Driver.DEFAULT_STATUS_INTERVAL,
                     () -> {}
                 )
             );

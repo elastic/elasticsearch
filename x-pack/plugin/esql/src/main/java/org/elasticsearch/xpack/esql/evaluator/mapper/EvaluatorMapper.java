@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ThrowingDriverContext;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.function.Function;
@@ -31,7 +31,7 @@ public interface EvaluatorMapper {
      */
     default Object fold() {
         return toJavaObject(
-            toEvaluator(e -> driverContext -> p -> fromArrayRow(e.fold())[0]).get(DriverContext.DEFAULT).eval(new Page(1)),
+            toEvaluator(e -> driverContext -> p -> fromArrayRow(e.fold())[0]).get(new ThrowingDriverContext()).eval(new Page(1)),
             0
         );
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestControllerTests;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -1152,7 +1153,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            List.of()
+            List.of(),
+            RestExtension.allowAll()
         );
     }
 

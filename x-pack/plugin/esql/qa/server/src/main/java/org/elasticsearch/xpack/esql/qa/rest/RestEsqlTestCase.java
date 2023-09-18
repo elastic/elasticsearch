@@ -343,15 +343,24 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
-        List<String> datePeriodOverflowExpressions = List.of("2147483647 day + 1 day", "306783378 week + 1 week", "2147483647 year + 1 year");
+        List<String> datePeriodOverflowExpressions = List.of(
+            "2147483647 day + 1 day",
+            "306783378 week + 1 week",
+            "2147483647 year + 1 year"
+        );
         // We cannot easily force an overflow using just milliseconds, since these are divided by 1000 and then the resulting seconds are
         // stored in a long. But combining with seconds works.
-        List<String> timeDurationOverflowExpressions = List.of("9223372036854775807 second + 1000 millisecond", "9223372036854775807 second + 1 second", "153722867280912930 minute + 1 minute", "2562047788015215 hour + 1 hour");
+        List<String> timeDurationOverflowExpressions = List.of(
+            "9223372036854775807 second + 1000 millisecond",
+            "9223372036854775807 second + 1 second",
+            "153722867280912930 minute + 1 minute",
+            "2562047788015215 hour + 1 hour"
+        );
 
-        for (String overflowExp: datePeriodOverflowExpressions) {
+        for (String overflowExp : datePeriodOverflowExpressions) {
             assertDateMathOverflow(overflowExp, "integer overflow");
         }
-        for (String overflowExp: timeDurationOverflowExpressions) {
+        for (String overflowExp : timeDurationOverflowExpressions) {
             assertDateMathOverflow(overflowExp, "long overflow");
         }
     }

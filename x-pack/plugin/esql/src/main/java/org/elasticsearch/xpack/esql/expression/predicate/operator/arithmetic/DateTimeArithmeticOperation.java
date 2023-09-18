@@ -21,11 +21,12 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
@@ -79,11 +80,12 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
 
-        if (hasArgumentWhich(EsqlDataTypes::isDateTimeOrTemporal)) {
-            // Date math is only possible if either
-            // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
-            // - both arguments are TemporalValues (so we can fold them).
-            if (hasArgumentWhich(DataTypes::isDateTime) && hasArgumentWhich(EsqlDataTypes::isTemporalAmount)) {
+        // Date math is only possible if either
+        // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
+        // - both arguments are TemporalValues (so we can fold them).
+        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
+            if ((leftType == DataTypes.DATETIME && isTemporalAmount(rightType))
+                || (rightType == DataTypes.DATETIME && isTemporalAmount(leftType))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
             if (leftType == TIME_DURATION && rightType == TIME_DURATION) {
@@ -151,21 +153,26 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dataType() == DataTypes.DATETIME
-            ? dvrCtx -> datetimes.apply(
+        if (dataType() == DataTypes.DATETIME) {
+            // One of the arguments has to be a datetime and the other a temporal amount.
+            Expression datetimeArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DataTypes.DATETIME) {
+                datetimeArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                datetimeArgument = right();
+                temporalAmountArgument = left();
+            }
+
+            return dvrCtx -> datetimes.apply(
                 source(),
-                toEvaluator.apply(argumentWhich(DataTypes::isDateTime)).get(dvrCtx),
-                (TemporalAmount) argumentWhich(EsqlDataTypes::isTemporalAmount).fold(),
+                toEvaluator.apply(datetimeArgument).get(dvrCtx),
+                (TemporalAmount) temporalAmountArgument.fold(),
                 dvrCtx
-            )
-            : super.toEvaluator(toEvaluator);
-    }
-
-    private Expression argumentWhich(Predicate<DataType> filter) {
-        return filter.test(left().dataType()) ? left() : filter.test(right().dataType()) ? right() : null;
-    }
-
-    private boolean hasArgumentWhich(Predicate<DataType> filter) {
-        return argumentWhich(filter) != null;
+            );
+        } else {
+            return super.toEvaluator(toEvaluator);
+        }
     }
 }

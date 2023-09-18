@@ -75,4 +75,4 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   export SNYK_TOKEN
 fi
 
-.buildkite/scripts/setup-monitoring.sh &
+.buildkite/scripts/setup-monitoring.sh

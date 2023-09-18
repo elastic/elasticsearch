@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.blobstore.BlobPath.Purpose;
+import org.elasticsearch.core.Nullable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
@@ -28,6 +31,14 @@ public interface BlobStore extends Closeable {
      * @param blobNames the blobs to be deleted
      */
     void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException;
+
+    default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, @Nullable Purpose purpose) throws IOException {
+        if (purpose == null) {
+            deleteBlobsIgnoringIfNotExists(blobNames);
+        } else {
+            throw new UnsupportedOperationException();
+        }
+    }
 
     /**
      * Returns statistics on the count of operations that have been performed on this blob store

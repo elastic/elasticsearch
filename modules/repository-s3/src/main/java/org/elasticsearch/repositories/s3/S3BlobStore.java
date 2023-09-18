@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -175,12 +176,16 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        logger.warn("BlobContainer of [{}]", path.buildAsString());
         return new S3BlobContainer(path, this);
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        deleteBlobsIgnoringIfNotExists(blobNames, null);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, @Nullable Purpose purpose) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -193,12 +198,12 @@ class S3BlobStore implements BlobStore {
                 blobNames.forEachRemaining(key -> {
                     partition.add(key);
                     if (partition.size() == MAX_BULK_DELETES) {
-                        deletePartition(clientReference, partition, aex);
+                        deletePartition(clientReference, partition, aex, purpose);
                         partition.clear();
                     }
                 });
                 if (partition.isEmpty() == false) {
-                    deletePartition(clientReference, partition, aex);
+                    deletePartition(clientReference, partition, aex, purpose);
                 }
             });
             if (aex.get() != null) {
@@ -209,9 +214,14 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private void deletePartition(AmazonS3Reference clientReference, List<String> partition, AtomicReference<Exception> aex) {
+    private void deletePartition(
+        AmazonS3Reference clientReference,
+        List<String> partition,
+        AtomicReference<Exception> aex,
+        Purpose purpose
+    ) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(this, partition));
+            clientReference.client().deleteObjects(bulkDelete(this, partition, purpose));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
@@ -230,10 +240,10 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs) {
+    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, Purpose purpose) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
-            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS));
+            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
     }
 
     @Override
@@ -307,18 +317,6 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    enum Purpose {
-        CLUSTER_STATE("ClusterState"),
-        INDICES("Indices"),
-        TRANSLOG("Translog");
-
-        private final String value;
-
-        Purpose(String value) {
-            this.value = value;
-        }
-    }
-
     static class Stats {
 
         final ConcurrentMap<String, AtomicLong> counters = new ConcurrentHashMap<>(
@@ -343,7 +341,7 @@ class S3BlobStore implements BlobStore {
             if (purpose == null) {
                 key = operation.value;
             } else {
-                key = operation + "/" + purpose;
+                key = operation.value + "/" + purpose.getValue();
                 if (false == counters.containsKey(key)) {
                     counters.put(key, new AtomicLong());
                 }
@@ -375,7 +373,7 @@ class S3BlobStore implements BlobStore {
             if (purpose == null) {
                 key = operation.value;
             } else {
-                key = operation + "/" + purpose;
+                key = operation + "/" + purpose.getValue();
                 if (false == collectors.containsKey(key)) {
                     collectors.put(key, buildMetricCollector(operation, purpose));
                 }

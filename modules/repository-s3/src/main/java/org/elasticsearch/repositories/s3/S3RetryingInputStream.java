@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 
@@ -44,6 +45,7 @@ class S3RetryingInputStream extends InputStream {
 
     private final S3BlobStore blobStore;
     private final String blobKey;
+    private final Purpose purpose;
     private final long start;
     private final long end;
     private final List<IOException> failures;
@@ -57,12 +59,12 @@ class S3RetryingInputStream extends InputStream {
     private boolean closed;
     private boolean eof;
 
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
-        this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, Purpose purpose) throws IOException {
+        this(blobStore, blobKey, purpose, 0, Long.MAX_VALUE - 1);
     }
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, Purpose purpose, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
@@ -71,6 +73,7 @@ class S3RetryingInputStream extends InputStream {
         }
         this.blobStore = blobStore;
         this.blobKey = blobKey;
+        this.purpose = purpose;
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;
@@ -80,7 +83,7 @@ class S3RetryingInputStream extends InputStream {
     private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT));
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;

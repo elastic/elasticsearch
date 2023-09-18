@@ -26,16 +26,32 @@ public class BlobPath {
 
     private final List<String> paths;
 
+    @Nullable
+    private final Purpose purpose;
+
     private BlobPath(List<String> paths) {
+        this(paths, null);
+    }
+
+    private BlobPath(List<String> paths, @Nullable Purpose purpose) {
         this.paths = paths;
+        this.purpose = purpose;
     }
 
     public List<String> parts() {
         return paths;
     }
 
+    public Purpose purpose() {
+        return purpose;
+    }
+
     public BlobPath add(String path) {
-        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path));
+        return new BlobPath(CollectionUtils.appendToCopy(this.paths, path), this.purpose);
+    }
+
+    public BlobPath purpose(Purpose purpose) {
+        return new BlobPath(List.copyOf(this.paths), purpose);
     }
 
     public String buildAsString() {
@@ -81,5 +97,21 @@ public class BlobPath {
     @Override
     public int hashCode() {
         return Objects.hash(paths);
+    }
+
+    public enum Purpose {
+        CLUSTER_STATE("ClusterState"),
+        INDICES("Indices"),
+        TRANSLOG("Translog");
+
+        private final String value;
+
+        Purpose(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

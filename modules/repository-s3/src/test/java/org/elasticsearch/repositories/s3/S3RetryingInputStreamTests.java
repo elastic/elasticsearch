@@ -93,11 +93,11 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         if (position != null && length != null) {
             s3Object.getObjectMetadata().setContentLength(length);
             s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data, position, length), new HttpGet()));
-            return new S3RetryingInputStream(blobStore, "_blob", position, Math.addExact(position, length - 1));
+            return new S3RetryingInputStream(blobStore, "_blob", null, position, Math.addExact(position, length - 1));
         } else {
             s3Object.getObjectMetadata().setContentLength(data.length);
             s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data), new HttpGet()));
-            return new S3RetryingInputStream(blobStore, "_blob");
+            return new S3RetryingInputStream(blobStore, "_blob", null);
         }
     }
 }

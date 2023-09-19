@@ -9,6 +9,9 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,6 +23,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -96,7 +101,13 @@ public class TopNBenchmark {
             case LONGS_AND_BYTES_REFS -> List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.UTF8);
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
+        CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            List.of(),
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         return new TopNOperator(
+            breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
             elementTypes,
             encoders,

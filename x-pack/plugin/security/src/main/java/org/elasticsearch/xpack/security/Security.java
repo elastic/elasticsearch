@@ -910,8 +910,7 @@ public class Security extends Plugin
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
 
-        // operator privileges are enabled either explicitly via the setting or if running serverless
-        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings) || DiscoveryNode.isServerless();
+        final boolean operatorPrivilegesEnabled = OPERATOR_PRIVILEGES_ENABLED.get(settings);
 
         if (operatorPrivilegesEnabled) {
             logger.info("operator privileges are enabled");

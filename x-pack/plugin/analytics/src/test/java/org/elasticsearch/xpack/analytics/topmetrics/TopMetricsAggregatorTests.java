@@ -378,6 +378,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                         breaker,
                         builder.bytesToPreallocate(),
                         MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        true,
                         false,
                         doubleFields()
                     )

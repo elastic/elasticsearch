@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
@@ -148,7 +149,13 @@ public class ChunkedTrainedModelRestorer {
                     Thread.currentThread().getName()
                 );
 
-            SearchResponse searchResponse = retryingSearch(client, searchRequest, SEARCH_RETRY_LIMIT, SEARCH_FAILURE_RETRY_WAIT_TIME);
+            SearchResponse searchResponse = retryingSearch(
+                client,
+                modelId,
+                searchRequest,
+                SEARCH_RETRY_LIMIT,
+                SEARCH_FAILURE_RETRY_WAIT_TIME
+            );
             if (searchResponse.getHits().getHits().length == 0) {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                 return;
@@ -207,20 +214,27 @@ public class ChunkedTrainedModelRestorer {
         }
     }
 
-    static SearchResponse retryingSearch(Client client, SearchRequest searchRequest, int retries, TimeValue sleep)
+    static SearchResponse retryingSearch(Client client, String modelId, SearchRequest searchRequest, int retries, TimeValue sleep)
         throws InterruptedException {
         int failureCount = 0;
 
         while (true) {
             try {
                 return client.search(searchRequest).actionGet();
-            } catch (SearchPhaseExecutionException e) {
-                if (failureCount >= retries) {
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof SearchPhaseExecutionException == false
+                    && ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException == false) {
                     throw e;
                 }
 
-                TimeUnit.SECONDS.sleep(sleep.getSeconds());
+                if (failureCount >= retries) {
+                    logger.warn(format("[%s] searching for model part failed %s times, returning failure", modelId, retries));
+                    throw e;
+                }
+
                 failureCount++;
+                logger.debug(format("[%s] searching for model part failed %s times, retrying", modelId, failureCount));
+                TimeUnit.SECONDS.sleep(sleep.getSeconds());
             }
         }
     }

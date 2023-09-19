@@ -14,6 +14,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,7 +41,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
         var request = createSearchRequest();
 
         assertThat(
-            ChunkedTrainedModelRestorer.retryingSearch(mockClient, request, 5, new TimeValue(1, TimeUnit.NANOSECONDS)),
+            ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 5, new TimeValue(1, TimeUnit.NANOSECONDS)),
             is(mockSearchResponse)
         );
 
@@ -55,7 +57,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
             assertThat(exception, is(searchPhaseException));
@@ -72,10 +74,28 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
             assertThat(exception, is(searchPhaseException));
+            verify(mockClient, times(2)).search(any());
+        }
+    }
+
+    public void testRetryingSearch_ThrowsCircuitBreakingExceptionAfterOneRetry_FromSearchPhaseException() {
+        try (var mockClient = mock(Client.class)) {
+            var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+            var circuitBreakerException = new CircuitBreakingException("error", CircuitBreaker.Durability.TRANSIENT);
+            when(mockClient.search(any())).thenThrow(searchPhaseException).thenThrow(circuitBreakerException);
+
+            var request = createSearchRequest();
+
+            CircuitBreakingException exception = expectThrows(
+                CircuitBreakingException.class,
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+            );
+
+            assertThat(exception, is(circuitBreakerException));
             verify(mockClient, times(2)).search(any());
         }
     }
@@ -89,7 +109,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             ElasticsearchException thrownException = expectThrows(
                 ElasticsearchException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
             assertThat(thrownException, is(exception));
@@ -110,7 +130,7 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
             var request = createSearchRequest();
 
             assertThat(
-                ChunkedTrainedModelRestorer.retryingSearch(mockClient, request, 1, new TimeValue(1, TimeUnit.NANOSECONDS)),
+                ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS)),
                 is(mockSearchResponse)
             );
 

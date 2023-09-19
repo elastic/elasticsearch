@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.Arrays;
 
@@ -28,7 +28,7 @@ final class UTF8TopNEncoder extends SortableTopNEncoder {
     static final byte TERMINATOR = 0x00;
 
     @Override
-    public int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // add one bit to every byte so that there are no "0" bytes in the provided bytes. The only "0" bytes are
         // those defined as separators
         int end = value.offset + value.length;

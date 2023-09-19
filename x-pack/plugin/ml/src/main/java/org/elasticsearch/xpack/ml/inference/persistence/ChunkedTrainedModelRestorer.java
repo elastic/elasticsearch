@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -58,6 +61,8 @@ public class ChunkedTrainedModelRestorer {
     private static final Logger logger = LogManager.getLogger(ChunkedTrainedModelRestorer.class);
 
     private static final int MAX_NUM_DEFINITION_DOCS = 20;
+    private static final int SEARCH_RETRY_LIMIT = 5;
+    private static final TimeValue SEARCH_FAILURE_RETRY_WAIT_TIME = new TimeValue(5, TimeUnit.SECONDS);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -142,7 +147,8 @@ public class ChunkedTrainedModelRestorer {
                     UTILITY_THREAD_POOL_NAME,
                     Thread.currentThread().getName()
                 );
-            SearchResponse searchResponse = client.search(searchRequest).actionGet();
+
+            SearchResponse searchResponse = retryingSearch(client, searchRequest, SEARCH_RETRY_LIMIT, SEARCH_FAILURE_RETRY_WAIT_TIME);
             if (searchResponse.getHits().getHits().length == 0) {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                 return;
@@ -197,6 +203,24 @@ public class ChunkedTrainedModelRestorer {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
             } else {
                 errorConsumer.accept(e);
+            }
+        }
+    }
+
+    static SearchResponse retryingSearch(Client client, SearchRequest searchRequest, int retries, TimeValue sleep)
+        throws InterruptedException {
+        int failureCount = 0;
+
+        while (true) {
+            try {
+                return client.search(searchRequest).actionGet();
+            } catch (SearchPhaseExecutionException e) {
+                if (failureCount >= retries) {
+                    throw e;
+                }
+
+                TimeUnit.SECONDS.sleep(sleep.getSeconds());
+                failureCount++;
             }
         }
     }

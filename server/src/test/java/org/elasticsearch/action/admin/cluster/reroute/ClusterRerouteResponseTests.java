@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -130,7 +131,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                           {
                             "node_id": "node0",
                             "transport_version": "8000099",
-                            "mappings_versions": {}
+                            "mappings_versions": {
+                              ".system-index": {
+                                "version": 1,
+                                "hash": 0
+                              }
+                            }
                           }
                         ],
                         "metadata": {
@@ -323,7 +329,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersions.V_8_0_0)
+            .putCompatibilityVersions(
+                node0.getId(),
+                TransportVersions.V_8_0_0,
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+            )
             .metadata(
                 Metadata.builder()
                     .put(

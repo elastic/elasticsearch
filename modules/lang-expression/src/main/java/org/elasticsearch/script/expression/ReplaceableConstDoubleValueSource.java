@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
 
-    Map<LeafReaderContext, ReplaceableConstDoubleValues> specialValues = new ConcurrentHashMap<>();
+    private final Map<LeafReaderContext, ReplaceableConstDoubleValues> specialValues = new ConcurrentHashMap<>();
 
     @Override
     public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {

@@ -37,6 +37,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
@@ -91,6 +92,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
+    private final Set<Thread> timeoutOverwrites = ConcurrentCollections.newConcurrentSet();
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
@@ -345,6 +347,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
+            doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         }
         return search(weight, collectorManager, firstCollector);
@@ -475,14 +478,30 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         collector.setWeight(weight);
+        boolean success = false;
         try {
             for (LeafReaderContext ctx : leaves) { // search each subreader
                 searchLeaf(ctx, weight, collector);
             }
+            success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
         } finally {
-            doAggregationPostCollection(collector);
+            // Only run post collection if we have timeout or if the search was successful
+            // otherwise the state of the aggregation might be undefined and running post collection
+            // might result in an exception
+            if (success || timeExceeded) {
+                try {
+                    // Search phase has finished, no longer need to check for timeout
+                    // otherwise the aggregation post-collection phase might get cancelled.
+                    boolean added = timeoutOverwrites.add(Thread.currentThread());
+                    assert added;
+                    doAggregationPostCollection(collector);
+                } finally {
+                    boolean removed = timeoutOverwrites.remove(Thread.currentThread());
+                    assert removed;
+                }
+            }
         }
     }
 
@@ -498,7 +517,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        throw new TimeExceededException();
+        if (timeoutOverwrites.contains(Thread.currentThread()) == false) {
+            throw new TimeExceededException();
+        }
     }
 
     private static class TimeExceededException extends RuntimeException {

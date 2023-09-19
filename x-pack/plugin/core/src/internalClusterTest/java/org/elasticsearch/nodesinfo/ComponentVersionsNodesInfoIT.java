@@ -31,7 +31,9 @@ public class ComponentVersionsNodesInfoIT extends ESIntegTestCase {
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
-        assertThat(response.getNodesMap().get(server1NodeId).getComponentVersions().keySet(),
-            containsInAnyOrder("TransformConfigVersion", "MlConfigVersion"));
+        assertThat(
+            response.getNodesMap().get(server1NodeId).getComponentVersions().keySet(),
+            containsInAnyOrder("TransformConfigVersion", "MlConfigVersion")
+        );
     }
 }

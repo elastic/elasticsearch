@@ -24,7 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -122,7 +121,6 @@ import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuil
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -150,7 +148,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -161,6 +158,7 @@ import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -294,19 +292,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
             DEFAULT_MAX_BUCKETS,
             false,
-            fieldTypes
-        );
-    }
-
-    private AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
-        throws IOException {
-        return createAggregationContext(
-            indexSearcher,
-            createIndexSettings(),
-            query,
-            new NoneCircuitBreakerService(),
-            AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
-            DEFAULT_MAX_BUCKETS,
             false,
             fieldTypes
         );
@@ -329,10 +314,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         long bytesToPreallocate,
         int maxBucket,
         boolean isInSortOrderExecutionRequired,
+        boolean supportsParallelCollection,
         MappedFieldType... fieldTypes
     ) throws IOException {
         return createAggregationContext(
-            newIndexSearcher(indexReader),
+            newIndexSearcher(indexReader, supportsParallelCollection),
             indexSettings,
             query,
             breakerService,
@@ -510,7 +496,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexReader reader, AggTestConfig aggTestConfig)
         throws IOException {
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggTestConfig.builder.supportsParallelCollection());
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -553,9 +539,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType[] fieldTypes = aggTestConfig.fieldTypes();
 
         final IndexReaderContext ctx = searcher.getTopReaderContext();
-        final PipelineTree pipelines = builder.buildPipelineTree();
-        List<InternalAggregation> internalAggs = new ArrayList<>();
+        List<InternalAggregations> internalAggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
+        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
 
         if (splitLeavesIntoSeparateAggregators
             && searcher.getIndexReader().leaves().size() > 0
@@ -590,7 +576,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         a.postCollection();
                     }
                     assertEquals(shouldBeCached, context.isCacheable());
-                    internalAggs.add(a.buildTopLevel());
+                    List<InternalAggregation> internalAggregations = List.of(a.buildTopLevel());
+                    assertRoundTrip(internalAggregations);
+                    internalAggs.add(InternalAggregations.from(internalAggregations));
                 } finally {
                     Releasables.close(context);
                 }
@@ -613,54 +601,56 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     root.preCollection();
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                    List<InternalAggregation> internalAggregations = List.of(root.buildTopLevel());
+                    assertRoundTrip(internalAggregations);
+                    internalAggs.add(InternalAggregations.from(internalAggregations));
                 } else {
-                    CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
-                        @Override
-                        public Collector newCollector() throws IOException {
-                            C collector = createAggregator(builder, context);
-                            collector.preCollection();
-                            aggregators.add(collector);
-                            return MultiBucketCollector.wrap(true, List.of(collector)).asCollector();
-                        }
-
-                        @Override
-                        public Void reduce(Collection<Collector> collectors) {
-                            return null;
+                    Supplier<AggregatorCollector> aggregatorSupplier = () -> {
+                        try {
+                            Aggregator aggregator = createAggregator(builder, context);
+                            aggregator.preCollection();
+                            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
+                            return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
+                        } catch (IOException e) {
+                            throw new AggregationInitializationException("Could not initialize aggregators", e);
                         }
                     };
-                    if (aggTestConfig.builder().supportsParallelCollection()) {
-                        searcher.search(rewritten, collectorManager);
-                    } else {
-                        searcher.search(rewritten, collectorManager.newCollector());
-                    }
-                }
-                for (C agg : aggregators) {
-                    internalAggs.add(agg.buildTopLevel());
+                    Supplier<AggregationReduceContext> reduceContextSupplier = () -> new AggregationReduceContext.ForPartial(
+                        bigArraysForReduction,
+                        getMockScriptService(),
+                        () -> false,
+                        builder
+                    );
+                    AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
+                        aggregatorSupplier,
+                        internalAggs::add,
+                        reduceContextSupplier
+                    );
+                    searcher.search(rewritten, aggregatorCollectorManager);
                 }
             } finally {
                 Releasables.close(context);
             }
         }
-        assertRoundTrip(internalAggs);
 
-        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
         try {
             if (aggTestConfig.incrementalReduce() && internalAggs.size() > 1) {
                 // sometimes do an incremental reduce
                 int toReduceSize = internalAggs.size();
                 Collections.shuffle(internalAggs, random());
                 int r = randomIntBetween(1, toReduceSize);
-                List<InternalAggregation> toReduce = internalAggs.subList(0, r);
+                List<InternalAggregations> toReduce = internalAggs.subList(0, r);
                 AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
                     bigArraysForReduction,
                     getMockScriptService(),
                     () -> false,
                     builder
                 );
-                A reduced = (A) doReduce(toReduce, reduceContext);
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
-                internalAggs.add(reduced);
-                assertRoundTrip(internalAggs);
+                internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
+                for (InternalAggregations internalAggregation : internalAggs) {
+                    assertRoundTrip(internalAggregation.copyResults());
+                }
             }
 
             // now do the final reduce
@@ -677,11 +667,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
 
             @SuppressWarnings("unchecked")
-            A internalAgg = (A) doReduce(internalAggs, reduceContext);
+            A internalAgg = (A) doInternalAggregationsReduce(internalAggs, reduceContext);
             assertRoundTrip(internalAgg);
-
-            // materialize any parent pipelines
-            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
 
             doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             assertRoundTrip(internalAgg);
@@ -699,6 +686,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         for (InternalAggregation aggregator : aggregators) {
             internalAggregations.add(InternalAggregations.from(List.of(aggregator)));
         }
+        return doInternalAggregationsReduce(internalAggregations, reduceContext);
+    }
+
+    private InternalAggregation doInternalAggregationsReduce(
+        List<InternalAggregations> internalAggregations,
+        AggregationReduceContext reduceContext
+    ) {
         InternalAggregations aggregations = InternalAggregations.topLevelReduce(internalAggregations, reduceContext);
         List<InternalAggregation> reduced = aggregations.copyResults();
         assertThat(reduced.size(), equalTo(1));
@@ -807,7 +801,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(reader);
+        IndexSearcher searcher = newIndexSearcher(reader, aggregationBuilder.supportsParallelCollection());
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -955,7 +949,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread.
      */
-    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException {
+    private IndexSearcher newIndexSearcher(IndexReader indexReader, boolean supportsParallelCollection) throws IOException {
         return new ContextIndexSearcher(
             indexReader,
             IndexSearcher.getDefaultSimilarity(),
@@ -964,7 +958,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexReader instanceof DirectoryReader ? randomBoolean() : false, // we can only wrap DirectoryReader instances
             this.threadPoolExecutor,
             this.threadPoolExecutor.getMaximumPoolSize(),
-            1 // forces multiple slices
+            supportsParallelCollection ? 1 /* forces multiple slices */ : Integer.MAX_VALUE // one slice
         );
     }
 

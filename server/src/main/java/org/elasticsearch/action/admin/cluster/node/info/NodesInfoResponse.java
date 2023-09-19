@@ -70,6 +70,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             for (var cv : nodeInfo.getComponentVersions().entrySet()) {
                 builder.field(cv.getKey(), cv.getValue());
             }
+            builder.endObject();
             builder.field("build_flavor", nodeInfo.getBuild().flavor());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());

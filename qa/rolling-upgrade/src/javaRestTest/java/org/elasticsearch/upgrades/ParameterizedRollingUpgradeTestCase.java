@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -31,6 +32,7 @@ import org.junit.rules.TestRule;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -42,11 +44,18 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
+    @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(3)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("path.repo", new Supplier<>() {
+            @Override
+            @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+            public String get() {
+                return repoDirectory.getRoot().getPath();
+            }
+        })
         .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();

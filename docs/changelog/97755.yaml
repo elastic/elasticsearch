@@ -1,5 +1,0 @@
-pr: 97755
-summary: Wire concurrent top docs collector managers when size is 0
-area: Search
-type: enhancement
-issues: []

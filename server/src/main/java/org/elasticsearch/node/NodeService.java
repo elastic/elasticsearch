@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -114,6 +115,7 @@ public class NodeService implements Closeable {
         return new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
+            IndexVersion.current(),
             Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,

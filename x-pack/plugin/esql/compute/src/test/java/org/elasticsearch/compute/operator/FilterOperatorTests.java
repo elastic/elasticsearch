@@ -42,7 +42,7 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new FilterOperator.FilterOperatorFactory(() -> new SameLastDigit(0, 1));
+        return new FilterOperator.FilterOperatorFactory(dvrCtx -> new SameLastDigit(0, 1));
     }
 
     @Override

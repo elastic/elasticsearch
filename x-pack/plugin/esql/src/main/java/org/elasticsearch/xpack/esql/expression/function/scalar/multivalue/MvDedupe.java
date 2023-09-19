@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -34,7 +33,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return MultivalueDedupe.evaluator(LocalExecutionPlanner.toElementType(dataType()), fieldEval);
     }
 

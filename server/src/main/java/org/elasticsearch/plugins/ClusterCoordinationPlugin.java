@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -76,11 +77,23 @@ public interface ClusterCoordinationPlugin {
     }
 
     interface PersistedClusterStateServiceFactory {
-        PersistedClusterStateService newPersistedClusterStateService(
+
+        @Deprecated(forRemoval = true)
+        default PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
             ThreadPool threadPool
+        ) {
+            throw new AssertionError("Should not be called!");
+        }
+
+        PersistedClusterStateService newPersistedClusterStateService(
+            NodeEnvironment nodeEnvironment,
+            NamedXContentRegistry xContentRegistry,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            CompatibilityVersions compatibilityVersions
         );
     }
 

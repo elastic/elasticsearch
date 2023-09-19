@@ -65,7 +65,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService);
+        this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays);
         this.computeService = new ComputeService(
             searchService,
             transportService,

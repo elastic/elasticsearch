@@ -29,7 +29,7 @@ public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunc
 
   @Override
   public String name() {
-    return "ToDouble";
+    return "ToDoubleFromUnsignedLong";
   }
 
   @Override

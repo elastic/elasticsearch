@@ -98,7 +98,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                         field("a", DataTypes.KEYWORD),
                         IntStream.range(1, 5).mapToObj(i -> field(Integer.toString(i), DataTypes.KEYWORD)).toList()
                     )
-                ).get().eval(row(simpleData)),
+                ).get(driverContext()).eval(row(simpleData)),
                 0
             ),
             equalTo(new BytesRef("cats and dogs"))
@@ -120,7 +120,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                             field("c", DataTypes.KEYWORD)
                         )
                     )
-                ).get().eval(row(simpleData)),
+                ).get(driverContext()).eval(row(simpleData)),
                 0
             ),
             equalTo(new BytesRef("cats and dogs"))

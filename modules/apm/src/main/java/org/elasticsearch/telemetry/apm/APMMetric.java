@@ -14,6 +14,7 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.telemetry.MetricName;
 import org.elasticsearch.telemetry.metric.Counter;
@@ -23,6 +24,7 @@ import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
 
@@ -31,7 +33,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
     private final Map<MetricName, DoubleGauge> doubleGauges = ConcurrentCollections.newConcurrentMap();
     private final Map<MetricName, DoubleHistogram> doubleHistograms = ConcurrentCollections.newConcurrentMap();
     private volatile boolean enabled;
-    private volatile APMServices services;
+    private  AtomicReference<APMServices> services = new AtomicReference<>();
 
     record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
 
@@ -71,7 +73,10 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
             if (v != null) {
                 throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
             }
-            return OtelCounter.build(services.meter, name, description, unit);
+            var lazyCounter = new LazyInitializable<>(
+                () -> services.get().meter.counterBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build()
+            );
+            return OtelCounter.build(lazyCounter, name, description, unit);
         });
     }
 
@@ -82,7 +87,11 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
             if (v != null) {
                 throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
             }
-            return OtelDoubleGauge.build(services.meter, name, description, unit);
+            var lazyGauge = new LazyInitializable<>(
+                () -> services.get().meter.gaugeBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).buildObserver()
+            );
+
+            return OtelDoubleGauge.build(lazyGauge, name, description, unit);
         });
     }
 
@@ -93,19 +102,23 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
             if (v != null) {
                 throw new IllegalStateException("double histogram [" + name.getRawName() + "] already registered");
             }
-            return OtelDoubleHistogram.build(services.meter, name, description, unit);
+            var lazyHistogram = new LazyInitializable<>(
+                () -> services.get().meter.histogramBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build()
+            );
+
+            return OtelDoubleHistogram.build(lazyHistogram, name, description, unit);
         });
     }
 
-    APMServices createApmServices() {
+    AtomicReference<APMServices> createApmServices() {
         assert this.enabled;
-        assert this.services == null;
+        assert this.services.get() == null;
 
-        return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
+        return AccessController.doPrivileged((PrivilegedAction<AtomicReference<APMServices>>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var meter = openTelemetry.getMeter("elasticsearch");
 
-            return new APMServices(meter, openTelemetry);
+            return new AtomicReference<>(new APMServices(meter, openTelemetry));
         });
     }
 

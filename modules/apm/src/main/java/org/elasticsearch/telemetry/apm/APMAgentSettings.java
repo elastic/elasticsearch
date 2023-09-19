@@ -41,10 +41,13 @@ class APMAgentSettings {
      */
     static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
 
-    void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
+    void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
+        APMTracer apmTracer = telemetryProvider.getTracer();
+        APMMetric apmMetric = telemetryProvider.getMetric();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
+            apmMetric.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
@@ -19,6 +20,11 @@ import java.util.List;
 import java.util.ServiceLoader;
 
 public class BlockFactory {
+
+    private static final BlockFactory NON_BREAKING = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop-esql-breaker"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 
     private static final BlockFactory GLOBAL = loadGlobalFactory();
     // new BlockFactory(new NoopCircuitBreaker("esql_noop_breaker"), BigArrays.NON_RECYCLING_INSTANCE);
@@ -54,6 +60,13 @@ public class BlockFactory {
         return GLOBAL;
     }
 
+    /**
+     * Returns the Non-Breaking block factory.
+     */
+    public static BlockFactory getNonBreakingInstance() {
+        return NON_BREAKING;
+    }
+
     public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
         return new BlockFactory(breaker, bigArrays);
     }
@@ -77,7 +90,7 @@ public class BlockFactory {
             // have to if the delta is negative
             if (delta > 0) {
                 try {
-                    breaker.addEstimateBytesAndMaybeBreak(delta, "<block_factory>");
+                    breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
                 } catch (CircuitBreakingException e) {
                     if (isDataAlreadyCreated) {
                         // since we've already created the data, we need to

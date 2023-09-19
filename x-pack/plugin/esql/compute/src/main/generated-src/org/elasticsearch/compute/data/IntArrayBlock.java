@@ -24,7 +24,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     private final int[] values;
 
     public IntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getGlobalInstance());
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
 
     public IntArrayBlock(

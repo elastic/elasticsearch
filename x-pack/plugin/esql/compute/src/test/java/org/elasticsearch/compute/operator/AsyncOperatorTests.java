@@ -216,7 +216,7 @@ public class AsyncOperatorTests extends ESTestCase {
     DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            BlockFactory.getGlobalInstance()
+            BlockFactory.getNonBreakingInstance()
         );
     }
 }

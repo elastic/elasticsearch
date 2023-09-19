@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasable;
 
 public class ThrowingDriverContext extends DriverContext {
     public ThrowingDriverContext() {
-        super(new ThrowingBigArrays(), BlockFactory.getGlobalInstance());
+        super(new ThrowingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 
     @Override

@@ -48,7 +48,7 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(BlockFactory.getGlobalInstance().newDoubleArrayVector(array, array.length).asBlock());  // TODO: just for compile
+        return new Page(BlockFactory.getNonBreakingInstance().newDoubleArrayVector(array, array.length).asBlock());
     }
 
     protected int remaining() {

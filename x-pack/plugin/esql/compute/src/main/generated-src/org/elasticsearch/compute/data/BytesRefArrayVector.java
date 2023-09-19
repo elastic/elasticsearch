@@ -23,7 +23,7 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     private final BytesRefArray values;
 
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {

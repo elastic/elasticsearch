@@ -22,7 +22,7 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     private final boolean[] values;
 
     public BooleanArrayVector(boolean[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {

@@ -119,10 +119,11 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions, using the global block factory}.
+     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
      */
+    // Eventually, this should use the GLOBAL breaking instance
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions, BlockFactory.getGlobalInstance());
+        return new ConstantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
     static Block constantNullBlock(int positions, BlockFactory blockFactory) {

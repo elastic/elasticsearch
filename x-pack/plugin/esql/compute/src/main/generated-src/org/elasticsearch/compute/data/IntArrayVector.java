@@ -22,7 +22,7 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     private final int[] values;
 
     public IntArrayVector(int[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {

@@ -177,7 +177,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drivers.add(
                 new Driver(
                     "dummy-session",
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BlockFactory.getGlobalInstance()),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BlockFactory.getNonBreakingInstance()),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(LongStream.range(0, between(1, 100)), between(1, 100)),
                     List.of(),

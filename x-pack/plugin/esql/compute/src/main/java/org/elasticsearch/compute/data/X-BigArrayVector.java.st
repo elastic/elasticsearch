@@ -22,7 +22,7 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {

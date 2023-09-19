@@ -40,9 +40,9 @@ class ResultBuilderForDoc implements ResultBuilder {
     @Override
     public Block build() {
         return new DocVector(
-            BlockFactory.getGlobalInstance().newIntArrayVector(shards, position),
-            BlockFactory.getGlobalInstance().newIntArrayVector(segments, position),
-            BlockFactory.getGlobalInstance().newIntArrayVector(docs, position),
+            BlockFactory.getNonBreakingInstance().newIntArrayVector(shards, position),
+            BlockFactory.getNonBreakingInstance().newIntArrayVector(segments, position),
+            BlockFactory.getNonBreakingInstance().newIntArrayVector(docs, position),
             null
         ).asBlock();
     }

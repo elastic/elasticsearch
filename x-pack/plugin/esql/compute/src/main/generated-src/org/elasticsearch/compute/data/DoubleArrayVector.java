@@ -22,7 +22,7 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     private final double[] values;
 
     public DoubleArrayVector(double[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {

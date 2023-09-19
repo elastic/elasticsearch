@@ -25,7 +25,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     private final BytesRefArray values;
 
     public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getGlobalInstance());
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
 
     public BytesRefArrayBlock(

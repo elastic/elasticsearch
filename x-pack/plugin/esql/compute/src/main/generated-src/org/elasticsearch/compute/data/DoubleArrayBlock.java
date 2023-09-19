@@ -24,7 +24,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     private final double[] values;
 
     public DoubleArrayBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getGlobalInstance());
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
     }
 
     public DoubleArrayBlock(

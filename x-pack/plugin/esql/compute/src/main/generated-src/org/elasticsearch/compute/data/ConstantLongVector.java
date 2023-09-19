@@ -20,7 +20,7 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
     private final long value;
 
     public ConstantLongVector(long value, int positionCount) {
-        this(value, positionCount, BlockFactory.getGlobalInstance());
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {

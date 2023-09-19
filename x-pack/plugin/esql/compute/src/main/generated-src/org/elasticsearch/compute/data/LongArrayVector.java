@@ -22,7 +22,7 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     private final long[] values;
 
     public LongArrayVector(long[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getGlobalInstance());
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {

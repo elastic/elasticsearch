@@ -19,8 +19,9 @@ import java.util.Objects;
  */
 public final class ConstantNullBlock extends AbstractBlock {
 
+    // Eventually, this should use the GLOBAL breaking instance
     ConstantNullBlock(int positionCount) {
-        this(positionCount, BlockFactory.getGlobalInstance());
+        this(positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {

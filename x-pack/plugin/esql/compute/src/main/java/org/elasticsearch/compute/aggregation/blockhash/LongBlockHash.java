@@ -64,7 +64,7 @@ final class LongBlockHash extends BlockHash {
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i))));
         }
-        return BlockFactory.getGlobalInstance().newIntArrayVector(groups, groups.length);
+        return vector.blockFactory().newIntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(LongBlock block) {

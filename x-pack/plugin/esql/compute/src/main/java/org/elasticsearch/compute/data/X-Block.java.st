@@ -190,18 +190,20 @@ $endif$
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getGlobalInstance block factory}. */
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, this should use the GLOBAL breaking instance
     static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getGlobalInstance());
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.new$Type$BlockBuilder(estimatedSize);
     }
 
-    /** Returns a block using the {@link BlockFactory#getGlobalInstance block factory}. */
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, this should use the GLOBAL breaking instance
     static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getGlobalInstance());
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
     static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {

@@ -21,7 +21,7 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     private final BytesRef value;
 
     public ConstantBytesRefVector(BytesRef value, int positionCount) {
-        this(value, positionCount, BlockFactory.getGlobalInstance());
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {

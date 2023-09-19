@@ -20,7 +20,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     private final int value;
 
     public ConstantIntVector(int value, int positionCount) {
-        this(value, positionCount, BlockFactory.getGlobalInstance());
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
 
     public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {

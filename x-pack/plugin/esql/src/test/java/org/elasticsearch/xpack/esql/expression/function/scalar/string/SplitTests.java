@@ -85,7 +85,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     public void testConstantDelimiter() {
         EvalOperator.ExpressionEvaluator eval = evaluator(
             new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-        ).get();
+        ).get(driverContext());
         /*
          * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
          * string because we aren't really sure it's printable. It could be a tab or a bell or some

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -96,12 +97,19 @@ public class EnrichLookupService {
     private final SearchService searchService;
     private final TransportService transportService;
     private final Executor executor;
+    private final BigArrays bigArrays;
 
-    public EnrichLookupService(ClusterService clusterService, SearchService searchService, TransportService transportService) {
+    public EnrichLookupService(
+        ClusterService clusterService,
+        SearchService searchService,
+        TransportService transportService,
+        BigArrays bigArrays
+    ) {
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
+        this.bigArrays = bigArrays;
         transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
     }
 
@@ -200,11 +208,12 @@ public class EnrichLookupService {
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
             Driver driver = new Driver(
                 "enrich-lookup:" + sessionId,
-                new DriverContext(),
+                new DriverContext(bigArrays),
                 () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
                 queryOperator,
                 intermediateOperators,
                 outputOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
                 searchContext
             );
             task.addListener(() -> {

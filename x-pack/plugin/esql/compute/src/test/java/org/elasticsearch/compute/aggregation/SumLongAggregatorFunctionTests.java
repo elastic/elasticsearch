@@ -49,7 +49,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testOverflowFails() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,
@@ -65,7 +65,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testRejectsDouble() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             Driver d = new Driver(
                 driverContext,

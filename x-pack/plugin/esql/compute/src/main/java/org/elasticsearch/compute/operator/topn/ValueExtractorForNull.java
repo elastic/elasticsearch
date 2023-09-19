@@ -7,11 +7,11 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class ValueExtractorForNull implements ValueExtractor {
     @Override
-    public void writeValue(BytesRefBuilder values, int position) {
+    public void writeValue(BreakingBytesRefBuilder values, int position) {
         /*
          * Write 0 values which can be read by *any* result builder and will always
          * make a null value.

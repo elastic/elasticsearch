@@ -109,6 +109,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
 
     public void testRandomShardExplanationToXContent() throws Exception {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, false);
+        AbstractChunkedSerializingTestCase.assertChunkCount(cae, ignored -> 3);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String actual = Strings.toString(builder);

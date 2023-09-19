@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -80,7 +79,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
         ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
-        AbstractChunkedSerializingTestCase.assertChunkCount(explanation, ignored -> 6);
 
         ShardId shardId = explanation.getShard();
         boolean isPrimary = explanation.isPrimary();

@@ -1,5 +1,5 @@
 pr: 99673
-summary: Reducing chunk size and adding retries for starting model deployment
+summary: Adding retry logic for start model deployment API
 area: Machine Learning
 type: bug
-issues: []
+issues: [ ]

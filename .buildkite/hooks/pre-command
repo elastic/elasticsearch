@@ -88,12 +88,16 @@ if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 fi
 
-buildkite-agent annotation remove --context "ctx-gobld-metrics" || true
-
 if [[ "${BUILDKITE_LABEL:-}" == ":pipeline: Pipeline upload" ]]; then
-  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+  cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
 <details>
 
 <summary>Gradle build scan links</summary>
+EOF
+
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>gobld information</summary>
 EOF
 fi

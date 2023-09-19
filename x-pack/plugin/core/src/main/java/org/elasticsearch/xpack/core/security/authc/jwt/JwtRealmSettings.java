@@ -174,7 +174,7 @@ public class JwtRealmSettings {
                 CLAIMS_NAME.getClaim(),
                 CLAIMS_NAME.getPattern(),
                 POPULATE_USER_METADATA,
-                CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE
+                CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD
             )
         );
         // JWT Client settings
@@ -357,7 +357,7 @@ public class JwtRealmSettings {
         "client_authentication.shared_secret"
     );
 
-    public static final Setting.AffixSetting<TimeValue> CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<TimeValue> CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "client_authentication.rotation_grace_period",
         key -> Setting.timeSetting(key, DEFAULT_JWT_CLIENT_AUTH_GRACE_PERIOD, Setting.Property.NodeScope)

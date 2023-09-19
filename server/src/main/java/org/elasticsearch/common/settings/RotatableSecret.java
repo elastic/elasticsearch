@@ -15,10 +15,11 @@ import java.time.Instant;
 import java.util.concurrent.locks.StampedLock;
 
 /**
- * A {@link SecureString} that can be rotated with a grace period for the secret that has been rotated out.
+ * A container for a {@link SecureString} that can be rotated with a grace period for the secret that has been rotated out.
  * Once rotated the prior secret is available for a configured amount of time before it is invalidated.
- * This allows for secrete rotation without temporary failures or the need to tightly orchestrate
- * multiple parties. This class is threadsafe, however it is also assumes that reading secrets are frequent but rotation is a rare.
+ * This allows for secret rotation without temporary failures or the need to tightly orchestrate
+ * multiple parties. This class is threadsafe, however it is also assumes that reading secrets are frequent (i.e. every request)
+ * but rotation is a rare (i.e. once a day).
  */
 public class RotatableSecret {
     private Secrets secrets;
@@ -40,7 +41,7 @@ public class RotatableSecret {
     public void rotate(SecureString newSecret, TimeValue gracePeriod) {
         long stamp = stampedLock.writeLock();
         try {
-            if (secrets.current != null && secrets.current.equals(newSecret) == false) {
+            if (secrets.current == null || secrets.current.equals(newSecret) == false) {
                 secrets = new Secrets(
                     Strings.hasText(newSecret) ? newSecret.clone() : null,
                     secrets.current,

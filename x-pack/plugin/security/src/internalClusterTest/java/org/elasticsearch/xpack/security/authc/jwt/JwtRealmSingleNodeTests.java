@@ -44,8 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.apache.http.nio.params.NIOReactorParams.getGracePeriod;
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -211,7 +210,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         JwtRealm realm1 = realmsByName.get("jwt1");
         JwtRealm realm2 = realmsByName.get("jwt2");
         // sanity check
-        assertThat(getGracePeriod(realm0), equalTo(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE.getDefault(Settings.EMPTY)));
+        assertThat(getGracePeriod(realm0), equalTo(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD.getDefault(Settings.EMPTY)));
         assertThat(getGracePeriod(realm1), equalTo(TimeValue.timeValueMinutes(10)));
         assertThat(getGracePeriod(realm2), equalTo(TimeValue.timeValueSeconds(0)));
         // create claims and test before rotation
@@ -326,7 +325,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private TimeValue getGracePeriod(JwtRealm realm) {
-        return realm.getConfig().getConcreteSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE).get(realm.getConfig().settings());
+        return realm.getConfig().getConcreteSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD).get(realm.getConfig().settings());
     }
 
     private void assertJwtToken(JwtAuthenticationToken token, String tokenPrincipal, String sharedSecret, SignedJWT signedJWT)

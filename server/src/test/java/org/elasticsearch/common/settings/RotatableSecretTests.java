@@ -112,7 +112,7 @@ public class RotatableSecretTests extends ESTestCase {
         assertTrue(rotatableSecret.isWriteLocked());
 
         // start reader threads
-        int readers = randomIntBetween(0, 16);
+        int readers = randomIntBetween(1, 16);
         Set<Thread> readerThreads = new HashSet<>(readers);
         for (int i = 0; i < readers; i++) {
             Thread t = new Thread(() -> {
@@ -222,5 +222,28 @@ public class RotatableSecretTests extends ESTestCase {
         t1.join();
         t2.join();
         t3.join();
+    }
+
+    public void testUnsetThenRotate() {
+        // it is not set on startup
+        RotatableSecret rotatableSecret = new RotatableSecret(null);
+        assertFalse(rotatableSecret.matches(new SecureString(randomAlphaOfLength(10))));
+        assertFalse(rotatableSecret.isSet());
+        assertNull(rotatableSecret.getSecrets().current());
+        assertNull(rotatableSecret.getSecrets().prior());
+        assertEquals(Instant.EPOCH, rotatableSecret.getSecrets().priorValidTill());
+
+        // normal rotation for when it was not set on startup
+        TimeValue expiresIn = TimeValue.timeValueDays(1);
+        rotatableSecret.rotate(secret1, expiresIn);
+        assertTrue(rotatableSecret.matches(secret1));
+        assertFalse(rotatableSecret.matches(new SecureString(randomAlphaOfLength(10))));
+        assertTrue(rotatableSecret.isSet());
+        assertEquals(secret1, rotatableSecret.getSecrets().current());
+        assertNull(rotatableSecret.getSecrets().prior());
+        assertTrue(rotatableSecret.getSecrets().priorValidTill().isAfter(Instant.now()));
+        assertTrue(
+            rotatableSecret.getSecrets().priorValidTill().isBefore(Instant.now().plusMillis(TimeValue.timeValueDays(2).getMillis()))
+        );
     }
 }

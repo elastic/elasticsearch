@@ -50,7 +50,7 @@ import java.util.function.Function;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
@@ -446,7 +446,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     public void rotateClientSecret(SecureString clientSecret) {
-        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTHENTICATION_SHARED_SECRET_ROTATION_GRACE));
+        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
     }
 
     // package private for testing

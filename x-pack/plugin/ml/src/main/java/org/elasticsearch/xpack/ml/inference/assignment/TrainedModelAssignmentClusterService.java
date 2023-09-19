@@ -170,7 +170,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        logMlNodeHeterogeneity();
+        if (event.nodesAdded()) {
+            logMlNodeHeterogeneity();
+        }
 
         Optional<String> rebalanceReason = detectReasonToRebalanceModels(event);
         if (rebalanceReason.isPresent()) {

@@ -68,7 +68,7 @@ c:long
 ;
 
 countDistinctOfKeywords
-from employees | eval hire_year_str = date_format(hire_date, "yyyy") | stats g = count_distinct(gender), h = count_distinct(hire_year_str);
+from employees | eval hire_year_str = date_format("yyyy", hire_date) | stats g = count_distinct(gender), h = count_distinct(hire_year_str);
 
 g:long | h:long
 2      | 14

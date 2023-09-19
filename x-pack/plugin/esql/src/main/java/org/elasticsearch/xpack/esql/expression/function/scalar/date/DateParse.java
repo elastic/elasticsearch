@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
@@ -41,10 +40,10 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     private final Expression field;
     private final Expression format;
 
-    public DateParse(Source source, Expression field, Expression format) {
-        super(source, format != null ? Arrays.asList(field, format) : Arrays.asList(field));
-        this.field = field;
-        this.format = format;
+    public DateParse(Source source, Expression first, Expression second) {
+        super(source, second != null ? List.of(first, second) : List.of(first));
+        this.field = second != null ? second : first;
+        this.format = second != null ? first : null;
     }
 
     @Override
@@ -58,12 +57,12 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(field, sourceText(), FIRST);
+        TypeResolution resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         if (format != null) {
-            resolution = isStringAndExact(format, sourceText(), SECOND);
+            resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -126,7 +125,9 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateParse::new, field, format);
+        Expression first = format != null ? format : field;
+        Expression second = format != null ? field : null;
+        return NodeInfo.create(this, DateParse::new, first, second);
     }
 
     @Override

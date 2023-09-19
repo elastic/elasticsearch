@@ -53,11 +53,14 @@ public enum SupportedPlatformArchitectures {
     }
 
     private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
-        return nodesInfoResponse.getNodes().stream().filter(node -> {
-            return node.getInfo(PluginsAndModules.class).getPluginInfos().stream().anyMatch(pluginRuntimeInfo -> {
-                return pluginRuntimeInfo.descriptor().getName().equals("ml");
-            });
-        }).map(node -> { return node.getInfo(OsInfo.class).getArch(); }).toList();
+        return nodesInfoResponse.getNodes()
+            .stream()
+            .filter(node -> node.getNode().hasRole(DiscoveryNodeRole.ML_ROLE.roleName()))
+            .map(node -> {
+                OsInfo osInfo = node.getInfo(OsInfo.class);
+                return Platforms.platformName(osInfo.getName(), osInfo.getArch());
+            })
+            .toList();
     }
 
     private static NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins(Client client) {

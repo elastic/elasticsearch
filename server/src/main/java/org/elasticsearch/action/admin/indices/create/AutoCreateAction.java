@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -50,10 +49,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
@@ -285,21 +282,16 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     final CreateIndexClusterStateUpdateRequest updateRequest;
 
                     if (isManagedSystemIndex) {
-                        Set<CompatibilityVersions> nonClientCompatibilityVersions = CompatibilityVersions.getNonClientCompatibilityVersions(
-                            currentState
+                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
+                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
                         );
-                        Optional<SystemIndexDescriptor> descriptor = nonClientCompatibilityVersions.stream()
-                            .map(CompatibilityVersions::systemIndexMappingsVersion)
-                            .map(map -> map.get(mainDescriptor.getPrimaryIndex()))
-                            .min(Comparator.naturalOrder())
-                            .map(mainDescriptor::getDescriptorCompatibleWith);
-                        if (descriptor.isEmpty()) {
+                        if (descriptor == null) {
                             final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }
 
-                        updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor.get());
+                        updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
                     } else if (isSystemIndex) {
                         updateRequest = buildUpdateRequest(indexName);
 

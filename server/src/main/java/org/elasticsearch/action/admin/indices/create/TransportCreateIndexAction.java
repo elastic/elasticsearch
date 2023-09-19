@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,10 +31,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -134,19 +131,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            Set<CompatibilityVersions> nonClientCompatibilityVersions = CompatibilityVersions.getNonClientCompatibilityVersions(state);
-            Optional<SystemIndexDescriptor> descriptor = nonClientCompatibilityVersions.stream()
-                .map(CompatibilityVersions::systemIndexMappingsVersion)
-                .map(map -> map.get(mainDescriptor.getPrimaryIndex()))
-                .min(Comparator.naturalOrder())
-                .map(mainDescriptor::getDescriptorCompatibleWith);
-            if (descriptor.isEmpty()) {
+            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
+                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
+            );
+            if (descriptor == null) {
                 final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
-            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor.get());
+            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
         } else {
             updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
         }

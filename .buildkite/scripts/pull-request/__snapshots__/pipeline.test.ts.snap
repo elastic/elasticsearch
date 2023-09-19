@@ -23,7 +23,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
               "setup": {
                 "BWC_VERSION": [
                   "7.17.14",
-                  "8.10.1",
+                  "8.10.2",
                   "8.11.0",
                 ],
               },
@@ -86,6 +86,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.0.0",
             },
+            "key": "full-bwc:7_0_0",
             "label": "7.0.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -100,6 +101,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.0.1",
             },
+            "key": "full-bwc:7_0_1",
             "label": "7.0.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -114,6 +116,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.1.0",
             },
+            "key": "full-bwc:7_1_0",
             "label": "7.1.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -128,6 +131,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.1.1",
             },
+            "key": "full-bwc:7_1_1",
             "label": "7.1.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -142,6 +146,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.2.0",
             },
+            "key": "full-bwc:7_2_0",
             "label": "7.2.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -156,6 +161,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.2.1",
             },
+            "key": "full-bwc:7_2_1",
             "label": "7.2.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -170,6 +176,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.3.0",
             },
+            "key": "full-bwc:7_3_0",
             "label": "7.3.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -184,6 +191,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.3.1",
             },
+            "key": "full-bwc:7_3_1",
             "label": "7.3.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -198,6 +206,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.3.2",
             },
+            "key": "full-bwc:7_3_2",
             "label": "7.3.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -212,6 +221,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.4.0",
             },
+            "key": "full-bwc:7_4_0",
             "label": "7.4.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -226,6 +236,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.4.1",
             },
+            "key": "full-bwc:7_4_1",
             "label": "7.4.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -240,6 +251,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.4.2",
             },
+            "key": "full-bwc:7_4_2",
             "label": "7.4.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -254,6 +266,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.5.0",
             },
+            "key": "full-bwc:7_5_0",
             "label": "7.5.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -268,6 +281,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.5.1",
             },
+            "key": "full-bwc:7_5_1",
             "label": "7.5.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -282,6 +296,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.5.2",
             },
+            "key": "full-bwc:7_5_2",
             "label": "7.5.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -296,6 +311,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.6.0",
             },
+            "key": "full-bwc:7_6_0",
             "label": "7.6.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -310,6 +326,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.6.1",
             },
+            "key": "full-bwc:7_6_1",
             "label": "7.6.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -324,6 +341,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.6.2",
             },
+            "key": "full-bwc:7_6_2",
             "label": "7.6.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -338,6 +356,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.7.0",
             },
+            "key": "full-bwc:7_7_0",
             "label": "7.7.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -352,6 +371,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.7.1",
             },
+            "key": "full-bwc:7_7_1",
             "label": "7.7.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -366,6 +386,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.8.0",
             },
+            "key": "full-bwc:7_8_0",
             "label": "7.8.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -380,6 +401,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.8.1",
             },
+            "key": "full-bwc:7_8_1",
             "label": "7.8.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -394,6 +416,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.9.0",
             },
+            "key": "full-bwc:7_9_0",
             "label": "7.9.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -408,6 +431,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.9.1",
             },
+            "key": "full-bwc:7_9_1",
             "label": "7.9.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -422,6 +446,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.9.2",
             },
+            "key": "full-bwc:7_9_2",
             "label": "7.9.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -436,6 +461,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.9.3",
             },
+            "key": "full-bwc:7_9_3",
             "label": "7.9.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -450,6 +476,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.10.0",
             },
+            "key": "full-bwc:7_10_0",
             "label": "7.10.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -464,6 +491,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.10.1",
             },
+            "key": "full-bwc:7_10_1",
             "label": "7.10.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -478,6 +506,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.10.2",
             },
+            "key": "full-bwc:7_10_2",
             "label": "7.10.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -492,6 +521,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.11.0",
             },
+            "key": "full-bwc:7_11_0",
             "label": "7.11.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -506,6 +536,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.11.1",
             },
+            "key": "full-bwc:7_11_1",
             "label": "7.11.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -520,6 +551,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.11.2",
             },
+            "key": "full-bwc:7_11_2",
             "label": "7.11.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -534,6 +566,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.12.0",
             },
+            "key": "full-bwc:7_12_0",
             "label": "7.12.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -548,6 +581,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.12.1",
             },
+            "key": "full-bwc:7_12_1",
             "label": "7.12.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -562,6 +596,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.13.0",
             },
+            "key": "full-bwc:7_13_0",
             "label": "7.13.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -576,6 +611,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.13.1",
             },
+            "key": "full-bwc:7_13_1",
             "label": "7.13.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -590,6 +626,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.13.2",
             },
+            "key": "full-bwc:7_13_2",
             "label": "7.13.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -604,6 +641,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.13.3",
             },
+            "key": "full-bwc:7_13_3",
             "label": "7.13.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -618,6 +656,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.13.4",
             },
+            "key": "full-bwc:7_13_4",
             "label": "7.13.4 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -632,6 +671,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.14.0",
             },
+            "key": "full-bwc:7_14_0",
             "label": "7.14.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -646,6 +686,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.14.1",
             },
+            "key": "full-bwc:7_14_1",
             "label": "7.14.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -660,6 +701,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.14.2",
             },
+            "key": "full-bwc:7_14_2",
             "label": "7.14.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -674,6 +716,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.15.0",
             },
+            "key": "full-bwc:7_15_0",
             "label": "7.15.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -688,6 +731,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.15.1",
             },
+            "key": "full-bwc:7_15_1",
             "label": "7.15.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -702,6 +746,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.15.2",
             },
+            "key": "full-bwc:7_15_2",
             "label": "7.15.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -716,6 +761,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.16.0",
             },
+            "key": "full-bwc:7_16_0",
             "label": "7.16.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -730,6 +776,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.16.1",
             },
+            "key": "full-bwc:7_16_1",
             "label": "7.16.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -744,6 +791,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.16.2",
             },
+            "key": "full-bwc:7_16_2",
             "label": "7.16.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -758,6 +806,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.16.3",
             },
+            "key": "full-bwc:7_16_3",
             "label": "7.16.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -772,6 +821,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.0",
             },
+            "key": "full-bwc:7_17_0",
             "label": "7.17.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -786,6 +836,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.1",
             },
+            "key": "full-bwc:7_17_1",
             "label": "7.17.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -800,6 +851,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.2",
             },
+            "key": "full-bwc:7_17_2",
             "label": "7.17.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -814,6 +866,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.3",
             },
+            "key": "full-bwc:7_17_3",
             "label": "7.17.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -828,6 +881,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.4",
             },
+            "key": "full-bwc:7_17_4",
             "label": "7.17.4 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -842,6 +896,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.5",
             },
+            "key": "full-bwc:7_17_5",
             "label": "7.17.5 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -856,6 +911,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.6",
             },
+            "key": "full-bwc:7_17_6",
             "label": "7.17.6 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -870,6 +926,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.7",
             },
+            "key": "full-bwc:7_17_7",
             "label": "7.17.7 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -884,6 +941,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.8",
             },
+            "key": "full-bwc:7_17_8",
             "label": "7.17.8 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -898,6 +956,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.9",
             },
+            "key": "full-bwc:7_17_9",
             "label": "7.17.9 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -912,6 +971,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.10",
             },
+            "key": "full-bwc:7_17_10",
             "label": "7.17.10 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -926,6 +986,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.11",
             },
+            "key": "full-bwc:7_17_11",
             "label": "7.17.11 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -940,6 +1001,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.12",
             },
+            "key": "full-bwc:7_17_12",
             "label": "7.17.12 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -954,6 +1016,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.13",
             },
+            "key": "full-bwc:7_17_13",
             "label": "7.17.13 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -968,6 +1031,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "7.17.14",
             },
+            "key": "full-bwc:7_17_14",
             "label": "7.17.14 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -982,6 +1046,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.0.0",
             },
+            "key": "full-bwc:8_0_0",
             "label": "8.0.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -996,6 +1061,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.0.1",
             },
+            "key": "full-bwc:8_0_1",
             "label": "8.0.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1010,6 +1076,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.1.0",
             },
+            "key": "full-bwc:8_1_0",
             "label": "8.1.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1024,6 +1091,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.1.1",
             },
+            "key": "full-bwc:8_1_1",
             "label": "8.1.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1038,6 +1106,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.1.2",
             },
+            "key": "full-bwc:8_1_2",
             "label": "8.1.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1052,6 +1121,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.1.3",
             },
+            "key": "full-bwc:8_1_3",
             "label": "8.1.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1066,6 +1136,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.2.0",
             },
+            "key": "full-bwc:8_2_0",
             "label": "8.2.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1080,6 +1151,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.2.1",
             },
+            "key": "full-bwc:8_2_1",
             "label": "8.2.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1094,6 +1166,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.2.2",
             },
+            "key": "full-bwc:8_2_2",
             "label": "8.2.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1108,6 +1181,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.2.3",
             },
+            "key": "full-bwc:8_2_3",
             "label": "8.2.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1122,6 +1196,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.3.0",
             },
+            "key": "full-bwc:8_3_0",
             "label": "8.3.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1136,6 +1211,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.3.1",
             },
+            "key": "full-bwc:8_3_1",
             "label": "8.3.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1150,6 +1226,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.3.2",
             },
+            "key": "full-bwc:8_3_2",
             "label": "8.3.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1164,6 +1241,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.3.3",
             },
+            "key": "full-bwc:8_3_3",
             "label": "8.3.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1178,6 +1256,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.4.0",
             },
+            "key": "full-bwc:8_4_0",
             "label": "8.4.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1192,6 +1271,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.4.1",
             },
+            "key": "full-bwc:8_4_1",
             "label": "8.4.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1206,6 +1286,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.4.2",
             },
+            "key": "full-bwc:8_4_2",
             "label": "8.4.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1220,6 +1301,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.4.3",
             },
+            "key": "full-bwc:8_4_3",
             "label": "8.4.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1234,6 +1316,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.5.0",
             },
+            "key": "full-bwc:8_5_0",
             "label": "8.5.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1248,6 +1331,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.5.1",
             },
+            "key": "full-bwc:8_5_1",
             "label": "8.5.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1262,6 +1346,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.5.2",
             },
+            "key": "full-bwc:8_5_2",
             "label": "8.5.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1276,6 +1361,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.5.3",
             },
+            "key": "full-bwc:8_5_3",
             "label": "8.5.3 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1290,6 +1376,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.6.0",
             },
+            "key": "full-bwc:8_6_0",
             "label": "8.6.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1304,6 +1391,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.6.1",
             },
+            "key": "full-bwc:8_6_1",
             "label": "8.6.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1318,6 +1406,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.6.2",
             },
+            "key": "full-bwc:8_6_2",
             "label": "8.6.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1332,6 +1421,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.7.0",
             },
+            "key": "full-bwc:8_7_0",
             "label": "8.7.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1346,6 +1436,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.7.1",
             },
+            "key": "full-bwc:8_7_1",
             "label": "8.7.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1360,6 +1451,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.8.0",
             },
+            "key": "full-bwc:8_8_0",
             "label": "8.8.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1374,6 +1466,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.8.1",
             },
+            "key": "full-bwc:8_8_1",
             "label": "8.8.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1388,6 +1481,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.8.2",
             },
+            "key": "full-bwc:8_8_2",
             "label": "8.8.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1402,6 +1496,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.9.0",
             },
+            "key": "full-bwc:8_9_0",
             "label": "8.9.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1416,6 +1511,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.9.1",
             },
+            "key": "full-bwc:8_9_1",
             "label": "8.9.1 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1430,6 +1526,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.9.2",
             },
+            "key": "full-bwc:8_9_2",
             "label": "8.9.2 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1444,6 +1541,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.10.0",
             },
+            "key": "full-bwc:8_10_0",
             "label": "8.10.0 / bwc",
             "timeout_in_minutes": 300,
           },
@@ -1458,7 +1556,23 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.10.1",
             },
+            "key": "full-bwc:8_10_1",
             "label": "8.10.1 / bwc",
+            "timeout_in_minutes": 300,
+          },
+          {
+            "agents": {
+              "buildDirectory": "/dev/shm/bk",
+              "image": "family/elasticsearch-ubuntu-2004",
+              "machineType": "custom-32-98304",
+              "provider": "gcp",
+            },
+            "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.2#bwcTest",
+            "env": {
+              "BWC_VERSION": "8.10.2",
+            },
+            "key": "full-bwc:8_10_2",
+            "label": "8.10.2 / bwc",
             "timeout_in_minutes": 300,
           },
           {
@@ -1472,6 +1586,7 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "env": {
               "BWC_VERSION": "8.11.0",
             },
+            "key": "full-bwc:8_11_0",
             "label": "8.11.0 / bwc",
             "timeout_in_minutes": 300,
           },

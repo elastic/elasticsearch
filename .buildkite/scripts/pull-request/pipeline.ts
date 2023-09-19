@@ -74,7 +74,8 @@ const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
 
   for (const stepToExpand of stepsToExpand) {
     for (const bwcVersion of BWC_VERSIONS) {
-      const newStepJson = JSON.stringify(stepToExpand).replaceAll("$BWC_VERSION", bwcVersion);
+      let newStepJson = JSON.stringify(stepToExpand).replaceAll("$BWC_VERSION_SNAKE", bwcVersion.replaceAll(".", "_"));
+      newStepJson = newStepJson.replaceAll("$BWC_VERSION", bwcVersion);
       const newStep = JSON.parse(newStepJson);
       delete newStep.bwc_template;
       step.steps.push(newStep);

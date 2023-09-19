@@ -990,7 +990,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_067)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
                 out.writeBoolean(skipUnavailable);
             }
         }

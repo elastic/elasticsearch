@@ -1294,6 +1294,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (System.getProperty("tests.rest.client_path_prefix") != null) {
             builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
         }
+        if (System.getProperty("tests.rest.cluster.username") != null) {
+            if (System.getProperty("tests.rest.cluster.password") == null) {
+                throw new IllegalStateException("The 'test.rest.cluster.password' system property must be set.");
+            }
+            String username = System.getProperty("tests.rest.cluster.username");
+            String password = System.getProperty("tests.rest.cluster.password");
+            String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
+            return builder.put(ThreadContext.PREFIX + ".Authorization", token).build();
+        }
         return builder.build();
     }
 

@@ -923,7 +923,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))))
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                     )
                 )
                 .dataRetention(TimeValue.MAX_VALUE)
@@ -977,7 +977,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
             DOWNSAMPLED_INDEX_PREFIX,
             state.metadata().index(firstGenIndex),
-            new DateHistogramInterval("1s")
+            new DateHistogramInterval("5m")
         );
         {
             // let's simulate the in-progress downsampling
@@ -1100,7 +1100,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))))
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                     )
                 )
                 .dataRetention(TimeValue.MAX_VALUE)
@@ -1129,7 +1129,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
             DOWNSAMPLED_INDEX_PREFIX,
             state.metadata().index(firstGenIndexName),
-            new DateHistogramInterval("1s")
+            new DateHistogramInterval("5m")
         );
         Metadata.Builder newMetadata = Metadata.builder(state.metadata())
             .put(

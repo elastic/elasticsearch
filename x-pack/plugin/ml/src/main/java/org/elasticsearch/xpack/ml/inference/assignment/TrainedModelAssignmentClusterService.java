@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
-import org.elasticsearch.xpack.ml.inference.deployment.SupportedPlatformArchitectures;
+import org.elasticsearch.xpack.ml.inference.deployment.MLPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -218,7 +218,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             }
         };
 
-        SupportedPlatformArchitectures.getNodesOsArchitectures(threadPool, client, architecturesListener);
+        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {

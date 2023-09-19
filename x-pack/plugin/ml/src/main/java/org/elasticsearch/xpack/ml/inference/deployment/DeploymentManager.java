@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -169,8 +170,9 @@ public class DeploymentManager {
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             assert getModelResponse.getResources().results().size() == 1;
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+            String modelId = modelConfig.getModelId();
 
-            validateMLNodeArchitecturesAndModelMetadata(modelConfig.getMetadata(), failedDeploymentListener);
+            validateMLNodeArchitecturesAndModelMetadata(modelConfig.getMetadata(), modelId, failedDeploymentListener);
 
             processContext.modelInput.set(modelConfig.getInput());
 
@@ -223,52 +225,61 @@ public class DeploymentManager {
         );
     }
 
-    private void validateMLNodeArchitecturesAndModelMetadata(
+    void validateMLNodeArchitecturesAndModelMetadata(
         Map<String, Object> metadata,
+        String modelId,
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
     ) {
         if (metadata != null) {
             String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
             if (modelPlatformArchitecture != null) {
-                verifyMLNodeArchitectureMatchesModelPlatformArchitecture(failedDeploymentListener, modelPlatformArchitecture);
+                verifyMLNodeArchitectureMatchesModelPlatformArchitecture(modelPlatformArchitecture, modelId, failedDeploymentListener);
             }
         }
     }
 
-    private void verifyMLNodeArchitectureMatchesModelPlatformArchitecture(
-        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener,
-        String modelPlatformArchitecture
+    void verifyMLNodeArchitectureMatchesModelPlatformArchitecture(
+        String modelPlatformArchitecture,
+        String modelId,
+        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
     ) {
         ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
             try {
                 verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
             } catch (IllegalArgumentException iae) {
-                verifyArchitectureOfMLNodesIsHomogenous(architectures);
+                verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
                 throw iae;
             }
         }, failedDeploymentListener::onFailure);
 
-        SupportedPlatformArchitectures.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
+        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
     }
 
-    private void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures) throws IllegalStateException {
+    static void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures, String requiredArch, String modelId)
+        throws IllegalStateException {
         if (architectures.size() > 1) {
             throw new IllegalStateException(
                 format(
-                    "ML nodes in this cluster have multiple platform architectures, but can only have one; " + "was [%s];" + " %s",
+                    "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
+                        + "expected [%s]; "
+                        + "but was [%s]",
+                    modelId,
                     architectures.toString(),
-                    "<link to documentation?>"
+                    requiredArch
                 )
             );
         }
     }
 
-    private void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
+    static void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
         throws IllegalArgumentException {
+        String architecture = null;
+        Iterator<String> architecturesIterator = architectures.iterator();
+        if (architecturesIterator.hasNext()) {
+            architecture = architectures.iterator().next();
+        }
 
-        String architecture = architectures.iterator().next();
-
-        if (architectures.size() > 1 || architecture.equals(modelPlatformArchitecture) == false) {
+        if (architectures.size() > 1 || Objects.equals(architecture, modelPlatformArchitecture) == false) {
             throw new IllegalArgumentException(
                 format(
                     "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "

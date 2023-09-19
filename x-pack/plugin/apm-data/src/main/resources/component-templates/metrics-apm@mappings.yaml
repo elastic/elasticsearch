@@ -1,0 +1,13 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for metrics-apm.* data streams
+  managed: true
+template:
+  mappings:
+    _source:
+      mode: synthetic
+    properties:
+      processor.event:
+        type: constant_keyword
+        value: metric

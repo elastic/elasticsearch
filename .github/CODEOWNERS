@@ -24,4 +24,4 @@ x-pack/plugin/core/src/main/resources/fleet-* @elastic/fleet
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
 
 # APM
-x-pack/plugin/apm @elastic/apm-server
+x-pack/plugin/apm-data @elastic/apm-server

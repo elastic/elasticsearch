@@ -142,10 +142,7 @@ public abstract class AbstractAllocationDecision implements ChunkedToXContentObj
 
         return Iterators.concat(
             ChunkedToXContentHelper.startArray("node_allocation_decisions"),
-            Iterators.flatMap(
-                nodeDecisions.listIterator(),
-                explanation -> Iterators.single((builder, params) -> explanation.toXContent(builder, params))
-            ),
+            nodeDecisions.iterator(),
             ChunkedToXContentHelper.endArray()
         );
     }

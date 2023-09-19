@@ -20,6 +20,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
@@ -175,7 +176,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }
 
-            if (this.currentNode != null){
+            if (this.currentNode != null) {
                 builder.startObject("current_node");
                 discoveryNodeToXContent(this.currentNode, true, builder);
                 if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
@@ -189,9 +190,9 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
         }),
             this.clusterInfo != null
                 ? Iterators.concat(
-                    Iterators.single((builder, p) -> builder.startObject("cluster_info")),
+                    ChunkedToXContentHelper.startObject("cluster_info"),
                     this.clusterInfo.toXContentChunked(params),
-                    Iterators.<ToXContent>single((builder, p) -> builder.endObject())
+                    ChunkedToXContentHelper.endObject()
                 )
                 : Collections.emptyIterator(),
             getShardAllocationDecisionChunked(params),

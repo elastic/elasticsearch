@@ -89,6 +89,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         if (Objects.nonNull(allocationDecision)) {
             builder.startObject(NODE_ALLOCATION_DECISION_KEY);
             {
+                // This field might be huge, TODO add chunking support here
                 ChunkedToXContent.wrapAsToXContent(allocationDecision).toXContent(builder, params);
             }
             builder.endObject();

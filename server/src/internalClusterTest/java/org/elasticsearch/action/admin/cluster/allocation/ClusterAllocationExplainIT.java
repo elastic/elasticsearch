@@ -1239,13 +1239,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .get()
             .getExplanation();
         if (logger.isDebugEnabled()) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            logger.debug(
-                "--> explain json output: \n{}",
-                Strings.toString(ChunkedToXContent.wrapAsToXContent(explanation).toXContent(builder, ToXContent.EMPTY_PARAMS))
-            );
+            logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
         }
         return explanation;
     }

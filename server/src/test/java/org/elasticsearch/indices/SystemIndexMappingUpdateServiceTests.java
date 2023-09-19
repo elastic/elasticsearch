@@ -256,7 +256,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
         SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
 
-        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4) )))));
+        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
 
         verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
     }

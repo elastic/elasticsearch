@@ -10,6 +10,7 @@ package org.elasticsearch.tracing.apm;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.MetricName;
 import org.elasticsearch.tracing.SpanId;
 
 import java.security.AccessController;
@@ -62,6 +64,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Holds in-flight span information. */
     private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<MetricName, DoubleGauge> doubleGauges = ConcurrentCollections.newConcurrentMap();
+    private final Map<MetricName, DoubleHistogram> doubleHistograms = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -86,7 +90,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     /**
      * This class is used to make all OpenTelemetry services visible at once
      */
-    record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
+    record APMServices(Tracer tracer, Meter meter, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
@@ -150,8 +154,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+            var meter =  openTelemetry.getMeter("elasticsearch");
 
-            return new APMServices(tracer, openTelemetry);
+            return new APMServices(tracer, meter, openTelemetry);
         });
     }
 
@@ -424,6 +429,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
+    // TODO(stu): remove
+    APMServices getServices() {
+        return services;
+    }
+
     private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
@@ -452,4 +462,53 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
+    public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
+        return doubleGauges.compute(name, (k, v) -> {
+                if (v != null) {
+                    throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
+                }
+                return OtelDoubleGauge.build(services.meter, name, description, unit);
+            }
+        );
+    }
+
+    public void recordDoubleGauge(MetricName name, double value) {
+        DoubleGauge gauge = doubleGauges.get(name);
+        if (gauge != null) {
+            gauge.record(value);
+        }
+    }
+
+    public void recordDoubleGauge(MetricName name, double value, Map<String, Object> attributes) {
+        DoubleGauge gauge = doubleGauges.get(name);
+        if (gauge != null) {
+            gauge.record(value, attributes);
+        }
+    }
+
+    public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
+        return doubleHistograms.compute(name, (k, v) -> {
+                if (v != null) {
+                    throw new IllegalStateException("double histogram [" + name.getRawName() + "] already registered");
+                }
+                return OtelDoubleHistogram.build(services.meter, name, description, unit);
+            }
+        );
+    }
+
+    public void recordDoubleHistogram(MetricName name, double value) {
+        DoubleHistogram histogram = doubleHistograms.get(name);
+        if (histogram != null) {
+            histogram.record(value);
+        }
+    }
+
+    public void recordDoubleHistogram(MetricName name, double value, Map<String, Object> attributes) {
+        DoubleHistogram histogram = doubleHistograms.get(name);
+        if (histogram != null) {
+            histogram.record(value, attributes);
+        }
+    }
+
 }

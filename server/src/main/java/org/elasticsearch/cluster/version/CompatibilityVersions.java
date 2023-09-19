@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -111,7 +112,7 @@ public record CompatibilityVersions(
     }
 
     public static Set<CompatibilityVersions> getNonClientCompatibilityVersions(ClusterState currentState) {
-        Map<String, CompatibilityVersions> compatibilityVersions = currentState.compatibilityVersions();
+        Map<String, CompatibilityVersions> compatibilityVersions = getCompatibilityVersions(currentState);
         return currentState.nodes()
             .getNodes()
             .entrySet()
@@ -121,6 +122,11 @@ public record CompatibilityVersions(
             // compatibility versions for a node
             .map(compatibilityVersions::get)
             .collect(Collectors.toSet());
+    }
+
+    @SuppressForbidden(reason = "selecting non-client ClusterState#compatibilityVersions requires reading them")
+    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
+        return clusterState.compatibilityVersions();
     }
 
     @Override

@@ -6,7 +6,7 @@ steps:
   - group: packaging-tests-windows-sample
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows-sample"
-        key: "packaging-tests-windows-sample/{{matrix.PACKAGING_TASK}}/{{matrix.image}}"
+        key: "packaging-tests-windows-sample"
         command: .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.{{matrix.PACKAGING_TASK}}
         timeout_in_minutes: 300
         matrix:

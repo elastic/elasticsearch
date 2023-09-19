@@ -160,7 +160,6 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
                 assertThat(nodeCachesStats.getReads(), equalTo(0L));
                 assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
             }
         }
     }

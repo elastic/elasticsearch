@@ -64,10 +64,8 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ActionListener<GetStatusAction.Response> listener
     ) {
         if (request.waitForResourcesCreated()) {
-            log.info("waitForResourcesCreated == true");
             createAndRegisterListener(listener, request.timeout());
         } else {
-            log.info("waitForResourcesCreated == false");
             listener.onResponse(resolver.getResponse(state));
         }
     }
@@ -111,7 +109,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            log.info("onNewClusterState");
             listener.onResponse(resolver.getResponse(state));
         }
 
@@ -122,7 +119,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
 
         @Override
         public void onTimeout(TimeValue timeout) {
-            log.info("onTimeout");
             GetStatusAction.Response response = resolver.getResponse(clusterService.state());
             response.setTimedOut(true);
             listener.onResponse(response);
@@ -152,7 +148,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean anyPre891Data = indicesPre891 || dataStreamsPre891;
-            log.info("resources created=[{}]", resourcesCreated);
 
             return new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data);
         }

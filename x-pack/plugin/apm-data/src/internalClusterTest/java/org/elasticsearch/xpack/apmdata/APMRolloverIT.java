@@ -16,9 +16,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.ingest.useragent.IngestUserAgentPlugin;
 import org.elasticsearch.painless.PainlessPlugin;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.stack.StackPlugin;
@@ -74,6 +77,15 @@ public class APMRolloverIT extends ESIntegTestCase {
         clusterService.removeListener(stackTemplateRegistry);
         clusterService.removeListener(ilmHistoryTemplateRegistry);
         // todo: find a way to cancel the geoip database download task as it throws errors when terminating the test
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)
+            .put(XPackSettings.APM_DATA_ENABLED.getKey(), true)
+            .build();
     }
 
     @Override

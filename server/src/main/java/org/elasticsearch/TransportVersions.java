@@ -14,11 +14,11 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class TransportVersions {
 
@@ -27,13 +27,16 @@ public class TransportVersions {
      * This map is used during class construction, referenced by the registerTransportVersion method.
      * When all the transport version constants have been registered, the map is cleared & never touched again.
      */
-    static Set<Integer> IDS = new HashSet<>();
+    static TreeSet<Integer> IDS = new TreeSet<>();
 
     static TransportVersion def(int id) {
         if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
 
         if (IDS.add(id) == false) {
             throw new IllegalArgumentException("Version id " + id + " defined twice");
+        }
+        if (id < IDS.last()) {
+            throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
         }
         return new TransportVersion(id);
     }

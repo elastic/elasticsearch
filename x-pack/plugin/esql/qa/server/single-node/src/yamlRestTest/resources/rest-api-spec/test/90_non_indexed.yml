@@ -88,7 +88,7 @@ setup:
 unsupported:
   - do:
       allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, probably it is unsupported or not indexed; returning null"
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from test'

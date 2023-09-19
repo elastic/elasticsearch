@@ -78,52 +78,8 @@ public final class ValueSources {
             try {
                 fieldData = ctx.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
             } catch (IllegalArgumentException e) {
-                switch (elementType) {
-                    case BYTES_REF -> sources.add(
-                        new ValueSourceInfo(
-                            new UnsupportedValueSourceType(fieldType.typeName()),
-                            new UnsupportedValueSource(null),
-                            elementType,
-                            ctx.getIndexReader()
-                        )
-                    );
-
-                    case LONG, INT -> sources.add(
-                        new ValueSourceInfo(CoreValuesSourceType.NUMERIC, ValuesSource.Numeric.EMPTY, elementType, ctx.getIndexReader())
-                    );
-
-                    case BOOLEAN -> sources.add(
-                        new ValueSourceInfo(CoreValuesSourceType.BOOLEAN, ValuesSource.Numeric.EMPTY, elementType, ctx.getIndexReader())
-                    );
-
-                    case DOUBLE -> sources.add(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, new ValuesSource.Numeric() {
-                        @Override
-                        public boolean isFloatingPoint() {
-                            return true;
-                        }
-
-                        @Override
-                        public SortedNumericDocValues longValues(LeafReaderContext context) {
-                            return DocValues.emptySortedNumeric();
-                        }
-
-                        @Override
-                        public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-                            return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles();
-                        }
-
-                        @Override
-                        public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                            return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
-                        }
-
-                    }, elementType, ctx.getIndexReader()));
-                    default -> throw e;
-                }
-                HeaderWarning.addWarning(
-                    "Field [{}] cannot be retrieved, probably it is unsupported or not indexed; returning null",
-                    fieldName
-                );
+                sources.add(unsupportedValueSource(elementType, ctx, fieldType, e));
+                HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
                 continue;
             }
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
@@ -145,6 +101,56 @@ public final class ValueSources {
         }
 
         return sources;
+    }
+
+    private static ValueSourceInfo unsupportedValueSource(
+        ElementType elementType,
+        SearchExecutionContext ctx,
+        MappedFieldType fieldType,
+        IllegalArgumentException e
+    ) {
+        return switch (elementType) {
+            case BYTES_REF -> new ValueSourceInfo(
+                new UnsupportedValueSourceType(fieldType.typeName()),
+                new UnsupportedValueSource(null),
+                elementType,
+                ctx.getIndexReader()
+            );
+            case LONG, INT -> new ValueSourceInfo(
+                CoreValuesSourceType.NUMERIC,
+                ValuesSource.Numeric.EMPTY,
+                elementType,
+                ctx.getIndexReader()
+            );
+            case BOOLEAN -> new ValueSourceInfo(
+                CoreValuesSourceType.BOOLEAN,
+                ValuesSource.Numeric.EMPTY,
+                elementType,
+                ctx.getIndexReader()
+            );
+            case DOUBLE -> new ValueSourceInfo(CoreValuesSourceType.NUMERIC, new ValuesSource.Numeric() {
+                @Override
+                public boolean isFloatingPoint() {
+                    return true;
+                }
+
+                @Override
+                public SortedNumericDocValues longValues(LeafReaderContext context) {
+                    return DocValues.emptySortedNumeric();
+                }
+
+                @Override
+                public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
+                    return org.elasticsearch.index.fielddata.FieldData.emptySortedNumericDoubles();
+                }
+
+                @Override
+                public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                    return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+                }
+            }, elementType, ctx.getIndexReader());
+            default -> throw e;
+        };
     }
 
     private static TextValueSource textValueSource(SearchExecutionContext ctx, MappedFieldType fieldType) {

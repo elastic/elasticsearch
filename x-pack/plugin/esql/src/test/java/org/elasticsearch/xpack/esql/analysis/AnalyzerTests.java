@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -1252,6 +1253,24 @@ public class AnalyzerTests extends ESTestCase {
             | keep first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
+    }
+
+    public void testChainedEvalFieldsUse() {
+        var query = "from test | eval x0 = pow(salary, 1), x1 = pow(x0, 2), x2 = pow(x1, 3)";
+        int additionalEvals = randomIntBetween(0, 5);
+        for (int i = 0, j = 3; i < additionalEvals; i++, j++) {
+            query += ", x" + j + " = pow(x" + (j - 1) + ", " + i + ")";
+        }
+        assertProjection(query + " | keep x*", IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new));
+    }
+
+    public void testMissingAttributeException_InChainedEval() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, x1), x4 = concat(x3, x5)
+            | keep x*
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

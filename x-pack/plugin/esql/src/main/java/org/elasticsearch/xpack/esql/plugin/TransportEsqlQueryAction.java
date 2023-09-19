@@ -113,8 +113,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
-            timeout(request)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
 
@@ -135,18 +134,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private TimeValue timeout(EsqlQueryRequest request) {
+        if (request.timeout() != null) {
+            return request.timeout();
+        }
         Integer defaultTimeoutMillis = EsqlPlugin.QUERY_DEFAULT_TIMEOUT.get(settings);
-        Integer maxTimeoutMillis = EsqlPlugin.QUERY_MAX_TIMEOUT.get(settings);
-        TimeValue defaultTimeout = defaultTimeoutMillis < 0 ? null : new TimeValue(defaultTimeoutMillis, TimeUnit.MILLISECONDS);
-        TimeValue maxTimeout = maxTimeoutMillis < 0 ? null : new TimeValue(maxTimeoutMillis, TimeUnit.MILLISECONDS);
-        TimeValue requestTimeout = request.timeout();
-        if (requestTimeout == null) {
-            return defaultTimeout;
-        }
-        if (requestTimeout.millis() < 0) {
-            return maxTimeout;
-        }
-        return maxTimeoutMillis >= 0 && requestTimeout.millis() > maxTimeoutMillis ? maxTimeout : requestTimeout;
+        return defaultTimeoutMillis < 0 ? null : new TimeValue(defaultTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     /**

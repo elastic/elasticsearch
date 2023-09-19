@@ -137,8 +137,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     null,
                     null,
                     new QueryPragmas(settings),
-                    EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings),
-                    null
+                    EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings)
                 ) };
         }).toList();
     }

@@ -87,8 +87,7 @@ public final class EsqlTestUtils {
         null,
         null,
         new QueryPragmas(Settings.EMPTY),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-        null
+        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
     );
 
     private EsqlTestUtils() {}

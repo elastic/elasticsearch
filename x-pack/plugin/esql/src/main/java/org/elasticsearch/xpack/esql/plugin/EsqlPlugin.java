@@ -84,14 +84,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> QUERY_MAX_TIMEOUT = Setting.intSetting(
-        "esql.query.max_timeout",
-        -1,
-        -1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
-    );
-
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -128,7 +120,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE, QUERY_DEFAULT_TIMEOUT, QUERY_MAX_TIMEOUT);
+        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE, QUERY_DEFAULT_TIMEOUT);
     }
 
     @Override

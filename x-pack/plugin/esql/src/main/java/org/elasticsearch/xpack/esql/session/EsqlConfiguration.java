@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
@@ -27,30 +26,25 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final Locale locale;
 
-    private final TimeValue timeout;
-
     public EsqlConfiguration(
         ZoneId zi,
         Locale locale,
         String username,
         String clusterName,
         QueryPragmas pragmas,
-        int resultTruncationMaxSize,
-        TimeValue timeout
+        int resultTruncationMaxSize
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
-        this.timeout = timeout;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
         super(in.readZoneId(), Instant.ofEpochSecond(in.readVLong(), in.readVInt()), in.readOptionalString(), in.readOptionalString());
-        this.locale = Locale.forLanguageTag(in.readString());
+        locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
-        this.timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -64,7 +58,6 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);
-        out.writeOptionalTimeValue(timeout);
     }
 
     public QueryPragmas pragmas() {
@@ -77,10 +70,6 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     public Locale locale() {
         return locale;
-    }
-
-    public TimeValue timeout() {
-        return timeout;
     }
 
     @Override

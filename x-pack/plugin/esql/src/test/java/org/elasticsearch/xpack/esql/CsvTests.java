@@ -156,8 +156,7 @@ public class CsvTests extends ESTestCase {
         null,
         null,
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-        null
+        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();

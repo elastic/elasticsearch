@@ -114,7 +114,6 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
@@ -129,7 +128,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -935,26 +933,13 @@ public class Stateless extends Plugin
 
     @Override
     public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
-        return Optional.of(new PersistedClusterStateServiceFactory() {
-            @Override
-            public PersistedClusterStateService newPersistedClusterStateService(
-                NodeEnvironment nodeEnvironment,
-                NamedXContentRegistry xContentRegistry,
-                ClusterSettings clusterSettings,
-                ThreadPool threadPool
-            ) {
-                throw new AssertionError("not called");
-            }
-
-            @Override
-            public PersistedClusterStateService newPersistedClusterStateService(
-                NodeEnvironment nodeEnvironment,
-                NamedXContentRegistry xContentRegistry,
-                ClusterSettings clusterSettings,
-                ThreadPool threadPool,
-                CompatibilityVersions compatibilityVersions
-            ) {
-                return new StatelessPersistedClusterStateService(
+        return Optional.of(
+            (
+                nodeEnvironment,
+                xContentRegistry,
+                clusterSettings,
+                threadPool,
+                compatibilityVersions) -> new StatelessPersistedClusterStateService(
                     nodeEnvironment,
                     xContentRegistry,
                     clusterSettings,
@@ -963,9 +948,8 @@ public class Stateless extends Plugin
                     objectStoreService::get,
                     threadPool,
                     compatibilityVersions
-                );
-            }
-        });
+                )
+        );
     }
 
     @Override

@@ -26,6 +26,7 @@ these functions:
 * <<esql-date_parse>>
 * <<esql-date_trunc>>
 * <<esql-e>>
+* <<esql-ends_with>>
 * <<esql-floor>>
 * <<esql-greatest>>
 * <<esql-is_finite>>
@@ -89,6 +90,7 @@ include::functions/date_format.asciidoc[]
 include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
+include::functions/ends_with.asciidoc[]
 include::functions/floor.asciidoc[]
 include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]

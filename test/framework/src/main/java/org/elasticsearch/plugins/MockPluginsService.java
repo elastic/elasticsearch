@@ -23,11 +23,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 
 public class MockPluginsService extends PluginsService {
 
@@ -94,7 +94,7 @@ public class MockPluginsService extends PluginsService {
     public <T> List<? extends T> loadServiceProviders(Class<T> service) {
         // We use a set here to avoid duplicates because SPIClassIterator will match
         // all plugins in MockNode, because all plugins are loaded by the same class loader.
-        Set<T> result = new HashSet<>();
+        Map<Class<?>, T> result = new HashMap<>();
         for (LoadedPlugin pluginTuple : plugins()) {
             var plugin = pluginTuple.instance();
             var classLoader = plugin.getClass().getClassLoader();
@@ -105,14 +105,14 @@ public class MockPluginsService extends PluginsService {
                     var res = new ArrayList<Class<? extends T>>();
                     SPIClassIterator.get(service, classLoader).forEachRemaining(res::add);
                     return List.copyOf(res);
-                }).iterator());
+                }).iterator(), result::containsKey);
             } else {
-                extension = createExtensions(service, plugin);
+                extension = createExtensions(service, plugin, result::containsKey);
             }
-            result.addAll(extension);
+            extension.forEach(e -> result.put(e.getClass(), e));
         }
 
-        return List.copyOf(result);
+        return List.copyOf(result.values());
     }
 
     /**
@@ -122,15 +122,28 @@ public class MockPluginsService extends PluginsService {
      * causing us to pass wrong plugin type to createExtension. This modified createExtensions, checks for
      * the type and returns an empty list if the plugin class type is incompatible.
      */
-    static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+    static <T> List<? extends T> createExtensions(
+        Class<T> extensionPointType,
+        Plugin plugin,
+        Predicate<Class<? extends T>> loadedPredicate
+    ) {
         Iterator<Class<? extends T>> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
-        return createExtensions(extensionPointType, plugin, classIterator);
+        return createExtensions(extensionPointType, plugin, classIterator, loadedPredicate);
     }
 
-    private static <T> List<T> createExtensions(Class<T> extensionPointType, Plugin plugin, Iterator<Class<? extends T>> classIterator) {
+    private static <T> List<T> createExtensions(
+        Class<T> extensionPointType,
+        Plugin plugin,
+        Iterator<Class<? extends T>> classIterator,
+        Predicate<Class<? extends T>> loadedPredicate
+    ) {
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();
+            if (loadedPredicate.test(extensionClass)) {
+                // skip extensions that have already been loaded
+                continue;
+            }
 
             @SuppressWarnings("unchecked")
             Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();

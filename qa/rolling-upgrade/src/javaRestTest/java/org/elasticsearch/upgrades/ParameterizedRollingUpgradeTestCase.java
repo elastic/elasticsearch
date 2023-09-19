@@ -44,7 +44,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())

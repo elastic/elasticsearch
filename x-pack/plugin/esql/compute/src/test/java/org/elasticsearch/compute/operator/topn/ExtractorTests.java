@@ -11,13 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -129,15 +131,19 @@ public class ExtractorTests extends ESTestCase {
         this.testCase = testCase;
     }
 
+    static BreakingBytesRefBuilder nonBreakingBytesRefBuilder() {
+        return new BreakingBytesRefBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn");
+    }
+
     public void testNotInKey() {
         Block value = testCase.value.get();
 
-        BytesRefBuilder valuesBuilder = new BytesRefBuilder();
+        BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), false, 1);
-        BytesRef values = valuesBuilder.get();
+        BytesRef values = valuesBuilder.bytesRefView();
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 
@@ -148,17 +154,17 @@ public class ExtractorTests extends ESTestCase {
         assumeFalse("can't sort on _doc", testCase.type == ElementType.DOC);
         Block value = testCase.value.get();
 
-        BytesRefBuilder keysBuilder = new BytesRefBuilder();
+        BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
         KeyExtractor.extractorFor(testCase.type, testCase.encoder.toSortable(), randomBoolean(), randomByte(), randomByte(), value)
             .writeKey(keysBuilder, 0);
         assertThat(keysBuilder.length(), greaterThan(0));
 
-        BytesRefBuilder valuesBuilder = new BytesRefBuilder();
+        BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), true, 1);
-        BytesRef keys = keysBuilder.get();
+        BytesRef keys = keysBuilder.bytesRefView();
         if (testCase.type == ElementType.NULL) {
             assertThat(keys.length, equalTo(1));
         } else {
@@ -168,7 +174,7 @@ public class ExtractorTests extends ESTestCase {
             result.decodeKey(keys);
             assertThat(keys.length, equalTo(0));
         }
-        BytesRef values = valuesBuilder.get();
+        BytesRef values = valuesBuilder.bytesRefView();
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
 

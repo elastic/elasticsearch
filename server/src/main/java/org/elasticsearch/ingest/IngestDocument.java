@@ -912,24 +912,6 @@ public final class IngestDocument {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Maps.deepEquals(ingestMetadata, other.ingestMetadata);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ctxMap, ingestMetadata);
-    }
-
-    @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }

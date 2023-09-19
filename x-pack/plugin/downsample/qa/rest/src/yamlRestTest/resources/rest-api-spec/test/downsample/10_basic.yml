@@ -444,8 +444,10 @@ setup:
         body:
           index.blocks.write: true
 
+  # The following two tests may return different exceptions, depending on whether security is enabled (serverless)
+  # or not (stateful).
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: test*
         target_index: test-downsample
@@ -455,7 +457,7 @@ setup:
           }
 
   - do:
-      catch: /index_not_found_exception/
+      catch: /index_not_found_exception|illegal_argument_exception/
       indices.downsample:
         index: _all
         target_index: test-downsample

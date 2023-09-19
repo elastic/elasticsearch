@@ -228,27 +228,25 @@ public class SearchEngine extends Engine {
                         + currentGeneration
                         + "]";
 
-                final OptionalLong optionalPrimaryTerm = directory.getPrimaryTerm(current.getSegmentsFileName());
-                final long currentPrimaryTerm = optionalPrimaryTerm.orElse(-1);
+                PrimaryTermAndGeneration currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
+                    directory.getPrimaryTerm(current.getSegmentsFileName()).orElse(-1),
+                    current.getGeneration()
+                );
                 StatelessCompoundCommit latestCommit = null;
                 for (int i = batchSize; i > 0; i--) {
                     StatelessCompoundCommit commit = commitNotifications.poll();
                     assert commit != null;
-                    if (commit.primaryTerm() < currentPrimaryTerm
-                        || (commit.primaryTerm() == currentPrimaryTerm && commit.generation() <= current.getGeneration())) {
-                        assert commit.primaryTerm() < currentPrimaryTerm
-                            || commit.generation() < current.getGeneration()
+                    if (commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) <= 0) {
+                        assert commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) < 0
                             || current.files(true).equals(commit.commitFiles().keySet());
                         logger.trace(
                             "notification for commit generation [{}] is older or same than current generation [{}], ignoring",
                             commit.generation(),
-                            current.getGeneration()
+                            currentPrimaryTermGeneration.generation()
                         );
                         continue;
                     }
-                    if (latestCommit == null
-                        || commit.primaryTerm() > latestCommit.primaryTerm()
-                        || (commit.primaryTerm() == latestCommit.primaryTerm() && commit.generation() > latestCommit.generation())) {
+                    if (latestCommit == null || commit.primaryTermAndGeneration().compareTo(latestCommit.primaryTermAndGeneration()) > 0) {
                         latestCommit = commit;
                     }
                 }

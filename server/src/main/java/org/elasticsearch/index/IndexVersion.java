@@ -152,17 +152,17 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
 
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_500_001);
+        private static final IndexVersion CURRENT = findCurrent();
 
         // finds the pluggable current version, or uses the given fallback
-        private static IndexVersion findCurrent(IndexVersion fallback) {
+        private static IndexVersion findCurrent() {
             var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
             if (versionExtension == null) {
-                return fallback;
+                return LATEST_DEFINED;
             }
             var version = versionExtension.getCurrentIndexVersion();
 
-            assert version.onOrAfter(fallback);
+            assert version.onOrAfter(LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)
                 : "IndexVersion must be upgraded to ["
                 + Version.LATEST
@@ -175,7 +175,12 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
+    private static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersion.class);
+
+    static final IndexVersion LATEST_DEFINED;
     static {
+        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
+
         // see comment on IDS field
         // now we're registered the index versions, we can clear the map
         IDS = null;
@@ -218,12 +223,6 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         }
 
         return Collections.unmodifiableNavigableMap(builder);
-    }
-
-    private static final NavigableMap<Integer, IndexVersion> VERSION_IDS;
-
-    static {
-        VERSION_IDS = getAllVersionIds(IndexVersion.class);
     }
 
     static Collection<IndexVersion> getAllVersions() {

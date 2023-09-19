@@ -39,7 +39,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
@@ -89,7 +88,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
         final ActionListener<EsqlQueryResponse> wrappedListener;
         final TimeValue timeout = timeout(request);
-        if (timeout != null) {
+        if (timeout.millis() > 0) {
             final ThreadPool threadPool = transportService.getThreadPool();
             final var executor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
             wrappedListener = ListenerTimeouts.wrapWithTimeout(threadPool, timeout, executor, listener, l -> {
@@ -134,11 +133,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private TimeValue timeout(EsqlQueryRequest request) {
-        if (request.timeout() != null) {
-            return request.timeout();
-        }
-        Integer defaultTimeoutMillis = EsqlPlugin.QUERY_DEFAULT_TIMEOUT.get(settings);
-        return defaultTimeoutMillis < 0 ? null : new TimeValue(defaultTimeoutMillis, TimeUnit.MILLISECONDS);
+        return request.timeout() != null ? request.timeout() : EsqlPlugin.QUERY_DEFAULT_TIMEOUT.get(settings);
     }
 
     /**

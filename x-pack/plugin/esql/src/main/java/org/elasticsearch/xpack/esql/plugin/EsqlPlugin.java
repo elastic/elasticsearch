@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
@@ -76,11 +77,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> QUERY_DEFAULT_TIMEOUT = Setting.intSetting(
+    public static final Setting<TimeValue> QUERY_DEFAULT_TIMEOUT = Setting.timeSetting(
         "esql.query.default_timeout",
-        -1,
-        -1,
-        Integer.MAX_VALUE,
+        new TimeValue(0),
+        new TimeValue(0),
         Setting.Property.NodeScope
     );
 

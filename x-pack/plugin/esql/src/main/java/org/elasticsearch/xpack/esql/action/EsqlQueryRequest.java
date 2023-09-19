@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -179,8 +178,10 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
-        parser.declareInt((request, value) -> request.timeout(new TimeValue(value, TimeUnit.MILLISECONDS)), TIMEOUT_FIELD);
-
+        parser.declareString(
+            (request, val) -> request.timeout(TimeValue.parseTimeValue(val, TIMEOUT_FIELD.getPreferredName())),
+            TIMEOUT_FIELD
+        );
         return parser;
     }
 

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 abstract class ValueExtractorForBoolean implements ValueExtractor {
     static ValueExtractorForBoolean extractorFor(TopNEncoder encoder, boolean inKey, BooleanBlock block) {
@@ -27,11 +27,11 @@ abstract class ValueExtractorForBoolean implements ValueExtractor {
         this.inKey = inKey;
     }
 
-    protected final void writeCount(BytesRefBuilder values, int count) {
+    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
-    protected final void actualWriteValue(BytesRefBuilder values, boolean value) {
+    protected final void actualWriteValue(BreakingBytesRefBuilder values, boolean value) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(value, values);
     }
 
@@ -44,7 +44,7 @@ abstract class ValueExtractorForBoolean implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BytesRefBuilder values, int position) {
+        public void writeValue(BreakingBytesRefBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -63,7 +63,7 @@ abstract class ValueExtractorForBoolean implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BytesRefBuilder values, int position) {
+        public void writeValue(BreakingBytesRefBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

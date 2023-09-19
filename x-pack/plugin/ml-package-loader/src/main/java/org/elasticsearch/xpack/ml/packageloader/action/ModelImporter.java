@@ -40,7 +40,7 @@ import static org.elasticsearch.core.Strings.format;
  * A helper class for abstracting out the use of the ModelLoaderUtils to make dependency injection testing easier.
  */
 class ModelImporter {
-    private static final int DEFAULT_CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
+    private static final int DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB
     private static final Logger logger = LogManager.getLogger(ModelImporter.class);
     private final Client client;
     private final String modelId;

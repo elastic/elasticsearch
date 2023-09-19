@@ -1,8 +1,9 @@
 [role="xpack"]
 [[post-inference-api]]
-=== Inference API
+=== Perform inference API
 
-Performs an inference task on an input text by using a {ml} model.
+Performs an inference task on an input text by using an {infer} model.
+
 
 [discrete]
 [[post-inference-api-request]]
@@ -12,10 +13,11 @@ Performs an inference task on an input text by using a {ml} model.
 
 
 [discrete]
-[[postinference-api-prereqs]]
+[[post-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* 
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
 
 [discrete]
 [[post-inference-api-desc]]

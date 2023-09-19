@@ -1,3 +1,47 @@
 [role="xpack"]
 [[delete-inference-api]]
 === Delete {infer} API
+
+Deletes an {infer} model deployment.
+
+[discrete]
+[[delete-inference-api-request]]
+==== {api-request-title}
+
+`DELETE /_inference/<task_type>/<model_id>`
+
+[discrete]
+[[delete-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
+[discrete]
+[[delete-inference-api-desc]]
+==== {api-description-title}
+
+
+
+[discrete]
+[[delete-inference-api-path-params]]
+==== {api-path-parms-title}
+
+
+
+[discrete]
+[[delete-inference-api-example]]
+==== {api-examples-title}
+
+
+
+[source,console]
+------------------------------------------------------------
+
+------------------------------------------------------------
+
+Example response:
+
+[source,console-result]
+------------------------------------------------------------
+
+------------------------------------------------------------

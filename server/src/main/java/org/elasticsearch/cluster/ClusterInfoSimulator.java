@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.index.shard.ShardId;
@@ -18,13 +19,15 @@ import java.util.Objects;
 
 public class ClusterInfoSimulator {
 
+    private final Metadata metadata;
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<ClusterInfo.NodeAndShard, String> dataPath;
 
-    public ClusterInfoSimulator(ClusterInfo clusterInfo) {
+    public ClusterInfoSimulator(Metadata metadata, ClusterInfo clusterInfo) {
+        this.metadata = metadata;
         this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeMostAvailableDiskUsages());
         this.shardSizes = new CopyOnFirstWriteMap<>(clusterInfo.shardSizes);
@@ -43,8 +46,8 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
-        var size = getEstimatedShardSize(shard);
-        if (size != null && size > 0) {
+        var size = getShardSize(shard);
+        if (size > 0) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
                 modifyDiskUsage(shard.relocatingNodeId(), size);
@@ -57,17 +60,25 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private Long getEstimatedShardSize(ShardRouting shard) {
+    private long getShardSize(ShardRouting shard) {
+        return Math.max(getActualShardSize(shard), getShardSizeForecast(shard.shardId(), metadata));
+    }
+
+    private long getActualShardSize(ShardRouting shard) {
         if (shard.relocatingNodeId() != null) {
             // relocation existing shard, get size of the source shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard));
+            return shardSizes.getOrDefault(ClusterInfo.shardIdentifierFromRouting(shard), 0L);
         } else if (shard.primary() == false) {
             // initializing new replica, get size of the source primary shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true));
+            return shardSizes.getOrDefault(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true), 0L);
         } else {
             // initializing new (empty?) primary
             return shard.getExpectedShardSize();
         }
+    }
+
+    private static long getShardSizeForecast(ShardId shardId, Metadata metadata) {
+        return metadata.index(shardId.getIndex()).getForecastedShardSizeInBytes().orElse(0L);
     }
 
     private void modifyDiskUsage(String nodeId, long delta) {

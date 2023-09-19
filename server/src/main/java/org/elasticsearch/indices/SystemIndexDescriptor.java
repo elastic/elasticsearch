@@ -555,8 +555,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         final MappingsVersion actualMinimumMappingsVersion = priorSystemIndexDescriptors.isEmpty()
             ? getMappingsVersion()
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
-        return String.format(
-            Locale.ROOT,
+        return Strings.format(
             "[%s] failed - system index [%s] requires all data and master nodes to have mappings versions at least of version [%s]",
             cause,
             this.getPrimaryIndex(),

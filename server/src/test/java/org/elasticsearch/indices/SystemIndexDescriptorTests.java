@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
@@ -19,7 +20,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
@@ -45,8 +45,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         }
         """;
 
-    private static final String MAPPINGS = String.format(
-        Locale.ROOT,
+    private static final String MAPPINGS = Strings.format(
         MAPPINGS_FORMAT_STRING,
         SystemIndexDescriptor.VERSION_META_KEY,
         TEST_MAPPINGS_VERSION
@@ -273,7 +272,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(String.format(Locale.ROOT, MAPPINGS_FORMAT_STRING, VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
+            .setMappings(Strings.format(MAPPINGS_FORMAT_STRING, VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
@@ -396,7 +395,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     // test mapping versions can't be negative
     public void testNegativeMappingsVersion() {
         int negativeVersion = randomIntBetween(Integer.MIN_VALUE, -1);
-        String mappings = String.format(Locale.ROOT, """
+        String mappings = Strings.format("""
             {
               "_doc": {
                 "_meta": {
@@ -443,20 +442,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             }
             """;
 
-        String mappings1 = String.format(
-            Locale.ROOT,
-            mappingFormatString,
-            "8.9.0",
-            SystemIndexDescriptor.VERSION_META_KEY,
-            randomIntBetween(1, 10)
-        );
-        String mappings2 = String.format(
-            Locale.ROOT,
-            mappingFormatString,
-            "8.10.0",
-            SystemIndexDescriptor.VERSION_META_KEY,
-            randomIntBetween(11, 20)
-        );
+        String mappings1 = Strings.format(mappingFormatString, "8.9.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(1, 10));
+        String mappings2 = Strings.format(mappingFormatString, "8.10.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(11, 20));
 
         SystemIndexDescriptor descriptor1 = priorSystemIndexDescriptorBuilder().setMappings(mappings1).build();
         SystemIndexDescriptor descriptor2 = priorSystemIndexDescriptorBuilder().setMappings(mappings2).build();

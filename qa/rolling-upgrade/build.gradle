@@ -26,3 +26,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty("tests.old_cluster_version", bwcVersion)
   }
 }
+
+testClusters.configureEach {
+  setting 'xpack.security.enabled', 'false'
+}

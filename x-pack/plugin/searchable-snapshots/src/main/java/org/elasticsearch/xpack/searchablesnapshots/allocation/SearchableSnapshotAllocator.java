@@ -60,7 +60,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.cluster.routing.allocation.ShardSizeReader.*;
+import static org.elasticsearch.cluster.routing.allocation.ShardSizeReader.getExpectedShardSize;
 import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;

@@ -83,4 +83,9 @@ if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
   export DOCKER_REGISTRY_PASSWORD
 fi
 
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi
+
 buildkite-agent annotation remove --context "ctx-gobld-metrics" || true

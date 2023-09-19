@@ -14,13 +14,12 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -31,14 +30,12 @@ final class LongLongBlockHash extends BlockHash {
     private final int channel2;
     private final int emitBatchSize;
     private final LongLongHash hash;
-    private final BlockFactory blockFactory;
 
-    LongLongBlockHash(DriverContext driverContext, int channel1, int channel2, int emitBatchSize) {
+    LongLongBlockHash(BigArrays bigArrays, int channel1, int channel2, int emitBatchSize) {
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.blockFactory = driverContext.blockFactory();
-        this.hash = new LongLongHash(1, driverContext.bigArrays());
+        this.hash = new LongLongHash(1, bigArrays);
     }
 
     @Override
@@ -65,7 +62,7 @@ final class LongLongBlockHash extends BlockHash {
         for (int i = 0; i < positions; i++) {
             ords[i] = Math.toIntExact(hashOrdToGroup(hash.add(vector1.getLong(i), vector2.getLong(i))));
         }
-        return blockFactory.newIntArrayVector(ords, positions);
+        return new IntArrayVector(ords, positions);
     }
 
     private static final long[] EMPTY = new long[0];

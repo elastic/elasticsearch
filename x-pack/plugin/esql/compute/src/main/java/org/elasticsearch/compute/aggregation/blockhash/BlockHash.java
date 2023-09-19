@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
@@ -70,39 +69,39 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash build(
         List<HashAggregationOperator.GroupSpec> groups,
-        DriverContext driverContext,
+        BigArrays bigArrays,
         int emitBatchSize,
         boolean allowBrokenOptimizations
     ) {
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), driverContext);
+            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
         }
         if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(driverContext, g1.channel(), g2.channel(), emitBatchSize);
+                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
             }
             if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(driverContext, g1.channel(), g2.channel(), false, emitBatchSize);
+                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false, emitBatchSize);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(driverContext, g2.channel(), g1.channel(), true, emitBatchSize);
+                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
-        return new PackedValuesBlockHash(groups, driverContext, emitBatchSize);
+        return new PackedValuesBlockHash(groups, bigArrays, emitBatchSize);
     }
 
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, DriverContext driverContext) {
+    private static BlockHash newForElementType(int channel, ElementType type, BigArrays bigArrays) {
         return switch (type) {
-            case BOOLEAN -> new BooleanBlockHash(channel, driverContext);
-            case INT -> new IntBlockHash(channel, driverContext);
-            case LONG -> new LongBlockHash(channel, driverContext);
-            case DOUBLE -> new DoubleBlockHash(channel, driverContext);
-            case BYTES_REF -> new BytesRefBlockHash(channel, driverContext);
+            case BOOLEAN -> new BooleanBlockHash(channel);
+            case INT -> new IntBlockHash(channel, bigArrays);
+            case LONG -> new LongBlockHash(channel, bigArrays);
+            case DOUBLE -> new DoubleBlockHash(channel, bigArrays);
+            case BYTES_REF -> new BytesRefBlockHash(channel, bigArrays);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

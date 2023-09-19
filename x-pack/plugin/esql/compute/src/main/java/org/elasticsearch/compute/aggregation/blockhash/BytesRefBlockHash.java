@@ -17,13 +17,13 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -45,12 +45,10 @@ final class BytesRefBlockHash extends BlockHash {
      * </p>
      */
     private boolean seenNull;
-    private final BlockFactory blockFactory;
 
-    BytesRefBlockHash(int channel, DriverContext driverContext) {
+    BytesRefBlockHash(int channel, BigArrays bigArrays) {
         this.channel = channel;
-        this.blockFactory = driverContext.blockFactory();
-        this.bytesRefHash = new BytesRefHash(1, driverContext.bigArrays());
+        this.bytesRefHash = new BytesRefHash(1, bigArrays);
     }
 
     @Override
@@ -69,7 +67,7 @@ final class BytesRefBlockHash extends BlockHash {
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes))));
         }
-        return blockFactory.newIntArrayVector(groups, vector.getPositionCount());
+        return new IntArrayVector(groups, vector.getPositionCount());
     }
 
     private IntBlock add(BytesRefBlock block) {
@@ -101,7 +99,7 @@ final class BytesRefBlockHash extends BlockHash {
             bytesRefHash.getBytesRefs().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 return new BytesRefBlock[] {
-                    blockFactory.newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
+                    new BytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);

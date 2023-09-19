@@ -13,13 +13,13 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayBlock;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
@@ -31,7 +31,6 @@ import java.util.BitSet;
 final class LongBlockHash extends BlockHash {
     private final int channel;
     private final LongHash longHash;
-    private final BlockFactory blockFactory;
 
     /**
      * Have we seen any {@code null} values?
@@ -42,10 +41,9 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    LongBlockHash(int channel, DriverContext driverContext) {
+    LongBlockHash(int channel, BigArrays bigArrays) {
         this.channel = channel;
-        this.blockFactory = driverContext.blockFactory();
-        this.longHash = new LongHash(1, driverContext.bigArrays());
+        this.longHash = new LongHash(1, bigArrays);
     }
 
     @Override
@@ -83,7 +81,7 @@ final class LongBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new LongBlock[] { blockFactory.newLongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+            return new LongBlock[] { new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
         }
 
         final int size = Math.toIntExact(longHash.size());
@@ -93,7 +91,7 @@ final class LongBlockHash extends BlockHash {
         }
 
         // TODO call something like takeKeyOwnership to claim the keys array directly
-        return new LongBlock[] { blockFactory.newLongArrayVector(keys, keys.length).asBlock() };
+        return new LongBlock[] { new LongArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -174,13 +173,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        DriverContext driverContext = new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
-            blockFactory
-        );
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
-            : BlockHash.build(specs, driverContext, emitBatchSize, true);
+            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
+            : BlockHash.build(specs, bigArrays, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

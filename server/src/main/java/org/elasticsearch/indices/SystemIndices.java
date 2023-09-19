@@ -123,6 +123,13 @@ public class SystemIndices {
         new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
+    public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+
     /**
      * The node's full list of system features is stored here. The map is keyed
      * on the value of {@link Feature#getName()}, and is used for fast lookup of

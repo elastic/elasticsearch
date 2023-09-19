@@ -45,7 +45,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
-            this.services = createApmServices();
+            createApmServices();
         } else {
             destroyApmServices();
         }
@@ -54,7 +54,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
     @Override
     protected void doStart() {
         if (enabled) {
-            this.services = createApmServices();
+            createApmServices();
         }
     }
 
@@ -110,20 +110,21 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
         });
     }
 
-    AtomicReference<APMServices> createApmServices() {
+    void createApmServices() {
         assert this.enabled;
         assert this.services.get() == null;
 
-        return AccessController.doPrivileged((PrivilegedAction<AtomicReference<APMServices>>) () -> {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var meter = openTelemetry.getMeter("elasticsearch");
 
-            return new AtomicReference<>(new APMServices(meter, openTelemetry));
+            this.services.set(new APMServices(meter, openTelemetry));
+            return null;
         });
     }
 
     private void destroyApmServices() {
-        this.services = null;
+        this.services.set(null);
     }
 
 }

@@ -541,6 +541,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
+            authenticationFailedCounter.increment();
+
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -561,6 +563,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, HttpPreRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+            authenticationFailedCounter.increment();
+
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)

@@ -13,20 +13,22 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private Settings settings;
+    final APMMetric apmMetric;
+    final APMTracer apmTracer;
 
     public APMTelemetryProvider(Settings settings) {
         this.settings = settings;
+        apmMetric = new APMMetric(settings);
+        apmTracer = new APMTracer(settings);
     }
 
     @Override
     public APMTracer getTracer() {
-        final APMTracer apmTracer = new APMTracer(settings);
         return apmTracer;
     }
 
     @Override
     public APMMetric getMetric() {
-        final APMMetric apmMetric = new APMMetric(settings);
         return apmMetric;
     }
 }

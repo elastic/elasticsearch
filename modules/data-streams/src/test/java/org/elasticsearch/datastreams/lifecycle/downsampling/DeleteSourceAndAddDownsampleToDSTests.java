@@ -271,40 +271,4 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
 
         assertThat(newState.metadata().getIndicesLookup().get(firstGenIndex), is(nullValue()));
     }
-
-    public void testListenersIsNonConsideredInEquals() {
-        // the task is used as a key in a result deduplicator ({@link ResultDeduplicator}) map and the listener must not
-        // be taken into account
-
-        String dataStreamName = randomAlphaOfLengthBetween(10, 100);
-        String sourceBackingIndex = randomAlphaOfLengthBetween(10, 100);
-        String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
-        DeleteSourceAndAddDownsampleToDS withoutListener = new DeleteSourceAndAddDownsampleToDS(
-            Settings.EMPTY,
-            dataStreamName,
-            sourceBackingIndex,
-            downsampleIndex,
-            null
-        );
-
-        DeleteSourceAndAddDownsampleToDS withListener = new DeleteSourceAndAddDownsampleToDS(
-            Settings.EMPTY,
-            dataStreamName,
-            sourceBackingIndex,
-            downsampleIndex,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            }
-        );
-
-        assertThat(withoutListener.equals(withListener), is(true));
-    }
 }

@@ -133,7 +133,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
-    final ResultDeduplicator<ClusterStateTaskListener, Void> clusterStateChangesDeduplicator;
+    final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
     private final LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -568,7 +568,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
-            new DeleteSourceAndAddDownsampleToDS(settings, dataStream.getName(), backingIndexName, downsampleIndexName, null),
+            "dsl-replace-" + dataStream.getName() + "-" + backingIndexName + "-" + downsampleIndexName,
             new ErrorRecordingActionListener(
                 backingIndexName,
                 errorStore,

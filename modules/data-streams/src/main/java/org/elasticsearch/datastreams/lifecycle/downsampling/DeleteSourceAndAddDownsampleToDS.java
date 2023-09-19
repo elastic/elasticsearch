@@ -122,42 +122,46 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                         + sourceParentDataStream.getName()
                         + "]";
                 // both indices exist, let's copy the origination date from the source index to the downsample index
-                Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
-                TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
-                assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
-                IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
-                    sourceIndexMeta,
-                    downsampleIndexMeta,
-                    generationLifecycleDate.millis()
-                );
-
-                newMetaData.put(updatedDownsampleMetadata, true);
-                // we deleted the source already so let's add the downsample index to the data stream
-                newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
-                return ClusterState.builder(state).metadata(newMetaData).build();
+                return addDownsampleIndexToDataStream(state, dataStream, sourceIndexMeta, downsampleIndexMeta);
             } else {
                 // the source index is not part of a data stream, so let's check if we can make sure the downsample index ends up in the
                 // data stream
                 if (dataStream != null
                     && dataStream.getIndices().stream().filter(index -> index.getName().equals(downsampleIndex)).findAny().isEmpty()) {
-                    Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
-                    TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
-                    assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
-
-                    IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
-                        sourceIndexMeta,
-                        downsampleIndexMeta,
-                        generationLifecycleDate.millis()
-                    );
-                    newMetaData.put(updatedDownsampleMetadata, true);
-                    // add downsample index to data stream
-                    newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
-                    return ClusterState.builder(state).metadata(newMetaData).build();
+                    return addDownsampleIndexToDataStream(state, dataStream, sourceIndexMeta, downsampleIndexMeta);
                 }
             }
         }
 
         return state;
+    }
+
+    /**
+     * This creates a new {@link ClusterState} with an updated data stream that contains the provided downsample index.
+     * This method is private as it fits into the flow of this cluster state task - i.e. the source index has already been removed from
+     * the provided state.
+     */
+    private static ClusterState addDownsampleIndexToDataStream(
+        ClusterState state,
+        DataStream dataStream,
+        IndexMetadata sourceIndexMeta,
+        IndexMetadata downsampleIndexMeta
+    ) {
+        Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+        TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
+        // the generation lifecycle date is null only for the write index
+        // we fail already if attempting to delete/downsample the write index, so the following assertion just re-inforces that
+        assert generationLifecycleDate != null : "write index must never be downsampled, or replaced";
+        IndexMetadata updatedDownsampleMetadata = copyDataStreamLifecycleState(
+            sourceIndexMeta,
+            downsampleIndexMeta,
+            generationLifecycleDate.millis()
+        );
+
+        newMetaData.put(updatedDownsampleMetadata, true);
+        // we deleted the source already so let's add the downsample index to the data stream
+        newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+        return ClusterState.builder(state).metadata(newMetaData).build();
     }
 
     /**

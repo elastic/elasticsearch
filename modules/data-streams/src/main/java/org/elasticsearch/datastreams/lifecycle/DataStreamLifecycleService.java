@@ -568,6 +568,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
         clusterStateChangesDeduplicator.executeOnce(
+            // we use a String key here as otherwise it's ... awkward as we have to create the DeleteSourceAndAddDownsampleToDS as the
+            // key _without_ a listener (passing in null) and then below we create it again with the `reqListener`. We're using a String
+            // as it seems to be clearer.
             "dsl-replace-" + dataStream.getName() + "-" + backingIndexName + "-" + downsampleIndexName,
             new ErrorRecordingActionListener(
                 backingIndexName,

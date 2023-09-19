@@ -47,6 +47,21 @@ avg(salary):double | always_false:boolean
  48353.72222222222 | false
 ;
 
+statsWithEndsWithAlwaysTrue
+from employees | where first_name is not null | eval always_true = ends_with(first_name, "") | stats avg(salary) by always_true;
+
+avg(salary):double | always_true:boolean
+ 48353.72222222222 | true
+;
+
+statsWithEndsWithAlwaysFalse
+from employees | where first_name is not null | eval always_false = ends_with(first_name, "noneendswiththis") | stats avg(salary) by always_false;
+
+avg(salary):double | always_false:boolean
+ 48353.72222222222 | false
+;
+
+
 in
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true

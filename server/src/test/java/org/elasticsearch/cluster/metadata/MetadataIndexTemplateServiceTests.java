@@ -1252,7 +1252,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1364,7 +1369,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1418,7 +1428,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1820,6 +1835,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "properties": {
                     "field2": {
                       "type": "object",
+                                  "subobjects": false,
                       "properties": {
                         "foo": {
                           "type": "integer"
@@ -1842,7 +1858,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
                   "properties": {
                     "field2": {
-                      "type": "text"
+                              "type": "object",
+                              "properties": {
+                                "bar": {
+                                  "type": "object"
+                                }
+                              }
                     }
                   }
                 }"""), null), randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null, null);
@@ -1864,7 +1885,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause());
         assertThat(
             e.getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -1911,6 +1932,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
               "properties": {
                 "field2": {
                   "type": "object",
+                                  "subobjects": false,
                   "properties": {
                     "foo": {
                       "type": "integer"
@@ -1949,7 +1971,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
               "properties": {
                 "field2": {
-                  "type": "text"
+                                  "type": "object",
+                                  "properties": {
+                                    "bar": {
+                                      "type": "object"
+                                    }
+                                  }
                 }
               }
             }
@@ -1975,7 +2002,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -2513,6 +2540,61 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.name(), equalTo("template"));
         assertThat(e.getMessage(), containsString("missing component templates [fail] that does not exist"));
+    }
+
+    public void testComposableTemplateWithSubobjectsFalse() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "subobjects": false
+            }
+            """), null), null, null);
+
+        ComponentTemplate fieldMapping = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "parent.subfield": {
+                  "type": "keyword"
+                }
+              }
+            }
+            """), null), null, null);
+
+        state = service.addComponentTemplate(state, true, "subobjects", subobjects);
+        state = service.addComponentTemplate(state, true, "field_mapping", fieldMapping);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(null, null, null),
+            List.of("subobjects", "field_mapping"),
+            0L,
+            1L,
+            null,
+            null,
+            null
+        );
+        state = service.addIndexTemplateV2(state, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(2));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("subobjects", false))));
+        assertThat(
+            parsedMappings.get(1),
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
+        );
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

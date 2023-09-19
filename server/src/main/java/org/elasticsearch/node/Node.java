@@ -183,6 +183,7 @@ import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -622,7 +623,10 @@ public class Node implements Closeable {
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
-            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
+            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.current(),
+                systemIndices.getMappingsVersions()
+            );
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
@@ -811,7 +815,8 @@ public class Node implements Closeable {
                 systemIndices,
                 tracer,
                 clusterService,
-                reservedStateHandlers
+                reservedStateHandlers,
+                pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
             );
             modules.add(actionModule);
 

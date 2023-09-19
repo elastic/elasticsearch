@@ -10,6 +10,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,10 +22,13 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
+  private final DriverContext driverContext;
+
   public ModDoublesEvaluator(EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs) {
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.lhs = lhs;
     this.rhs = rhs;
+    this.driverContext = driverContext;
   }
 
   @Override

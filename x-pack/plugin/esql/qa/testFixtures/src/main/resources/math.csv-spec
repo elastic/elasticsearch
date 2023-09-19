@@ -1019,10 +1019,12 @@ l:ul                  | s:double
 ;
 
 sqrtOfNegative
-row d = -1.0 | eval s = is_nan(sqrt(d));
+row d = -1.0 | eval s = sqrt(d);
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.ArithmeticException: Square root of negative
 
-d:double | s:boolean
--1.0     | true
+d:double | s:double
+-1.0     | null
 ;
 
 sqrtOfNan

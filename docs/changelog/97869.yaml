@@ -1,5 +1,0 @@
-pr: 97869
-summary: Add missing sync on `indicesThatCannotBeCreated`
-area: CRUD
-type: bug
-issues: []

@@ -1,0 +1,6 @@
+pr: 99382
+summary: "ESQL: create a Vector when needed for IN"
+area: ES|QL
+type: bug
+issues:
+ - 99347

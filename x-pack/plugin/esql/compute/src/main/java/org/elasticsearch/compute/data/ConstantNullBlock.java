@@ -119,6 +119,11 @@ public final class ConstantNullBlock extends AbstractBlock {
         return "ConstantNullBlock[positions=" + getPositionCount() + "]";
     }
 
+    @Override
+    public void close() {
+        // no-op
+    }
+
     static class Builder implements Block.Builder {
         private int positionCount;
 

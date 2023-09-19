@@ -30,7 +30,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToInteger";
+    return "ToIntegerFromString";
   }
 
   @Override

@@ -76,7 +76,6 @@ public class APMRolloverIT extends ESIntegTestCase {
         clusterService.removeListener(apmIndexTemplateRegistry);
         clusterService.removeListener(stackTemplateRegistry);
         clusterService.removeListener(ilmHistoryTemplateRegistry);
-        // todo: find a way to cancel the geoip database download task as it throws errors when terminating the test
     }
 
     @Override

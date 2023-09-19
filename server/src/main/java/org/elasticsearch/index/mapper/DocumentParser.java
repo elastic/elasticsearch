@@ -250,8 +250,8 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.name(), null, mapper, context));
-
+        context.getDynamicMappers()
+            .forEach((name, builders) -> builders.forEach(builder -> rootBuilder.addDynamic(name, null, builder, context)));
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
@@ -484,13 +484,20 @@ public final class DocumentParser {
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
+            Mapper.Builder dynamicObjectBuilder = null;
             Mapper dynamicObjectMapper;
             if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
+                dynamicObjectBuilder = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
+                if (dynamicObjectBuilder == null) {
+                    dynamicObjectBuilder = new ObjectMapper.Builder(currentFieldName, ObjectMapper.Defaults.SUBOBJECTS).enabled(
+                        ObjectMapper.Defaults.ENABLED
+                    );
+                }
+                dynamicObjectMapper = dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext());
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -512,8 +519,8 @@ public final class DocumentParser {
                 }
 
             }
-            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
-                context.addDynamicMapper(dynamicObjectMapper);
+            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME && dynamicObjectBuilder != null) {
+                context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
@@ -554,12 +561,13 @@ public final class DocumentParser {
             } else if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
                 context.parser().skipChildren();
             } else {
-                Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, lastFieldName);
-                if (objectMapperFromTemplate == null) {
+                Mapper.Builder objectBuilderFromTemplate = DynamicFieldsBuilder.findTemplateBuilderForObject(context, lastFieldName);
+                if (objectBuilderFromTemplate == null) {
                     parseNonDynamicArray(context, lastFieldName, lastFieldName);
                 } else {
+                    Mapper objectMapperFromTemplate = objectBuilderFromTemplate.build(context.createDynamicMapperBuilderContext());
                     if (parsesArrayValue(objectMapperFromTemplate)) {
-                        context.addDynamicMapper(objectMapperFromTemplate);
+                        context.addDynamicMapper(objectMapperFromTemplate.name(), objectBuilderFromTemplate);
                         context.path().add(lastFieldName);
                         parseObjectOrField(context, objectMapperFromTemplate);
                         context.path().remove();
@@ -603,13 +611,14 @@ public final class DocumentParser {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             final String fullFieldName = builderContext.buildFullName(fieldName);
-            final List<Mapper> mappers = context.getDynamicMappers(fullFieldName);
+            final List<Mapper.Builder> mappers = context.getDynamicMappers(fullFieldName);
             if (mappers == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
                 || context.isCopyToField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
-                || mappers.stream().allMatch(m -> m instanceof NumberFieldMapper && "float".equals(m.typeName())) == false) {
+                || mappers.stream()
+                    .allMatch(m -> m instanceof NumberFieldMapper.Builder nb && nb.type != NumberFieldMapper.NumberType.FLOAT)) {
                 return;
             }
 
@@ -617,8 +626,7 @@ public final class DocumentParser {
                 fieldName,
                 context.indexSettings().getIndexVersionCreated()
             );
-            DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
-            context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
+            context.updateDynamicMappers(fullFieldName, builder);
         }
     }
 

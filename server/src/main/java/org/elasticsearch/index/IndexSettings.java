@@ -1547,11 +1547,14 @@ public final class IndexSettings {
         this.mappingDimensionFieldsLimit = value;
     }
 
+    /**
+     * Returns <code>true</code> if request cache is enabled.
+     */
     public boolean isRequestCacheEnabled() {
         return requestCacheEnabled;
     }
 
-    public void setRequestCacheEnabled(boolean requestCacheEnabled) {
+    private void setRequestCacheEnabled(boolean requestCacheEnabled) {
         this.requestCacheEnabled = requestCacheEnabled;
     }
 

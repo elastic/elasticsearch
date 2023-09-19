@@ -7,15 +7,18 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Metadata about registered repository
@@ -106,8 +109,13 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at most {@link #pendingGeneration()}, and will be equal to {@link #pendingGeneration()} iff there are no ongoing
+     * root-blob writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
+
      * @return safe repository generation
      */
     public long generation() {
@@ -118,8 +126,12 @@ public class RepositoryMetadata implements Writeable {
      * Returns the pending repository generation. {@link RepositoryData} for this generation and all generations down to the safe
      * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
      * repository.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at least {@link #generation()}, and will be equal to {@link #generation()} iff there are no ongoing root-blob
+     * writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
      *
      * @return highest pending repository generation
      */

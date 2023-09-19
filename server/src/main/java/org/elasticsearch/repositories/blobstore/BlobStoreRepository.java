@@ -2142,27 +2142,34 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Writing a new index generation (root) blob is a three-step process:
+     * Writing a new index generation (root) blob is a three-step process. Typically, it starts from a stable state where the pending
+     * generation {@link RepositoryMetadata#pendingGeneration()} is equal to the safe generation {@link RepositoryMetadata#generation()},
+     * but after a failure it may be that the pending generation starts out greater than the safe generation.
      * <ol>
      * <li>
-     * The {@link RepositoryMetadata} entry for this repository is set into a pending state by increasing its pending generation {@code P}
-     * while its safe generation {@code N < P} remains unchanged.
+     * We reserve ourselves a new root blob generation {@code G}, greater than {@link RepositoryMetadata#pendingGeneration()}, via a
+     * cluster state update which edits the {@link RepositoryMetadata} entry for this repository, increasing its pending generation to
+     * {@code G} without changing its safe generation.
      * <li>
-     * The updated {@link RepositoryData} is written to a new root blob with generation {@code P}.
+     * We write the updated {@link RepositoryData} to a new root blob with generation {@code G}.
      * <li>
-     * The safe generation in the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P} and thus
-     * pending and safe generation become equal again, marking the end of the update of the repository data.
+     * We mark the successful end of the update of the repository data with a cluster state update which edits the
+     * {@link RepositoryMetadata} entry for this repository again, increasing its safe generation to equal to its pending generation
+     * {@code G}.
      * </ol>
-     * We use this process to protects against problems such as a master failover part-way through. If a new master is elected while we're
-     * writing the root blob with generation {@code P} then we will fail to update the safe repository generation in the final step, and
-     * meanwhile the new master will choose a greater generation for all subsequent root blobs avoiding any danger of clobbering each
-     * other's writes.
+     * We use this process to protect against problems such as a master failover part-way through. If a new master is elected while we're
+     * writing the root blob with generation {@code G} then we will fail to update the safe repository generation in the final step, and
+     * meanwhile the new master will choose a generation greater than {@code G} for all subsequent root blobs so there is no risk that we
+     * will clobber its writes. See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for more details.
      * <p>
      * Note that a failure here does not imply that the process was unsuccessful or the repository is unchanged. Once we have written the
      * new root blob the repository is updated from the point of view of any other clusters reading from it, and if we performed a full
      * cluster restart at that point then we would also pick up the new root blob. Writing the root blob may succeed without us receiving
      * a successful response from the repository, leading us to report that the write operation failed. Updating the safe generation may
      * likewise succeed on a majority of master-eligible nodes which does not include this one, again leading to an apparent failure.
+     * <p>
+     * We therefore cannot safely clean up apparently-dangling blobs after a failure here. Instead, we defer any cleanup until after the
+     * next successful root-blob write, which may happen on a different master node or possibly even in a different cluster.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation

@@ -95,8 +95,8 @@ public class XPackSettings {
     /** Setting for enabling or disabling APM Data. Defaults to false. */
     public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting(
         "xpack.apm_data.enabled",
-	false,
-	Setting.Property.NodeScope
+        false,
+        Setting.Property.NodeScope
     );
 
     /** Setting for enabling or disabling enterprise search. Defaults to true. */

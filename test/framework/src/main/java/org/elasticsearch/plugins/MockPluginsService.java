@@ -92,8 +92,9 @@ public class MockPluginsService extends PluginsService {
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public <T> List<? extends T> loadServiceProviders(Class<T> service) {
-        // We use a set here to avoid duplicates because SPIClassIterator will match
+        // We use a map here to avoid duplicates because SPIClassIterator will match
         // all plugins in MockNode, because all plugins are loaded by the same class loader.
+        // Each entry in the map is a unique service provider implementation.
         Map<Class<?>, T> result = new HashMap<>();
         for (LoadedPlugin pluginTuple : plugins()) {
             var plugin = pluginTuple.instance();
@@ -119,8 +120,10 @@ public class MockPluginsService extends PluginsService {
      * When we load tests with MockNode, all plugins are loaded with the same class loader,
      * which breaks loading service providers with our SPIClassIterator. Since all plugins are
      * loaded in the same class loader, we find all plugins for any class found by the SPIClassIterator
-     * causing us to pass wrong plugin type to createExtension. This modified createExtensions, checks for
-     * the type and returns an empty list if the plugin class type is incompatible.
+     * causing us to pass plugin types to createExtension that aren't actually part of that plugin.
+     * This modified createExtensions, checks for the type and returns an empty list if the
+     * plugin class type is incompatible. It also skips loading extension types that have already
+     * been loaded, so that duplicates are not created.
      */
     static <T> List<? extends T> createExtensions(
         Class<T> extensionPointType,

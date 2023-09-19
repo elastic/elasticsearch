@@ -13,6 +13,7 @@ test-admin:
 user1:
   cluster:
     - cluster:monitor/main
+    - monitor
   indices:
     - names: ['index-user1', 'index', "test-enrich" ]
       privileges:
@@ -44,3 +45,17 @@ user3:
             "org": "sales"
           }
         }
+
+user4:
+  cluster:
+    - monitor
+  indices:
+    - names: ['index-user1', 'index', "test-enrich" ]
+      privileges:
+        - read
+user5:
+  cluster: []
+  indices:
+    - names: ['index-user1', 'index', "test-enrich" ]
+      privileges:
+        - read

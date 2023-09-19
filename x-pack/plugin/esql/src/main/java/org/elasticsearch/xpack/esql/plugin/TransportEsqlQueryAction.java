@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -43,6 +44,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
     private final Executor requestExecutor;
+    private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
     private final Settings settings;
 
@@ -65,6 +67,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
+        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays);
         this.computeService = new ComputeService(
             searchService,
@@ -98,6 +101,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request,
             sessionId,
             configuration,
+            enrichPolicyResolver,
             listener.delegateFailureAndWrap(
                 (delegate, r) -> computeService.execute(sessionId, (CancellableTask) task, r, configuration, delegate.map(pages -> {
                     List<ColumnInfo> columns = r.output()

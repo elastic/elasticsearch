@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.downsampling;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

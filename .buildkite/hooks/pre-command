@@ -89,3 +89,11 @@ if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
 fi
 
 buildkite-agent annotation remove --context "ctx-gobld-metrics" || true
+
+if [[ "${BUILDKITE_LABEL:-}" == ":pipeline: Pipeline upload" ]]; then
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>Gradle build scan links</summary>
+EOF
+fi

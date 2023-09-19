@@ -163,7 +163,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 name(),
                 fieldType,
                 multiFields,
-                copyTo.build(),
+                copyTo,
                 searchExecutionContext,
                 extractedTermsField,
                 extractionResultField,

@@ -10,12 +10,16 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for $Type$Blocks.
  * This class is generated. Do not edit it.
  */
 final class Filter$Type$Block extends AbstractFilterBlock implements $Type$Block {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Block.class);
 
     private final $Type$Block block;
 
@@ -83,6 +87,13 @@ $endif$
     }
 
     @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {
             return $Type$Block.equals(this, that);
@@ -135,5 +146,10 @@ $endif$
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(block);
     }
 }

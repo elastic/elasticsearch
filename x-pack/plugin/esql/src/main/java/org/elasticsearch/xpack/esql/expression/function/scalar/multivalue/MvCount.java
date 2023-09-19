@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -44,8 +44,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
-        return () -> new Evaluator(fieldEval.get());
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
+        return dvrCtx -> new Evaluator(fieldEval.get(dvrCtx));
     }
 
     @Override

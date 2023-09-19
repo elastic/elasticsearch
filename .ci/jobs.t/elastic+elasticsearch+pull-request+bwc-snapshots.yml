@@ -26,6 +26,7 @@
           black-list-labels:
             - '>test-mute'
             - 'test-full-bwc'
+            - 'buildkite-opt-in'
     axes:
       - axis:
           type: slave

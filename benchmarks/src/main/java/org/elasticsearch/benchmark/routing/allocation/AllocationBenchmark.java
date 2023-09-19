@@ -145,7 +145,8 @@ public class AllocationBenchmark {
         for (int i = 1; i <= numNodes; i++) {
             String id = "node" + i;
             nb.add(Allocators.newNode(id, Collections.singletonMap("tag", "tag_" + (i % numTags))));
-            compatibilityVersions.put(id, new CompatibilityVersions(TransportVersion.current()));
+            // system index mappings versions not needed here, so we use Map.of()
+            compatibilityVersions.put(id, new CompatibilityVersions(TransportVersion.current(), Map.of()));
         }
         initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)

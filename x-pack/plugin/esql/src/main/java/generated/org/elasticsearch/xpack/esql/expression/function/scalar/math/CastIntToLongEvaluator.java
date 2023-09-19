@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,8 +22,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public CastIntToLongEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public CastIntToLongEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override

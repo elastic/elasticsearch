@@ -10,12 +10,16 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a $Type$Vector.
  * This class is generated. Do not edit it.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
 
     private final $Type$Vector vector;
 
@@ -55,6 +59,11 @@ $endif$
     }
 
     @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {
             return $Type$Block.equals(this, that);
@@ -70,5 +79,10 @@ $endif$
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

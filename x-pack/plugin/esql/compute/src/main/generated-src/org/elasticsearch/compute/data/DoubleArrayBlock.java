@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.stream.IntStream;
@@ -16,6 +18,8 @@ import java.util.stream.IntStream;
  * This class is generated. Do not edit it.
  */
 public final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
 
     private final double[] values;
 
@@ -57,6 +61,16 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
         return new DoubleArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
     }
 
+    public static long ramBytesEstimated(double[] values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof DoubleBlock that) {
@@ -80,5 +94,10 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
             + ", values="
             + Arrays.toString(values)
             + ']';
+    }
+
+    @Override
+    public void close() {
+        // no-op
     }
 }

@@ -40,6 +40,7 @@ public class ConvertEvaluatorImplementer {
 
     private final TypeElement declarationType;
     private final ExecutableElement processFunction;
+    private final String extraName;
     private final ClassName implementation;
     private final TypeName argumentType;
     private final TypeName resultType;
@@ -50,6 +51,7 @@ public class ConvertEvaluatorImplementer {
         if (processFunction.getParameters().size() != 1) {
             throw new IllegalArgumentException("processing function should have exactly one parameter");
         }
+        this.extraName = extraName;
         this.argumentType = TypeName.get(processFunction.getParameters().get(0).asType());
         this.resultType = TypeName.get(processFunction.getReturnType());
 
@@ -96,7 +98,7 @@ public class ConvertEvaluatorImplementer {
     private MethodSpec name() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("name").addModifiers(Modifier.PUBLIC);
         builder.addAnnotation(Override.class).returns(String.class);
-        builder.addStatement("return $S", declarationType.getSimpleName());
+        builder.addStatement("return $S", declarationType.getSimpleName() + extraName);
         return builder.build();
     }
 

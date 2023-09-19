@@ -7,11 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
 /**
  * Filter block for BooleanBlocks.
  * This class is generated. Do not edit it.
  */
 final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBooleanBlock.class);
 
     private final BooleanBlock block;
 
@@ -66,6 +71,13 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
     }
 
     @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BooleanBlock that) {
             return BooleanBlock.equals(this, that);
@@ -110,5 +122,10 @@ final class FilterBooleanBlock extends AbstractFilterBlock implements BooleanBlo
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(block);
     }
 }

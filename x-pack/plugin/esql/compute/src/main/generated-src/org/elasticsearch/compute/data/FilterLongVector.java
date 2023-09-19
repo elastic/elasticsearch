@@ -7,11 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
 /**
  * Filter vector for LongVectors.
  * This class is generated. Do not edit it.
  */
 public final class FilterLongVector extends AbstractFilterVector implements LongVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterLongVector.class);
 
     private final LongVector vector;
 
@@ -46,6 +51,13 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
     }
 
     @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter vectors encapsulate
+        // their inner vector, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + RamUsageEstimator.sizeOf(positions);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof LongVector that) {
             return LongVector.equals(this, that);
@@ -76,5 +88,10 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
             }
             sb.append(getLong(i));
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

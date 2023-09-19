@@ -7,10 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
+
 /**
  * A dense Vector of single values.
  */
-public interface Vector {
+public interface Vector extends Accountable, Releasable {
 
     /**
      * {@return Returns a Block view over this vector.}

@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:
@@ -35,6 +34,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -58,7 +58,7 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
@@ -69,6 +69,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -92,7 +93,7 @@ setup:
   # The second result with hit the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
@@ -108,6 +109,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -128,7 +130,7 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
   - is_true: indices.test
@@ -141,6 +143,7 @@ setup:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -161,7 +164,7 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 

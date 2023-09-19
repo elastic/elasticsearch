@@ -7,18 +7,15 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Metadata about registered repository

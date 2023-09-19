@@ -1,0 +1,5 @@
+pr: 99673
+summary: Reducing chunk size and adding retries for starting model deployment
+area: Machine Learning
+type: bug
+issues: []

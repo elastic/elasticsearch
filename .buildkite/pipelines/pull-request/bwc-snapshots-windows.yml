@@ -4,6 +4,7 @@ steps:
   - group: bwc-snapshots-windows
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots-windows"
+        key: "bwc-snapshots-windows/{{matrix.BWC_VERSION}}"
         command: .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"

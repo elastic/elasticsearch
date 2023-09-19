@@ -4,6 +4,7 @@ steps:
   - group: bwc
     steps:
       - label: $BWC_VERSION / bwc
+        key: "full-bwc/$BWC_VERSION"
         bwc_template: true
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$BWC_VERSION#bwcTest
         timeout_in_minutes: 300

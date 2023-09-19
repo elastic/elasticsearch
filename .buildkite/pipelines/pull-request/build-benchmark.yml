@@ -3,6 +3,7 @@ config:
   trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
 steps:
   - label: build-benchmark / {{matrix.part}}
+    key: "build-benchmark/{{matrix.part}}"
     command: |
       .ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
       .ci/scripts/install-gradle-profiler.sh

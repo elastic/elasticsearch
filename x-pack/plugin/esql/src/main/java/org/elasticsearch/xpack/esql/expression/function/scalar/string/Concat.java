@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -72,13 +72,12 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> values = children().stream().map(toEvaluator).toList();
-        return () -> new ConcatEvaluator(
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var values = children().stream().map(toEvaluator).toList();
+        return dvrCtx -> new ConcatEvaluator(
             new BytesRefBuilder(),
-            values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            values.stream().map(fac -> fac.get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
+            dvrCtx
         );
     }
 

@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -56,7 +61,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -64,6 +68,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -129,7 +134,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
-    protected final Supplier<EvalOperator.ExpressionEvaluator> evaluator(Expression e) {
+    protected final ExpressionEvaluator.Factory evaluator(Expression e) {
         e = new FoldNull().rule(e);
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(), e.dataType());
@@ -178,7 +183,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
-        Object result = toJavaObject(evaluator(expression).get().eval(row(testCase.getDataValues())), 0);
+        Object result = toJavaObject(evaluator(expression).get(driverContext()).eval(row(testCase.getDataValues())), 0);
+        assertThat(result, not(equalTo(Double.NaN)));
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
@@ -189,7 +197,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
-        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get();
+        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext());
         Block[] orig = BlockUtils.fromListRow(simpleData);
         for (int i = 0; i < orig.length; i++) {
             List<Object> data = new ArrayList<>();
@@ -217,7 +225,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         int count = 10_000;
         int threads = 5;
-        Supplier<EvalOperator.ExpressionEvaluator> evalSupplier = evaluator(buildFieldExpression(testCase));
+        var evalSupplier = evaluator(buildFieldExpression(testCase));
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
@@ -226,7 +234,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {
-                    EvalOperator.ExpressionEvaluator eval = evalSupplier.get();
+                    EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext());
                     for (int c = 0; c < count; c++) {
                         assertThat(toJavaObject(eval.eval(page), 0), testCase.getMatcher());
                     }
@@ -244,7 +252,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var supplier = evaluator(buildFieldExpression(testCase));
-        var ev = supplier.get();
+        var ev = supplier.get(driverContext());
         assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
     }
 
@@ -602,5 +610,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Files.createDirectories(dir);
         Path file = dir.resolve(functionName() + "." + extension);
         Files.writeString(file, str);
+    }
+
+    /**
+     * A {@link DriverContext} with a BigArrays that does not circuit break.
+     */
+    protected DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+        );
     }
 }

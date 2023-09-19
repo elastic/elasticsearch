@@ -70,13 +70,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            fuzziness.asDistance(BytesRefs.toString(value)),
-            prefixLength,
-            maxExpansions,
-            transpositions
-        );
+        return rewriteMethod == null
+            ? new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions
+            )
+            : new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions,
+                rewriteMethod
+            );
     }
 
     @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
@@ -38,7 +36,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +45,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -155,33 +151,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
         } else {
             NodeJoinExecutor.ensureNodesCompatibility(justGood, minNodeVersion, maxNodeVersion);
         }
-    }
-
-    public void testPreventJoinClusterWithUnsupportedTransportVersion() {
-        List<TransportVersion> versions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
-            .toList();
-        TransportVersion min = Collections.min(versions);
-        List<CompatibilityVersions> compatibilityVersions = versions.stream().map(CompatibilityVersions::new).toList();
-
-        // should not throw
-        NodeJoinExecutor.ensureTransportVersionBarrier(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
-            compatibilityVersions
-        );
-        expectThrows(
-            IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureTransportVersionBarrier(
-                new CompatibilityVersions(
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        TransportVersionUtils.getFirstVersion(),
-                        TransportVersionUtils.getPreviousVersion(min)
-                    )
-                ),
-                compatibilityVersions
-            )
-        );
     }
 
     public void testSuccess() {

@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -27,7 +29,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -151,27 +152,25 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+
         List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
             .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
-        Supplier<EvalOperator.ExpressionEvaluator> elseValueEval = toEvaluator.apply(elseValue);
-        return () -> new CaseEvaluator(
+        var elseValueEval = toEvaluator.apply(elseValue);
+        return dvrCtx -> new CaseEvaluator(
             LocalExecutionPlanner.toElementType(dataType()),
-            conditionsEval.stream().map(Supplier::get).toList(),
-            elseValueEval.get()
+            conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
+            elseValueEval.get(dvrCtx)
         );
     }
 
-    record ConditionEvaluatorSupplier(
-        Supplier<EvalOperator.ExpressionEvaluator> condition,
-        Supplier<EvalOperator.ExpressionEvaluator> value
-    ) implements Supplier<ConditionEvaluator> {
+    record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
+        implements
+            Function<DriverContext, ConditionEvaluator> {
         @Override
-        public ConditionEvaluator get() {
-            return new ConditionEvaluator(condition.get(), value.get());
+        public ConditionEvaluator apply(DriverContext driverContext) {
+            return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
         }
     }
 

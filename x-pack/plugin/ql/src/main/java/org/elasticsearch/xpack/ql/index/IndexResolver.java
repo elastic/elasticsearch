@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -453,7 +454,7 @@ public class IndexResolver {
                 // lack of parent implies the field is an alias
                 if (map == null) {
                     // as such, create the field manually, marking the field to also be an alias
-                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), new TreeMap<>(), false, true);
+                    fieldFunction = s -> createField(typeRegistry, s, OBJECT.esType(), null, new TreeMap<>(), false, true);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -461,7 +462,15 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(typeRegistry, s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
+                    fieldFunction = s -> createField(
+                        typeRegistry,
+                        s,
+                        parentC.getType(),
+                        parentC.getMetricType(),
+                        new TreeMap<>(),
+                        parentC.isAggregatable(),
+                        false
+                    );
                 }
 
                 parent = createField(typeRegistry, parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
@@ -495,11 +504,12 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String fieldName,
         String typeName,
+        TimeSeriesParams.MetricType metricType,
         Map<String, EsField> props,
         boolean isAggregateable,
         boolean isAlias
     ) {
-        DataType esType = typeRegistry.fromEs(typeName);
+        DataType esType = typeRegistry.fromEs(typeName, metricType);
 
         if (esType == TEXT) {
             return new TextEsField(fieldName, props, false, isAlias);
@@ -514,7 +524,8 @@ public class IndexResolver {
             return DateEsField.dateEsField(fieldName, props, isAggregateable);
         }
         if (esType == UNSUPPORTED) {
-            return new UnsupportedEsField(fieldName, typeName, null, props);
+            String originalType = metricType == TimeSeriesParams.MetricType.COUNTER ? "counter" : typeName;
+            return new UnsupportedEsField(fieldName, originalType, null, props);
         }
 
         return new EsField(fieldName, esType, props, isAggregateable, isAlias);
@@ -727,7 +738,15 @@ public class IndexResolver {
             indexFields.flattedMapping,
             s -> invalidField != null
                 ? invalidField
-                : createField(typeRegistry, s, typeCap.getType(), emptyMap(), typeCap.isAggregatable(), isAliasFieldType.get())
+                : createField(
+                    typeRegistry,
+                    s,
+                    typeCap.getType(),
+                    typeCap.getMetricType(),
+                    emptyMap(),
+                    typeCap.isAggregatable(),
+                    isAliasFieldType.get()
+                )
         );
     }
 

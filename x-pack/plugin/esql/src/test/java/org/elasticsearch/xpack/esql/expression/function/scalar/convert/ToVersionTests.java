@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,9 +50,9 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         );
         // But strings that are shaped like versions do parse to valid versions
         for (DataType inputType : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
-            for (Map.Entry<String, Supplier<Object>> versionGen : TestCaseSupplier.versionCases(inputType.typeName() + " ")) {
-                suppliers.add(new TestCaseSupplier(versionGen.getKey(), List.of(inputType), () -> {
-                    BytesRef encodedVersion = (BytesRef) versionGen.getValue().get();
+            for (TestCaseSupplier.TypedDataSupplier versionGen : TestCaseSupplier.versionCases(inputType.typeName() + " ")) {
+                suppliers.add(new TestCaseSupplier(versionGen.name(), List.of(inputType), () -> {
+                    BytesRef encodedVersion = (BytesRef) versionGen.supplier().get();
                     TestCaseSupplier.TypedData typed = new TestCaseSupplier.TypedData(
                         new BytesRef(new Version(encodedVersion).toString()),
                         inputType,

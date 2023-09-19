@@ -14,7 +14,6 @@ public class EqlTestCluster {
 
     public static ElasticsearchCluster getCluster() {
         return ElasticsearchCluster.local()
-            .nodes(1)
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.monitoring.collection.enabled", "true")

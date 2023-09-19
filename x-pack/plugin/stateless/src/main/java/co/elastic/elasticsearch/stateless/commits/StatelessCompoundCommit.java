@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -89,6 +90,10 @@ public record StatelessCompoundCommit(
     }
 
     private static final String PREFIX = "stateless_commit_";
+
+    public PrimaryTermAndGeneration primaryTermAndGeneration() {
+        return new PrimaryTermAndGeneration(primaryTerm, generation);
+    }
 
     @Override
     public String toString() {

@@ -54,7 +54,7 @@ public class ShardSizeReader {
         if (shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
             && indexMetadata.getResizeSourceIndex() != null) {
-            return extracted(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
+            return getExpectedSizeOfClonedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
         } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT && shard.primary()) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else if (indexMetadata.getForecastedShardSizeInBytes().isPresent()) {
@@ -64,7 +64,7 @@ public class ShardSizeReader {
         }
     }
 
-    private static long extracted(
+    private static long getExpectedSizeOfClonedShard(
         ShardRouting shard,
         long defaultValue,
         IndexMetadata indexMetadata,

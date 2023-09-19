@@ -43,6 +43,7 @@ import org.elasticsearch.health.node.HealthInfo;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -262,6 +263,11 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
         boolean isSuccessful() {
             return error == null;
         }
+
+        static boolean isSameError(HealthCheckResult r1, HealthCheckResult r2) {
+            assert r1.isSuccessful() == false && r2.isSuccessful() == false;
+            return Objects.equals(r1.error().getClass(), r2.error().getClass());
+        }
     }
 
     @Override
@@ -299,32 +305,40 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
                 public void onResponse(Optional<StatelessElectionStrategy.Lease> lease) {
                     long now = timeSupplier.get();
                     long duration = now - lastCheckStarted;
-                    lastObservedResult = duration <= timeout.millis()
-                        ? new HealthCheckResult(lastCheckStarted, now, null)
-                        : new HealthCheckResult(
-                            lastCheckStarted,
-                            now,
-                            new ReadBlobStoreCheckTimeout(
-                                "Reading from the blob store took "
-                                    + TimeValue.timeValueMillis(duration).toHumanReadableString(2)
-                                    + " which is longer than the timeout "
-                                    + timeout.toHumanReadableString(2)
+                    setNewResult(
+                        duration <= timeout.millis()
+                            ? new HealthCheckResult(lastCheckStarted, now, null)
+                            : new HealthCheckResult(
+                                lastCheckStarted,
+                                now,
+                                new ReadBlobStoreCheckTimeout(
+                                    "Reading from the blob store took "
+                                        + TimeValue.timeValueMillis(duration).toHumanReadableString(2)
+                                        + " which is longer than the timeout "
+                                        + timeout.toHumanReadableString(2)
+                                )
                             )
-                        );
-                    if (lastObservedResult.isSuccessful()) {
-                        logger.trace("Blob store is accessible");
-                    } else {
-                        logger.trace("Blob store check timed out.");
-                    }
+                    );
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    lastObservedResult = new HealthCheckResult(lastCheckStarted, timeSupplier.get(), e);
-                    logger.trace("Blob store is not accessible.");
+                    setNewResult(new HealthCheckResult(lastCheckStarted, timeSupplier.get(), e));
                 }
             }, () -> inProgress.set(false)));
         }
+    }
+
+    private void setNewResult(HealthCheckResult result) {
+        if (lastObservedResult != null) {
+            if (result.isSuccessful() && lastObservedResult.isSuccessful() == false) {
+                logger.info("Blob store is accessible");
+            } else if (result.isSuccessful() == false
+                && (lastObservedResult.isSuccessful() || HealthCheckResult.isSameError(result, lastObservedResult) == false)) {
+                    logger.warn(() -> "Blob store is not accessible: " + result.error().getMessage(), result.error());
+                }
+        }
+        lastObservedResult = result;
     }
 
     // for testing purposes

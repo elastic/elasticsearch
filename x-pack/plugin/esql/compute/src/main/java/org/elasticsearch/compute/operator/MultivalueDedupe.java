@@ -15,8 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.Supplier;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
 /**
  * Utilities to remove duplicates from multivalued fields.
@@ -77,42 +76,39 @@ public final class MultivalueDedupe {
      * Build and {@link EvalOperator.ExpressionEvaluator} that deduplicates values
      * using an adaptive algorithm based on the size of the input list.
      */
-    public static Supplier<EvalOperator.ExpressionEvaluator> evaluator(
-        ElementType elementType,
-        Supplier<EvalOperator.ExpressionEvaluator> nextSupplier
-    ) {
+    public static ExpressionEvaluator.Factory evaluator(ElementType elementType, ExpressionEvaluator.Factory nextSupplier) {
         return switch (elementType) {
-            case BOOLEAN -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case BOOLEAN -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return new MultivalueDedupeBoolean((BooleanBlock) field.eval(page)).dedupeToBlock();
                 }
             };
-            case BYTES_REF -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case BYTES_REF -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return new MultivalueDedupeBytesRef((BytesRefBlock) field.eval(page)).dedupeToBlockAdaptive();
                 }
             };
-            case INT -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case INT -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return new MultivalueDedupeInt((IntBlock) field.eval(page)).dedupeToBlockAdaptive();
                 }
             };
-            case LONG -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case LONG -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return new MultivalueDedupeLong((LongBlock) field.eval(page)).dedupeToBlockAdaptive();
                 }
             };
-            case DOUBLE -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case DOUBLE -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return new MultivalueDedupeDouble((DoubleBlock) field.eval(page)).dedupeToBlockAdaptive();
                 }
             };
-            case NULL -> () -> new MvDedupeEvaluator(nextSupplier.get()) {
+            case NULL -> dvrCtx -> new MvDedupeEvaluator(nextSupplier.get(dvrCtx)) {
                 @Override
                 public Block eval(Page page) {
                     return field.eval(page); // The page is all nulls and when you dedupe that it's still all nulls

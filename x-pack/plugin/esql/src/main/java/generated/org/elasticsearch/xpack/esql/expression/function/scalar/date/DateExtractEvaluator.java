@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -32,12 +33,15 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
   private final ZoneId zone;
 
+  private final DriverContext driverContext;
+
   public DateExtractEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone) {
+      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
+    this.driverContext = driverContext;
   }
 
   @Override

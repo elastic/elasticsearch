@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,11 +27,14 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final EvalOperator.ExpressionEvaluator exponent;
 
+  private final DriverContext driverContext;
+
   public PowDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
-      EvalOperator.ExpressionEvaluator exponent) {
+      EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.base = base;
     this.exponent = exponent;
+    this.driverContext = driverContext;
   }
 
   @Override

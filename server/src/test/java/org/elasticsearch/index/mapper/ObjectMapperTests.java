@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -196,7 +197,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String update = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -217,7 +217,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
         DocumentMapper mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(update),
+            List.of(new CompressedXContent(mapping), new CompressedXContent(update)),
             MergeReason.INDEX_TEMPLATE
         );
 
@@ -266,7 +266,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
 
         String firstUpdate = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -282,11 +281,16 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
+
+        // We can only check such assertion in sequential merges. Bulk merges allow such type substitution as it replaces entire field
+        // mapping subtrees
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE)
         );
-        assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field2] with an object mapping"));
+        assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [object.field2] with a nested mapping"));
 
         String secondUpdate = Strings.toString(
             XContentFactory.jsonBuilder()

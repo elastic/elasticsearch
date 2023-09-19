@@ -538,7 +538,7 @@ public abstract class DocumentParserContext {
         if (p.endsWith(".")) {
             p = p.substring(0, p.length() - 1);
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic());
+        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false);
     }
 
     public abstract XContentParser parser();

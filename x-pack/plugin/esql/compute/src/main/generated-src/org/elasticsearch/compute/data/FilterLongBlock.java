@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for LongBlocks.
@@ -121,5 +122,10 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(block);
     }
 }

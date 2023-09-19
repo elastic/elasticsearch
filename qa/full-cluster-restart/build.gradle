@@ -10,12 +10,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
-}
 
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {

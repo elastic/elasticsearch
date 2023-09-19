@@ -358,7 +358,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(MapperBuilderContext.root(false));
+        Mapper mapper = builder.build(MapperBuilderContext.root(false, false));
         if (mapper instanceof FieldMapper) {
             return ((FieldMapper) mapper).fieldType();
         }

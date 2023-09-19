@@ -439,7 +439,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         order,
                         bucketCountThresholds,
                         gloabalOrdsFilter(includeExclude, valuesSourceConfig.format(), values),
-                        values
+                        () -> globalOrdsValues(context, ordinalsValuesSource)
                     );
                     if (adapted != null) {
                         /*
@@ -485,7 +485,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         factories,
                         a -> a.new StandardTermsResults(),
                         ordinalsValuesSource,
-                        values,
+                        () -> globalOrdsValues(context, ordinalsValuesSource),
                         order,
                         valuesSourceConfig.format(),
                         bucketCountThresholds,
@@ -529,7 +529,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     factories,
                     a -> a.new StandardTermsResults(),
                     ordinalsValuesSource,
-                    values,
+                    () -> globalOrdsValues(context, ordinalsValuesSource),
                     order,
                     valuesSourceConfig.format(),
                     bucketCountThresholds,

@@ -2142,12 +2142,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Writing a new index generation is a three step process.
-     * First, the {@link RepositoryMetadata} entry for this repository is set into a pending state by incrementing its
-     * pending generation {@code P} while its safe generation {@code N} remains unchanged.
-     * Second, the updated {@link RepositoryData} is written to generation {@code P + 1}.
-     * Lastly, the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P + 1} and thus
-     * pending and safe generation are set to the same value marking the end of the update of the repository data.
+     * Writing a new index generation (root) blob is a three-step process:
+     * <ol>
+     * <li>
+     * The {@link RepositoryMetadata} entry for this repository is set into a pending state by increasing its pending generation {@code P}
+     * while its safe generation {@code N < P} remains unchanged.
+     * <li>
+     * The updated {@link RepositoryData} is written to a new root blob with generation {@code P}.
+     * <li>
+     * The safe generation in the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P} and thus
+     * pending and safe generation become equal again, marking the end of the update of the repository data.
+     * </ol>
+     * We use this process to protects against problems such as a master failover part-way through. If a new master is elected while we're
+     * writing the root blob with generation {@code P} then we will fail to update the safe repository generation in the final step, and
+     * meanwhile the new master will choose a greater generation for all subsequent root blobs avoiding any danger of clobbering each
+     * other's writes.
+     * <p>
+     * Note that a failure here does not imply that the process was unsuccessful or the repository is unchanged. Once we have written the
+     * new root blob the repository is updated from the point of view of any other clusters reading from it, and if we performed a full
+     * cluster restart at that point then we would also pick up the new root blob. Writing the root blob may succeed without us receiving
+     * a successful response from the repository, leading us to report that the write operation failed. Updating the safe generation may
+     * likewise succeed on a majority of master-eligible nodes which does not include this one, again leading to an apparent failure.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation

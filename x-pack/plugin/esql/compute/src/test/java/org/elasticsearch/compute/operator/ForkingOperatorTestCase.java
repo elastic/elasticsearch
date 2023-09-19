@@ -55,7 +55,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
@@ -79,7 +79,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testManyInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
@@ -100,7 +100,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialIntermediateFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
@@ -126,7 +126,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
@@ -217,7 +217,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         for (List<Page> pages : splitInput) {
-            DriverContext driver1Context = new DriverContext();
+            DriverContext driver1Context = driverContext();
             drivers.add(
                 new Driver(
                     driver1Context,
@@ -234,7 +234,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 )
             );
         }
-        DriverContext driver2Context = new DriverContext();
+        DriverContext driver2Context = driverContext();
         drivers.add(
             new Driver(
                 driver2Context,

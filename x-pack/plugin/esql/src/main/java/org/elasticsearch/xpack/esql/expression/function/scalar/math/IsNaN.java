@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class IsNaN extends RationalUnaryPredicate {
     public IsNaN(Source source, Expression field) {
@@ -23,11 +22,9 @@ public class IsNaN extends RationalUnaryPredicate {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new IsNaNEvaluator(field.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var field = toEvaluator.apply(field());
+        return dvrCtx -> new IsNaNEvaluator(field.get(dvrCtx), dvrCtx);
     }
 
     @Evaluator

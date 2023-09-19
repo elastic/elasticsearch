@@ -52,7 +52,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testStatus() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(new DriverContext());
+        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -69,7 +69,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testNeedInput() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(new DriverContext());
+        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
         assertTrue(op.needsInput());
         Page p = new Page(Block.constantNullBlock(10));
         op.addInput(p);

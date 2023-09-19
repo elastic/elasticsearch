@@ -95,4 +95,9 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
             + Arrays.toString(values)
             + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class KeyExtractorForNull implements KeyExtractor {
     private final byte nul;
@@ -17,7 +17,7 @@ class KeyExtractorForNull implements KeyExtractor {
     }
 
     @Override
-    public int writeKey(BytesRefBuilder values, int position) {
+    public int writeKey(BreakingBytesRefBuilder values, int position) {
         values.append(nul);
         return 1;
     }

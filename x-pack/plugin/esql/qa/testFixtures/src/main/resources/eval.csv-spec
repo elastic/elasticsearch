@@ -166,3 +166,36 @@ emp_no:i | sum:i
 10002 | 3230647
 10003 | 3230970
 ; 
+
+chainedEvalReusingPreviousValue
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, "."), x3 = concat(x2, ".") | keep x*, first_name | limit 5;
+
+   x1:keyword  |   x2:keyword  |  x3:keyword   |first_name:keyword   
+Georgi.        |Georgi..       |Georgi...      |Georgi         
+Bezalel.       |Bezalel..      |Bezalel...     |Bezalel        
+Parto.         |Parto..        |Parto...       |Parto          
+Chirstian.     |Chirstian..    |Chirstian...   |Chirstian      
+Kyoichi.       |Kyoichi..      |Kyoichi...     |Kyoichi
+;
+
+chainedEvalReusingPreviousValue2
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, gender) | keep x*, first_name, gender | limit 5;
+
+   x1:keyword  |   x2:keyword    |  x3:keyword      |first_name:keyword|gender:keyword
+Georgi.        |Georgi.Facello   |Georgi.FacelloM   |Georgi            |M              
+Bezalel.       |Bezalel.Simmel   |Bezalel.SimmelF   |Bezalel           |F              
+Parto.         |Parto.Bamford    |Parto.BamfordM    |Parto             |M              
+Chirstian.     |Chirstian.Koblick|Chirstian.KoblickM|Chirstian         |M              
+Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakM |Kyoichi           |M
+;
+
+chainedEvalReusingPreviousValue3
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, x1) | keep x*, first_name | limit 5;
+
+   x1:keyword  |   x2:keyword    |        x3:keyword         |first_name:keyword
+Georgi.        |Georgi.Facello   |Georgi.FacelloGeorgi.      |Georgi         
+Bezalel.       |Bezalel.Simmel   |Bezalel.SimmelBezalel.     |Bezalel        
+Parto.         |Parto.Bamford    |Parto.BamfordParto.        |Parto          
+Chirstian.     |Chirstian.Koblick|Chirstian.KoblickChirstian.|Chirstian      
+Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
+;

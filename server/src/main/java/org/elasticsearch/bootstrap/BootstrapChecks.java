@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -131,10 +132,11 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
+                final String message = result.getMessage() + "; for more information see [" + check.referenceDocs() + "]";
                 if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
-                    ignoredErrors.add(result.getMessage());
+                    ignoredErrors.add(message);
                 } else {
-                    errors.add(result.getMessage());
+                    errors.add(message);
                 }
             }
         }
@@ -150,7 +152,9 @@ final class BootstrapChecks {
                     + errors.size()
                     + "] bootstrap checks failed. You must address the points described in the following ["
                     + errors.size()
-                    + "] lines before starting Elasticsearch."
+                    + "] lines before starting Elasticsearch. For more information see ["
+                    + ReferenceDocs.BOOTSTRAP_CHECKS
+                    + "]"
             );
             for (int i = 0; i < errors.size(); i++) {
                 messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
@@ -240,6 +244,11 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.HEAP_SIZE_CHECK;
+        }
+
         // visible for testing
         long getInitialHeapSize() {
             return JvmInfo.jvmInfo().getConfiguredInitialHeapSize();
@@ -298,6 +307,11 @@ final class BootstrapChecks {
             }
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.FILE_DESCRIPTOR_CHECK;
+        }
+
         // visible for testing
         long getMaxFileDescriptorCount() {
             return ProcessProbe.getMaxFileDescriptorCount();
@@ -319,6 +333,11 @@ final class BootstrapChecks {
         // visible for testing
         boolean isMemoryLocked() {
             return Natives.isMemoryLocked();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.MEMORY_LOCK_CHECK;
         }
 
     }
@@ -349,6 +368,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_NUMBER_OF_THREADS;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.MAX_NUMBER_THREADS_CHECK;
+        }
     }
 
     static class MaxSizeVirtualMemoryCheck implements BootstrapCheck {
@@ -378,6 +401,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.MAX_SIZE_VIRTUAL_MEMORY_CHECK;
+        }
     }
 
     /**
@@ -409,6 +436,10 @@ final class BootstrapChecks {
             return JNANatives.MAX_FILE_SIZE;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.MAX_FILE_SIZE_CHECK;
+        }
     }
 
     static class MaxMapCountCheck implements BootstrapCheck {
@@ -478,6 +509,10 @@ final class BootstrapChecks {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.MAXIMUM_MAP_COUNT_CHECK;
+        }
     }
 
     static class ClientJvmCheck implements BootstrapCheck {
@@ -501,6 +536,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().getVmName();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.CLIENT_JVM_CHECK;
+        }
     }
 
     /**
@@ -529,6 +568,10 @@ final class BootstrapChecks {
             return JvmInfo.jvmInfo().useSerialGC();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.USE_SERIAL_COLLECTOR_CHECK;
+        }
     }
 
     /**
@@ -551,6 +594,10 @@ final class BootstrapChecks {
             return Natives.isSystemCallFilterInstalled();
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.SYSTEM_CALL_FILTER_CHECK;
+        }
     }
 
     abstract static class MightForkCheck implements BootstrapCheck {
@@ -577,6 +624,11 @@ final class BootstrapChecks {
         @Override
         public final boolean alwaysEnforce() {
             return true;
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.ONERROR_AND_ONOUTOFMEMORYERROR_CHECKS;
         }
 
     }
@@ -658,6 +710,11 @@ final class BootstrapChecks {
             return Constants.JAVA_VERSION;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.EARLY_ACCESS_CHECK;
+        }
+
     }
 
     static class AllPermissionCheck implements BootstrapCheck {
@@ -681,6 +738,10 @@ final class BootstrapChecks {
             return true;
         }
 
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.ALL_PERMISSION_CHECK;
+        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {
@@ -703,6 +764,11 @@ final class BootstrapChecks {
                 )
             );
         }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return ReferenceDocs.DISCOVERY_CONFIGURATION_CHECK;
+        }
     }
 
     static class ByteOrderCheck implements BootstrapCheck {
@@ -717,6 +783,11 @@ final class BootstrapChecks {
 
         ByteOrder nativeByteOrder() {
             return ByteOrder.nativeOrder();
+        }
+
+        @Override
+        public ReferenceDocs referenceDocs() {
+            return null;
         }
     }
 }

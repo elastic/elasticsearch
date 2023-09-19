@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -93,7 +94,16 @@ import static org.mockito.Mockito.mock;
 public class NodeTests extends ESTestCase {
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.success();
+            }
+
+            @Override public ReferenceDocs referenceDocs() {
+                return null;
+            }
+        };
 
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {

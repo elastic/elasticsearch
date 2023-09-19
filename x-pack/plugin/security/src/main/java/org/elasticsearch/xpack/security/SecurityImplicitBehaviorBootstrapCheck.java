@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -58,5 +59,10 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
 
     public boolean alwaysEnforce() {
         return true;
+    }
+
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.SECURITY_MINIMAL_SETUP;
     }
 }

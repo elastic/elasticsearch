@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.ReferenceDocs;
 import java.util.Objects;
 
 /**
@@ -58,5 +59,7 @@ public interface BootstrapCheck {
     default boolean alwaysEnforce() {
         return false;
     }
+
+    ReferenceDocs referenceDocs();
 
 }

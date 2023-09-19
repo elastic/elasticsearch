@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.VersionId;
 
 /**
- * Represents a version number o f a subsidiary component to be reported in node info
+ * Represents a version number of a subsidiary component to be reported in node info
  */
 public interface ComponentVersionNumber {
     String componentId();

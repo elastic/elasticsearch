@@ -1,0 +1,48 @@
+[role="xpack"]
+[[post-inference-api]]
+=== Inference API
+
+Performs an inference task on an input text by using a {ml} model.
+
+[discrete]
+[[post-inference-api-request]]
+==== {api-request-title}
+
+`POST /_inference/<task_type>/<model_id>`
+
+
+[discrete]
+[[postinference-api-prereqs]]
+==== {api-prereq-title}
+
+* 
+
+[discrete]
+[[post-inference-api-desc]]
+==== {api-description-title}
+
+
+
+[discrete]
+[[post-inference-api-path-params]]
+==== {api-path-parms-title}
+
+
+
+[discrete]
+[[post-inference-api-example]]
+==== {api-examples-title}
+
+
+
+[source,console]
+------------------------------------------------------------
+
+------------------------------------------------------------
+
+Example response:
+
+[source,console-result]
+------------------------------------------------------------
+
+------------------------------------------------------------

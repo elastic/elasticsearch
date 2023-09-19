@@ -1521,7 +1521,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
+            if (settings.isRequestCacheEnabled() == false) {
                 return false;
             } else if (context.size() != 0) {
                 // If no request cache query parameter and shard request cache

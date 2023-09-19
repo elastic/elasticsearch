@@ -92,11 +92,10 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        // can we still do this? or do we need to go index by index?
-//        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
-//            logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
-//            return;
-//        }
+        if (state.hasMixedSystemIndexVersions()) {
+            logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
+            return;
+        }
 
         if (isUpgradeInProgress.compareAndSet(false, true)) {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
@@ -273,8 +272,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    private static int readMappingVersion(SystemIndexDescriptor descriptor,
-                                                                            MappingMetadata mappingMetadata) {
+    private static int readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             @SuppressWarnings("unchecked")

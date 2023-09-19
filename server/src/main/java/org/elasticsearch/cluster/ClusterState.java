@@ -284,6 +284,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return this.compatibilityVersions;
     }
 
+    public boolean hasMixedSystemIndexVersions() {
+        for (var entry : this.compatibilityVersions.entrySet()) {
+            if (false == entry.getValue().systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
     }

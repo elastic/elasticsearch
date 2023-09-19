@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -22,8 +22,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.SpanId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.tracing.SpanId;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -32,9 +32,9 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;

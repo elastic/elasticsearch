@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.context.Context;
 
 import java.util.Map;
 
@@ -29,9 +28,7 @@ class OtelHelper {
             } else if (v instanceof Boolean value) {
                 builder.put(k, value);
             } else {
-                throw new IllegalArgumentException(
-                    "attributes do not support value type of [" + v.getClass().getCanonicalName() + "]"
-                );
+                throw new IllegalArgumentException("attributes do not support value type of [" + v.getClass().getCanonicalName() + "]");
             }
         });
         return builder.build();

@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
-import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 
-import org.elasticsearch.tracing.MetricName;
+import org.elasticsearch.telemetry.MetricName;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 
 import java.util.Map;
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
@@ -21,11 +21,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
- * a {@link org.elasticsearch.tracing.Tracer} interface, which this module implements via
+ * a {@link org.elasticsearch.telemetry.Tracer} interface, which this module implements via
  * {@link APMTracer}. We use the OpenTelemetry API to capture "spans", and attach the
  * Elastic APM Java to ship those spans to an APM server. Although it is possible to
  * programmatically attach the agent, the Security Manager permissions required for this
@@ -53,8 +53,8 @@ import java.util.function.Supplier;
  * be passed via system properties to the Java agent, which periodically checks for changes
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
-public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
-    private final SetOnce<APMTracer> tracer = new SetOnce<>();
+public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
+    private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
 
     public APM(Settings settings) {
@@ -62,10 +62,10 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
     }
 
     @Override
-    public Tracer getTracer(Settings settings) {
-        final APMTracer apmTracer = new APMTracer(settings);
-        tracer.set(apmTracer);
-        return apmTracer;
+    public TelemetryProvider getTelemetryProvider(Settings settings) {
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(settings);
+        telemetryProvider.set(apmTelemetryProvider);
+        return apmTelemetryProvider;
     }
 
     @Override
@@ -81,11 +81,11 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer unused,
+        TelemetryProvider unused,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        final APMTracer apmTracer = tracer.get();
+        final APMTracer apmTracer = telemetryProvider.get().getTracer();
 
         apmTracer.setClusterName(clusterService.getClusterName().value());
         apmTracer.setNodeName(clusterService.getNodeName());
@@ -94,7 +94,9 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
         apmAgentSettings.syncAgentSystemProperties(settings);
         apmAgentSettings.addClusterSettingsListeners(clusterService, apmTracer);
 
-        return List.of(apmTracer);
+        final APMMetric apmMetric = telemetryProvider.get().getMetric();
+
+        return List.of(apmTracer, apmMetric);
     }
 
     @Override

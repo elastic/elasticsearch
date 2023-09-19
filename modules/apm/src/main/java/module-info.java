@@ -15,5 +15,5 @@ module org.elasticsearch.tracing.apm {
     requires io.opentelemetry.context;
     requires io.opentelemetry.api;
 
-    exports org.elasticsearch.tracing.apm;
+    exports org.elasticsearch.telemetry.apm;
 }

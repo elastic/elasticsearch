@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing;
+package org.elasticsearch.telemetry;
 
 import java.util.Objects;
 

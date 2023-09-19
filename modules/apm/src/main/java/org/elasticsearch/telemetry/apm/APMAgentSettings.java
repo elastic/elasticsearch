@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -363,7 +363,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.tracing;
+    exports org.elasticsearch.telemetry;
+    exports org.elasticsearch.telemetry.metric to org.elasticsearch.tracing.apm;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;

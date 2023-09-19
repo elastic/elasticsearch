@@ -6,14 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.plugins;
 
-import java.util.Map;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
-/**
- * Record non-additive double values
- */
-public interface DoubleGauge {
-    void record(double value);
-    void record(double value, Map<String, Object> attributes);
+public interface TelemetryPlugin {
+    TelemetryProvider getTelemetryProvider(Settings settings);
 }

@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_AGENT_SETTINGS;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_AGENT_SETTINGS;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.metric;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -14,6 +14,25 @@ import java.util.Map;
 
 public interface DoubleHistogram {
     void record(double value);
+
     void record(double value, Map<String, Object> attributes);
+
     void record(double value, Map<String, Object> attributes, ThreadContext threadContext);
+
+    DoubleHistogram NOOP = new DoubleHistogram() {
+        @Override
+        public void record(double value) {
+
+        }
+
+        @Override
+        public void record(double value, Map<String, Object> attributes) {
+
+        }
+
+        @Override
+        public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
+
+        }
+    };
 }

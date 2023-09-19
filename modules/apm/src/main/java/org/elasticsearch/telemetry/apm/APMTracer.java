@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -35,8 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tracing.MetricName;
-import org.elasticsearch.tracing.SpanId;
+import org.elasticsearch.telemetry.SpanId;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -45,27 +44,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
- * This is an implementation of the {@link org.elasticsearch.tracing.Tracer} interface, which uses
+ * This is an implementation of the {@link org.elasticsearch.telemetry.Tracer} interface, which uses
  * the OpenTelemetry API to capture spans.
  * <p>
  * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
  * API's default, no-op implementation would be used. However, when the APM Java is attached, it
  * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
  */
-public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.Tracer {
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
     private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
-    private final Map<MetricName, DoubleGauge> doubleGauges = ConcurrentCollections.newConcurrentMap();
-    private final Map<MetricName, DoubleHistogram> doubleHistograms = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -154,7 +151,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-            var meter =  openTelemetry.getMeter("elasticsearch");
+            var meter = openTelemetry.getMeter("elasticsearch");
 
             return new APMServices(tracer, meter, openTelemetry);
         });
@@ -329,8 +326,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
 
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.Tracer.AttributeKeys.NODE_NAME, nodeName);
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
 
     private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
@@ -461,54 +458,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return automata.get(0);
         }
         return Operations.union(automata);
-    }
-
-    public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
-        return doubleGauges.compute(name, (k, v) -> {
-                if (v != null) {
-                    throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
-                }
-                return OtelDoubleGauge.build(services.meter, name, description, unit);
-            }
-        );
-    }
-
-    public void recordDoubleGauge(MetricName name, double value) {
-        DoubleGauge gauge = doubleGauges.get(name);
-        if (gauge != null) {
-            gauge.record(value);
-        }
-    }
-
-    public void recordDoubleGauge(MetricName name, double value, Map<String, Object> attributes) {
-        DoubleGauge gauge = doubleGauges.get(name);
-        if (gauge != null) {
-            gauge.record(value, attributes);
-        }
-    }
-
-    public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
-        return doubleHistograms.compute(name, (k, v) -> {
-                if (v != null) {
-                    throw new IllegalStateException("double histogram [" + name.getRawName() + "] already registered");
-                }
-                return OtelDoubleHistogram.build(services.meter, name, description, unit);
-            }
-        );
-    }
-
-    public void recordDoubleHistogram(MetricName name, double value) {
-        DoubleHistogram histogram = doubleHistograms.get(name);
-        if (histogram != null) {
-            histogram.record(value);
-        }
-    }
-
-    public void recordDoubleHistogram(MetricName name, double value, Map<String, Object> attributes) {
-        DoubleHistogram histogram = doubleHistograms.get(name);
-        if (histogram != null) {
-            histogram.record(value, attributes);
-        }
     }
 
 }

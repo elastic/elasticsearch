@@ -6,11 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tracing.Tracer;
+public interface Counter {
+    void increment();
 
-public interface TracerPlugin {
-    Tracer getTracer(Settings settings);
+    void incrementBy(long inc);
+
+    Counter NOOP = new Counter() {
+        @Override
+        public void increment() {
+
+        }
+
+        @Override
+        public void incrementBy(long inc) {
+
+        }
+    };
 }

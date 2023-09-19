@@ -105,12 +105,12 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     }
 
     @Override
-    public Period computeDateArithmetic(Period left, Period right) {
+    public Period fold(Period left, Period right) {
         return left.minus(right);
     }
 
     @Override
-    public Duration computeTimeArithmetic(Duration left, Duration right) {
+    public Duration fold(Duration left, Duration right) {
         return left.minus(right);
     }
 }

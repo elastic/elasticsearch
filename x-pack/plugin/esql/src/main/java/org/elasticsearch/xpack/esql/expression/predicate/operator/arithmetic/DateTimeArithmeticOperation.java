@@ -104,21 +104,21 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
 
     /**
      * Override this to allow processing literals of type {@link EsqlDataTypes#DATE_PERIOD} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left period
      * @param right the right period
      * @return the result of the evaluation
      */
-    abstract Period computeDateArithmetic(Period left, Period right);
+    abstract Period fold(Period left, Period right);
 
     /**
      * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
-     * Used in {@link DateTimeArithmeticOperation#fold}.
+     * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left duration
      * @param right the right duration
      * @return the result of the evaluation
      */
-    abstract Duration computeTimeArithmetic(Duration left, Duration right);
+    abstract Duration fold(Duration left, Duration right);
 
     @Override
     public final Object fold() {
@@ -129,7 +129,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             Period l = (Period) left().fold();
             Period r = (Period) right().fold();
             try {
-                return computeDateArithmetic(l, r);
+                return fold(l, r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
@@ -141,7 +141,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             Duration l = (Duration) left().fold();
             Duration r = (Duration) right().fold();
             try {
-                return computeTimeArithmetic(l, r);
+                return fold(l, r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.

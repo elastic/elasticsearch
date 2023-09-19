@@ -290,9 +290,9 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                     false
                 );
                 List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
-                assertThat(componentTemplates.size(), equalTo(3));
+                assertThat(componentTemplates.size(), equalTo(2));
                 Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
-                assertThat(names, containsInAnyOrder("logs-mappings", "logs-settings", "logs-apm.error@mappings"));
+                assertThat(names, containsInAnyOrder("logs-mappings", "logs-settings"));
             } catch (ResponseException responseException) {
                 // Retry in case of a 404, maybe they haven't been initialized yet.
                 if (responseException.getResponse().getStatusLine().getStatusCode() == 404) {

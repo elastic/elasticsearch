@@ -14,7 +14,13 @@ import org.elasticsearch.common.VersionId;
  * Represents a version number of a subsidiary component to be reported in node info
  */
 public interface ComponentVersionNumber {
+    /**
+     * Returns the component id to report this number under. This should be in snake_case.
+     */
     String componentId();
 
+    /**
+     * Returns the version id to report.
+     */
     VersionId<?> versionNumber();
 }

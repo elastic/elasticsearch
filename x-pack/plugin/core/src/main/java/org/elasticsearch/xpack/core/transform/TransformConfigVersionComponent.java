@@ -13,7 +13,7 @@ import org.elasticsearch.common.VersionId;
 public class TransformConfigVersionComponent implements ComponentVersionNumber {
     @Override
     public String componentId() {
-        return "TransformConfigVersion";
+        return "transform_config_version";
     }
 
     @Override

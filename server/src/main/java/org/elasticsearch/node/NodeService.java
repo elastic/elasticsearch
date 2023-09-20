@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpServerTransport;
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class NodeService implements Closeable {
@@ -139,9 +141,17 @@ public class NodeService implements Closeable {
     }
 
     private static Map<String, Integer> findComponentVersions() {
-        return ServiceLoader.load(ComponentVersionNumber.class)
+        var versions = ServiceLoader.load(ComponentVersionNumber.class)
             .stream()
             .collect(Collectors.toUnmodifiableMap(cvn -> cvn.get().componentId(), cvn -> cvn.get().versionNumber().id()));
+
+        if (Assertions.ENABLED) {
+            var hasUpperCase = Pattern.compile("\\p{Upper}").asPredicate();
+            for (String key : versions.keySet()) {
+                assert hasUpperCase.test(key) == false : "Version component " + key + " should use snake_case";
+            }
+        }
+        return versions;
     }
 
     public NodeStats stats(

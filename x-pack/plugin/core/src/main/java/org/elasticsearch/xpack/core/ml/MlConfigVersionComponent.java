@@ -13,7 +13,7 @@ import org.elasticsearch.common.VersionId;
 public class MlConfigVersionComponent implements ComponentVersionNumber {
     @Override
     public String componentId() {
-        return "MlConfigVersion";
+        return "ml_config_version";
     }
 
     @Override

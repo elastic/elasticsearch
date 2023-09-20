@@ -216,7 +216,7 @@ public class TransportVersions {
         IDS = null;
     }
 
-    static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 

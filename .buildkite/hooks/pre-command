@@ -80,9 +80,9 @@ if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 
   if which /sbin/ip; then
-    /sbin/ip link set lo qlen 1000
+    sudo /sbin/ip link set lo qlen 1000
   fi
 
-  echo always > /sys/kernel/mm/transparent_hugepage/enabled
-  echo always > /sys/kernel/mm/transparent_hugepage/defrag
+  sudo bash -c 'echo always > /sys/kernel/mm/transparent_hugepage/enabled'
+  sudo bash -c 'echo always > /sys/kernel/mm/transparent_hugepage/defrag'
 fi

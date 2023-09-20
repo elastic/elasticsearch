@@ -26,7 +26,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM events | eval fixed_format = date_format(@timestamp, "MMMM"), variable_format = date_format(@timestamp, format) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
+          query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
 
   - match: { columns.0.name: "@timestamp" }
   - match: { columns.0.type: "date" }
@@ -45,7 +45,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM events | eval fixed_format = date_format(@timestamp, "MMMM"), variable_format = date_format(@timestamp, format) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
+          query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
           locale: "it-IT"
 
   - match: { columns.0.name: "@timestamp" }

@@ -322,7 +322,7 @@ c:long | g:keyword | tws:long
 ;
 
 byStringAndString
-from employees | eval hire_year_str = date_format(hire_date, "yyyy") | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
+from employees | eval hire_year_str = date_format("yyyy", hire_date) | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
 
 c:long | gender:keyword | hire_year_str:keyword
 8 | F | 1989

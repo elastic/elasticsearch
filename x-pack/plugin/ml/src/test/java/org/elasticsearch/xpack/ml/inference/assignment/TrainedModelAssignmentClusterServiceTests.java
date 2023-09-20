@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -88,7 +87,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private NodeLoadDetector nodeLoadDetector;
     private SystemAuditor systemAuditor;
     private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
-    private Client client;
 
     @Before
     public void setupObjects() {
@@ -113,8 +111,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         nodeLoadDetector = new NodeLoadDetector(memoryTracker);
 
         systemAuditor = mock(SystemAuditor.class);
-
-        client = mock(Client.class);
     }
 
     public void testUpdateModelRoutingTable() {
@@ -1882,8 +1878,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             threadPool,
             nodeLoadDetector,
             systemAuditor,
-            nodeAvailabilityZoneMapper,
-            client
+            nodeAvailabilityZoneMapper
         );
     }
 

@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.concurrent.CountDownLatch;
@@ -1051,6 +1052,34 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertNoNestedDocuments("from " + alias, docsCount * 2, 0L, 100L);
         // simple query against alias with filter that gets pushed to ES
         assertNoNestedDocuments("from " + alias + " | where data >= 50", Arrays.stream(countValuesGreaterThanFifty).sum(), 50L, 100L);
+    }
+
+    public void testGroupingMultiValueByOrdinals() {
+        String indexName = "test-ordinals";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("kw", "type=keyword", "v", "type=long").get());
+        int numDocs = randomIntBetween(10, 200);
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> source = new HashMap<>();
+            source.put("kw", "key-" + randomIntBetween(1, 20));
+            List<Integer> values = new ArrayList<>();
+            int numValues = between(0, 2);
+            for (int v = 0; v < numValues; v++) {
+                values.add(randomIntBetween(1, 1000));
+            }
+            if (values.isEmpty() == false) {
+                source.put("v", values);
+            }
+            client().prepareIndex(indexName).setSource(source).get();
+            if (randomInt(100) < 20) {
+                client().admin().indices().prepareRefresh(indexName).get();
+            }
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
+        var functions = List.of("min(v)", "max(v)", "count_distinct(v)", "count(v)", "sum(v)", "avg(v)", "percentile(v, 90)");
+        for (String fn : functions) {
+            String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
+            run(query);
+        }
     }
 
     private void createNestedMappingIndex(String indexName) throws IOException {

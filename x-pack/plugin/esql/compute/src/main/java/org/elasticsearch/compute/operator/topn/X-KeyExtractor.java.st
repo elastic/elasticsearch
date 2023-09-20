@@ -10,10 +10,10 @@ package org.elasticsearch.compute.operator.topn;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 abstract class KeyExtractorFor$Type$ implements KeyExtractor {
     static KeyExtractorFor$Type$ extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, $Type$Block block) {
@@ -48,7 +48,7 @@ $endif$
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BytesRefBuilder key, $type$ value) {
+    protected final int nonNul(BreakingBytesRefBuilder key, $type$ value) {
         key.append(nonNul);
 $if(BytesRef)$
         return encoder.encodeBytesRef(value, key) + 1;
@@ -61,7 +61,7 @@ $else$
 $endif$
     }
 
-    protected final int nul(BytesRefBuilder key) {
+    protected final int nul(BreakingBytesRefBuilder key) {
         key.append(nul);
         return 1;
     }
@@ -75,7 +75,7 @@ $endif$
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
 $if(BytesRef)$
             return nonNul(key, vector.get$Type$(position, scratch));
 $else$
@@ -93,7 +93,7 @@ $endif$
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -114,7 +114,7 @@ $endif$
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -139,7 +139,7 @@ $endif$
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);
@@ -187,7 +187,7 @@ $endif$
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);

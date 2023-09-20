@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -979,29 +978,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = elementType.parseDimensionCount(context);
-            DenseVectorFieldType updatedDenseVectorFieldType = new DenseVectorFieldType(
-                fieldType().name(),
-                indexCreatedVersion,
-                elementType,
-                dims,
-                indexed,
-                similarity,
-                fieldType().meta()
-            );
-            Mapper update = new DenseVectorFieldMapper(
-                simpleName(),
-                updatedDenseVectorFieldType,
-                elementType,
-                dims,
-                indexed,
-                similarity,
-                indexOptions,
-                indexCreatedVersion,
-                multiFields(),
-                copyTo
-            );
-            context.addDynamicMapper(update);
-
+            DenseVectorFieldMapper.Builder update = (DenseVectorFieldMapper.Builder) getMergeBuilder();
+            update.dims.setValue(dims);
+            context.addDynamicMapper(name(), update);
             return;
         }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);

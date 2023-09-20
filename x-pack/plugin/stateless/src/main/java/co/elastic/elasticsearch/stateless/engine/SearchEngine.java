@@ -115,15 +115,7 @@ public class SearchEngine extends Engine {
             OptionalLong primaryTerm = directory.getPrimaryTerm(initialCommit.getSegmentsFileName());
             // do not consider the empty commit an open reader (no data to delete from object store)
             if (primaryTerm.isPresent()) {
-                final ElasticsearchDirectoryReader finalDirectoryReader = directoryReader;
-                ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> openReaders.remove(finalDirectoryReader));
-                openReaders.put(
-                    directoryReader,
-                    new OpenReaderInfo(
-                        new PrimaryTermAndGeneration(primaryTerm.getAsLong(), initialCommit.getGeneration()),
-                        initialCommit.getFileNames()
-                    )
-                );
+                trackOpenReader(directoryReader, primaryTerm.getAsLong(), initialCommit.getGeneration(), initialCommit);
             }
             readerManager = new ElasticsearchReaderManager(directoryReader) {
                 private SegmentInfos previousSegmentInfos;
@@ -131,42 +123,42 @@ public class SearchEngine extends Engine {
                 @Override
                 protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
                     SegmentInfos segmentInfosCopy = segmentInfos;
-                    if (segmentInfosCopy != previousSegmentInfos) {
-                        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
-                        assert indexCommits.stream().filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration()).count() == 1;
-                        Optional<IndexCommit> first = indexCommits.stream()
-                            .filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration())
-                            .findFirst();
-                        assert first.isPresent();
-                        ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
-                            referenceToRefresh,
-                            first.get()
-                        );
-                        if (next != null) {
-                            boolean added = false;
-                            try {
-                                ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> openReaders.remove(next));
-                                openReaders.put(
-                                    next,
-                                    new OpenReaderInfo(
-                                        new PrimaryTermAndGeneration(
-                                            directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
-                                            segmentInfosCopy.getGeneration()
-                                        ),
-                                        first.get().getFileNames()
-                                    )
-                                );
-                                added = true;
-                            } finally {
-                                if (added == false) {
-                                    IOUtils.closeWhileHandlingException(next);
-                                }
-                            }
-                        }
-                        previousSegmentInfos = segmentInfosCopy;
-                        return next;
-                    } else {
+                    if (segmentInfosCopy == previousSegmentInfos) {
                         return null;
+                    }
+                    List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+                    assert indexCommits.stream().filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration()).count() == 1;
+                    Optional<IndexCommit> first = indexCommits.stream()
+                        .filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration())
+                        .findFirst();
+                    assert first.isPresent();
+                    var firstCommit = first.get();
+                    ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
+                        referenceToRefresh,
+                        firstCommit
+                    );
+                    if (next != null) {
+                        addNextReader(next, segmentInfosCopy, firstCommit);
+                    }
+                    previousSegmentInfos = segmentInfosCopy;
+                    return next;
+                }
+
+                private void addNextReader(ElasticsearchDirectoryReader next, SegmentInfos segmentInfosCopy, IndexCommit first)
+                    throws IOException {
+                    boolean added = false;
+                    try {
+                        trackOpenReader(
+                            next,
+                            directory.getPrimaryTerm(segmentInfosCopy.getSegmentsFileName()).getAsLong(),
+                            segmentInfosCopy.getGeneration(),
+                            first
+                        );
+                        added = true;
+                    } finally {
+                        if (added == false) {
+                            IOUtils.closeWhileHandlingException(next);
+                        }
                     }
                 }
             };
@@ -185,6 +177,12 @@ public class SearchEngine extends Engine {
                 IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef);
             }
         }
+    }
+
+    private void trackOpenReader(ElasticsearchDirectoryReader directoryReader, long primaryTerm, long generation, IndexCommit commit)
+        throws IOException {
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> openReaders.remove(directoryReader));
+        openReaders.put(directoryReader, new OpenReaderInfo(new PrimaryTermAndGeneration(primaryTerm, generation), commit.getFileNames()));
     }
 
     long getCurrentGeneration() {
@@ -227,7 +225,43 @@ public class SearchEngine extends Engine {
                         + "] not in sync with current generation ["
                         + currentGeneration
                         + "]";
+                StatelessCompoundCommit latestCommit = findLatestCommit(directory, current);
+                if (latestCommit == null) {
+                    logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
+                    // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
+                    return;
+                }
+                if (directory.isMarkedAsCorrupted()) {
+                    logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
+                    failSegmentGenerationListeners();
+                    return;
+                }
 
+                store.incRef();
+                try {
+                    updateInternalState(latestCommit, current);
+                } finally {
+                    store.decRef();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof AlreadyClosedException == false) {
+                    failEngine("failed to refresh segments", e);
+                }
+            }
+
+            @Override
+            public void onAfter() {
+                var remaining = pendingCommitNotifications.addAndGet(-batchSize);
+                assert remaining >= 0 : remaining;
+                if (remaining > 0) {
+                    processCommitNotifications();
+                }
+            }
+
+            private StatelessCompoundCommit findLatestCommit(SearchDirectory directory, SegmentInfos current) throws IOException {
                 PrimaryTermAndGeneration currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
                     directory.getPrimaryTerm(current.getSegmentsFileName()).orElse(-1),
                     current.getGeneration()
@@ -250,80 +284,61 @@ public class SearchEngine extends Engine {
                         latestCommit = commit;
                     }
                 }
-                if (latestCommit == null) {
-                    logger.trace(() -> "directory is on most recent commit generation [" + current.getGeneration() + ']');
-                    // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
-                    return;
-                }
-                if (directory.isMarkedAsCorrupted()) {
-                    logger.trace(() -> "directory is marked as corrupted, ignoring all future commit notifications");
-                    failSegmentGenerationListeners();
-                    return;
-                }
+                return latestCommit;
+            }
 
-                store.incRef();
+            private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) throws IOException {
+                logger.trace("updating directory with commit {}", latestCommit);
+                directory.updateCommit(latestCommit);
+
+                final SegmentInfos next = Lucene.readSegmentInfos(directory);
+                setSequenceNumbers(next);
+
+                segmentInfos = next;
+
+                readerManager.maybeRefreshBlocking();
+
+                // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
+                currentGeneration = segmentInfos.getGeneration();
+
+                var reader = readerManager.acquire();
                 try {
-                    final StatelessCompoundCommit notification = latestCommit;
-                    logger.trace(() -> "updating directory with commit " + notification);
-                    directory.updateCommit(notification);
-
-                    final SegmentInfos next = Lucene.readSegmentInfos(directory);
-                    setSequenceNumbers(next);
-
-                    segmentInfos = next;
-
-                    readerManager.maybeRefreshBlocking();
-
-                    // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
-                    currentGeneration = segmentInfos.getGeneration();
-
-                    var reader = readerManager.acquire();
-                    try {
-                        assert reader.getIndexCommit().getGeneration() == notification.generation()
-                            : "Directory reader commit generation ["
-                                + reader.getIndexCommit().getGeneration()
-                                + "] does not match expected generation ["
-                                + notification.generation()
-                                + ']';
-
-                        assert current.getGeneration() < next.getGeneration()
-                            : "SegmentInfos generation ["
-                                + next.getGeneration()
-                                + "] must be higher than previous generation ["
-                                + current.getGeneration()
-                                + ']';
-
-                        Set<String> filesToRetain = openReaders.values()
-                            .stream()
-                            .map(OpenReaderInfo::files)
-                            .flatMap(Collection::stream)
-                            .collect(Collectors.toSet());
-                        directory.retainFiles(filesToRetain);
-
-                        logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
-                        callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
-                    } finally {
-                        readerManager.release(reader);
-                    }
+                    assert assertSegmentInfosAndCommits(reader, latestCommit, current, next);
+                    directory.retainFiles(
+                        openReaders.values().stream().flatMap(openReaderInfo -> openReaderInfo.files().stream()).collect(Collectors.toSet())
+                    );
+                    logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
+                    callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
                 } finally {
-                    store.decRef();
+                    readerManager.release(reader);
                 }
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof AlreadyClosedException == false) {
-                    failEngine("failed to refresh segments", e);
-                }
-            }
+            private static boolean assertSegmentInfosAndCommits(
+                ElasticsearchDirectoryReader reader,
+                StatelessCompoundCommit latestCommit,
+                SegmentInfos currentSegmentInfos,
+                SegmentInfos nextSegmentInfos
+            ) {
+                try {
+                    var readerCommit = reader.getIndexCommit();
+                    assert readerCommit.getGeneration() == latestCommit.generation()
+                        : "Directory reader commit generation ["
+                            + readerCommit.getGeneration()
+                            + "] does not match expected generation ["
+                            + latestCommit.generation()
+                            + ']';
 
-            @Override
-            public void onAfter() {
-                var remaining = pendingCommitNotifications.addAndGet(-batchSize);
-                assert remaining >= 0 : remaining;
-                if (remaining > 0) {
-                    processCommitNotifications();
+                    assert currentSegmentInfos.getGeneration() < nextSegmentInfos.getGeneration()
+                        : "SegmentInfos generation ["
+                            + nextSegmentInfos.getGeneration()
+                            + "] must be higher than previous generation ["
+                            + currentSegmentInfos.getGeneration()
+                            + ']';
+                } catch (IOException ioe) {
+                    assert false : ioe;
                 }
+                return true;
             }
         });
     }

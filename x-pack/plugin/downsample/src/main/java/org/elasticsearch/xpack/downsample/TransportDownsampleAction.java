@@ -318,35 +318,42 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
             // 3. Create downsample index
-            createDownsampleIndex(downsampleIndexName, sourceIndexMetadata, mapping, request, ActionListener.wrap(createIndexResp -> {
-                if (createIndexResp.isAcknowledged()) {
-                    performShardDownsampling(
-                        request,
-                        listener,
-                        sourceIndexMetadata,
-                        downsampleIndexName,
-                        parentTask,
-                        metricFields,
-                        labelFields
-                    );
-                } else {
-                    listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
-                }
-            }, e -> {
-                if (e instanceof ResourceAlreadyExistsException) {
-                    performShardDownsampling(
-                        request,
-                        listener,
-                        sourceIndexMetadata,
-                        downsampleIndexName,
-                        parentTask,
-                        metricFields,
-                        labelFields
-                    );
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            createDownsampleIndex(
+                clusterService.getSettings(),
+                downsampleIndexName,
+                sourceIndexMetadata,
+                mapping,
+                request,
+                ActionListener.wrap(createIndexResp -> {
+                    if (createIndexResp.isAcknowledged()) {
+                        performShardDownsampling(
+                            request,
+                            listener,
+                            sourceIndexMetadata,
+                            downsampleIndexName,
+                            parentTask,
+                            metricFields,
+                            labelFields
+                        );
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
+                    }
+                }, e -> {
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        performShardDownsampling(
+                            request,
+                            listener,
+                            sourceIndexMetadata,
+                            downsampleIndexName,
+                            parentTask,
+                            metricFields,
+                            labelFields
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
+                })
+            );
         }, listener::onFailure));
     }
 
@@ -713,6 +720,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     private void createDownsampleIndex(
+        Settings settings,
         String downsampleIndexName,
         IndexMetadata sourceIndexMetadata,
         String mapping,
@@ -728,10 +736,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
          * We should note that there is a risk of losing a node during the downsample process. In this
          * case downsample will fail.
          */
+        int numberOfReplicas = Integer.parseInt(settings.get(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS, "0"));
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, String.valueOf(numberOfReplicas))
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED);
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {

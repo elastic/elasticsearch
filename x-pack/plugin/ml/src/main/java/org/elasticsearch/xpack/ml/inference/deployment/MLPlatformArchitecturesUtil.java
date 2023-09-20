@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -20,6 +22,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class MLPlatformArchitecturesUtil {
 
     public static void getNodesOsArchitectures(ThreadPool threadPool, Client client, ActionListener<Set<String>> architecturesListener) {
@@ -29,7 +34,10 @@ public class MLPlatformArchitecturesUtil {
                 architecturesListener.onResponse(Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse)));
             });
         }, architecturesListener::onFailure);
-        getNodesInfoBuilderWithOSAndPlugins(client).execute(nodesInfoResponseActionListener);
+
+        NodesInfoRequest request = getNodesInfoBuilderWithOSAndPlugins(client).request();
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, nodesInfoResponseActionListener);
     }
 
     private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {

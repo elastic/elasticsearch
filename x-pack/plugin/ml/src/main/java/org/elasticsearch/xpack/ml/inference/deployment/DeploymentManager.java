@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -171,8 +170,9 @@ public class DeploymentManager {
             assert getModelResponse.getResources().results().size() == 1;
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
             String modelId = modelConfig.getModelId();
+            String platformArchitecture = modelConfig.getPlatformArchitecture();
 
-            validateMLNodeArchitecturesAndModelMetadata(modelConfig.getMetadata(), modelId, failedDeploymentListener);
+            verifyMLNodeArchitectureMatchesModelPlatformArchitecture(platformArchitecture, modelId, failedDeploymentListener);
 
             processContext.modelInput.set(modelConfig.getInput());
 
@@ -223,19 +223,6 @@ public class DeploymentManager {
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
             getModelListener
         );
-    }
-
-    void validateMLNodeArchitecturesAndModelMetadata(
-        Map<String, Object> metadata,
-        String modelId,
-        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
-    ) {
-        if (metadata != null) {
-            String modelPlatformArchitecture = ((String) metadata.get(TrainedModelConfig.PLATFORM_ARCHITECTURE));
-            if (modelPlatformArchitecture != null) {
-                verifyMLNodeArchitectureMatchesModelPlatformArchitecture(modelPlatformArchitecture, modelId, failedDeploymentListener);
-            }
-        }
     }
 
     void verifyMLNodeArchitectureMatchesModelPlatformArchitecture(

@@ -431,6 +431,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             : 0L;
     }
 
+    public String getPlatformArchitecture() {
+        return platformArchitecture;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);

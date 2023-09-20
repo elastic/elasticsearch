@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.telemetry.tracing;
+
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 

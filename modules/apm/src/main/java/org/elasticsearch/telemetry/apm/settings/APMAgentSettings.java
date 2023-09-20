@@ -42,8 +42,12 @@ public class APMAgentSettings {
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
      * config file, as then their values could not be overridden dynamically via system properties.
      */
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2",
-        "enable_experimental_instrumentations", "true");
+    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
+        "transaction_sample_rate",
+        "0.2",
+        "enable_experimental_instrumentations",
+        "true"
+    );
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
         APMTracer apmTracer = telemetryProvider.getTracer();

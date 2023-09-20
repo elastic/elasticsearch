@@ -5,7 +5,7 @@ set +e
 
 # Initializing these annotations with empty <details> tags will make them expandable/collapsible when appended to later
 
-if [[ "${BUILDKITE_LABEL:-}" == ":pipeline: Pipeline upload" ]]; then
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* ]]; then
   cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
 <details>
 

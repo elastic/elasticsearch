@@ -49,14 +49,14 @@ import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES
 import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
- * This is an implementation of the {@link org.elasticsearch.tracing.Tracer} interface, which uses
+ * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
  * the OpenTelemetry API to capture spans.
  * <p>
  * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
  * API's default, no-op implementation would be used. However, when the APM Java is attached, it
  * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
  */
-public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
@@ -324,8 +324,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
 
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
 
     private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {

@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
- * a {@link org.elasticsearch.tracing.Tracer} interface, which this module implements via
+ * a {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which this module implements via
  * {@link APMTracer}. We use the OpenTelemetry API to capture "spans", and attach the
  * Elastic APM Java to ship those spans to an APM server. Although it is possible to
  * programmatically attach the agent, the Security Manager permissions required for this

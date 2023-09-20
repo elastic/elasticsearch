@@ -202,7 +202,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             @Override
             public void onResponse(Set<String> architectures) {
                 if (architectures.size() > 1) {
-                    String architecturesList = String.join(", ", architectures.stream().toList());
+                    String architecturesList = String.join(", ", architectures);
                     logger.warn(
                         format(
                             "Heterogeneous platform architectures were detected among ML nodes. "
@@ -564,7 +564,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         ClusterState updatedState = update(currentState, rebalancedMetadata);
                         isChanged = updatedState != currentState;
 
-                        PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>();
+                        PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>(); // TODO make sure this isn't on the
+                                                                                                    // master service thread
                         areMLNodesArchitecturesHomogeneous(homogeneityListener);
                         // Synchronous get here is required to update the cluster state
                         if (modelToAdd.isPresent() && homogeneityListener.actionGet()) {

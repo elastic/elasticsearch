@@ -1,0 +1,5 @@
+pr: 99615
+summary: Differentiate stats for the same blobstore operation with purposes
+area: Snapshot/Restore
+type: enhancement
+issues: []

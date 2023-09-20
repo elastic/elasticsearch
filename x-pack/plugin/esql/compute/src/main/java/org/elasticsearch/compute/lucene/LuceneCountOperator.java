@@ -32,6 +32,8 @@ import java.util.function.Function;
  */
 public class LuceneCountOperator extends LuceneOperator {
 
+    private static final int PAGE_SIZE = 1;
+
     private int totalHits = 0;
     private int remainingDocs;
 
@@ -78,7 +80,7 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     public LuceneCountOperator(LuceneSliceQueue sliceQueue, int limit) {
-        super(Integer.MAX_VALUE, sliceQueue);
+        super(PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override
@@ -142,7 +144,7 @@ public class LuceneCountOperator extends LuceneOperator {
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
                 pagesEmitted++;
-                page = new Page(1, LongBlock.newConstantBlockWith(totalHits, 1), BooleanBlock.newConstantBlockWith(true, 1));
+                page = new Page(PAGE_SIZE, LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE), BooleanBlock.newConstantBlockWith(true, PAGE_SIZE));
             }
             return page;
         } catch (IOException e) {

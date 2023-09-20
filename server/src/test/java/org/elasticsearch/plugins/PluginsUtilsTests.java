@@ -436,7 +436,7 @@ public class PluginsUtilsTests extends ESTestCase {
             "1.0",
             id,
             javaVersion,
-            "FakePlugin",
+            isStable ? null : "FakePlugin",
             null,
             Collections.emptyList(),
             false,

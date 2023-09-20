@@ -460,10 +460,11 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
+        var classname = "FakePlugin";
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 )
             )
@@ -477,11 +478,24 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false, false, false),
+                    new PluginDescriptor(
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of("extensible"),
+                        false,
+                        false,
+                        false,
+                        false
+                    ),
                     testPlugin
                 )
             )

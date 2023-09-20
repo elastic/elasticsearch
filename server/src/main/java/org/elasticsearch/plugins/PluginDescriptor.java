@@ -106,6 +106,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+
+        ensureCorrectArgumentsForPluginType();
     }
 
     /**
@@ -150,6 +152,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             isModular = moduleName != null;
             isStable = false;
         }
+
+        ensureCorrectArgumentsForPluginType();
     }
 
     @Override
@@ -180,6 +184,18 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
+        }
+    }
+
+    private void ensureCorrectArgumentsForPluginType() {
+        if (classname == null && isStable == false) {
+            throw new IllegalArgumentException("Classname must be provided for classic plugins");
+        }
+        if (classname != null && isStable) {
+            throw new IllegalArgumentException("Classname is not needed for stable plugins");
+        }
+        if (moduleName != null && isStable) {
+            throw new IllegalArgumentException("ModuleName is not needed for stable plugins");
         }
     }
 

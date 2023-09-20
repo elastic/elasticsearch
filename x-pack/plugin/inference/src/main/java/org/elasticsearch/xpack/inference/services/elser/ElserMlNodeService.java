@@ -44,12 +44,19 @@ public class ElserMlNodeService implements InferenceService {
         Map<String, Object> settings
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
-
         var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
+
+        Map<String, Object> taskSettingsMap;
+        // task settings are optional
+        if (settings.containsKey(Model.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+        } else {
+            taskSettingsMap = Map.of();
+        }
+
         var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
 
-        if (throwOnUnknownFields == false) {
+        if (throwOnUnknownFields) {
             throwIfNotEmptyMap(settings);
             throwIfNotEmptyMap(serviceSettingsMap);
             throwIfNotEmptyMap(taskSettingsMap);
@@ -133,8 +140,6 @@ public class ElserMlNodeService implements InferenceService {
         }
 
         // no config options yet
-        throwIfNotEmptyMap(config);
-
         return ElserMlNodeTaskSettings.DEFAULT;
     }
 

@@ -28,10 +28,10 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.Collections;

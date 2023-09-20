@@ -142,8 +142,6 @@ public class TransportVersions {
     public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
     public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
     public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
-    public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_502_00_0);
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

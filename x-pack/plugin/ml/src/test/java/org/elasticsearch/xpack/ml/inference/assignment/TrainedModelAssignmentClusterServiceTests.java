@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -88,7 +87,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private NodeLoadDetector nodeLoadDetector;
     private SystemAuditor systemAuditor;
     private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
-    private Client client;
 
     @Before
     public void setupObjects() {
@@ -113,8 +111,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         nodeLoadDetector = new NodeLoadDetector(memoryTracker);
 
         systemAuditor = mock(SystemAuditor.class);
-
-        client = mock(Client.class);
     }
 
     public void testUpdateModelRoutingTable() {
@@ -128,7 +124,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                     .add(buildNode(startedNode, true, ByteSizeValue.ofGb(4).getBytes(), 8))
                     .build()
             )
-            .putTransportVersion(nodeId, TransportVersion.current())
+            .putCompatibilityVersions(nodeId, CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -242,7 +238,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAssignment = ClusterState.builder(new ClusterName("testRemoveAssignment"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+            .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -274,7 +270,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAssignments = ClusterState.builder(new ClusterName("testRemoveAllAssignments"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+            .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
                     .putCustom(TrainedModelAssignmentMetadata.NAME, TrainedModelAssignmentMetadataTests.randomInstance())
@@ -371,7 +367,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
-            .putTransportVersion("ml-node-with-room", TransportVersion.current())
+            .putCompatibilityVersions("ml-node-with-room", CompatibilityVersionsUtils.staticCurrent())
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
@@ -1772,7 +1768,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .toArray(DiscoveryNode[]::new);
 
         ClusterState.Builder csBuilder = csBuilderWithNodes("test", nodes);
-        nodeIds.forEach(id -> csBuilder.putTransportVersion(id, TransportVersion.current()));
+        nodeIds.forEach(id -> csBuilder.putCompatibilityVersions(id, CompatibilityVersionsUtils.staticCurrent()));
 
         return csBuilder.metadata(metadata).build();
     }
@@ -1814,7 +1810,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         ClusterState clusterStateWithAllocation = ClusterState.builder(new ClusterName("testSetAllocationToStopping"))
             .nodes(DiscoveryNodes.builder().add(buildNode("test-node", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
-            .putTransportVersion("test-node", TransportVersion.current())
+            .putCompatibilityVersions("test-node", CompatibilityVersionsUtils.staticCurrent())
             .metadata(
                 Metadata.builder()
                     .putCustom(
@@ -1882,8 +1878,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             threadPool,
             nodeLoadDetector,
             systemAuditor,
-            nodeAvailabilityZoneMapper,
-            client
+            nodeAvailabilityZoneMapper
         );
     }
 

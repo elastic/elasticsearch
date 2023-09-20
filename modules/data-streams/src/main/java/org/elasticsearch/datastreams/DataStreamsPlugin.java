@@ -188,7 +188,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
                 getClock(),
                 threadPool,
                 threadPool::absoluteTimeInMillis,
-                errorStoreInitialisationService.get()
+                errorStoreInitialisationService.get(),
+                allocationService
             )
         );
         dataLifecycleInitialisationService.get().init();

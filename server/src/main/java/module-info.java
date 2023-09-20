@@ -279,7 +279,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
     exports org.elasticsearch.ingest;
-    exports org.elasticsearch.internal to org.elasticsearch.serverless.version, org.elasticsearch.serverless.buildinfo;
+    exports org.elasticsearch.internal
+        to
+            org.elasticsearch.serverless.version,
+            org.elasticsearch.serverless.buildinfo,
+            org.elasticsearch.serverless.constants;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;

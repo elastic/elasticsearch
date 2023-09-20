@@ -1961,7 +1961,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     allocationService,
                     metadataCreateIndexService,
-                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,

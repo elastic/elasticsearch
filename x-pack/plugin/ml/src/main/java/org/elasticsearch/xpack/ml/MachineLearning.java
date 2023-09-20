@@ -1227,8 +1227,7 @@ public class MachineLearning extends Plugin
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
                 systemAuditor,
-                nodeAvailabilityZoneMapper,
-                client
+                nodeAvailabilityZoneMapper
             )
         );
 

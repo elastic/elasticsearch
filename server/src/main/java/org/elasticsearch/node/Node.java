@@ -916,7 +916,6 @@ public class Node implements Closeable {
                 repositoryService,
                 clusterModule.getAllocationService(),
                 metadataCreateIndexService,
-                clusterModule.getMetadataDeleteIndexService(),
                 indexMetadataVerifier,
                 shardLimitValidator,
                 systemIndices,

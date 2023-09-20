@@ -596,11 +596,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // create a compound commit blob instance for the recovery commit
-            var recoveryCommitBlob = new BlobReference(
-                recoveredCommit.primaryTerm(),
-                recoveredCommit.generation(),
-                recoveredCommit.getInternalFiles()
-            );
+            var recoveryCommitBlob = new BlobReference(recoveredCommit.primaryTermAndGeneration(), recoveredCommit.getInternalFiles());
 
             PriorityQueue<BlobReference> nonRecoveredCommits = new PriorityQueue<>(comparing(c -> c.primaryTermAndGeneration));
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
@@ -613,11 +609,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
 
                     // create a compound commit blob instance for the new commit
-                    var nonRecoveredBlobReference = new BlobReference(
-                        nonRecoveredTermGen.primaryTerm(),
-                        nonRecoveredTermGen.generation(),
-                        internalFiles.keySet()
-                    );
+                    var nonRecoveredBlobReference = new BlobReference(nonRecoveredTermGen, internalFiles.keySet());
                     nonRecoveredCommits.add(nonRecoveredBlobReference);
 
                     // If the recovery commit references files in this commit, ensure we increment a reference
@@ -853,10 +845,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 latestStatelessCompoundCommitUploaded = latestUploadedCommit;
-                PrimaryTermAndGeneration termGen = new PrimaryTermAndGeneration(
-                    latestStatelessCompoundCommitUploaded.primaryTerm(),
-                    latestStatelessCompoundCommitUploaded.generation()
-                );
+                PrimaryTermAndGeneration termGen = latestStatelessCompoundCommitUploaded.primaryTermAndGeneration();
                 latestBlobReference = blobReferences.get(termGen);
                 assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
             }
@@ -1045,7 +1034,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
 
             BlobReference(long primaryTerm, long generation, Set<String> internalFiles) {
-                this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
+                this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles);
+            }
+
+            BlobReference(PrimaryTermAndGeneration primaryTermAndGeneration, Set<String> internalFiles) {
+                this.primaryTermAndGeneration = primaryTermAndGeneration;
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = newSetFromMap(new IdentityHashMap<>());
                 // we both decRef on delete, closedLocalReaders and closedExternalReaders, hence the extra incRefs (in addition to the

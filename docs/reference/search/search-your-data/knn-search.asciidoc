@@ -498,7 +498,7 @@ passage retrieval without copying top-level document metadata.
 
 Here is a simple passage vectors index that stores vectors and some top-level metadata for filtering.
 
-[souce,console]
+[source,console]
 ----
 PUT passage_vectors
 {
@@ -534,7 +534,7 @@ With the above mapping, we can index multiple passage vectors along with storing
 
 [source,console]
 ----
-POST product-index/_bulk?refresh=true
+POST passage_vectors/_bulk?refresh=true
 { "index": { "_id": "1" } }
 { "full_text": "first paragraph another paragraph", "creation_time": "2019-05-04", "paragraph": [ { "vector": [ 0.45, 45 ], "text": "first paragraph", "paragraph_id": "1" }, { "vector": [ 0.8, 0.6 ], "text": "another paragraph", "paragraph_id": "2" } ] }
 { "index": { "_id": "2" } }
@@ -546,7 +546,7 @@ POST product-index/_bulk?refresh=true
 The query will seem very similar to a typical kNN search:
 [source,console]
 ----
-POST test/_search
+POST passage_vectors/_search
 {
     "fields": ["full_text", "creation_time"],
     "_source": false,
@@ -585,8 +585,8 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
         "max_score": 1,
         "hits": [
             {
-                "_index": "test",
-                "_id": "8hAQs4oB6du1wmprmN5F",
+                "_index": "passage_vectors",
+                "_id": "1",
                 "_score": 1,
                 "fields": {
                     "creation_time": [
@@ -598,8 +598,8 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
                 }
             },
             {
-                "_index": "test",
-                "_id": "8xAQs4oB6du1wmprod4w",
+                "_index": "passage_vectors",
+                "_id": "2",
                 "_score": 0.9997144,
                 "fields": {
                     "creation_time": [
@@ -625,7 +625,7 @@ NOTE: `filter` will always be over the top-level document metadata. This means y
 
 [source,console]
 ----
-POST test/_search
+POST passage_vectors/_search
 {
     "fields": [
         "creation_time",
@@ -679,8 +679,8 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
         "max_score": 1,
         "hits": [
             {
-                "_index": "test",
-                "_id": "8hAQs4oB6du1wmprmN5F",
+                "_index": "passage_vectors",
+                "_id": "1",
                 "_score": 1,
                 "fields": {
                     "creation_time": [
@@ -705,7 +705,7 @@ Setting `"size"` to any value greater than `1` will have no effect on the result
 
 [source,console]
 ----
-POST test/_search
+POST passage_vectors/_search
 {
     "fields": [
         "creation_time",
@@ -751,8 +751,8 @@ Now the result will contain the nearest found paragraph when searching.
         "max_score": 1,
         "hits": [
             {
-                "_index": "test",
-                "_id": "8hAQs4oB6du1wmprmN5F",
+                "_index": "passage_vectors",
+                "_id": "1",
                 "_score": 1,
                 "fields": {
                     "creation_time": [
@@ -772,8 +772,8 @@ Now the result will contain the nearest found paragraph when searching.
                             "max_score": 1,
                             "hits": [
                                 {
-                                    "_index": "test",
-                                    "_id": "8hAQs4oB6du1wmprmN5F",
+                                    "_index": "passage_vectors",
+                                    "_id": "1",
                                     "_nested": {
                                         "field": "paragraph",
                                         "offset": 0
@@ -796,7 +796,7 @@ Now the result will contain the nearest found paragraph when searching.
             },
             {
                 "_index": "test",
-                "_id": "8xAQs4oB6du1wmprod4w",
+                "_id": "2",
                 "_score": 0.9997144,
                 "fields": {
                     "creation_time": [
@@ -816,8 +816,8 @@ Now the result will contain the nearest found paragraph when searching.
                             "max_score": 0.9997144,
                             "hits": [
                                 {
-                                    "_index": "test",
-                                    "_id": "8xAQs4oB6du1wmprod4w",
+                                    "_index": "passage_vectors",
+                                    "_id": "2",
                                     "_nested": {
                                         "field": "paragraph",
                                         "offset": 1

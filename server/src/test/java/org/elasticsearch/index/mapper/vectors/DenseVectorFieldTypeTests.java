@@ -8,9 +8,15 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
+import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -108,6 +114,51 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertEquals(vector, fetchSourceValue(fft, vector));
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(vector, fetchSourceValue(bft, vector));
+    }
+
+    public void testCreateNestedKnnQuery() {
+        BitSetProducer producer = context -> null;
+
+        int dims = randomIntBetween(2, 2048);
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            float[] queryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomFloat();
+            }
+            Query query = field.createKnnQuery(queryVector, 10, null, null, producer);
+            assertThat(query, instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class));
+        }
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.BYTE,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            byte[] queryVector = new byte[dims];
+            float[] floatQueryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomByte();
+                floatQueryVector[i] = queryVector[i];
+            }
+            Query query = field.createKnnQuery(queryVector, 10, null, null, producer);
+            assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
+
+            query = field.createKnnQuery(floatQueryVector, 10, null, null, producer);
+            assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
+        }
     }
 
     public void testFloatCreateKnnQuery() {

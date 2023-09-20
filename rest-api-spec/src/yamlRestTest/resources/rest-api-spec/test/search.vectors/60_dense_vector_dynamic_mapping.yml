@@ -457,9 +457,9 @@ setup:
         index: test-nested-index
 
   - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: dense_vector }
-  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: 132 }
-  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: true }
-  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: cosine }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.dimes: 132 }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.index: true }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.similarity: cosine }
 
 ---
 "Fields with copyTo fields still map as float":

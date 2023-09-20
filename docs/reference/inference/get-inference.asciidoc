@@ -33,25 +33,44 @@ and a wildcard expression,
 [[get-inference-api-path-params]]
 ==== {api-path-parms-title}
 
+`<model_id>`::
+(Optional, string)
+The unique identifier of the {infer} model.
+
+
+`<task_type>`::
+(Optional, string)
+The type of {infer} task that the model performs.
 
 
 [discrete]
 [[get-inference-api-example]]
 ==== {api-examples-title}
 
+The following API call retrives information about the `my-elser-model` {infer} 
+model that can perform `sparse_embedding` tasks.
 
 
 [source,console]
 ------------------------------------------------------------
-
+GET _inference/sparse_embedding/my-elser-model
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
 
-Example response:
+The API returns the following response:
 
 [source,console-result]
 ------------------------------------------------------------
-
+{
+  "model_id": "my-elser-model",
+  "task_type": "sparse_embedding",
+  "service": "elser_mlnode",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "task_settings": {}
+}
 ------------------------------------------------------------
 // NOTCONSOLE

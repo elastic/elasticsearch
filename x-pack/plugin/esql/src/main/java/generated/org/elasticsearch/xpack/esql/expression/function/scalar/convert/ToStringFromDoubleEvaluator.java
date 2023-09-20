@@ -58,6 +58,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(org.elasticsearch.compute.data.BytesRefBlockBuilder.NULL_VALUE);
       }
     }
     return nullsMask == null

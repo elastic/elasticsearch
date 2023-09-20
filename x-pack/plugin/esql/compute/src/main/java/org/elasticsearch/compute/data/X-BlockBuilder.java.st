@@ -20,10 +20,15 @@ $endif$
  * Block build of $Type$Blocks.
  * This class is generated. Do not edit it.
  */
+$if(BytesRef)$
+public final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
+
+$else$
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
+$endif$
 
 $if(BytesRef)$
-    private static final BytesRef NULL_VALUE = new BytesRef();
+    public static final BytesRef NULL_VALUE = new BytesRef();
 
     private BytesRefArray values;
 

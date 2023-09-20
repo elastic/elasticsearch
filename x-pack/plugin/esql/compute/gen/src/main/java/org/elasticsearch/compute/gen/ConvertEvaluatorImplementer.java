@@ -166,6 +166,9 @@ public class ConvertEvaluatorImplementer {
                 }
                 builder.endControlFlow();
                 builder.addStatement("nullsMask.set(p)");
+                if (resultType.equals(BYTES_REF)) {
+                    builder.addStatement("values.append(org.elasticsearch.compute.data.BytesRefBlockBuilder.NULL_VALUE)");
+                }
             }
             builder.endControlFlow();
         }

@@ -267,8 +267,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         } finally {
             searchThread.join();
             for (ScriptedBlockPlugin plugin : plugins) {
-                plugin.setBeforeExecution(() -> {
-                });
+                plugin.setBeforeExecution(() -> {});
             }
         }
     }

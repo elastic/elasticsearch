@@ -33,7 +33,7 @@ public class ComponentVersionsNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(
             response.getNodesMap().get(server1NodeId).getComponentVersions().keySet(),
-            containsInAnyOrder("TransformConfigVersion", "MlConfigVersion")
+            containsInAnyOrder("transform_config_version", "ml_config_version")
         );
     }
 }

@@ -257,7 +257,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                         )
                         .version(latestClusterState.version())
                         .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
-                        .compatibilityVersions(getCompatibilityVersions(latestAcceptedState))
+                        .nodeIdsToCompatibilityVersions(getCompatibilityVersions(latestAcceptedState))
                         .build()
                 )
             );

@@ -30,11 +30,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.same;
@@ -47,6 +49,7 @@ public class StatelessUpgraderTests extends ESTestCase {
     private final AtomicBoolean rerouteCalled = new AtomicBoolean(false);
     private ClusterService clusterService;
     private NoOpClient noOpClient;
+    private static final Map<String, SystemIndexDescriptor.MappingsVersion> EMPTY_SYSTEM_INDEX_MAPPINGS = Map.of();
 
     @Before
     public void setUp() throws Exception {
@@ -91,12 +94,12 @@ public class StatelessUpgraderTests extends ESTestCase {
                     .add(localNode)
                     .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9202), "node2"))
             )
-            .putTransportVersion("node1", TransportVersions.V_8_500_034)
-            .putTransportVersion("node2", TransportVersions.V_8_500_034)
+            .putCompatibilityVersions("node1", TransportVersions.V_8_500_034, EMPTY_SYSTEM_INDEX_MAPPINGS)
+            .putCompatibilityVersions("node2", TransportVersions.V_8_500_034, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         ClusterState oneUpgradedNode = ClusterState.builder(noUpgradeNodes)
-            .putTransportVersion("node1", StatelessUpgrader.RETRY_ALLOCATION_VERSION)
+            .putCompatibilityVersions("node1", StatelessUpgrader.RETRY_ALLOCATION_VERSION, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         statelessUpgrader.clusterChanged(new ClusterChangedEvent("test", oneUpgradedNode, noUpgradeNodes));
@@ -104,7 +107,7 @@ public class StatelessUpgraderTests extends ESTestCase {
         assertFalse(rerouteCalled.get());
 
         ClusterState allUpgradedNodes = ClusterState.builder(oneUpgradedNode)
-            .putTransportVersion("node2", StatelessUpgrader.RETRY_ALLOCATION_VERSION)
+            .putCompatibilityVersions("node2", StatelessUpgrader.RETRY_ALLOCATION_VERSION, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         verify(clusterService, times(0)).removeListener(same(statelessUpgrader));
@@ -131,18 +134,18 @@ public class StatelessUpgraderTests extends ESTestCase {
         );
         ClusterState noUpgradeNodes = ClusterState.builder(new ClusterName("cluster"))
             .nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).masterNodeId(masterNode.getId()).add(localNode).add(masterNode))
-            .putTransportVersion("node1", TransportVersions.V_8_500_034)
-            .putTransportVersion("node2", TransportVersions.V_8_500_034)
+            .putCompatibilityVersions("node1", TransportVersions.V_8_500_034, EMPTY_SYSTEM_INDEX_MAPPINGS)
+            .putCompatibilityVersions("node2", TransportVersions.V_8_500_034, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         ClusterState oneUpgradedNode = ClusterState.builder(noUpgradeNodes)
-            .putTransportVersion("node1", StatelessUpgrader.RETRY_ALLOCATION_VERSION)
+            .putCompatibilityVersions("node1", StatelessUpgrader.RETRY_ALLOCATION_VERSION, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         statelessUpgrader.clusterChanged(new ClusterChangedEvent("test", oneUpgradedNode, noUpgradeNodes));
 
         ClusterState allUpgradedNodes = ClusterState.builder(oneUpgradedNode)
-            .putTransportVersion("node2", StatelessUpgrader.RETRY_ALLOCATION_VERSION)
+            .putCompatibilityVersions("node2", StatelessUpgrader.RETRY_ALLOCATION_VERSION, EMPTY_SYSTEM_INDEX_MAPPINGS)
             .build();
 
         verify(clusterService, times(0)).removeListener(same(statelessUpgrader));

@@ -31,6 +31,6 @@ public final class TransportTLSBootstrapCheck implements BootstrapCheck {
 
     @Override
     public ReferenceDocs referenceDocs() {
-        return ReferenceDocs.TLS_CHECKS;
+        return ReferenceDocs.BOOTSTRAP_CHECK_TLS;
     }
 }

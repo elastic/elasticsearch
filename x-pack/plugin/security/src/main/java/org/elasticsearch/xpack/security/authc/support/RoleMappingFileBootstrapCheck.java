@@ -54,6 +54,6 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
 
     @Override
     public ReferenceDocs referenceDocs() {
-        return ReferenceDocs.ROLE_MAPPINGS_CHECKS;
+        return ReferenceDocs.BOOTSTRAP_CHECK_ROLE_MAPPINGS;
     }
 }

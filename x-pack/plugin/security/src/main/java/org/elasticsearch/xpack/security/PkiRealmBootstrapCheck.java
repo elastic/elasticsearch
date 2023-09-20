@@ -82,6 +82,6 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
 
     @Override
     public ReferenceDocs referenceDocs() {
-        return ReferenceDocs.PKI_REALM_CHECKS;
+        return ReferenceDocs.BOOTSTRAP_CHECK_PKI_REALM;
     }
 }

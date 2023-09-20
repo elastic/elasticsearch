@@ -246,7 +246,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.HEAP_SIZE_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_HEAP_SIZE;
         }
 
         // visible for testing
@@ -309,7 +309,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.FILE_DESCRIPTOR_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_FILE_DESCRIPTOR;
         }
 
         // visible for testing
@@ -337,7 +337,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.MEMORY_LOCK_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_MEMORY_LOCK;
         }
 
     }
@@ -370,7 +370,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.MAX_NUMBER_THREADS_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_NUMBER_THREADS;
         }
     }
 
@@ -403,7 +403,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.MAX_SIZE_VIRTUAL_MEMORY_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_SIZE_VIRTUAL_MEMORY;
         }
     }
 
@@ -438,7 +438,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.MAX_FILE_SIZE_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAX_FILE_SIZE;
         }
     }
 
@@ -511,7 +511,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.MAXIMUM_MAP_COUNT_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_MAXIMUM_MAP_COUNT;
         }
     }
 
@@ -538,7 +538,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.CLIENT_JVM_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_CLIENT_JVM;
         }
     }
 
@@ -570,7 +570,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.USE_SERIAL_COLLECTOR_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_USE_SERIAL_COLLECTOR;
         }
     }
 
@@ -596,7 +596,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.SYSTEM_CALL_FILTER_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_SYSTEM_CALL_FILTER;
         }
     }
 
@@ -628,7 +628,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.ONERROR_AND_ONOUTOFMEMORYERROR_CHECKS;
+            return ReferenceDocs.BOOTSTRAP_CHECK_ONERROR_AND_ONOUTOFMEMORYERROR;
         }
 
     }
@@ -712,7 +712,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.EARLY_ACCESS_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
     }
@@ -740,7 +740,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.ALL_PERMISSION_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
         }
     }
 
@@ -767,7 +767,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.DISCOVERY_CONFIGURATION_CHECK;
+            return ReferenceDocs.BOOTSTRAP_CHECK_DISCOVERY_CONFIGURATION;
         }
     }
 
@@ -787,7 +787,7 @@ final class BootstrapChecks {
 
         @Override
         public ReferenceDocs referenceDocs() {
-            return null;
+            return ReferenceDocs.BOOTSTRAP_CHECKS;
         }
     }
 }

@@ -38,6 +38,6 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
     @Override
     public ReferenceDocs referenceDocs() {
-        return ReferenceDocs.TOKEN_SSL_CHECKS;
+        return ReferenceDocs.BOOTSTRAP_CHECK_TOKEN_SSL;
     }
 }

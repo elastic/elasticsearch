@@ -54,6 +54,6 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
 
     @Override
     public ReferenceDocs referenceDocs() {
-        return ReferenceDocs.ENCRYPT_SENSITIVE_DATA_CHECKS;
+        return ReferenceDocs.BOOTSTRAP_CHECK_ENCRYPT_SENSITIVE_DATA;
     }
 }

@@ -58,7 +58,7 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         });
 

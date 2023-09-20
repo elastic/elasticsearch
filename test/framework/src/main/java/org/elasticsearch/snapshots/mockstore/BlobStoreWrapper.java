@@ -13,6 +13,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 
 public class BlobStoreWrapper implements BlobStore {
 
@@ -35,6 +36,11 @@ public class BlobStoreWrapper implements BlobStore {
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return delegate.stats();
     }
 
     protected BlobStore delegate() {

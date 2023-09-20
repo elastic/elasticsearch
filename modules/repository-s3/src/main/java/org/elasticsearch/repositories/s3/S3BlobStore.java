@@ -41,7 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -80,7 +79,6 @@ class S3BlobStore implements BlobStore {
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
 
-    private final Stats stats = new Stats();
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
     S3BlobStore(
@@ -121,6 +119,8 @@ class S3BlobStore implements BlobStore {
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
     private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+
+        protected final AtomicLong counter = new AtomicLong();
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
@@ -249,7 +249,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return stats.toMap();
+        return statsCollectors.statsMap();
     }
 
     public CannedAccessControlList getCannedACL() {
@@ -313,45 +313,8 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    static class Stats {
-
-        final ConcurrentMap<String, AtomicLong> counters = new ConcurrentHashMap<>(
-            Map.of(
-                Operation.GET_OBJECT.value,
-                new AtomicLong(),
-                Operation.LIST_OBJECTS.value,
-                new AtomicLong(),
-                Operation.PUT_OBJECT.value,
-                new AtomicLong(),
-                Operation.PUT_MULTIPART_OBJECT.value,
-                new AtomicLong(),
-                Operation.DELETE_OBJECTS.value,
-                new AtomicLong(),
-                Operation.ABORT_MULTIPART_OBJECT.value,
-                new AtomicLong()
-            )
-        );
-
-        AtomicLong getCounter(Operation operation, Purpose purpose) {
-            final String key;
-            if (purpose == Purpose.GENERIC) {
-                key = operation.value;
-            } else {
-                key = operation.value + "/" + purpose.getValue();
-                if (false == counters.containsKey(key)) {
-                    counters.put(key, new AtomicLong());
-                }
-            }
-            return counters.get(key);
-        }
-
-        Map<String, Long> toMap() {
-            return counters.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get()));
-        }
-    }
-
     class StatsCollectors {
-        final ConcurrentMap<String, RequestMetricCollector> collectors;
+        final ConcurrentMap<String, IgnoreNoResponseMetricsCollector> collectors;
 
         StatsCollectors() {
             this.collectors = Stream.of(
@@ -361,7 +324,7 @@ class S3BlobStore implements BlobStore {
                 Operation.PUT_MULTIPART_OBJECT,
                 Operation.DELETE_OBJECTS,
                 Operation.ABORT_MULTIPART_OBJECT
-            ).collect(Collectors.toConcurrentMap(ops -> ops.value, ops -> buildMetricCollector(ops, Purpose.GENERIC)));
+            ).collect(Collectors.toConcurrentMap(ops -> ops.value, this::buildMetricCollector));
         }
 
         RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
@@ -369,18 +332,22 @@ class S3BlobStore implements BlobStore {
             if (purpose == Purpose.GENERIC) {
                 key = operation.value;
             } else {
-                key = operation + "/" + purpose.getValue();
+                key = operation.value + "/" + purpose.getValue();
                 if (false == collectors.containsKey(key)) {
-                    collectors.put(key, buildMetricCollector(operation, purpose));
+                    collectors.put(key, buildMetricCollector(operation));
                 }
             }
 
             return collectors.get(key);
         }
 
-        RequestMetricCollector buildMetricCollector(Operation operation, Purpose purpose) {
-            final AtomicLong counter = stats.getCounter(operation, purpose);
+        Map<String, Long> statsMap() {
+            return collectors.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().counter.get()));
+        }
 
+        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
             return new IgnoreNoResponseMetricsCollector() {
                 @Override
                 public void collectMetrics(Request<?> request) {

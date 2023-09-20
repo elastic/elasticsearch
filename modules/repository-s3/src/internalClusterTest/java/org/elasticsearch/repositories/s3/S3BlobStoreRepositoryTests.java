@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -54,6 +56,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,11 +64,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -200,6 +206,46 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         String assertionErrorMsg = String.format("SDK sent [%s] calls and handler measured [%s] calls", sdkRequestCounts, mockCalls);
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
+    }
+
+    public void testRequestStatsWithPurposes() throws IOException {
+        final String repoName = createRepository(randomRepositoryName());
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final BlobStore blobStore = repository.blobStore();
+        final Purpose purpose = randomValueOtherThan(Purpose.GENERIC, () -> randomFrom(Purpose.values()));
+        final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10)).purpose(purpose);
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+
+        final Map<String, Long> initialStats = blobStore.stats();
+
+        final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
+        blobContainer.writeBlob("test.txt", whatToWrite, true);
+        try (InputStream is = blobContainer.readBlob("test.txt")) {
+            is.readAllBytes();
+        }
+        blobContainer.delete();
+
+        final Map<String, Long> newStats = blobStore.stats();
+        final Map<String, Long> netNewStats = newStats.entrySet().stream().filter(entry -> {
+            if (initialStats.containsKey(entry.getKey())) {
+                assertThat(entry.getValue(), equalTo(initialStats.get(entry.getKey())));
+                return false;
+            } else {
+                return true;
+            }
+        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        assertThat(
+            netNewStats.keySet(),
+            containsInAnyOrder(
+                "PutObject/" + purpose.getValue(),
+                "ListObjects/" + purpose.getValue(),
+                "GetObject/" + purpose.getValue(),
+                "DeleteObjects/" + purpose.getValue()
+            )
+        );
+        assertThat(netNewStats.values(), everyItem(greaterThan(0L)));
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {

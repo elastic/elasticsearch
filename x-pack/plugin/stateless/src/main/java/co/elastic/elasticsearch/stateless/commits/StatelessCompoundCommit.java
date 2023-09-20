@@ -72,8 +72,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public record StatelessCompoundCommit(
     ShardId shardId,
-    long generation,
-    long primaryTerm,
+    PrimaryTermAndGeneration primaryTermAndGeneration,
     long translogRecoveryStartFile,
     String nodeEphemeralId,
     Map<String, BlobLocation> commitFiles
@@ -86,13 +85,21 @@ public record StatelessCompoundCommit(
         String nodeEphemeralId,
         Map<String, BlobLocation> commitFiles
     ) {
-        this(shardId, generation, primaryTerm, 0, nodeEphemeralId, commitFiles);
+        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles);
     }
 
     private static final String PREFIX = "stateless_commit_";
 
     public PrimaryTermAndGeneration primaryTermAndGeneration() {
-        return new PrimaryTermAndGeneration(primaryTerm, generation);
+        return primaryTermAndGeneration;
+    }
+
+    public long primaryTerm() {
+        return primaryTermAndGeneration.primaryTerm();
+    }
+
+    public long generation() {
+        return primaryTermAndGeneration.generation();
     }
 
     @Override
@@ -101,9 +108,9 @@ public record StatelessCompoundCommit(
             + "shardId="
             + shardId
             + ", generation="
-            + generation
+            + generation()
             + ", primaryTerm="
-            + primaryTerm
+            + primaryTerm()
             + ", translogRecoveryStartFile="
             + translogRecoveryStartFile
             + ", nodeEphemeralId='"
@@ -114,14 +121,15 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '[' + blobNameFromGeneration(generation) + "][" + primaryTerm + "][" + generation + ']';
+        return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']';
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeVLong(generation);
-        out.writeVLong(primaryTerm);
+        // For backward compatibility, use different order than PrimaryTermAndGeneration.writeTo(StreamOutput)
+        out.writeVLong(primaryTermAndGeneration.generation());
+        out.writeVLong(primaryTermAndGeneration.primaryTerm());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_022)) {
             out.writeVLong(translogRecoveryStartFile);
         }
@@ -132,16 +140,22 @@ public record StatelessCompoundCommit(
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
         return new StatelessCompoundCommit(
             new ShardId(in),
-            in.readVLong(),
-            in.readVLong(),
+            primaryTermAndGeneration(in),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_022) ? in.readVLong() : 0,
             in.readString(),
             in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport)
         );
     }
 
+    private static PrimaryTermAndGeneration primaryTermAndGeneration(StreamInput in) throws IOException {
+        // For backward compatibility, use a different order than PrimaryTermAndGeneration(StreamInput))
+        long generation = in.readVLong();
+        long primaryTerm = in.readVLong();
+        return new PrimaryTermAndGeneration(primaryTerm, generation);
+    }
+
     public Set<String> getInternalFiles() {
-        final String compoundCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
+        final String compoundCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
         return commitFiles().entrySet()
             .stream()
             .filter(commitFile -> compoundCommitBlobName.equals(commitFile.getValue().blobName()))
@@ -318,8 +332,7 @@ public record StatelessCompoundCommit(
 
             return new StatelessCompoundCommit(
                 shardId,
-                generation,
-                primaryTerm,
+                new PrimaryTermAndGeneration(primaryTerm, generation),
                 translogRecoveryStartFile,
                 nodeEphemeralId,
                 Collections.unmodifiableMap(commitFiles)
@@ -475,8 +488,7 @@ public record StatelessCompoundCommit(
         );
         return new StatelessCompoundCommit(
             shardId,
-            generation,
-            primaryTerm,
+            new PrimaryTermAndGeneration(primaryTerm, generation),
             translogRecoveryStartFile,
             nodeEphemeralId,
             Collections.unmodifiableMap(commitFiles)

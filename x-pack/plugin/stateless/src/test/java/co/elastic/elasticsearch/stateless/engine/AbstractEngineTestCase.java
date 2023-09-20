@@ -435,8 +435,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             .build(),
                         new StatelessCompoundCommit(
                             shardId,
-                            indexCommitRef.getIndexCommit().getGeneration(),
-                            primaryTerm,
+                            new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
                             0,
                             "fake_node_ephemeral_id",
                             collectBlobLocations(primaryTerm, store.getMetadata(indexCommitRef.getIndexCommit()))

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -25,6 +24,8 @@ import java.time.Period;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -67,29 +68,20 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public final Object fold() {
-        if (isTemporalAmount(field().dataType()) && field() instanceof Literal literal) {
-            return foldTemporalAmount(literal);
+        DataType dataType = field().dataType();
+        // For date periods and time durations, we need to handle folding especially. These types are unrepresentable, so there is no
+        // evaluator for them - but the default folding requires an evaluator.
+        if (dataType == DATE_PERIOD) {
+            Period fieldValue = (Period) field().fold();
+            // TODO handle overflow
+            return fieldValue.negated();
+        }
+        if (dataType == TIME_DURATION) {
+            Duration fieldValue = (Duration) field().fold();
+            // TODO handle overflow
+            return fieldValue.negated();
         }
         return EvaluatorMapper.super.fold();
-    }
-
-    private Object foldTemporalAmount(Literal literal) {
-        try {
-            Object value = literal.fold();
-            if (value instanceof Period period) {
-                return period.negated();
-            }
-            if (value instanceof Duration duration) {
-                return duration.negated();
-            }
-        } catch (ArithmeticException ae) {
-            warnings.registerException(ae);
-            return null;
-        }
-
-        throw new EsqlIllegalArgumentException(
-            "unexpected non-temporal amount literal [" + literal.sourceText() + "] of type [" + literal.dataType() + "]"
-        );
     }
 
     @Override

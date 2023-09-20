@@ -94,7 +94,8 @@ public abstract class TransportNodesAction<
     ) {
         // coordination can run on SAME because it's only O(#nodes) work
         super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false : "TransportNodesAction must always fork off the transport thread";
+        assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
+            : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.finalExecutor = executor;

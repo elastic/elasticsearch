@@ -1831,6 +1831,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Listener used to ensure that repository data is only initialized once in the cluster state by #initializeRepoGenerationTracking
+    @Nullable // unless we're in the process of initializing repo-generation tracking
     private SubscribableListener<RepositoryData> repoDataInitialized;
 
     /**

@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.request.openai;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
-public record OpenAiEmbeddingsRequestEntity(String input, String model, String user) implements ToXContentObject {
+public record OpenAiEmbeddingsRequestEntity(String input, String model, @Nullable String user) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";
@@ -25,19 +25,14 @@ public record OpenAiEmbeddingsRequestEntity(String input, String model, String u
         Objects.requireNonNull(model);
     }
 
-    public Optional<String> getUser() {
-        return Optional.ofNullable(user);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INPUT_FIELD, input);
         builder.field(MODEL_FIELD, model);
 
-        var optionalUser = getUser();
-        if (optionalUser.isPresent()) {
-            builder.field(USER_FIELD, optionalUser.get());
+        if (user != null) {
+            builder.field(USER_FIELD, user);
         }
 
         builder.endObject();

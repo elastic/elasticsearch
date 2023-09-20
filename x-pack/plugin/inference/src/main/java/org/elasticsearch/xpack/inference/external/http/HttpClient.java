@@ -7,109 +7,117 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.Header;
 import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.MAX_HTTP_RESPONSE_SIZE;
 
-public class HttpClient {
-    // TODO pick a reasonable value for this
-    private static final int MAX_CONNECTIONS = 500;
-    private static final Logger logger = LogManager.getLogger(HttpClient.class);
+public class HttpClient implements Closeable {
+
     private final ByteSizeValue maxResponseSize;
-    private final CloseableHttpClient client;
-
-    // TODO create a single apache http client because it could be expensive
-    // TODO should proxy settings be set on a client basis? aka not per request
-    // TODO this should take some sort of request
+    private final int maxConnections;
+    private final CloseableHttpAsyncClient client;
 
     public HttpClient(Settings settings) {
-        this.maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
-        this.client = createClient();
+        this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
+        this.maxConnections = HttpSettings.MAX_CONNECTIONS.get(settings);
+        this.client = createAsyncClient();
     }
 
-    private CloseableHttpClient createClient() {
-        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
+    private CloseableHttpAsyncClient createAsyncClient() {
+        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
 
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
-        clientBuilder.evictExpiredConnections();
-        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
-        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnPerRoute(maxConnections);
+        clientBuilder.setMaxConnTotal(maxConnections);
 
         return clientBuilder.build();
     }
 
-    private CloseableHttpClient createAsyncClient() {
-        HttpClientBuilder clientBuilder = HttpClientBuilder.create();
-
-        // The apache client will be shared across all connections because it can be expensive to create it
-        // so we don't want to support cookies to avoid accidental authentication for unauthorized users
-        clientBuilder.disableCookieManagement();
-        clientBuilder.evictExpiredConnections();
-        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
-        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
-
-        return clientBuilder.build();
-    }
-
-    public byte[] send(HttpUriRequest request) throws IOException {
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request))) {
-            return copyBody(response);
-            // HttpEntity entity = response.getEntity();
-            // if (entity != null) {
-            // // return it as a String
-            // String result = EntityUtils.toString(entity);
-            // logger.info(format("Request response: %s", result));
-            // }
-            //
-            // EntityUtils.consume(entity);
+    public void send(HttpUriRequest request, ActionListener<HttpResponse> listener) throws IOException {
+        if (client.isRunning() == false) {
+            client.start();
         }
+
+        SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
+            @Override
+            public void completed(org.apache.http.HttpResponse result) {
+                try {
+                    listener.onResponse(new HttpResponse(headers(result), body(result)));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void failed(Exception ex) {
+                listener.onFailure(ex);
+            }
+
+            @Override
+            public void cancelled() {
+                listener.onFailure(new CancellationException(format("Request [%s] was cancelled", request.getRequestLine())));
+            }
+        }));
     }
 
-    private byte[] copyBody(HttpResponse response) throws IOException {
-        final byte[] body;
+    private byte[] body(org.apache.http.HttpResponse response) throws IOException {
         if (response.getEntity() == null) {
-            body = new byte[0];
-        } else {
-            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-                try (InputStream is = new SizeLimitInputStream(maxResponseSize, response.getEntity().getContent())) {
-                    Streams.copy(is, outputStream);
-                }
-                body = outputStream.toByteArray();
+            return new byte[0];
+        }
+
+        final byte[] body;
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            try (InputStream is = new SizeLimitInputStream(maxResponseSize, response.getEntity().getContent())) {
+                Streams.copy(is, outputStream);
             }
+            body = outputStream.toByteArray();
         }
 
         return body;
     }
 
-    public void sendAsync(HttpUriRequest request) throws IOException {
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(request))) {
-            HttpEntity entity = response.getEntity();
-            if (entity != null) {
-                // return it as a String
-                String result = EntityUtils.toString(entity);
-                logger.info(format("Request response: %s", result));
+    private Map<String, List<String>> headers(org.apache.http.HttpResponse response) {
+        Header[] headers = response.getAllHeaders();
+        Map<String, List<String>> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
+
+        for (Header header : headers) {
+            if (responseHeaders.containsKey(header.getName())) {
+                List<String> headerValues = responseHeaders.get(header.getName());
+                headerValues.add(header.getValue());
+            } else {
+                ArrayList<String> values = new ArrayList<>();
+                values.add(header.getValue());
+                responseHeaders.put(header.getName(), values);
             }
-            EntityUtils.consume(entity);
         }
+
+        return responseHeaders;
+    }
+
+    @Override
+    public void close() throws IOException {
+        client.close();
     }
 }

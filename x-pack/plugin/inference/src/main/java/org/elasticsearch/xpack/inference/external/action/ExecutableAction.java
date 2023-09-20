@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.inference.results.InferenceResult;
+
 public interface ExecutableAction {
-    // TODO should we pass in the listener?
-    void execute();
+    void execute(ActionListener<InferenceResult> listener);
 }

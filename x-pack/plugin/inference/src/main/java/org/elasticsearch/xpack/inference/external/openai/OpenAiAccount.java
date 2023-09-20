@@ -10,10 +10,6 @@ package org.elasticsearch.xpack.inference.external.openai;
 import org.elasticsearch.common.settings.SecureString;
 
 public class OpenAiAccount {
-    // TODO this should take the service settings and store save the encrypted key in memory
-    // and should take the crypto service and provide a method to return the api key
-
-    // TODO maybe this should be a SecureString? or a char[]?
     private final SecureString encryptedApiKey;
 
     public OpenAiAccount(SecureString encryptedApiKey) {

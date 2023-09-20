@@ -22,8 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -52,6 +51,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -65,6 +65,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
@@ -72,15 +73,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
     public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
-    public static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting(
-        "xpack.inference.http.max_response_size",
-        new ByteSizeValue(10, ByteSizeUnit.MB),   // default
-        ByteSizeValue.ONE, // min
-        new ByteSizeValue(50, ByteSizeUnit.MB),   // max
-        Setting.Property.NodeScope
-    );
 
     private final Settings settings;
+    private HttpClient httpClient;
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -141,7 +136,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        HttpClient httpClient = new HttpClient(settings);
+        httpClient = new HttpClient(settings);
         ModelRegistry modelRegistry = new ModelRegistry(client);
         // TODO we'll need to initialize the crypto and http client probably
         ServiceRegistry serviceRegistry = new ServiceRegistry(
@@ -153,7 +148,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENCRYPTION_KEY_SETTING);
+        var pluginSettings = List.of(ENCRYPTION_KEY_SETTING);
+
+        return Stream.concat(pluginSettings.stream(), HttpSettings.getSettings().stream()).toList();
     }
 
     @Override
@@ -186,7 +183,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
         ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
-            1,
+            0,
+            // TODO pick a reasonable number here
             512 * 4,
             TimeValue.timeValueMinutes(10),
             false,
@@ -194,5 +192,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         );
 
         return List.of(utility);
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

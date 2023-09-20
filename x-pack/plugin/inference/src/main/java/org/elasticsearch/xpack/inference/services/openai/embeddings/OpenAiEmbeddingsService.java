@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 
 public class OpenAiEmbeddingsService implements InferenceService {
@@ -42,7 +43,7 @@ public class OpenAiEmbeddingsService implements InferenceService {
         var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
         var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
 
-        if (throwOnUnknownFields == false) {
+        if (throwOnUnknownFields) {
             throwIfNotEmptyMap(settings);
             throwIfNotEmptyMap(serviceSettingsMap);
             throwIfNotEmptyMap(taskSettingsMap);
@@ -50,9 +51,6 @@ public class OpenAiEmbeddingsService implements InferenceService {
 
         return new OpenAiEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings);
     }
-
-    // TODO add http client and CryptoService here
-    // private final OriginSettingClient client;
 
     public OpenAiEmbeddingsService(ThreadPool threadPool, HttpClient httpClient) {
         this.threadPool = threadPool;
@@ -93,19 +91,21 @@ public class OpenAiEmbeddingsService implements InferenceService {
             return;
         }
 
-        OpenAiEmbeddingsAction action = getOpenAiEmbeddingsAction((OpenAiEmbeddingsModel) model, input, listener);
-        action.execute();
+        var openAiModel = (OpenAiEmbeddingsModel) model;
+
+        var parsedRequestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(requestTaskSettings);
+        var taskSettings = openAiModel.getTaskSettings().overrideWith(parsedRequestTaskSettings);
+
+        OpenAiEmbeddingsAction action = getOpenAiEmbeddingsAction(openAiModel.getServiceSettings(), taskSettings, input);
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> action.execute(listener));
     }
 
     private OpenAiEmbeddingsAction getOpenAiEmbeddingsAction(
-        OpenAiEmbeddingsModel model,
-        String input,
-        ActionListener<InferenceResult> listener
+        OpenAiEmbeddingsServiceSettings serviceSettings,
+        OpenAiEmbeddingsTaskSettings taskSettings,
+        String input
     ) {
-        // TODO figure out how to merge these settings together
-        // OpenAiEmbeddingsTaskSettings parsedRequestTaskSettings = taskSettingsFromMap(model.getTaskType(), requestTaskSettings);
-
-        return new OpenAiEmbeddingsAction(threadPool, input, httpClient, model.getServiceSettings(), model.getTaskSettings(), listener);
+        return new OpenAiEmbeddingsAction(input, httpClient, serviceSettings, taskSettings);
     }
 
     private static OpenAiEmbeddingsServiceSettings serviceSettingsFromMap(Map<String, Object> config) {

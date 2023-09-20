@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
@@ -22,50 +21,36 @@ import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-
 public class OpenAiEmbeddingsAction implements ExecutableAction {
-    private final ThreadPool threadPool;
     private final String input;
     private final HttpClient httpClient;
     private final OpenAiEmbeddingsServiceSettings serviceSettings;
     private final OpenAiEmbeddingsTaskSettings taskSettings;
-    private final ActionListener<InferenceResult> listener;
 
     public OpenAiEmbeddingsAction(
-        ThreadPool threadPool,
         String input,
         HttpClient httpClient,
         OpenAiEmbeddingsServiceSettings serviceSettings,
-        OpenAiEmbeddingsTaskSettings taskSettings,
-        ActionListener<InferenceResult> listener
+        OpenAiEmbeddingsTaskSettings taskSettings
     ) {
-        this.threadPool = threadPool;
         this.input = input;
         this.httpClient = httpClient;
         this.serviceSettings = serviceSettings;
         this.taskSettings = taskSettings;
-        this.listener = listener;
     }
 
-    public void execute() {
-        OpenAiAccount account = new OpenAiAccount(serviceSettings.getApiKey());
-        OpenAiEmbeddingsRequestEntity entity = new OpenAiEmbeddingsRequestEntity(input, taskSettings.getModel(), taskSettings.getUser());
-        OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(account, entity);
-        OpenAiClient client = new OpenAiClient(httpClient);
-
-        // TODO when should we execute on another thread?
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> send(client, request, listener));
-    }
-
-    private void send(OpenAiClient client, OpenAiEmbeddingsRequest request, ActionListener<InferenceResult> listener) {
+    public void execute(ActionListener<InferenceResult> listener) {
         try {
-            listener.onResponse(client.send(request));
+            OpenAiAccount account = new OpenAiAccount(serviceSettings.apiKey());
+            OpenAiEmbeddingsRequestEntity entity = new OpenAiEmbeddingsRequestEntity(input, taskSettings.model(), taskSettings.user());
+            OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(account, entity);
+            OpenAiClient client = new OpenAiClient(httpClient);
+
+            client.send(request, listener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException("Failed to send open ai request", RestStatus.INTERNAL_SERVER_ERROR, e));
         }
     }
-
 }

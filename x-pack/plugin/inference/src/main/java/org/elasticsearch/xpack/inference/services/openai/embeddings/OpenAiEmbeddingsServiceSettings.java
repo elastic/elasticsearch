@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,12 +21,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
+public record OpenAiEmbeddingsServiceSettings(SecureString apiKey) implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
     public static final String API_TOKEN = "api_key";
-
-    private final SecureString apiKey;
 
     public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -50,17 +47,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return new OpenAiEmbeddingsServiceSettings(secureApiToken);
     }
 
-    public OpenAiEmbeddingsServiceSettings(SecureString apiKey) {
-        this.apiKey = apiKey;
-    }
-
-    public OpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        // TODO should this be readString?
-        apiKey = in.readSecureString();
-    }
-
-    public SecureString getApiKey() {
-        return apiKey;
+    public OpenAiEmbeddingsServiceSettings {
+        Objects.requireNonNull(apiKey);
     }
 
     @Override
@@ -88,18 +76,4 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         // TODO do we need to encrypt here?
         out.writeSecureString(apiKey);
     }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(apiKey);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OpenAiEmbeddingsServiceSettings that = (OpenAiEmbeddingsServiceSettings) o;
-        return apiKey.equals(that.apiKey);
-    }
-
 }

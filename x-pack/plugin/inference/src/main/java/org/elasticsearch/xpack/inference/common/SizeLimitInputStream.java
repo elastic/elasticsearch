@@ -36,16 +36,26 @@ public final class SizeLimitInputStream extends FilterInputStream {
 
     @Override
     public int read() throws IOException {
-        byteCounter.incrementAndGet();
-        checkMaximumLengthReached();
-        return super.read();
+        int bytesRead = super.read();
+
+        if (bytesRead != -1) {
+            byteCounter.incrementAndGet();
+            checkMaximumLengthReached();
+        }
+
+        return bytesRead;
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        byteCounter.addAndGet(len);
-        checkMaximumLengthReached();
-        return super.read(b, off, len);
+        int bytesRead = super.read(b, off, len);
+
+        if (bytesRead != -1) {
+            byteCounter.addAndGet(len);
+            checkMaximumLengthReached();
+        }
+
+        return bytesRead;
     }
 
     @Override

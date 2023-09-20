@@ -1921,7 +1921,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // fork to generic pool since we're on the applier thread and some callbacks for repository data do additional IO
                 .<RepositoryData>andThen((l, repoData) -> {
                     logger.trace("[{}] initialized repository generation in cluster state to [{}]", metadata.name(), repoData.getGenId());
-                    threadPool.generic().execute(ActionRunnable.supply(l, () -> repoData));
+                    threadPool.generic().execute(ActionRunnable.supply(ActionListener.runAfter(l, () -> {
+                        logger.trace(
+                            "[{}] called listeners after initializing repository to generation [{}]",
+                            metadata.name(),
+                            repoData.getGenId()
+                        );
+                    }), () -> repoData));
                 })
                 // and finally complete the listener
                 .addListener(listenerToComplete);

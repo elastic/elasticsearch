@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
- * {@link RecoveryIT} for much more in depth testing of the mechanism
+ * {@code RecoveryIT} for much more in depth testing of the mechanism
  * by which they survive.
  * <p>
  * This test is an almost exact copy of <code>IndexingIT</code> in the

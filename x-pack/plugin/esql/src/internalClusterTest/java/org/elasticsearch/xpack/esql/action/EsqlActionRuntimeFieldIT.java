@@ -88,7 +88,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
     public void testDate() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("date");
         EsqlQueryResponse response = run("""
-            from test | eval d=date_format(const, "yyyy") | stats min (foo) by d""");
+            from test | eval d=date_format("yyyy", const) | stats min (foo) by d""");
         assertThat(getValuesList(response), equalTo(List.of(List.of(0L, "2023"))));
     }
 

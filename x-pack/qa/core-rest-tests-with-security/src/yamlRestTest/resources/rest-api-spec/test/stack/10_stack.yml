@@ -1,7 +1,7 @@
 "Stack templates can be disabled":
   - skip:
-      version: " - 99.99.99"
-      reason: "See https://github.com/elastic/elasticsearch/issues/98163"
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/98163
   - do:
       cluster.put_settings:
         body:

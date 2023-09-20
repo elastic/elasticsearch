@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.downsampling;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
+public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
 
     private long now;
 
@@ -58,7 +58,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
+            Settings.EMPTY,
             dataStreamName,
             firstGeneration,
             "downsample-1s-" + firstGeneration,
@@ -94,9 +95,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
-            previousState
-        );
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -129,7 +129,9 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new ReplaceSourceWithDownsampleIndexTask(dataStreamName, writeIndex, downsampleIndex, null).execute(previousState)
+            () -> new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, writeIndex, downsampleIndex, null).execute(
+                previousState
+            )
         );
 
         assertThat(
@@ -138,7 +140,7 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         );
     }
 
-    public void testSourceIsReplacedWithDownsampleAndOriginationDateIsConfigured() {
+    public void testSourceIsDeleteAndDownsampleOriginationDateIsConfigured() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -162,13 +164,14 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
 
         // let's add some lifecycle custom metadata to the first generation index
         IndexMetadata indexMetadata = previousState.metadata().index(firstGenIndex);
+        RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(dataStreamName);
+
         IndexMetadata.Builder firstGenBuilder = IndexMetadata.builder(indexMetadata)
             .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, String.valueOf(now)));
         Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata()).put(firstGenBuilder);
         previousState = ClusterState.builder(previousState).metadata(metaBuilder).build();
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
-            previousState
-        );
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -176,16 +179,11 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
-        // the source index is NOT part of the data stream
+        // the source index is deleted
         IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
-        assertThat(sourceIndexAbstraction, is(notNullValue()));
-        assertThat(sourceIndexAbstraction.getParentDataStream(), is(nullValue()));
+        assertThat(sourceIndexAbstraction, is(nullValue()));
 
         // let's check the downsample index has the origination date configured to the source index rollover time
-        IndexMetadata firstGenMeta = newState.metadata().index(firstGenIndex);
-        RolloverInfo rolloverInfo = firstGenMeta.getRolloverInfos().get(dataStreamName);
-        assertThat(rolloverInfo, is(notNullValue()));
-
         IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(rolloverInfo.getTime()));
         assertThat(downsampleMeta.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY), notNullValue());
@@ -220,9 +218,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
-            previousState
-        );
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -230,16 +227,15 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
-        // the source index is NOT part of the data stream
+        // the source index was deleted
         IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndex);
-        assertThat(sourceIndexAbstraction, is(notNullValue()));
-        assertThat(sourceIndexAbstraction.getParentDataStream(), is(nullValue()));
+        assertThat(sourceIndexAbstraction, is(nullValue()));
 
         IndexMetadata downsampleMeta = newState.metadata().index(downsampleIndex);
         assertThat(IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING.get(downsampleMeta.getSettings()), is(downsampleOriginationDate));
     }
 
-    public void testSourceIndexIsNotPartOfDSAnymore() {
+    public void testSourceIndexIsDeleteEvenIfNotPartOfDSAnymore() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -263,9 +259,8 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
-        ClusterState newState = new ReplaceSourceWithDownsampleIndexTask(dataStreamName, firstGenIndex, downsampleIndex, null).execute(
-            previousState
-        );
+        ClusterState newState = new DeleteSourceAndAddDownsampleToDS(Settings.EMPTY, dataStreamName, firstGenIndex, downsampleIndex, null)
+            .execute(previousState);
 
         IndexAbstraction downsampleIndexAbstraction = newState.metadata().getIndicesLookup().get(downsampleIndex);
         assertThat(downsampleIndexAbstraction, is(notNullValue()));
@@ -273,43 +268,6 @@ public class ReplaceSourceWithDownsampleIndexTaskTests extends ESTestCase {
         // the downsample index is part of the data stream
         assertThat(downsampleIndexAbstraction.getParentDataStream().getName(), is(dataStreamName));
 
-        // origination date and the lifecycle metadata is configured even if the source index is not part of the data stream anymore
-        IndexMetadata firstGenMeta = newState.metadata().index(firstGenIndex);
-        RolloverInfo rolloverInfo = firstGenMeta.getRolloverInfos().get(dataStreamName);
-        assertThat(rolloverInfo, is(notNullValue()));
-    }
-
-    public void testListenersIsNonConsideredInEquals() {
-        // the task is used as a key in a result deduplicator ({@link ResultDeduplicator}) map and the listener must not
-        // be taken into account
-
-        String dataStreamName = randomAlphaOfLengthBetween(10, 100);
-        String sourceBackingIndex = randomAlphaOfLengthBetween(10, 100);
-        String downsampleIndex = randomAlphaOfLengthBetween(10, 100);
-        ReplaceSourceWithDownsampleIndexTask withoutListener = new ReplaceSourceWithDownsampleIndexTask(
-            dataStreamName,
-            sourceBackingIndex,
-            downsampleIndex,
-            null
-        );
-
-        ReplaceSourceWithDownsampleIndexTask withListener = new ReplaceSourceWithDownsampleIndexTask(
-            dataStreamName,
-            sourceBackingIndex,
-            downsampleIndex,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            }
-        );
-
-        assertThat(withoutListener.equals(withListener), is(true));
+        assertThat(newState.metadata().getIndicesLookup().get(firstGenIndex), is(nullValue()));
     }
 }

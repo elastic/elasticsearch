@@ -8,11 +8,11 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 class VersionTopNEncoder extends SortableTopNEncoder {
     @Override
-    public int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         for (int i = value.offset; i < value.length; i++) {
             if (value.bytes[i] == UTF8TopNEncoder.TERMINATOR) {

@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -215,6 +216,26 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             @Override
             public void onFailure(Exception e) {
                 logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
+            }
+        };
+
+        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
+    }
+
+    private void areMLNodesArchitecturesHomogeneous(ActionListener<Boolean> homogeneityListener) {
+        ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
+            @Override
+            public void onResponse(Set<String> architectures) {
+                if (architectures.size() > 1) {
+                    homogeneityListener.onResponse(false);
+                } else {
+                    homogeneityListener.onResponse(true);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                homogeneityListener.onFailure(e);
             }
         };
 
@@ -542,6 +563,18 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         isUpdated = true;
                         ClusterState updatedState = update(currentState, rebalancedMetadata);
                         isChanged = updatedState != currentState;
+
+                        PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>();
+                        areMLNodesArchitecturesHomogeneous(homogeneityListener);
+                        // Synchronous get here is required to update the cluster state
+                        if (modelToAdd.isPresent() && homogeneityListener.actionGet()) {
+                            setToStopping(
+                                clusterState,
+                                modelToAdd.get().getDeploymentId(),
+                                "Heterogeneous architectures detected among ML nodes"
+                            );
+                        }
+
                         return updatedState;
                     }
                     rebalanceAssignments(currentState, modelToAdd, reason, listener);

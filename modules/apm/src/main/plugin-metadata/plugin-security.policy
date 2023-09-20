@@ -11,6 +11,7 @@ grant {
     permission java.lang.RuntimePermission "createClassLoader";
     permission java.lang.RuntimePermission "getClassLoader";
     permission java.util.PropertyPermission "elastic.apm.*", "write";
+    permission java.util.PropertyPermission "*", "read,write";
 };
 
 grant codeBase "${codebase.elastic-apm-agent}" {

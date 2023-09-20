@@ -6,7 +6,11 @@
  * Side Public License, v 1.
  */
 
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettings.java
 package org.elasticsearch.telemetry.apm.settings;
+========
+package org.elasticsearch.telemetry.apm;
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMAgentSettings.java
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,12 +44,20 @@ public class APMAgentSettings {
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
      * config file, as then their values could not be overridden dynamically via system properties.
      */
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
+    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2",
+        "enable_experimental_instrumentations", "true");
 
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettings.java
     public void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
+========
+    void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
+        APMTracer apmTracer = telemetryProvider.getTracer();
+        APMMetric apmMetric = telemetryProvider.getMetric();
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMAgentSettings.java
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
+            apmMetric.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));

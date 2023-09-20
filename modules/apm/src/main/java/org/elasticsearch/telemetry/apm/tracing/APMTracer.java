@@ -6,7 +6,11 @@
  * Side Public License, v 1.
  */
 
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/tracing/APMTracer.java
 package org.elasticsearch.telemetry.apm.tracing;
+========
+package org.elasticsearch.telemetry.apm;
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMTracer.java
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -34,7 +38,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/tracing/APMTracer.java
 import org.elasticsearch.telemetry.tracing.SpanId;
+========
+import org.elasticsearch.telemetry.SpanId;
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMTracer.java
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -43,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/tracing/APMTracer.java
 import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
@@ -50,13 +59,26 @@ import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRAC
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
+========
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+
+/**
+ * This is an implementation of the {@link org.elasticsearch.telemetry.Tracer} interface, which uses
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMTracer.java
  * the OpenTelemetry API to capture spans.
  * <p>
  * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
  * API's default, no-op implementation would be used. However, when the APM Java is attached, it
  * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
  */
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/tracing/APMTracer.java
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
+========
+public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.Tracer {
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMTracer.java
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
@@ -150,7 +172,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -324,8 +345,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
 
+<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/tracing/APMTracer.java
         spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
         spanBuilder.setAttribute(org.elasticsearch.telemetry.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
+========
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.Tracer.AttributeKeys.NODE_NAME, nodeName);
+        spanBuilder.setAttribute(org.elasticsearch.telemetry.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
+>>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMTracer.java
     }
 
     private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
@@ -424,6 +450,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
+    // TODO(stu): remove
+    APMServices getServices() {
+        return services;
+    }
+
     private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
@@ -452,4 +483,5 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
 }

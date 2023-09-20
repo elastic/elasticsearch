@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.junit.After;
 import org.junit.Before;
 

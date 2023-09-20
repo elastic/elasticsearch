@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.SpanId;
 
 import java.time.Instant;
 import java.util.HashMap;

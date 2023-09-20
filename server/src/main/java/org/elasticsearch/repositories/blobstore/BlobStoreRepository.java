@@ -150,6 +150,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -2919,45 +2920,65 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
             }
 
+            // filesToSnapshot will be emptied while snapshotting the file. We make a copy here for cleanup purpose in case of failure.
+            final List<FileInfo> copyOfFilesToSnapshot = List.copyOf(filesToSnapshot);
             final ListenableFuture<Collection<Void>> allFilesUploadedListener = new ListenableFuture<>();
-            allFilesUploadedListener.addListener(context.delegateFailureAndWrap((delegate, v) -> {
-                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
-
-                // now create and write the commit point
-                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
-                    snapshotId.getName(),
-                    indexCommitPointFiles,
-                    lastSnapshotStatus.getStartTime(),
-                    threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                    lastSnapshotStatus.getIncrementalFileCount(),
-                    lastSnapshotStatus.getIncrementalSize()
-                );
+            allFilesUploadedListener.addListener(ActionListener.wrap(ignore -> {
                 try {
-                    final String snapshotUUID = snapshotId.getUUID();
-                    final Map<String, String> serializationParams = Collections.singletonMap(
-                        BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
-                        Boolean.toString(writeFileInfoWriterUUID)
+                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
+
+                    // now create and write the commit point
+                    logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                    final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
+                        snapshotId.getName(),
+                        indexCommitPointFiles,
+                        lastSnapshotStatus.getStartTime(),
+                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                        lastSnapshotStatus.getIncrementalFileCount(),
+                        lastSnapshotStatus.getIncrementalSize()
                     );
-                    INDEX_SHARD_SNAPSHOT_FORMAT.write(
-                        blobStoreIndexShardSnapshot,
-                        shardContainer,
-                        snapshotUUID,
-                        compress,
-                        serializationParams
+                    try {
+                        final String snapshotUUID = snapshotId.getUUID();
+                        final Map<String, String> serializationParams = Collections.singletonMap(
+                            BlobStoreIndexShardSnapshot.FileInfo.SERIALIZE_WRITER_UUID,
+                            Boolean.toString(writeFileInfoWriterUUID)
+                        );
+                        INDEX_SHARD_SNAPSHOT_FORMAT.write(
+                            blobStoreIndexShardSnapshot,
+                            shardContainer,
+                            snapshotUUID,
+                            compress,
+                            serializationParams
+                        );
+                    } catch (IOException e) {
+                        throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+                    }
+                    afterWriteSnapBlob.run();
+                    final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
+                        indexGeneration,
+                        ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
+                        getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
                     );
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+                    snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
+                    context.onResponse(shardSnapshotResult);
+                } catch (Exception e) {
+                    // If failure occurs here, no cleanup will be performed because it might be possible that
+                    // written files are referenced by another concurrent process.
+                    context.onFailure(e);
                 }
-                afterWriteSnapBlob.run();
-                final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
-                    indexGeneration,
-                    ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
-                    getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
-                );
-                snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
-                delegate.onResponse(shardSnapshotResult);
+            }, e -> {
+                try {
+                    shardContainer.deleteBlobsIgnoringIfNotExists(
+                        copyOfFilesToSnapshot.stream()
+                            .flatMap(fileInfo -> IntStream.range(0, fileInfo.numberOfParts()).mapToObj(fileInfo::partName))
+                            .iterator()
+                    );
+                } catch (Exception innerException) {
+                    e.addSuppressed(innerException);
+                }
+                context.onFailure(e);
             }));
+
             if (indexIncrementalFileCount == 0 || filesToSnapshot.isEmpty()) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;

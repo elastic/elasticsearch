@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -16,24 +17,25 @@ import java.io.IOException;
 public class FieldAliasMapperTests extends MapperServiceTestCase {
 
     public void testParsing() throws IOException {
-        String mapping = Strings.toString(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("alias-field")
-                .field("type", "alias")
-                .field("path", "concrete-field")
-                .endObject()
-                .startObject("concrete-field")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("alias-field")
+            .field("type", "alias")
+            .field("path", "concrete-field")
+            .endObject()
+            .startObject("concrete-field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        String mapping = Strings.toString(mappingXContent);
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(mapping, mapper.mappingSource().toString());
+        RootObjectMapper.Builder builder = getRootObjectMapperBuilder(mappingXContent);
+        assertEquals(2, builder.mapperSize());
     }
 
     public void testParsingWithMissingPath() {

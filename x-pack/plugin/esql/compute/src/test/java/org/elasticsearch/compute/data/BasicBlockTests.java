@@ -181,7 +181,7 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> IntBlock.newBlockBuilder(size),
+                    size -> IntBlock.newBlockBuilder(size, blockFactory),
                     (bb, value) -> bb.appendInt(value),
                     position -> position,
                     IntBlock.Builder::build,
@@ -191,16 +191,19 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1);
+            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1, blockFactory);
             IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
             assertThat(copy, equalTo(block));
+            releaseAndAssertBreaker(copy);
 
             IntVector.Builder vectorBuilder = IntVector.newVectorBuilder(
-                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
+                randomBoolean() ? randomIntBetween(1, positionCount) : positionCount,
+                blockFactory
             );
             IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
             IntVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            releaseAndAssertBreaker(vector);
         }
     }
 
@@ -293,6 +296,10 @@ public class BasicBlockTests extends ESTestCase {
             releaseAndAssertBreaker(block);
         }
     }
+
+    // TODO: continue to update the test, as above.
+    // Try to not complicate the "basic" test any more than necessary, but it already has great coverage
+    // for building all types of blocks!!
 
     public void testDoubleBlock() {
         for (int i = 0; i < 1000; i++) {
@@ -876,6 +883,7 @@ public class BasicBlockTests extends ESTestCase {
         asserter.accept(randomNonNullPosition, block);
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
+        releaseAndAssertBreaker(block, block.blockFactory().breaker());
     }
 
     void assertZeroPositionsAndRelease(Block block) {
@@ -889,6 +897,10 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+        releaseAndAssertBreaker(data, breaker);
+    }
+
+    static <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data, CircuitBreaker breaker) {
         Releasables.closeExpectNoException(data);
         assertThat(breaker.getUsed(), is(0L));
     }

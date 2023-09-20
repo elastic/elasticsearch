@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
@@ -55,12 +57,19 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             var request = createSearchRequest();
 
-            SearchPhaseExecutionException exception = expectThrows(
-                SearchPhaseExecutionException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "1", request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
-            assertThat(exception, is(searchPhaseException));
+            assertThat(exception.getCause(), is(searchPhaseException));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "loading model [1] failed after [0] retries. The deployment is now in a failed state, the error may be "
+                        + "transient please stop the deployment and restart"
+                )
+            );
             verify(mockClient, times(1)).search(any());
         }
     }
@@ -72,12 +81,12 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             var request = createSearchRequest();
 
-            SearchPhaseExecutionException exception = expectThrows(
-                SearchPhaseExecutionException.class,
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
                 () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
-            assertThat(exception, is(searchPhaseException));
+            assertThat(exception.getCause(), is(searchPhaseException));
             verify(mockClient, times(2)).search(any());
         }
     }
@@ -90,25 +99,43 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
 
             var request = createSearchRequest();
 
-            CircuitBreakingException exception = expectThrows(
-                CircuitBreakingException.class,
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
                 () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 
-            assertThat(exception, is(circuitBreakerException));
+            assertThat(exception.getCause(), is(circuitBreakerException));
             verify(mockClient, times(2)).search(any());
         }
     }
 
-    public void testRetryingSearch_ThrowsIOExceptionIgnoringRetries() {
+    public void testRetryingSearch_EnsureExceptionCannotBeUnwrapped() {
         try (var mockClient = mock(Client.class)) {
-            var exception = new ElasticsearchException("Error");
+            var searchPhaseExecutionException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+            when(mockClient.search(any())).thenThrow(searchPhaseExecutionException);
+
+            var request = createSearchRequest();
+
+            ElasticsearchException exception = expectThrows(
+                ElasticsearchException.class,
+                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+            );
+
+            assertThat(ExceptionsHelper.unwrapCause(exception), is(exception));
+            assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(ElasticsearchException.class));
+            verify(mockClient, times(2)).search(any());
+        }
+    }
+
+    public void testRetryingSearch_ThrowsIllegalArgumentExceptionIgnoringRetries() {
+        try (var mockClient = mock(Client.class)) {
+            var exception = new IllegalArgumentException("Error");
             when(mockClient.search(any())).thenThrow(exception);
 
             var request = createSearchRequest();
 
-            ElasticsearchException thrownException = expectThrows(
-                ElasticsearchException.class,
+            IllegalArgumentException thrownException = expectThrows(
+                IllegalArgumentException.class,
                 () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
             );
 

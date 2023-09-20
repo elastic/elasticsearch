@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -229,7 +230,15 @@ public class ChunkedTrainedModelRestorer {
 
                 if (failureCount >= retries) {
                     logger.warn(format("[%s] searching for model part failed %s times, returning failure", modelId, retries));
-                    throw e;
+                    throw new ElasticsearchException(
+                        format(
+                            "loading model [%s] failed after [%s] retries. The deployment is now in a failed state, "
+                                + "the error may be transient please stop the deployment and restart",
+                            modelId,
+                            retries
+                        ),
+                        e
+                    );
                 }
 
                 failureCount++;

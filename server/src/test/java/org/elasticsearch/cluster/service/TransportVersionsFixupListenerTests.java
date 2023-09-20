@@ -86,6 +86,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
                         null,
                         e.getValue(),
                         null,
+                        null,
                         DiscoveryNodeUtils.create(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 9200)),
                         null,
                         null,
@@ -112,7 +113,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_8_0))
-            .compatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0, Map.of())))
+            .nodeIdsToCompatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0, Map.of())))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
@@ -127,7 +128,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION))
-            .compatibilityVersions(versions(new CompatibilityVersions(NEXT_TRANSPORT_VERSION, Map.of())))
+            .nodeIdsToCompatibilityVersions(versions(new CompatibilityVersions(NEXT_TRANSPORT_VERSION, Map.of())))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null, null);
@@ -142,7 +143,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Maps.transformValues(
                     versions(TransportVersions.V_8_7_0, TransportVersions.V_8_8_0),
                     transportVersion -> new CompatibilityVersions(transportVersion, Map.of())
@@ -163,7 +164,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Maps.transformValues(
                     versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     transportVersion -> new CompatibilityVersions(transportVersion, Map.of())
@@ -192,7 +193,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Maps.transformValues(
                     versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     transportVersion -> new CompatibilityVersions(transportVersion, Map.of())
@@ -207,7 +208,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Maps.transformValues(
                     versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0),
                     transportVersion -> new CompatibilityVersions(transportVersion, Map.of())
@@ -228,7 +229,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Maps.transformValues(
                     versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
                     transportVersion -> new CompatibilityVersions(transportVersion, Map.of())

@@ -210,6 +210,8 @@ public class DriverStatus implements Task.Status {
         QUEUED,
         STARTING,
         RUNNING,
+        ASYNC,
+        WAITING,
         DONE;
 
         @Override

@@ -493,7 +493,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.stringListSetting(
         "index.routing_path",
         Setting.Property.IndexScope,
-        Setting.Property.Final
+        Setting.Property.Final,
+        Property.ServerlessPublic
     );
 
     /**

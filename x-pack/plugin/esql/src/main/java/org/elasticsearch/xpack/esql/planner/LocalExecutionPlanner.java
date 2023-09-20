@@ -44,6 +44,7 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -154,7 +155,10 @@ public class LocalExecutionPlanner {
         PhysicalOperation physicalOperation = plan(node, context);
 
         context.addDriverFactory(
-            new DriverFactory(new DriverSupplier(context.bigArrays, physicalOperation), context.driverParallelism().get())
+            new DriverFactory(
+                new DriverSupplier(context.bigArrays, physicalOperation, configuration.pragmas().statusInterval()),
+                context.driverParallelism().get()
+            )
         );
 
         return new LocalExecutionPlan(context.driverFactories);
@@ -700,8 +704,10 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Function<String, Driver>, Describable {
-
+    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation, TimeValue statusInterval)
+        implements
+            Function<String, Driver>,
+            Describable {
         @Override
         public Driver apply(String sessionId) {
             SourceOperator source = null;
@@ -714,7 +720,7 @@ public class LocalExecutionPlanner {
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, () -> {});
+                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, statusInterval, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);

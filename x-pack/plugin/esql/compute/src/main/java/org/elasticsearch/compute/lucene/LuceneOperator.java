@@ -158,10 +158,13 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append(", maxPageSize=").append(maxPageSize);
+        sb.append("maxPageSize=").append(maxPageSize);
+        describe(sb);
         sb.append("]");
         return sb.toString();
     }
+
+    protected abstract void describe(StringBuilder sb);
 
     @Override
     public Operator.Status status() {
@@ -240,11 +243,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return pagesEmitted;
         }
 
-        public int leafPosition() {
+        public int slicePosition() {
             return slicePosition;
         }
 
-        public int leafSize() {
+        public int sliceSize() {
             return sliceSize;
         }
 

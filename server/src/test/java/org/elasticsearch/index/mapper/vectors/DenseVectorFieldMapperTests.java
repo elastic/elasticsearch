@@ -197,7 +197,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"
+                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 4096] but was [0]"
                 )
             );
         }
@@ -205,13 +205,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
-                b.field("dims", 3000);
+                b.field("dims", 5000);
             })));
             assertThat(
                 e.getMessage(),
                 equalTo(
                     "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
                 )
             );
         }
@@ -220,13 +220,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("index", "true");
-                b.field("dims", 3000);
+                b.field("dims", 5000);
             })));
             assertThat(
                 e.getMessage(),
                 equalTo(
                     "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
                 )
             );
         }
@@ -597,10 +597,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for float dense_vector field
-     * is 2048 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
+     * is 4096 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
      */
     public void testMaxDimsFloatVector() throws IOException {
-        final int dims = 2048;
+        final int dims = 4096;
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
@@ -624,10 +624,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for byte dense_vector field
-     * is 2048 as defined by {@link KnnByteVectorField}
+     * is 4096 as defined by {@link KnnByteVectorField}
      */
     public void testMaxDimsByteVector() throws IOException {
-        final int dims = 2048;
+        final int dims = 4096;
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         ;
         DocumentMapper mapper = createDocumentMapper(
@@ -703,7 +703,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     // TODO: add `byte` element_type tests
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 2048)).field("element_type", "float");
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
         if (randomBoolean()) {
             b.field("index", true).field("similarity", randomFrom(VectorSimilarity.values()).toString());
         }

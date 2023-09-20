@@ -72,7 +72,7 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
         BytesRef bar = new BytesRef("bar");
         BytesRef delim = new BytesRef(";");
         Expression expression = buildFieldExpression(testCase);
-        DriverContext dvrCtx = new DriverContext();
+        DriverContext dvrCtx = driverContext();
 
         assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(Arrays.asList(foo, bar), null))), 0), nullValue());
         assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(foo, null))), 0), nullValue());

@@ -160,4 +160,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             throw new UncheckedIOException(e);
         }
     }
+
+    @Override
+    protected void describe(StringBuilder sb) {
+        sb.append(", remainingDocs=").append(remainingDocs);
+    }
 }

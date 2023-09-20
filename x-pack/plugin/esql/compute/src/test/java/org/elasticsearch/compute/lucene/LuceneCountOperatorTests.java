@@ -113,13 +113,11 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testCount(int size, int limit) {
-        DriverContext ctx = new DriverContext();
+        DriverContext ctx = driverContext();
         LuceneCountOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
 
         List<Page> results = new ArrayList<>();
-        OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(), new PageConsumerOperator(page -> results.add(page)), () -> {})
-        );
+        OperatorTestCase.runDriver(new Driver(ctx, factory.get(ctx), List.of(), new PageConsumerOperator(results::add), () -> {}));
         OperatorTestCase.assertDriverContext(ctx);
 
         assertThat(results, hasSize(1));

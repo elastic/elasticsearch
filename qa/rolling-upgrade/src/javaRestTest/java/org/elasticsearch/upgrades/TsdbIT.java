@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
 
-    public TsdbIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public TsdbIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     private static final String TEMPLATE = """

@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    public SystemIndicesUpgradeIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public SystemIndicesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     @SuppressWarnings("unchecked")

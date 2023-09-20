@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.is;
 
 public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    public FeatureUpgradeIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public FeatureUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {

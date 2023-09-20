@@ -44,10 +44,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
+    private static final int NODE_NUM = 3;
+
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
-        .nodes(3)
+        .nodes(NODE_NUM)
         .setting("path.repo", new Supplier<>() {
             @Override
             @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
@@ -64,25 +66,18 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        final int numNodes = 3;
-        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, numNodes).boxed())
-            .map(n -> new Object[] { n, numNodes })
+        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, NODE_NUM).boxed())
+            .map(n -> new Object[] { n })
             .toList();
     }
 
-    private static int totalNodes = -1;
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
 
     private final Integer requestedUpgradeNode;
 
-    protected ParameterizedRollingUpgradeTestCase(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        if (ParameterizedRollingUpgradeTestCase.totalNodes == -1) {
-            ParameterizedRollingUpgradeTestCase.totalNodes = totalNodes;
-        } else {
-            assertThat("The total number of nodes has changed", totalNodes, equalTo(ParameterizedRollingUpgradeTestCase.totalNodes));
-        }
+    protected ParameterizedRollingUpgradeTestCase(@Name("upgradeNode") Integer upgradeNode) {
         this.requestedUpgradeNode = upgradeNode;
     }
 
@@ -120,11 +115,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     @Before
-    public void checkUpgrade() throws Exception {
+    public void upgradeNode() throws Exception {
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
-        if (requestedUpgradeNode != null) {
+        if (requestedUpgradeNode != null && upgradedNodes.contains(requestedUpgradeNode) == false) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too
             for (int n = 0; n <= requestedUpgradeNode; n++) {
@@ -144,7 +139,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     @AfterClass
     public static void resetNodes() {
         oldIndexVersion = null;
-        totalNodes = -1;
         upgradedNodes.clear();
         upgradeFailed = false;
     }
@@ -171,11 +165,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static boolean isMixedCluster() {
-        return upgradedNodes.isEmpty() == false && upgradedNodes.size() < totalNodes;
+        return upgradedNodes.isEmpty() == false && upgradedNodes.size() < NODE_NUM;
     }
 
     protected static boolean isUpgradedCluster() {
-        return upgradedNodes.size() == totalNodes;
+        return upgradedNodes.size() == NODE_NUM;
     }
 
     @Override

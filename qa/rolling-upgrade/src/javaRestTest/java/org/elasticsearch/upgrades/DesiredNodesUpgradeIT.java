@@ -38,8 +38,8 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private final int desiredNodesVersion;
 
-    public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
         desiredNodesVersion = Objects.requireNonNullElse(upgradeNode, -1) + 2;
     }
 

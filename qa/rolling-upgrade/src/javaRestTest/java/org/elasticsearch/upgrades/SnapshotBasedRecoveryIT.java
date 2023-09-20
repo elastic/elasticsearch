@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase {
 
-    public SnapshotBasedRecoveryIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public SnapshotBasedRecoveryIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     public void testSnapshotBasedRecovery() throws Exception {

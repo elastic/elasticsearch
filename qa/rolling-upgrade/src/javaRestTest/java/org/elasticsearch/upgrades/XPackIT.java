@@ -24,8 +24,8 @@ import static org.junit.Assume.assumeThat;
  */
 public class XPackIT extends ParameterizedRollingUpgradeTestCase {
 
-    public XPackIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public XPackIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     @Before

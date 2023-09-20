@@ -40,8 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
 
-    public FieldCapsIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public FieldCapsIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     private static boolean oldIndicesCreated;

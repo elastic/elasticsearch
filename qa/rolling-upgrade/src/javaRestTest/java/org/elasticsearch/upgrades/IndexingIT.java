@@ -50,8 +50,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
 
-    public IndexingIT(@Name("upgradeNode") Integer upgradeNode, @Name("totalNodes") int totalNodes) {
-        super(upgradeNode, totalNodes);
+    public IndexingIT(@Name("upgradeNode") Integer upgradeNode) {
+        super(upgradeNode);
     }
 
     public void testIndexing() throws IOException {

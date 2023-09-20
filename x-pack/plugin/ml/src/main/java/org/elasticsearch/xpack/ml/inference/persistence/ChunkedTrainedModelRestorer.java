@@ -230,6 +230,14 @@ public class ChunkedTrainedModelRestorer {
 
                 if (failureCount >= retries) {
                     logger.warn(format("[%s] searching for model part failed %s times, returning failure", modelId, retries));
+                    /*
+                     * ElasticsearchException does not implement the ElasticsearchWrapperException interface so this exception cannot
+                     * be unwrapped. This is important because the TrainedModelAssignmentNodeService has retry logic when a
+                     * SearchPhaseExecutionException occurs:
+                     * https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/ml/src/main/java/org/elasticsearch/xpack/ml/inference/assignment/TrainedModelAssignmentNodeService.java#L219
+                     * This intentionally prevents that code from attempting to retry loading the entire model. If the retry logic here
+                     * fails after the set retries we should not retry loading the entire model to avoid additional strain on the cluster.
+                     */
                     throw new ElasticsearchException(
                         format(
                             "loading model [%s] failed after [%s] retries. The deployment is now in a failed state, "

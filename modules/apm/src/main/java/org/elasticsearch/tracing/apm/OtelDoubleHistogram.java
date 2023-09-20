@@ -9,7 +9,6 @@
 package org.elasticsearch.tracing.apm;
 
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tracing.MetricName;

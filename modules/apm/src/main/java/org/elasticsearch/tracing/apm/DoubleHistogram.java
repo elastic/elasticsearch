@@ -14,6 +14,8 @@ import java.util.Map;
 
 public interface DoubleHistogram {
     void record(double value);
+
     void record(double value, Map<String, Object> attributes);
+
     void record(double value, Map<String, Object> attributes, ThreadContext threadContext);
 }

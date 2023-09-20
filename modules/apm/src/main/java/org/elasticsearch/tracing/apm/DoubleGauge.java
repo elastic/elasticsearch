@@ -15,5 +15,6 @@ import java.util.Map;
  */
 public interface DoubleGauge {
     void record(double value);
+
     void record(double value, Map<String, Object> attributes);
 }

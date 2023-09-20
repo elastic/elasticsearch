@@ -154,7 +154,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-            var meter =  openTelemetry.getMeter("elasticsearch");
+            var meter = openTelemetry.getMeter("elasticsearch");
 
             return new APMServices(tracer, meter, openTelemetry);
         });
@@ -465,12 +465,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
         return doubleGauges.compute(name, (k, v) -> {
-                if (v != null) {
-                    throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
-                }
-                return OtelDoubleGauge.build(services.meter, name, description, unit);
+            if (v != null) {
+                throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
             }
-        );
+            return OtelDoubleGauge.build(services.meter, name, description, unit);
+        });
     }
 
     public void recordDoubleGauge(MetricName name, double value) {
@@ -489,12 +488,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
         return doubleHistograms.compute(name, (k, v) -> {
-                if (v != null) {
-                    throw new IllegalStateException("double histogram [" + name.getRawName() + "] already registered");
-                }
-                return OtelDoubleHistogram.build(services.meter, name, description, unit);
+            if (v != null) {
+                throw new IllegalStateException("double histogram [" + name.getRawName() + "] already registered");
             }
-        );
+            return OtelDoubleHistogram.build(services.meter, name, description, unit);
+        });
     }
 
     public void recordDoubleHistogram(MetricName name, double value) {

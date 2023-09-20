@@ -8,5 +8,4 @@
 
 package org.elasticsearch.tracing;
 
-public interface Meter {
-}
+public interface Meter {}

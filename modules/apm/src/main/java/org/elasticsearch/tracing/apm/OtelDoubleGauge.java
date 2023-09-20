@@ -8,7 +8,6 @@
 
 package org.elasticsearch.tracing.apm;
 
-import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 

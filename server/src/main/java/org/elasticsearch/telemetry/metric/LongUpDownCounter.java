@@ -8,31 +8,36 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-/**
- * Record non-additive double values
- */
-public interface DoubleGauge extends Instrument {
-    void record(double value);
+public interface LongUpDownCounter extends Instrument {
+    void add(long inc);
 
-    void record(double value, Map<String, Object> attributes);
+    void add(long inc, Map<String, Object> attributes);
 
-    DoubleGauge NOOP = new DoubleGauge() {
+    void add(long inc, Map<String, Object> attributes, ThreadContext threadContext);
+
+    LongUpDownCounter NOOP = new LongUpDownCounter() {
         @Override
         public MetricName getName() {
             return null;
         }
 
         @Override
-        public void record(double value) {
+        public void add(long inc) {
 
         }
 
         @Override
-        public void record(double value, Map<String, Object> attributes) {
+        public void add(long inc, Map<String, Object> attributes) {
+
+        }
+
+        @Override
+        public void add(long inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

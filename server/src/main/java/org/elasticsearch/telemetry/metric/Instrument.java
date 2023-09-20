@@ -8,20 +8,8 @@
 
 package org.elasticsearch.telemetry.metric;
 
-public interface Counter {
-    void increment();
+import org.elasticsearch.telemetry.MetricName;
 
-    void incrementBy(long inc);
-
-    Counter NOOP = new Counter() {
-        @Override
-        public void increment() {
-
-        }
-
-        @Override
-        public void incrementBy(long inc) {
-
-        }
-    };
+public interface Instrument {
+    MetricName getName();
 }

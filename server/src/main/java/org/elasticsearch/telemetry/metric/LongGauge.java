@@ -15,24 +15,24 @@ import java.util.Map;
 /**
  * Record non-additive double values
  */
-public interface DoubleGauge extends Instrument {
-    void record(double value);
+public interface LongGauge extends Instrument {
+    void record(long value);
 
-    void record(double value, Map<String, Object> attributes);
+    void record(long value, Map<String, Object> attributes);
 
-    DoubleGauge NOOP = new DoubleGauge() {
+    LongGauge NOOP = new LongGauge() {
         @Override
         public MetricName getName() {
             return null;
         }
 
         @Override
-        public void record(double value) {
+        public void record(long value) {
 
         }
 
         @Override
-        public void record(double value, Map<String, Object> attributes) {
+        public void record(long value, Map<String, Object> attributes) {
 
         }
     };

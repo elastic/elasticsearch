@@ -8,38 +8,39 @@
 
 package org.elasticsearch.telemetry.apm;
 
+import io.opentelemetry.api.metrics.DoubleUpDownCounter;
+
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.DoubleHistogram;
 
 import java.util.Map;
 
-public class OtelDoubleHistogram<T> implements DoubleHistogram {
-    private final LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram;
+public class OtelDoubleUpDownCounter<T> implements org.elasticsearch.telemetry.metric.DoubleUpDownCounter {
+    private final LazyInitializable<DoubleUpDownCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    public OtelDoubleHistogram(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram,
+    private OtelDoubleUpDownCounter(
+        LazyInitializable<DoubleUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        this.histogram = histogram;
+        this.counter = lazyCounter;
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleHistogram<T> build(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> lazyHistogram,
+    public static <T> OtelDoubleUpDownCounter<T> build(
+        LazyInitializable<DoubleUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleHistogram<>(lazyHistogram, name, description, unit);
+        return new OtelDoubleUpDownCounter<>(lazyCounter, name, description, unit);
     }
 
     @Override
@@ -48,17 +49,17 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
     }
 
     @Override
-    public void record(double value) {
-        histogram.getOrCompute().record(value);
+    public void add(double inc) {
+        counter.getOrCompute().add(inc);
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes) {
-        histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+    public void add(double inc, Map<String, Object> attributes) {
+        counter.getOrCompute().add(inc, OtelHelper.fromMap(attributes));
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
+    public void add(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
         throw new UnsupportedOperationException("unimplemented");
     }
 }

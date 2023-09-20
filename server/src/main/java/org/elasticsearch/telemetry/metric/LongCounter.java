@@ -13,31 +13,38 @@ import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public interface DoubleHistogram extends Instrument {
-    void record(double value);
+public interface LongCounter extends Instrument {
+    void increment();
 
-    void record(double value, Map<String, Object> attributes);
+    void incrementBy(long inc);
 
-    void record(double value, Map<String, Object> attributes, ThreadContext threadContext);
+    void incrementBy(long inc, Map<String, Object> attributes);
 
-    DoubleHistogram NOOP = new DoubleHistogram() {
+    void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext);
+
+    LongCounter NOOP = new LongCounter() {
         @Override
         public MetricName getName() {
             return null;
         }
 
         @Override
-        public void record(double value) {
+        public void increment() {
 
         }
 
         @Override
-        public void record(double value, Map<String, Object> attributes) {
+        public void incrementBy(long inc) {
 
         }
 
         @Override
-        public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
+        public void incrementBy(long inc, Map<String, Object> attributes) {
+
+        }
+
+        @Override
+        public void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

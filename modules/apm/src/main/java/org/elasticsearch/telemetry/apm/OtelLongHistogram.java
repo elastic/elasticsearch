@@ -11,18 +11,17 @@ package org.elasticsearch.telemetry.apm;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.DoubleHistogram;
 
 import java.util.Map;
 
-public class OtelDoubleHistogram<T> implements DoubleHistogram {
-    private final LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram;
+public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.LongHistogram {
+    private final LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    public OtelDoubleHistogram(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram,
+    public OtelLongHistogram(
+        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram,
         MetricName name,
         String description,
         T unit
@@ -33,13 +32,13 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleHistogram<T> build(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> lazyHistogram,
+    public static <T> OtelLongHistogram<T> build(
+        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> lazyHistogram,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleHistogram<>(lazyHistogram, name, description, unit);
+        return new OtelLongHistogram<>(lazyHistogram, name, description, unit);
     }
 
     @Override
@@ -48,17 +47,17 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
     }
 
     @Override
-    public void record(double value) {
+    public void record(long value) {
         histogram.getOrCompute().record(value);
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes) {
+    public void record(long value, Map<String, Object> attributes) {
         histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
+    public void record(long value, Map<String, Object> attributes, ThreadContext threadContext) {
         throw new UnsupportedOperationException("unimplemented");
     }
 }

@@ -98,7 +98,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting;
+        return doneCollecting || remainingDocs == 0;
     }
 
     @Override
@@ -144,7 +144,11 @@ public class LuceneCountOperator extends LuceneOperator {
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
                 pagesEmitted++;
-                page = new Page(PAGE_SIZE, LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE), BooleanBlock.newConstantBlockWith(true, PAGE_SIZE));
+                page = new Page(
+                    PAGE_SIZE,
+                    LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE),
+                    BooleanBlock.newConstantBlockWith(true, PAGE_SIZE)
+                );
             }
             return page;
         } catch (IOException e) {

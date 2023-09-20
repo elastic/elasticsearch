@@ -54,7 +54,9 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
                     + "] has changed in the current version. "
                     + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
                     + " preventing access to the node. "
-                    + "See " + ReferenceDocs.BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP + " to configure security, or explicitly disable security by "
+                    + "See "
+                    + ReferenceDocs.BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP
+                    + " to configure security, or explicitly disable security by "
                     + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
             )
         );

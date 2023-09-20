@@ -45,7 +45,9 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
                         + "] has changed in the current version. "
                         + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
                         + " preventing access to the node. "
-                        + "See " + this.referenceDocs() + " to configure security, or explicitly disable security by "
+                        + "See "
+                        + this.referenceDocs()
+                        + " to configure security, or explicitly disable security by "
                         + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
                 );
             }

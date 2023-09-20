@@ -36,7 +36,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubIntsEvaluator::new,
             SubLongsEvaluator::new,
             SubUnsignedLongsEvaluator::new,
-            (s, l, r, dvrCtx) -> new SubDoublesEvaluator(l, r, dvrCtx),
+            (s, l, r, dvrCtx) -> new SubDoublesEvaluator(source, l, r, dvrCtx),
             SubDatetimesEvaluator::new
         );
     }

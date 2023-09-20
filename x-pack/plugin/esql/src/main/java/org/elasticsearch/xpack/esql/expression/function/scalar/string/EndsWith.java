@@ -100,6 +100,6 @@ public class EndsWith extends ScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var suffixEval = toEvaluator.apply(suffix);
-        return dvrCtx -> new EndsWithEvaluator(strEval.get(dvrCtx), suffixEval.get(dvrCtx), dvrCtx);
+        return dvrCtx -> new EndsWithEvaluator(source(), strEval.get(dvrCtx), suffixEval.get(dvrCtx), dvrCtx);
     }
 }

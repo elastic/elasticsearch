@@ -110,6 +110,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         var suppliers = children().stream().map(toEvaluator).toList();
         if (dataType == DataTypes.BOOLEAN) {
             return dvrCtx -> new GreatestBooleanEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMaxBooleanEvaluator(ev, dvrCtx))
@@ -119,6 +120,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         }
         if (dataType == DataTypes.DOUBLE) {
             return dvrCtx -> new GreatestDoubleEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMaxDoubleEvaluator(ev, dvrCtx))
@@ -128,6 +130,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         }
         if (dataType == DataTypes.INTEGER) {
             return dvrCtx -> new GreatestIntEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMaxIntEvaluator(ev, dvrCtx))
@@ -137,6 +140,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
         }
         if (dataType == DataTypes.LONG) {
             return dvrCtx -> new GreatestLongEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMaxLongEvaluator(ev, dvrCtx))
@@ -151,6 +155,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             || dataType == DataTypes.UNSUPPORTED) {
 
             return dvrCtx -> new GreatestBytesRefEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMaxBytesRefEvaluator(ev, dvrCtx))

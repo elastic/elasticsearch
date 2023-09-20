@@ -27,7 +27,7 @@ public class Tanh extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new TanhEvaluator(field, dvrCtx);
+        return new TanhEvaluator(source(), field, dvrCtx);
     }
 
     @Override

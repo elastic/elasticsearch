@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
@@ -16,20 +17,25 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
  * This class is generated. Do not edit it.
  */
 public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator ip;
 
   private final EvalOperator.ExpressionEvaluator[] cidrs;
 
   private final DriverContext driverContext;
 
-  public CIDRMatchEvaluator(EvalOperator.ExpressionEvaluator ip,
+  public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
       EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.ip = ip;
     this.cidrs = cidrs;
     this.driverContext = driverContext;
@@ -73,12 +79,22 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
       cidrsScratch[i] = new BytesRef();
     }
     position: for (int p = 0; p < positionCount; p++) {
-      if (ipBlock.isNull(p) || ipBlock.getValueCount(p) != 1) {
+      if (ipBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (ipBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }
       for (int i = 0; i < cidrsBlocks.length; i++) {
-        if (cidrsBlocks[i].isNull(p) || cidrsBlocks[i].getValueCount(p) != 1) {
+        if (cidrsBlocks[i].isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (cidrsBlocks[i].getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

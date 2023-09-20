@@ -53,7 +53,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
             else if (type == DataTypes.LONG) {
                 supplier = dvrCtx -> new NegLongsEvaluator(source(), f.get(dvrCtx), dvrCtx);
             } else if (type == DataTypes.DOUBLE) {
-                supplier = dvrCtx -> new NegDoublesEvaluator(f.get(dvrCtx), dvrCtx);
+                supplier = dvrCtx -> new NegDoublesEvaluator(source(), f.get(dvrCtx), dvrCtx);
             }
 
             if (supplier != null) {

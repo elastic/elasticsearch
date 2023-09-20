@@ -73,6 +73,6 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
-        return dvrCtx -> new LengthEvaluator(field.get(dvrCtx), dvrCtx);
+        return dvrCtx -> new LengthEvaluator(source(), field.get(dvrCtx), dvrCtx);
     }
 }

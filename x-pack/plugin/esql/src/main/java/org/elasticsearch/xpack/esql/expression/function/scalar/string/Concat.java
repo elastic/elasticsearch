@@ -75,6 +75,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var values = children().stream().map(toEvaluator).toList();
         return dvrCtx -> new ConcatEvaluator(
+            source(),
             new BytesRefBuilder(),
             values.stream().map(fac -> fac.get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
             dvrCtx

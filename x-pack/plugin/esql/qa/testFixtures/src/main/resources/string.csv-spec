@@ -302,6 +302,8 @@ emp_no:integer | name:keyword
 in
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
+warning:Line 1:24: evaluation of [job_positions in (\"Internship\", first_name)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer |job_positions:keyword
 10048          |Internship
@@ -665,6 +667,8 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 lengthOfText
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:73: evaluation of [length(description)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:73: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 l1:integer             | l2:integer
 null                   | 19
@@ -675,6 +679,8 @@ null                   | 19
 startsWithText
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:84: evaluation of [starts_with(description, host)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:84: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 l1:boolean             | l2:boolean
 null                   | true
@@ -685,6 +691,8 @@ false                  | null
 substringOfText
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:82: evaluation of [substring(description, 0, 5)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 l1:keyword             | l2:keyword
 null                   | epsil
@@ -693,7 +701,9 @@ Gatew                  | null
 ;
 
 concatOfText
-from hosts | where host == "epsilon" | eval l1 = concat(host,"/", host_group), l2 = concat(host_group,"/", description) | sort l1 |  keep l1, l2;
+from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
+warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:86: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 l1:keyword                    | l2:keyword
 epsilon/Gateway instances     | null

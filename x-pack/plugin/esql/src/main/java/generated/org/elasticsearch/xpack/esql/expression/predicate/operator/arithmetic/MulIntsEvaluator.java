@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -63,11 +64,21 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+      if (lhsBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+      if (lhsBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

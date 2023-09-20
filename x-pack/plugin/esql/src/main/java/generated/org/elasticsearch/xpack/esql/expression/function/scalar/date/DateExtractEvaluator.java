@@ -71,11 +71,21 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
     LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
     BytesRef chronoFieldScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
+      if (valueBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (chronoFieldBlock.isNull(p) || chronoFieldBlock.getValueCount(p) != 1) {
+      if (valueBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (chronoFieldBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (chronoFieldBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

@@ -110,6 +110,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         var suppliers = children().stream().map(toEvaluator).toList();
         if (dataType == DataTypes.BOOLEAN) {
             return dvrCtx -> new LeastBooleanEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMinBooleanEvaluator(ev, dvrCtx))
@@ -119,6 +120,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         }
         if (dataType == DataTypes.DOUBLE) {
             return dvrCtx -> new LeastDoubleEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMinDoubleEvaluator(ev, dvrCtx))
@@ -128,6 +130,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         }
         if (dataType == DataTypes.INTEGER) {
             return dvrCtx -> new LeastIntEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMinIntEvaluator(ev, dvrCtx))
@@ -137,6 +140,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         }
         if (dataType == DataTypes.LONG) {
             return dvrCtx -> new LeastLongEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMinLongEvaluator(ev, dvrCtx))
@@ -151,6 +155,7 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
             || dataType == DataTypes.UNSUPPORTED) {
 
             return dvrCtx -> new LeastBytesRefEvaluator(
+                source(),
                 suppliers.stream()
                     .map(es -> es.get(dvrCtx))
                     .map(ev -> new MvMinBytesRefEvaluator(ev, dvrCtx))

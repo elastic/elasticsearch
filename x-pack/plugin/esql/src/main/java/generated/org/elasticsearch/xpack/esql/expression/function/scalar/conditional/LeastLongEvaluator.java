@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
@@ -13,18 +14,23 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
 public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
-  public LeastLongEvaluator(EvalOperator.ExpressionEvaluator[] values,
+  public LeastLongEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
   }
@@ -54,7 +60,12 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
     long[] valuesValues = new long[values.length];
     position: for (int p = 0; p < positionCount; p++) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+        if (valuesBlocks[i].isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valuesBlocks[i].getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

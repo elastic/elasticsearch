@@ -50,16 +50,16 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return dvrCtx -> new AbsDoubleEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new AbsDoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (dataType() == DataTypes.UNSIGNED_LONG) {
             return field;
         }
         if (dataType() == DataTypes.LONG) {
-            return dvrCtx -> new AbsLongEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new AbsLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (dataType() == DataTypes.INTEGER) {
-            return dvrCtx -> new AbsIntEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new AbsIntEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());
     }

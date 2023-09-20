@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,20 +17,25 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RegexMatch}.
  * This class is generated. Do not edit it.
  */
 public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator input;
 
   private final CharacterRunAutomaton pattern;
 
   private final DriverContext driverContext;
 
-  public RegexMatchEvaluator(EvalOperator.ExpressionEvaluator input, CharacterRunAutomaton pattern,
-      DriverContext driverContext) {
+  public RegexMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
+      CharacterRunAutomaton pattern, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.input = input;
     this.pattern = pattern;
     this.driverContext = driverContext;
@@ -53,7 +59,12 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
     BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
     BytesRef inputScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      if (inputBlock.isNull(p) || inputBlock.getValueCount(p) != 1) {
+      if (inputBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (inputBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

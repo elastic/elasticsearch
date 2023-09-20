@@ -27,7 +27,7 @@ public class Tan extends AbstractTrigonometricFunction {
 
     @Override
     protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new TanEvaluator(field, dvrCtx);
+        return new TanEvaluator(source(), field, dvrCtx);
     }
 
     @Override

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.common.Rounding;
@@ -13,20 +14,25 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateTrunc}.
  * This class is generated. Do not edit it.
  */
 public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
   private final Rounding.Prepared rounding;
 
   private final DriverContext driverContext;
 
-  public DateTruncEvaluator(EvalOperator.ExpressionEvaluator fieldVal, Rounding.Prepared rounding,
-      DriverContext driverContext) {
+  public DateTruncEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
+      Rounding.Prepared rounding, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.rounding = rounding;
     this.driverContext = driverContext;
@@ -49,7 +55,12 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+      if (fieldValBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (fieldValBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

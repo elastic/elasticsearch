@@ -52,7 +52,13 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
                 BytesRef field = (BytesRef) children().get(0).fold();
                 throw new EsqlIllegalArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
-            return dvrCtx -> new DateExtractConstantEvaluator(fieldEvaluator.get(dvrCtx), chrono, configuration().zoneId(), dvrCtx);
+            return dvrCtx -> new DateExtractConstantEvaluator(
+                source(),
+                fieldEvaluator.get(dvrCtx),
+                chrono,
+                configuration().zoneId(),
+                dvrCtx
+            );
         }
         var chronoEvaluator = toEvaluator.apply(children().get(0));
         return dvrCtx -> new DateExtractEvaluator(

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -13,12 +14,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
  * This class is generated. Do not edit it.
  */
 public final class SplitVariableEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator delim;
@@ -27,8 +32,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   private final DriverContext driverContext;
 
-  public SplitVariableEvaluator(EvalOperator.ExpressionEvaluator str,
+  public SplitVariableEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
@@ -63,11 +69,21 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
     BytesRef strScratch = new BytesRef();
     BytesRef delimScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+      if (strBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (delimBlock.isNull(p) || delimBlock.getValueCount(p) != 1) {
+      if (strBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (delimBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (delimBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

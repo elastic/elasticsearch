@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -14,20 +15,25 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThanOrEqual}.
  * This class is generated. Do not edit it.
  */
 public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator lhs;
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
   private final DriverContext driverContext;
 
-  public GreaterThanOrEqualDoublesEvaluator(EvalOperator.ExpressionEvaluator lhs,
+  public GreaterThanOrEqualDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
@@ -59,11 +65,21 @@ public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.Ex
   public BooleanBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
     BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+      if (lhsBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+      if (lhsBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

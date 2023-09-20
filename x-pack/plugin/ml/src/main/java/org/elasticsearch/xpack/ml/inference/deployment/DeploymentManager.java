@@ -266,7 +266,8 @@ public class DeploymentManager {
             architecture = architectures.iterator().next();
         }
 
-        if (architectures.size() > 1 || Objects.equals(architecture, modelPlatformArchitecture) == false) {
+        if (architectures.size() > 1
+            || (Objects.isNull(modelPlatformArchitecture) == false && Objects.equals(architecture, modelPlatformArchitecture) == false)) {
             throw new IllegalArgumentException(
                 format(
                     "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "

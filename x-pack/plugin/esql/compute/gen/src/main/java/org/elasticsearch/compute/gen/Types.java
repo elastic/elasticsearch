@@ -12,6 +12,9 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
+import javax.lang.model.type.TypeMirror;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -267,4 +270,16 @@ public class Types {
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 
+    static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
+        Deque<TypeMirror> mirrors = new ArrayDeque<>();
+        mirrors.add(c);
+        while (mirrors.isEmpty() == false) {
+            TypeMirror m = mirrors.pop();
+            if (m.toString().equals(superName)) {
+                return true;
+            }
+            mirrors.addAll(types.directSupertypes(m));
+        }
+        return false;
+    }
 }

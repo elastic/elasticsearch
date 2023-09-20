@@ -666,14 +666,14 @@ public class EvaluatorImplementer {
                 String name = v.getSimpleName().toString();
                 Fixed fixed = v.getAnnotation(Fixed.class);
                 if (fixed != null) {
-                    boolean releasable = false;
-                    for (TypeMirror m : types.directSupertypes(v.asType())) {
-                        if (m.toString().equals("org.elasticsearch.core.Releasable")) {
-                            releasable = true;
-                            break;
-                        }
-                    }
-                    args.add(new FixedProcessFunctionArg(type, name, fixed.includeInToString(), releasable));
+                    args.add(
+                        new FixedProcessFunctionArg(
+                            type,
+                            name,
+                            fixed.includeInToString(),
+                            Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
+                        )
+                    );
                     continue;
                 }
                 if (type instanceof ClassName c

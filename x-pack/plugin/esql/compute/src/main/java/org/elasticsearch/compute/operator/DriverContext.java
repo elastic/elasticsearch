@@ -52,6 +52,9 @@ public class DriverContext {
         return bigArrays;
     }
 
+    /**
+     * The {@link CircuitBreaker} to use to track memory.
+     */
     public CircuitBreaker breaker() {
         return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }

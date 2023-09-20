@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -345,6 +346,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
             of(ScalarFunction.class, Pow.class, PlanNamedTypes::writePow, PlanNamedTypes::readPow),
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
+            of(ScalarFunction.class, EndsWith.class, PlanNamedTypes::writeEndsWith, PlanNamedTypes::readEndsWith),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
@@ -1278,6 +1280,17 @@ public final class PlanNamedTypes {
 
     static void writeStartsWith(PlanStreamOutput out, StartsWith startsWith) throws IOException {
         List<Expression> fields = startsWith.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
+    static EndsWith readEndsWith(PlanStreamInput in) throws IOException {
+        return new EndsWith(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeEndsWith(PlanStreamOutput out, EndsWith endsWith) throws IOException {
+        List<Expression> fields = endsWith.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

@@ -57,7 +57,7 @@ class PercentileLongAggregator {
         QuantileStates.GroupingState state,
         int statePosition
     ) {
-        current.add(currentGroupId, state.get(statePosition));
+        current.add(currentGroupId, state.getOrNull(statePosition));
     }
 
     public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selectedGroups) {

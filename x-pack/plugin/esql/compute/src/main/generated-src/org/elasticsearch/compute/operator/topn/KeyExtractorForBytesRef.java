@@ -8,10 +8,10 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 abstract class KeyExtractorForBytesRef implements KeyExtractor {
     static KeyExtractorForBytesRef extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, BytesRefBlock block) {
@@ -40,12 +40,12 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BytesRefBuilder key, BytesRef value) {
+    protected final int nonNul(BreakingBytesRefBuilder key, BytesRef value) {
         key.append(nonNul);
         return encoder.encodeBytesRef(value, key) + 1;
     }
 
-    protected final int nul(BytesRefBuilder key) {
+    protected final int nul(BreakingBytesRefBuilder key) {
         key.append(nul);
         return 1;
     }
@@ -59,7 +59,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             return nonNul(key, vector.getBytesRef(position, scratch));
         }
     }
@@ -73,7 +73,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -90,7 +90,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -109,7 +109,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);
@@ -140,7 +140,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);

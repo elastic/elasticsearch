@@ -23,15 +23,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A Gradle runner that delegates to another runner, optionally enabling the configuring cache parameter.
+ * A Gradle runner that delegates to another runner, optionally configuring
+ * - the configuring cache parameter
+ * - the internal restricted build api service
  */
-public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner {
-    private GradleRunner delegate;
-    private boolean ccCompatible;
+public class BuildConfigurationAwareGradleRunner extends GradleRunner {
+    private final GradleRunner delegate;
+    private final boolean ccCompatible;
+    private final boolean buildApiRestrictionsDisabled;
 
-    public ConfigurationCacheCompatibleAwareGradleRunner(GradleRunner delegate, boolean ccCompatible) {
+    public BuildConfigurationAwareGradleRunner(GradleRunner delegate, boolean ccCompatible, boolean buildApiRestrictionsDisabled) {
         this.delegate = delegate;
         this.ccCompatible = ccCompatible;
+        this.buildApiRestrictionsDisabled = buildApiRestrictionsDisabled;
     }
 
     @Override
@@ -76,10 +80,12 @@ public class ConfigurationCacheCompatibleAwareGradleRunner extends GradleRunner 
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        List<String> effectiveArgs = arguments;
+        List<String> effectiveArgs = new ArrayList<>(arguments);
         if (ccCompatible) {
-            effectiveArgs = new ArrayList<>(arguments);
             effectiveArgs.add("--configuration-cache");
+        }
+        if (buildApiRestrictionsDisabled) {
+            effectiveArgs.add("-Dorg.elasticsearch.gradle.build-api-restriction.disabled=" + buildApiRestrictionsDisabled);
         }
         delegate.withArguments(effectiveArgs);
         return this;

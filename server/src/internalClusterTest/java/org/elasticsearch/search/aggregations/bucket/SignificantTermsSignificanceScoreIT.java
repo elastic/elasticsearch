@@ -472,6 +472,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         indexRandom(true, false, indexRequestBuilders);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99690")
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
         String type = randomBoolean() ? "text" : "long";
         indexRandomFrequencies01(type);

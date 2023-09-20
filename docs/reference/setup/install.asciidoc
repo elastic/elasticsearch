@@ -87,6 +87,10 @@ bundled JVM is treated as an integral part of {es}, which means that Elastic
 takes responsibility for keeping it up to date. Security issues and bugs within
 the bundled JVM are treated as if they were within {es} itself.
 
+You should not use long-running third-party agents that attach to the JVM
+for deep introspection and instrumentation. Such software has been observed
+to reduce Elasticsearch performance, or even freeze or crash nodes.
+
 The bundled JVM is located within the `jdk` subdirectory of the {es} home
 directory. You may remove this directory if using your own JVM.
 

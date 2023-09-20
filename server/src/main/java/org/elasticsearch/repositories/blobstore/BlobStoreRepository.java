@@ -1840,6 +1840,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
      * @param listener listener to resolve with new repository data
+     * @return {@code true} if this method at least started the initialization process successfully and will eventually complete the
+     * listener, {@code false} if there was some concurrent state change which prevents us from starting repo generation tracking (typically
+     * that some other node got there first) and the caller should check again and possibly retry or complete the listener in some other
+     * way.
      */
     private boolean initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
         final SubscribableListener<RepositoryData> listenerToSubscribe;

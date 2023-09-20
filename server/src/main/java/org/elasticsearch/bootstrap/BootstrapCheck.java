@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.ReferenceDocs;
+
 import java.util.Objects;
 
 /**

@@ -165,9 +165,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                     containsString("first"),
                     containsString("bootstrap check failure [2] of [2]:"),
                     containsString("second"),
-                    containsString(
-                        "For more information see [" + ReferenceDocs.BOOTSTRAP_CHECKS + "]"
-                    )
+                    containsString("For more information see [" + ReferenceDocs.BOOTSTRAP_CHECKS + "]")
                 )
             )
         );

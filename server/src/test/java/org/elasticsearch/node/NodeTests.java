@@ -100,7 +100,8 @@ public class NodeTests extends ESTestCase {
                 return BootstrapCheck.BootstrapCheckResult.success();
             }
 
-            @Override public ReferenceDocs referenceDocs() {
+            @Override
+            public ReferenceDocs referenceDocs() {
                 return null;
             }
         };

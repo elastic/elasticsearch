@@ -50,17 +50,17 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {
         setEsEnforceBootstrapChecks("true");
-        final List<BootstrapCheck> checks = Collections.singletonList(
-            new BootstrapCheck() {
-                @Override
-                public BootstrapCheckResult check(BootstrapContext context) {
-                    return BootstrapCheck.BootstrapCheckResult.failure("error");
-                }
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.failure("error");
+            }
 
-                @Override public ReferenceDocs referenceDocs() {
-                    return null;
-                }
-            });
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return null;
+            }
+        });
 
         final Logger logger = mock(Logger.class);
 

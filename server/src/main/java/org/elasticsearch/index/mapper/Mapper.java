@@ -36,6 +36,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        public abstract int mapperSize();
     }
 
     public interface TypeParser {
@@ -133,17 +135,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
     }
 
-    /**
-     * Returns the number of mappers, including children
-     */
-    int mapperSize() {
-        return recursiveCountMappers(0);
-    }
-
-    private int recursiveCountMappers(int size) {
-        for (Mapper mapper : this) {
-            size = mapper.recursiveCountMappers(size);
-        }
-        return size + 1;
-    }
 }

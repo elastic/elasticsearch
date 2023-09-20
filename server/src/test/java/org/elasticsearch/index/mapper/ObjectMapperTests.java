@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -525,37 +526,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testNestedObjectWithMultiFieldsMapperSize() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("parent_size_1").startObject("properties");
-            {
-                b.startObject("child_size_2");
-                {
-                    b.field("type", "object").startObject("properties");
-
-                    b.startObject("grand_child_size_3");
-                    {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("multi_field_size_4");
-                            {
-                                b.field("type", "keyword");
-                            }
-                            b.endObject();
-                            b.startObject("multi_field_size_5");
-                            {
-                                b.field("type", "keyword");
-                            }
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endObject().endObject();
-            }
-            b.endObject().endObject();
-        }));
-        assertThat(mapper.mapping().getRoot().getMapper("parent_size_1").mapperSize(), equalTo(5));
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE)
+            .add(new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE)
+                .add(new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers())
+                    .addMultiField(new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current()))
+                    .addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
+                ));
+        assertThat(mapperBuilder.mapperSize(), equalTo(5));
     }
 }

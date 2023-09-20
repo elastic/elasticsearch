@@ -481,6 +481,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return new MultiFields(mappers);
                 }
             }
+
+            public int mapperSize() {
+                return mapperBuilders.size();
+            }
         }
 
         private final FieldMapper[] mappers;
@@ -1406,6 +1410,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
+        }
+
+        @Override
+        public int mapperSize() {
+            return 1 + multiFieldsBuilder.mapperSize();
         }
     }
 

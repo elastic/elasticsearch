@@ -322,7 +322,7 @@ public abstract class DocumentParserContext {
         if (mappingLookup.getMapper(fullName) == null
             && mappingLookup.objectMappers().containsKey(fullName) == false
             && dynamicMappers.containsKey(fullName) == false) {
-            int additionalFieldsToAdd = getNewDynamicMappersSize() + mapper.mapperSize();
+            int additionalFieldsToAdd = getNewDynamicMappersSize() + builder.mapperSize();
             if (dynamic == ObjectMapper.Dynamic.TRUE_UNTIL_LIMIT) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     addIgnoredField(fullName);
@@ -373,7 +373,7 @@ public abstract class DocumentParserContext {
             // we're taking the largest mapper in case there are multiple mappers for the same field
             // we may under-count if the mappers are merged in a way where the total size of the field is greater than the largest mapper
             // we can't just accumulate the sizes as we get a dynamic mapper for each element in an array, even if the type is the same
-            .mapToInt(mappers -> mappers.stream().mapToInt(Mapper::mapperSize).max().orElse(0))
+            .mapToInt(mappers -> mappers.stream().mapToInt(Mapper.Builder::mapperSize).max().orElse(0))
             .sum() + dynamicRuntimeFields.size();
     }
 

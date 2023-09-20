@@ -780,13 +780,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             status = SearchResponse.Cluster.Status.FAILED;
         }
-        SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+        SearchResponse.Cluster orig = clusters.getCluster(clusterAlias);
         // returns unmodifiable list based on the original one passed plus the appended failure
-        List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(cluster.getFailures(), failure);
-        clusters.compute(
-            clusterAlias,
-            (key, oldCluster) -> new SearchResponse.Cluster.Builder(oldCluster).setStatus(status).setFailures(failures).build()
-        );
+        List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(orig.getFailures(), failure);
+        SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(status).setFailures(failures).build();
+        clusters.setCluster(clusterAlias, updated);
     }
 
     /**
@@ -826,18 +824,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             status = SearchResponse.Cluster.Status.SUCCESSFUL;
         }
 
-        clusters.compute(
-            clusterAlias,
-            (key, oldCluster) -> new SearchResponse.Cluster.Builder(oldCluster).setStatus(status)
-                .setTotalShards(searchResponse.getTotalShards())
-                .setSuccessfulShards(searchResponse.getSuccessfulShards())
-                .setSkippedShards(searchResponse.getSkippedShards())
-                .setFailedShards(searchResponse.getFailedShards())
-                .setFailures(Arrays.asList(searchResponse.getShardFailures()))
-                .setTook(searchResponse.getTook())
-                .setTimedOut(searchResponse.isTimedOut())
-                .build()
-        );
+        SearchResponse.Cluster orig = clusters.getCluster(clusterAlias);
+        SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(status)
+            .setTotalShards(searchResponse.getTotalShards())
+            .setSuccessfulShards(searchResponse.getSuccessfulShards())
+            .setSkippedShards(searchResponse.getSkippedShards())
+            .setFailedShards(searchResponse.getFailedShards())
+            .setFailures(Arrays.asList(searchResponse.getShardFailures()))
+            .setTook(searchResponse.getTook())
+            .setTimedOut(searchResponse.isTimedOut())
+            .build();
+        clusters.setCluster(clusterAlias, updated);
     }
 
     /**
@@ -860,18 +857,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider
     ) {
         if (response.getGroups().isEmpty()) {
-            clusters.compute(
-                clusterAlias,
-                (key, oldCluster) -> new SearchResponse.Cluster.Builder(oldCluster).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .setFailures(Collections.emptyList())
-                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
-                    .setTimedOut(false)
-                    .build()
-            );
+            SearchResponse.Cluster orig = clusters.getCluster(clusterAlias);
+            SearchResponse.Cluster updated = new SearchResponse.Cluster.Builder(orig).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                .setTotalShards(0)
+                .setSuccessfulShards(0)
+                .setSkippedShards(0)
+                .setFailedShards(0)
+                .setFailures(Collections.emptyList())
+                .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                .setTimedOut(false)
+                .build();
+            clusters.setCluster(clusterAlias, updated);
         }
     }
 

@@ -49,7 +49,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -247,9 +246,8 @@ public class SearchResponseTests extends ESTestCase {
             if (i >= 0) {
                 clusterAlias = "cluster_" + i;
             }
-            AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
-            SearchResponse.Cluster cluster = clusterRef.get();
-            SearchResponse.Cluster update = new SearchResponse.Cluster(
+            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            SearchResponse.Cluster updated = new SearchResponse.Cluster(
                 cluster.getClusterAlias(),
                 cluster.getIndexExpression(),
                 false,
@@ -262,7 +260,8 @@ public class SearchResponseTests extends ESTestCase {
                 took,
                 false
             );
-            assertTrue(clusterRef.compareAndSet(cluster, update));
+            clusters.setCluster(clusterAlias, updated);
+
         }
         return clusters;
     }

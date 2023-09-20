@@ -53,7 +53,9 @@ class APMJvmOptions {
         "log_file", "/Users/przemyslawgomulka/workspace/pgomulka/apm.log",
         "log_level", "debug",
         // ES does not use auto-instrumentation.
-        "instrument", "false"
+        "instrument", "false",
+        "experimental", "true",
+        "enable_experimental_instrumentations", "true"
         );
 
     /**

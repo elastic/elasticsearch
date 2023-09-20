@@ -10,7 +10,6 @@ package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -87,7 +86,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     /**
      * This class is used to make all OpenTelemetry services visible at once
      */
-    record APMServices(Tracer tracer, Meter meter, OpenTelemetry openTelemetry) {}
+    record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
@@ -151,9 +150,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-            var meter = openTelemetry.getMeter("elasticsearch");
-
-            return new APMServices(tracer, meter, openTelemetry);
+            return new APMServices(tracer, openTelemetry);
         });
     }
 

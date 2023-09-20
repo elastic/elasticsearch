@@ -213,8 +213,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.MetricName;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.metric.Metric;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
@@ -1595,6 +1597,8 @@ public class Node implements Closeable {
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
+
+
 
         return this;
     }

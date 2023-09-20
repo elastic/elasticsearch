@@ -10,7 +10,6 @@ package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
@@ -270,7 +269,7 @@ public class APMTracerTests extends ESTestCase {
                 // spy the spanBuilder
                 return new SpySpanBuilder(apmServices.tracer(), spanName);
             }).when(mockTracer).spanBuilder(anyString());
-            return new APMServices(mockTracer, mock(Meter.class), apmServices.openTelemetry());
+            return new APMServices(mockTracer, apmServices.openTelemetry());
         }
 
         Instant getSpanStartTime(String spanName) {

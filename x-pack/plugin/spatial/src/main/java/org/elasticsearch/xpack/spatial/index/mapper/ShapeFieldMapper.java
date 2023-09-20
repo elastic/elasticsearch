@@ -122,7 +122,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 

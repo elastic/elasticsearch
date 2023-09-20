@@ -62,12 +62,21 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
      * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
      *                      explosion of groups caused by multivalued fields
+     * @param allowBrokenOptimizations true ot allow optimizations with bad null handling. We will fix their
+     *                                 null handling and remove this flag, but we need to disable these in
+     *                                 production until we can. And this lets us continue to compile and
+     *                                 test them.
      */
-    public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
+    public static BlockHash build(
+        List<HashAggregationOperator.GroupSpec> groups,
+        BigArrays bigArrays,
+        int emitBatchSize,
+        boolean allowBrokenOptimizations
+    ) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
         }
-        if (groups.size() == 2) {
+        if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {

@@ -4,7 +4,6 @@ setup:
         index: tsdb
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [key]
             time_series:
@@ -17,10 +16,6 @@ setup:
                 time_series_dimension: true
               "@timestamp":
                 type: date
-
-  - do:
-      cluster.health:
-        wait_for_status: green
 
   - do:
       bulk:

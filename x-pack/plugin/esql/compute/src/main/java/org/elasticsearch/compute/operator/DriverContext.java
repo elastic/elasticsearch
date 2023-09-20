@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,6 +39,17 @@ public class DriverContext {
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
+
+    private final BigArrays bigArrays;
+
+    public DriverContext(BigArrays bigArrays) {
+        Objects.requireNonNull(bigArrays);
+        this.bigArrays = bigArrays;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     /** A snapshot of the driver context. */
     public record Snapshot(Set<Releasable> releasables) {}

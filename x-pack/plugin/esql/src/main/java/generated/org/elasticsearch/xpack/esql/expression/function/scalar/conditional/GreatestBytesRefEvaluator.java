@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -21,8 +22,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public GreatestBytesRefEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  private final DriverContext driverContext;
+
+  public GreatestBytesRefEvaluator(EvalOperator.ExpressionEvaluator[] values,
+      DriverContext driverContext) {
     this.values = values;
+    this.driverContext = driverContext;
   }
 
   @Override

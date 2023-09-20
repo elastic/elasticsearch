@@ -230,7 +230,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
             if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
-                return true;
+                return isAggregatable(f);
             }
             if (expression instanceof MetadataAttribute ma && ma.searchable()) {
                 return operation == null
@@ -241,6 +241,17 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
             return false;
         }
+    }
+
+    /**
+     * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
+     * "aggregatable" is the most accurate information we can have from field_caps as of now.
+     * Pushing down operations on fields that are not aggregatable would result in an error.
+     * @param f
+     * @return
+     */
+    private static boolean isAggregatable(FieldAttribute f) {
+        return f.exactAttribute().field().isAggregatable();
     }
 
     private static class PushLimitToSource extends OptimizerRule<LimitExec> {
@@ -280,13 +291,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private boolean canPushDownOrders(List<Order> orders) {
             // allow only exact FieldAttributes (no expressions) for sorting
-            return orders.stream().allMatch(o -> o.child() instanceof FieldAttribute fa && fa.getExactInfo().hasExact());
+            return orders.stream()
+                .allMatch(o -> o.child() instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isAggregatable(fa));
         }
 
         private List<EsQueryExec.FieldSort> buildFieldSorts(List<Order> orders) {
             List<EsQueryExec.FieldSort> sorts = new ArrayList<>(orders.size());
             for (Order o : orders) {
-                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
+                sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
         }
@@ -296,6 +308,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         @Override
         public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
             if (field instanceof FieldAttribute fa) {
+                if (fa.getExactInfo().hasExact()) {
+                    var exact = fa.exactAttribute();
+                    if (exact != fa) {
+                        fa = exact;
+                    }
+                }
                 return ExpressionTranslator.wrapIfNested(new SingleValueQuery(querySupplier.get(), fa.name()), field);
             }
             if (field instanceof MetadataAttribute) {

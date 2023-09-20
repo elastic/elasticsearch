@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,7 +67,7 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
         return sink.waitForWriting();
     }
 

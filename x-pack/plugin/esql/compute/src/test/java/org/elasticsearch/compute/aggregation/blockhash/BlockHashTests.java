@@ -1032,7 +1032,7 @@ public class BlockHashTests extends ESTestCase {
         try (
             BlockHash blockHash = forcePackedHash
                 ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-                : BlockHash.build(specs, bigArrays, emitBatchSize)
+                : BlockHash.build(specs, bigArrays, emitBatchSize, true)
         ) {
             hash(true, blockHash, callback, values);
         }

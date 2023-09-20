@@ -77,4 +77,9 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
+    @Override
+    public void close() {
+        // no-op
+    }
 }

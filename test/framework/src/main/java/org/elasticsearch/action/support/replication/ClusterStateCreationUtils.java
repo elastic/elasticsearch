@@ -31,6 +31,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -535,7 +536,7 @@ public class ClusterStateCreationUtils {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         for (DiscoveryNode node : allNodes) {
-            state.putTransportVersion(node.getId(), transportVersion);
+            state.putCompatibilityVersions(node.getId(), transportVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
         }
 
         Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();

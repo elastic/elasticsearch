@@ -141,6 +141,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_500_074 = def(8_500_074);
     public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
     public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
+    public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_502_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

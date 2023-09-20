@@ -187,6 +187,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
                 .getPluginInfos()
                 .stream()
+                .filter(p -> p.descriptor().isStable() == false)
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(

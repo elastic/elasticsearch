@@ -78,6 +78,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @param hasNativeController  whether or not the plugin has a native controller
      * @param isLicensed           whether is this a licensed plugin
      * @param isModular            whether this plugin should be loaded in a module layer
+     * @param isStable             whether this plugin is implemented using the stable plugin API
      */
     public PluginDescriptor(
         String name,
@@ -119,7 +120,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.version = in.readString();
         elasticsearchVersion = Version.readVersion(in);
         javaVersion = in.readString();
-        this.classname = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME)) {
+            this.classname = in.readOptionalString();
+        } else {
+            this.classname = in.readString();
+        }
         if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
@@ -154,7 +159,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(version);
         Version.writeVersion(elasticsearchVersion, out);
         out.writeString(javaVersion);
-        out.writeString(classname);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME)) {
+            out.writeOptionalString(classname);
+        } else {
+            out.writeString(classname);
+        }
         if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
@@ -329,6 +338,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @return the entry point to the plugin
      */
     public String getClassname() {
+        if (isStable) {
+            throw new IllegalStateException("Stable plugins do not have an explicit entry point");
+        }
         return classname;
     }
 

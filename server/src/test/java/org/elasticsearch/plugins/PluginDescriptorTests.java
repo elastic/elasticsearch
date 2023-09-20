@@ -268,6 +268,16 @@ public class PluginDescriptorTests extends ESTestCase {
         assertThat(info2.toString(), equalTo(info.toString()));
     }
 
+    public void testSerializeStablePluginDescriptor() throws Exception {
+        PluginDescriptor info = mockStableDescriptor();
+        BytesStreamOutput output = new BytesStreamOutput();
+        info.writeTo(output);
+        ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
+        ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
+        PluginDescriptor info2 = new PluginDescriptor(input);
+        assertThat(info2.toString(), equalTo(info.toString()));
+    }
+
     PluginDescriptor newMockDescriptor(String name) {
         return new PluginDescriptor(
             name,

@@ -233,6 +233,7 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
+        //return new IndexSearcher(context.searcher().getIndexReader()).count(query);
         return context.searcher().count(query);
     }
 

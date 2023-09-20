@@ -543,6 +543,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     ) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
+
+            PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>();
+            areMLNodesArchitecturesHomogeneous(homogeneityListener);
+            Boolean areMLNodesArchitecturesHomogeneous = homogeneityListener.actionGet();
+
             TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
             try {
                 rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
@@ -564,11 +569,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         ClusterState updatedState = update(currentState, rebalancedMetadata);
                         isChanged = updatedState != currentState;
 
-                        PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>(); // TODO make sure this isn't on the
-                                                                                                    // master service thread
-                        areMLNodesArchitecturesHomogeneous(homogeneityListener);
-                        // Synchronous get here is required to update the cluster state
-                        if (modelToAdd.isPresent() && homogeneityListener.actionGet()) {
+                        if (areMLNodesArchitecturesHomogeneous == false && modelToAdd.isPresent()) {
                             setToStopping(
                                 clusterState,
                                 modelToAdd.get().getDeploymentId(),

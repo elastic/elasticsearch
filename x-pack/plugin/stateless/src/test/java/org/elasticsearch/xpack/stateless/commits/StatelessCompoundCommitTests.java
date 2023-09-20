@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -44,8 +46,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     protected StatelessCompoundCommit createTestInstance() {
         return new StatelessCompoundCommit(
             randomShardId(),
-            randomNonZeroPositiveLong(),
-            randomNonZeroPositiveLong(),
+            new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong()),
             randomNonZeroPositiveLong(),
             randomNodeEphemeralId(),
             randomCommitFiles()
@@ -54,51 +55,41 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     @Override
     protected StatelessCompoundCommit mutateInstance(StatelessCompoundCommit instance) throws IOException {
-        return switch (randomInt(5)) {
+        return switch (randomInt(4)) {
             case 0 -> new StatelessCompoundCommit(
                 randomValueOtherThan(instance.shardId(), StatelessCompoundCommitTests::randomShardId),
-                instance.generation(),
-                instance.primaryTerm(),
+                instance.primaryTermAndGeneration(),
                 instance.translogRecoveryStartFile(),
                 instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 1 -> new StatelessCompoundCommit(
                 instance.shardId(),
-                randomValueOtherThan(instance.generation(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
-                instance.primaryTerm(),
+                randomValueOtherThan(
+                    instance.primaryTermAndGeneration(),
+                    () -> new PrimaryTermAndGeneration(randomNonZeroPositiveLong(), randomNonZeroPositiveLong())
+                ),
                 instance.translogRecoveryStartFile(),
                 instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 2 -> new StatelessCompoundCommit(
                 instance.shardId(),
-                instance.generation(),
-                randomValueOtherThan(instance.primaryTerm(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
-                instance.translogRecoveryStartFile(),
+                instance.primaryTermAndGeneration(),
+                randomValueOtherThan(instance.translogRecoveryStartFile(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
                 instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 3 -> new StatelessCompoundCommit(
                 instance.shardId(),
-                instance.generation(),
-                randomValueOtherThan(instance.translogRecoveryStartFile(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
-                instance.translogRecoveryStartFile(),
-                instance.nodeEphemeralId(),
-                instance.commitFiles()
-            );
-            case 4 -> new StatelessCompoundCommit(
-                instance.shardId(),
-                instance.generation(),
-                instance.primaryTerm(),
+                instance.primaryTermAndGeneration(),
                 instance.translogRecoveryStartFile(),
                 randomValueOtherThan(instance.nodeEphemeralId(), StatelessCompoundCommitTests::randomNodeEphemeralId),
                 instance.commitFiles()
             );
-            case 5 -> new StatelessCompoundCommit(
+            case 4 -> new StatelessCompoundCommit(
                 instance.shardId(),
-                instance.generation(),
-                instance.primaryTerm(),
+                instance.primaryTermAndGeneration(),
                 instance.translogRecoveryStartFile(),
                 instance.nodeEphemeralId(),
                 randomValueOtherThan(instance.commitFiles(), StatelessCompoundCommitTests::randomCommitFiles)
@@ -156,8 +147,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
             StatelessCompoundCommit withInternalFiles = new StatelessCompoundCommit(
                 instance.shardId(),
-                instance.generation(),
-                instance.primaryTerm(),
+                instance.primaryTermAndGeneration(),
                 instance.translogRecoveryStartFile(),
                 instance.nodeEphemeralId(),
                 commitFilesToModify
@@ -177,8 +167,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         // translogRecoveryVersion. So the deserialized value with always be 0
         StatelessCompoundCommit withOldBlobLengths = new StatelessCompoundCommit(
             testInstance.shardId(),
-            testInstance.generation(),
-            testInstance.primaryTerm(),
+            testInstance.primaryTermAndGeneration(),
             0,
             testInstance.nodeEphemeralId(),
             randomCommitFiles(false)

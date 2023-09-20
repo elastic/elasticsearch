@@ -764,7 +764,7 @@ public class Stateless extends Plugin
                 final Store store = indexShard.store();
                 // On a search shard. First register, then read the new or confirmed commit.
                 store.incRef();
-                var commitToRegister = new PrimaryTermAndGeneration(commit.primaryTerm(), commit.generation());
+                var commitToRegister = commit.primaryTermAndGeneration();
                 recoveryCommitRegistrationHandler.get().register(commitToRegister, commit.shardId(), new ActionListener<>() {
                     @Override
                     public void onResponse(PrimaryTermAndGeneration commitToUse) {

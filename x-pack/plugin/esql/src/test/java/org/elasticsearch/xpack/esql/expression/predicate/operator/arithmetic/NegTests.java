@@ -139,32 +139,37 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             return;
         }
         if (testCaseType == EsqlDataTypes.DATE_PERIOD) {
-            Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
-            assertNull(process(minPeriod));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
-            );
-
             Period maxPeriod = Period.of(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
             Period negatedMaxPeriod = Period.of(-Integer.MAX_VALUE, -Integer.MAX_VALUE, -Integer.MAX_VALUE);
             assertEquals(negatedMaxPeriod, process(maxPeriod));
-            return;
+
+            Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
+            try {
+                process(minPeriod);
+            } catch (DateMathException e) {
+                assertEquals(e.getMessage(), "arithmetic exception in expression []: [integer overflow]");
+                return;// we expect an exception when negating minPeriod
+            }
+            throw new AssertionError("Expected exception when negating minimal date period.");
         }
         if (testCaseType == EsqlDataTypes.TIME_DURATION) {
-            Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
-            assertNull(process(minDuration));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Exceeds capacity of Duration: 9223372036854775808000000000"
-            );
-
             Duration maxDuration = Duration.ofSeconds(Long.MAX_VALUE, 0);
             Duration negatedMaxDuration = Duration.ofSeconds(-Long.MAX_VALUE, 0);
             assertEquals(negatedMaxDuration, process(maxDuration));
 
-            return;
+            Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
+            try {
+                process(minDuration);
+            } catch (DateMathException e) {
+                assertEquals(
+                    e.getMessage(),
+                    "arithmetic exception in expression []: [Exceeds capacity of Duration: 9223372036854775808000000000]"
+                );
+                return;
+            }
+            throw new AssertionError("Expected exception when negating minimal time duration.");
         }
+
         throw new AssertionError("Edge cases not tested for negation with type [" + testCaseType.typeName() + "]");
     }
 

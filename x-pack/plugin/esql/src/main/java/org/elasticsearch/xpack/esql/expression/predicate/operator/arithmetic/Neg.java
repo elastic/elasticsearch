@@ -73,13 +73,23 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
         // evaluator for them - but the default folding requires an evaluator.
         if (dataType == DATE_PERIOD) {
             Period fieldValue = (Period) field().fold();
-            // TODO handle overflow
-            return fieldValue.negated();
+            try {
+                return fieldValue.negated();
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw DateMathException.fromArithmeticException(source(), e);
+            }
         }
         if (dataType == TIME_DURATION) {
             Duration fieldValue = (Duration) field().fold();
-            // TODO handle overflow
-            return fieldValue.negated();
+            try {
+                return fieldValue.negated();
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw DateMathException.fromArithmeticException(source(), e);
+            }
         }
         return EvaluatorMapper.super.fold();
     }

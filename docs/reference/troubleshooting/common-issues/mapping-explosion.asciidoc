@@ -56,14 +56,8 @@ however, that flattened objects is link:https://github.com/elastic/kibana/issues
 `host.os`, `host.version` }. Desired fields are still accessed by
 <<runtime-search-request,runtime fields>>.
 
-* Using the <<object,object data type>>. This is helpful when you're
-interested in storing but not searching a group of fields. This is commonly
-used for unknown upstream scenarios which may induce however many fields.
-For example, this is recommended when sub-mappings start showing new,
-unexpected fields like { `o365.a01`, `o365.a02`, `o365.b01`, `o365.c99`}.
-
-* Setting <<mapping-index,`index:false`>> to disable a particular field's
-searchability. This cannot effect current index mapping, but can apply
+* Disable <<dynamic-mapping,dynamic mappings>>.
+ This cannot effect current index mapping, but can apply
 going forward via an <<index-templates,index template>>.
 
 Modifying to the <<nested,nested>> data type would not resolve the core

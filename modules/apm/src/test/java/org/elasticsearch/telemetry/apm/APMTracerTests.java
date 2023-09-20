@@ -21,8 +21,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.util.HashMap;

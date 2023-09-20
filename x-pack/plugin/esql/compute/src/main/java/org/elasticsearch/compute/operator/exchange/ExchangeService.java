@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -34,6 +33,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,7 +73,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         this.requestExecutorName = executorName;
         this.responseExecutor = threadPool.executor(executorName);
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
-        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval);
+        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.responseExecutor, inactiveInterval);
     }
 
     public void registerTransportHandler(TransportService transportService) {
@@ -211,8 +211,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     private final class InactiveSinksReaper extends AbstractAsyncTask {
-        InactiveSinksReaper(Logger logger, ThreadPool threadPool, TimeValue interval) {
-            super(logger, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE, interval, true);
+        InactiveSinksReaper(Logger logger, ThreadPool threadPool, Executor executor, TimeValue interval) {
+            super(logger, threadPool, executor, interval, true);
             rescheduleIfNecessary();
         }
 
@@ -224,6 +224,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
         @Override
         protected void runInternal() {
+            assert Transports.assertNotTransportThread("reaping inactive exchanges can be expensive");
+            assert ThreadPool.assertNotScheduleThread("reaping inactive exchanges can be expensive");
             final TimeValue maxInterval = getInterval();
             final long nowInMillis = threadPool.relativeTimeInMillis();
             for (Map.Entry<String, ExchangeSinkHandler> e : sinks.entrySet()) {

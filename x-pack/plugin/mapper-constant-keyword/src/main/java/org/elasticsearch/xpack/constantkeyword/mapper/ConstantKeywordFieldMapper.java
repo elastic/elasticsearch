@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -300,9 +299,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
-            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            Builder update = new Builder(simpleName());
+            update.value.setValue(value);
+            boolean dynamicMapperAdded = context.addDynamicMapper(fieldType().name(), update);
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {

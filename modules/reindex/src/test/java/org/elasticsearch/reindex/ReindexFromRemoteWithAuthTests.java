@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;

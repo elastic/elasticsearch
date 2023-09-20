@@ -459,39 +459,42 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, true, null, null, 2);
         SearchResponse.Clusters clusters = createCCSClusterObjects(4, 3, true);
 
-        SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        SearchResponse.Cluster updated = new SearchResponse.Cluster(
-            localCluster.getClusterAlias(),
-            localCluster.getIndexExpression(),
-            false,
-            SearchResponse.Cluster.Status.SUCCESSFUL,
-            10,
-            10,
-            3,
-            0,
-            Collections.emptyList(),
-            new TimeValue(11111),
-            false
+        SearchResponse.Cluster updated = clusters.compute(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            (k, v) -> new SearchResponse.Cluster(
+                k,
+                v.getIndexExpression(),
+                false,
+                SearchResponse.Cluster.Status.SUCCESSFUL,
+                10,
+                10,
+                3,
+                0,
+                Collections.emptyList(),
+                new TimeValue(11111),
+                false
+            )
         );
-        SearchResponse.Cluster swapped = clusters.setCluster(localCluster.getClusterAlias(), updated);
-        assertNotNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, updated);
 
         SearchResponse.Cluster cluster0 = clusters.getCluster("cluster_0");
-        updated = new SearchResponse.Cluster(
+        updated = clusters.compute(
             cluster0.getClusterAlias(),
-            cluster0.getIndexExpression(),
-            false,
-            SearchResponse.Cluster.Status.SUCCESSFUL,
-            8,
-            8,
-            1,
-            0,
-            Collections.emptyList(),
-            new TimeValue(7777),
-            false
+            (k, v) -> new SearchResponse.Cluster(
+                k,
+                v.getIndexExpression(),
+                false,
+                SearchResponse.Cluster.Status.SUCCESSFUL,
+                8,
+                8,
+                1,
+                0,
+                Collections.emptyList(),
+                new TimeValue(7777),
+                false
+            )
         );
-        swapped = clusters.setCluster(cluster0.getClusterAlias(), updated);
-        assertNotNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + cluster0.getClusterAlias(), updated);
 
         SearchResponse.Cluster cluster1 = clusters.getCluster("cluster_1");
         ShardSearchFailure failure1 = new ShardSearchFailure(
@@ -502,38 +505,42 @@ public class AsyncSearchResponseTests extends ESTestCase {
             new CorruptIndexException("abc", "123"),
             new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 0), "cluster_1")
         );
-        updated = new SearchResponse.Cluster(
+        updated = clusters.compute(
             cluster1.getClusterAlias(),
-            cluster1.getIndexExpression(),
-            false,
-            SearchResponse.Cluster.Status.SKIPPED,
-            2,
-            0,
-            0,
-            2,
-            List.of(failure1, failure2),
-            null,
-            false
+            (k, v) -> new SearchResponse.Cluster(
+                k,
+                v.getIndexExpression(),
+                false,
+                SearchResponse.Cluster.Status.SKIPPED,
+                2,
+                0,
+                0,
+                2,
+                List.of(failure1, failure2),
+                null,
+                false
+            )
         );
-        swapped = clusters.setCluster(cluster1.getClusterAlias(), updated);
-        assertNotNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + cluster1.getClusterAlias(), updated);
 
         SearchResponse.Cluster cluster2 = clusters.getCluster("cluster_2");
-        updated = new SearchResponse.Cluster(
+        updated = clusters.compute(
             cluster2.getClusterAlias(),
-            cluster2.getIndexExpression(),
-            false,
-            SearchResponse.Cluster.Status.PARTIAL,
-            8,
-            8,
-            0,
-            0,
-            Collections.emptyList(),
-            new TimeValue(17322),
-            true
+            (k, v) -> new SearchResponse.Cluster(
+                k,
+                v.getIndexExpression(),
+                false,
+                SearchResponse.Cluster.Status.PARTIAL,
+                8,
+                8,
+                0,
+                0,
+                Collections.emptyList(),
+                new TimeValue(17322),
+                true
+            )
         );
-        swapped = clusters.setCluster(cluster2.getClusterAlias(), updated);
-        assertNotNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + cluster2.getClusterAlias(), updated);
 
         SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, new ShardSearchFailure[0], clusters);
 
@@ -786,56 +793,63 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int partial = partialClusters;
         if (totalClusters > remoteClusters) {
             String localAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            SearchResponse.Cluster orig = clusters.getCluster(localAlias);
             SearchResponse.Cluster updated;
             if (successful > 0) {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     localAlias,
-                    orig.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.SUCCESSFUL,
-                    5,
-                    5,
-                    0,
-                    0,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.SUCCESSFUL,
+                        5,
+                        5,
+                        0,
+                        0,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 successful--;
             } else if (skipped > 0) {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     localAlias,
-                    orig.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.SKIPPED,
-                    5,
-                    0,
-                    0,
-                    5,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.SKIPPED,
+                        5,
+                        0,
+                        0,
+                        5,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 skipped--;
             } else {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     localAlias,
-                    orig.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.PARTIAL,
-                    5,
-                    2,
-                    1,
-                    3,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.PARTIAL,
+                        5,
+                        2,
+                        1,
+                        3,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 partial--;
             }
-            SearchResponse.Cluster swapped = clusters.setCluster(localAlias, updated);
-            assertNotNull("Set cluster failed for cluster " + updated, swapped);
+            assertNotNull("Set cluster failed for cluster " + localAlias, updated);
         }
 
         int numClusters = successful + skipped + partial;
@@ -845,53 +859,61 @@ public class AsyncSearchResponseTests extends ESTestCase {
             SearchResponse.Cluster remote = clusters.getCluster(clusterAlias);
             SearchResponse.Cluster updated;
             if (successful > 0) {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     clusterAlias,
-                    remote.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.SUCCESSFUL,
-                    5,
-                    5,
-                    0,
-                    0,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.SUCCESSFUL,
+                        5,
+                        5,
+                        0,
+                        0,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 successful--;
             } else if (skipped > 0) {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     clusterAlias,
-                    remote.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.SKIPPED,
-                    5,
-                    0,
-                    0,
-                    5,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.SKIPPED,
+                        5,
+                        0,
+                        0,
+                        5,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 skipped--;
             } else {
-                updated = new SearchResponse.Cluster(
+                updated = clusters.compute(
                     clusterAlias,
-                    remote.getIndexExpression(),
-                    false,
-                    SearchResponse.Cluster.Status.PARTIAL,
-                    5,
-                    2,
-                    1,
-                    3,
-                    Collections.emptyList(),
-                    new TimeValue(1000),
-                    false
+                    (k, v) -> new SearchResponse.Cluster(
+                        k,
+                        v.getIndexExpression(),
+                        false,
+                        SearchResponse.Cluster.Status.PARTIAL,
+                        5,
+                        2,
+                        1,
+                        3,
+                        Collections.emptyList(),
+                        new TimeValue(1000),
+                        false
+                    )
                 );
                 partial--;
             }
-            SearchResponse.Cluster swapped = clusters.setCluster(clusterAlias, updated);
-            assertNotNull("Set cluster failed for cluster " + updated, swapped);
+            assertNotNull("Set cluster failed for cluster " + clusterAlias, updated);
         }
         return clusters;
     }

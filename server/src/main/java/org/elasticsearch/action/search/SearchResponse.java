@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -707,12 +708,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * @param clusterAlias The cluster alias as specified in the cluster collection
-         * @param cluster Object to replace in the map
-         * @return the new value associated with the specified key, or null if none
+         * @param clusterAlias key with which the specified value is associated
+         * @param remappingFunction function to transform the oldCluster to a newCluster
+         * @return the new Cluster object
          */
-        public Cluster setCluster(String clusterAlias, Cluster cluster) {
-            return clusterInfo.compute(clusterAlias, (k, v) -> cluster);
+        public Cluster compute(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+            return clusterInfo.compute(clusterAlias, remappingFunction);
         }
 
         @Override

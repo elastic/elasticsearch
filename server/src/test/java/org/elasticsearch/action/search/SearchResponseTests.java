@@ -212,10 +212,11 @@ public class SearchResponseTests extends ESTestCase {
             int totalShards = 5;
             int successfulShards;
             int skippedShards;
-            int failedShards = 0;
+            int failedShards;
             List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
+                failedShards = 0;
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 successfulShards = 5;
                 skippedShards = 1;
@@ -240,6 +241,7 @@ public class SearchResponseTests extends ESTestCase {
                 failedShards = 5;
                 failed--;
             } else {
+                failedShards = 0;
                 throw new IllegalStateException("Test setup coding error - should not get here");
             }
             String clusterAlias = "";
@@ -247,21 +249,23 @@ public class SearchResponseTests extends ESTestCase {
                 clusterAlias = "cluster_" + i;
             }
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            SearchResponse.Cluster updated = new SearchResponse.Cluster(
+            List<ShardSearchFailure> finalFailureList = failureList;
+            clusters.compute(
                 cluster.getClusterAlias(),
-                cluster.getIndexExpression(),
-                false,
-                status,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                failedShards,
-                failureList,
-                took,
-                false
+                (k, v) -> new SearchResponse.Cluster(
+                    k,
+                    v.getIndexExpression(),
+                    false,
+                    status,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    failedShards,
+                    finalFailureList,
+                    took,
+                    false
+                )
             );
-            clusters.setCluster(clusterAlias, updated);
-
         }
         return clusters;
     }

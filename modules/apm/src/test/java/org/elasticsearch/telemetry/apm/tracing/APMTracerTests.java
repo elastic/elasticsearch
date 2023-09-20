@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm.tracing;
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -21,8 +21,9 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.apm.settings.APMAgentSettings;
+import org.elasticsearch.telemetry.tracing.SpanId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.tracing.SpanId;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -31,9 +32,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;
@@ -54,7 +52,7 @@ public class APMTracerTests extends ESTestCase {
      * Check that the tracer doesn't create spans when tracing is disabled.
      */
     public void test_onTraceStarted_withTracingDisabled_doesNotStartTrace() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
 
         apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
@@ -67,8 +65,8 @@ public class APMTracerTests extends ESTestCase {
      */
     public void test_onTraceStarted_withSpanNameOmitted_doesNotStartTrace() {
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), List.of("filtered*"))
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .putList(APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), List.of("filtered*"))
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
@@ -81,7 +79,7 @@ public class APMTracerTests extends ESTestCase {
      * Check that when a trace is started, the tracer starts a span and records it.
      */
     public void test_onTraceStarted_startsTrace() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
         apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
@@ -94,7 +92,7 @@ public class APMTracerTests extends ESTestCase {
      * Checks that when a trace is started with a specific start time, the tracer starts a span and records it.
      */
     public void test_onTraceStartedWithStartTime_startsTrace() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
         ThreadContext threadContext = new ThreadContext(settings);
@@ -112,7 +110,7 @@ public class APMTracerTests extends ESTestCase {
      * Check that when a trace is stopped, the tracer ends the span and removes the record of it.
      */
     public void test_onTraceStopped_stopsTrace() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
         apmTracer.startTrace(new ThreadContext(settings), SPAN_ID1, "name1", null);
@@ -129,7 +127,7 @@ public class APMTracerTests extends ESTestCase {
      * check that the local context object is added, however.
      */
     public void test_whenTraceStarted_threadContextIsPopulated() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
         ThreadContext threadContext = new ThreadContext(settings);
@@ -149,8 +147,8 @@ public class APMTracerTests extends ESTestCase {
             "name-b*"
         );
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .putList(APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
@@ -171,9 +169,9 @@ public class APMTracerTests extends ESTestCase {
         final List<String> includePatterns = List.of("name-a*");
         final List<String> excludePatterns = List.of("name-a*");
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
-            .putList(APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .putList(APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
+            .putList(APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
@@ -194,8 +192,8 @@ public class APMTracerTests extends ESTestCase {
             "name-b*"
         );
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .putList(APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .putList(APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
@@ -212,7 +210,7 @@ public class APMTracerTests extends ESTestCase {
      * Check that sensitive attributes are not added verbatim to a span, but instead the value is redacted.
      */
     public void test_whenAddingAttributes_thenSensitiveValuesAreRedacted() {
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
         CharacterRunAutomaton labelFilterAutomaton = apmTracer.getLabelFilterAutomaton();
 

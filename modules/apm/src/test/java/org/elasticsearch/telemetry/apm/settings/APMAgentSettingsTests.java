@@ -6,13 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm.settings;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_AGENT_SETTINGS;
-import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,7 +22,7 @@ public class APMAgentSettingsTests extends ESTestCase {
      */
     public void test_whenTracerEnabled_setsRecordingProperty() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "true");
@@ -35,7 +33,7 @@ public class APMAgentSettingsTests extends ESTestCase {
      */
     public void test_whenTracerDisabled_setsRecordingProperty() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), false).build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("recording", "false");
@@ -47,7 +45,7 @@ public class APMAgentSettingsTests extends ESTestCase {
      */
     public void test_whenTracerCreated_defaultSettingsApplied() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
-        Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
+        Settings settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
         verify(apmAgentSettings).setAgentSetting("transaction_sample_rate", "0.2");
@@ -60,8 +58,8 @@ public class APMAgentSettingsTests extends ESTestCase {
     public void test_whenTracerCreated_clusterSettingsOverrideDefaults() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .put(APM_AGENT_SETTINGS.getKey() + "transaction_sample_rate", "0.75")
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "transaction_sample_rate", "0.75")
             .build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 
@@ -79,8 +77,8 @@ public class APMAgentSettingsTests extends ESTestCase {
     public void test_whenTracerCreated_clusterSettingsAlsoApplied() {
         APMAgentSettings apmAgentSettings = spy(new APMAgentSettings());
         Settings settings = Settings.builder()
-            .put(APM_ENABLED_SETTING.getKey(), true)
-            .put(APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
+            .put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true)
+            .put(APMAgentSettings.APM_AGENT_SETTINGS.getKey() + "span_compression_enabled", "true")
             .build();
         apmAgentSettings.syncAgentSystemProperties(settings);
 

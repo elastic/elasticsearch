@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettings.java
 package org.elasticsearch.telemetry.apm.settings;
-========
-package org.elasticsearch.telemetry.apm;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMAgentSettings.java
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +17,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.APMMetric;
+import org.elasticsearch.telemetry.apm.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 
 import java.security.AccessController;
@@ -47,13 +45,9 @@ public class APMAgentSettings {
     static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2",
         "enable_experimental_instrumentations", "true");
 
-<<<<<<<< HEAD:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettings.java
-    public void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
-========
-    void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
+    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
         APMTracer apmTracer = telemetryProvider.getTracer();
         APMMetric apmMetric = telemetryProvider.getMetric();
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/main/java/org/elasticsearch/telemetry/apm/APMAgentSettings.java
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);

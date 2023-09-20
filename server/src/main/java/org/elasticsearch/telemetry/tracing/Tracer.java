@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<<< HEAD:server/src/main/java/org/elasticsearch/telemetry/tracing/Tracer.java
 package org.elasticsearch.telemetry.tracing;
-========
-package org.elasticsearch.telemetry;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:server/src/main/java/org/elasticsearch/telemetry/Tracer.java
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;

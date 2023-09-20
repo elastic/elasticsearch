@@ -9,8 +9,9 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
-public interface TracerPlugin {
-    Tracer getTracer(Settings settings);
+public interface TelemetryPlugin {
+    TelemetryProvider getTelemetryProvider(Settings settings);
 }

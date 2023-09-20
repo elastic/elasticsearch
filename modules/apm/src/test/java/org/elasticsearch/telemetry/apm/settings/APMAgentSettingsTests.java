@@ -6,20 +6,11 @@
  * Side Public License, v 1.
  */
 
-<<<<<<<< HEAD:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettingsTests.java
 package org.elasticsearch.telemetry.apm.settings;
-========
-package org.elasticsearch.telemetry.apm;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/APMAgentSettingsTests.java
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-<<<<<<<< HEAD:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/settings/APMAgentSettingsTests.java
-========
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_AGENT_SETTINGS;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/APMAgentSettingsTests.java
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;

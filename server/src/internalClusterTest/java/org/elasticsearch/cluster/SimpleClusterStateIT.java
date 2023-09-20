@@ -415,7 +415,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {

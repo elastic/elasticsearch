@@ -75,7 +75,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {

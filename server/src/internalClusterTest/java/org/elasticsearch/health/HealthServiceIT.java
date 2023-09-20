@@ -136,7 +136,7 @@ public class HealthServiceIT extends ESIntegTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {

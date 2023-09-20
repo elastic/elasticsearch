@@ -6,12 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<<< HEAD:server/src/main/java/org/elasticsearch/telemetry/tracing/SpanId.java
 package org.elasticsearch.telemetry.tracing;
-========
-package org.elasticsearch.telemetry;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:server/src/main/java/org/elasticsearch/telemetry/SpanId.java
-
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 

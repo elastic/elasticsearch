@@ -27,14 +27,14 @@ import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
     private final Map<MetricName, Counter> counters = ConcurrentCollections.newConcurrentMap();
     private final Map<MetricName, DoubleGauge> doubleGauges = ConcurrentCollections.newConcurrentMap();
     private final Map<MetricName, DoubleHistogram> doubleHistograms = ConcurrentCollections.newConcurrentMap();
     private volatile boolean enabled;
-    private  AtomicReference<APMServices> services = new AtomicReference<>();
+    private AtomicReference<APMServices> services = new AtomicReference<>();
 
     record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
 
@@ -43,7 +43,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
         this.enabled = APM_ENABLED_SETTING.get(settings);
     }
 
-    void setEnabled(boolean enabled) {
+    public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
             createApmServices();
@@ -89,7 +89,10 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
                 throw new IllegalStateException("double gauge [" + name.getRawName() + "] already registered");
             }
             var lazyGauge = new LazyInitializable<>(
-                () -> services.get().meter.gaugeBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).buildObserver()
+                () -> services.get().meter.gaugeBuilder(name.getRawName())
+                    .setDescription(description)
+                    .setUnit(unit.toString())
+                    .buildObserver()
             );
 
             return OtelDoubleGauge.build(lazyGauge, name, description, unit);
@@ -130,7 +133,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
                     try {
                         counter.add(42);
                         Thread.sleep(2000);
-                    }catch (Exception e){
+                    } catch (Exception e) {
 
                     }
                 }

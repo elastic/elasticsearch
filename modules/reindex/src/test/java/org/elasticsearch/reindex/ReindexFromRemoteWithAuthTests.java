@@ -176,7 +176,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {

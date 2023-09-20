@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<<< HEAD:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/tracing/APMTracerTests.java
 package org.elasticsearch.telemetry.apm.tracing;
-========
-package org.elasticsearch.telemetry.apm;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/APMTracerTests.java
 
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -25,12 +21,8 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-<<<<<<<< HEAD:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/tracing/APMTracerTests.java
 import org.elasticsearch.telemetry.apm.settings.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.SpanId;
-========
-import org.elasticsearch.telemetry.SpanId;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/APMTracerTests.java
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -40,12 +32,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-<<<<<<<< HEAD:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/tracing/APMTracerTests.java
-========
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
->>>>>>>> bd3b9b3d45b31ed7d668a7de04bbe2e5fafb57ae:modules/apm/src/test/java/org/elasticsearch/telemetry/apm/APMTracerTests.java
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;

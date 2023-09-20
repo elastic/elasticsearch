@@ -526,12 +526,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testNestedObjectWithMultiFieldsMapperSize() throws IOException {
-        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE)
-            .add(new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE)
-                .add(new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers())
-                    .addMultiField(new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current()))
-                    .addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
-                ));
+        ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
+                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
+                    new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
+                ).addMultiField(new KeywordFieldMapper.Builder("multi_field_size_5", IndexVersion.current()))
+            )
+        );
         assertThat(mapperBuilder.mapperSize(), equalTo(5));
     }
 }

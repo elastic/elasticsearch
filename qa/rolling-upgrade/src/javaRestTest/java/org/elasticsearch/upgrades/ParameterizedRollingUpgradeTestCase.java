@@ -66,9 +66,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, NODE_NUM).boxed())
-            .map(n -> new Object[] { n })
-            .toList();
+        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, NODE_NUM).boxed()).map(n -> new Object[] { n }).toList();
     }
 
     private static final Set<Integer> upgradedNodes = new HashSet<>();

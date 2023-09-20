@@ -14,11 +14,17 @@ esplugin {
 
 def otelVersion = '1.17.0'
 
+repositories {
+  maven {
+    name "sonatype-nexus-snapshots"
+    url "https://oss.sonatype.org/content/repositories/snapshots"
+  }
+}
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-semconv:${otelVersion}-alpha"
-  implementation    "co.elastic.apm:elastic-apm-agent:1.37.0"
+  implementation    "co.elastic.apm:elastic-apm-agent:1.42.1-SNAPSHOT"
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -48,13 +48,8 @@ buildscript {
     maven {
       url = "https://jitpack.io"
     }
+  }
 
-  }
-  configurations {
-    classpath {
-      resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
-    }
-  }
   dependencies {
     classpath 'com.github.breskeby:gradle-ospackage-plugin:setgid-support-SNAPSHOT'
   }

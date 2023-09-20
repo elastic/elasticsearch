@@ -160,7 +160,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
             if (versionExtension == null) {
                 return LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentIndexVersion();
+            var version = versionExtension.getCurrentIndexVersion(LATEST_DEFINED);
 
             assert version.onOrAfter(LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)

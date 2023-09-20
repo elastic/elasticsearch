@@ -115,7 +115,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             if (versionExtension == null) {
                 return TransportVersions.LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentTransportVersion();
+            var version = versionExtension.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED);
             assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
             return version;
         }

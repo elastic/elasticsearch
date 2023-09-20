@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
@@ -19,9 +20,9 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,16 +30,26 @@ import static org.hamcrest.Matchers.not;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
-    private static final String MAPPINGS = String.format(Locale.ROOT, """
+    private static final int TEST_MAPPINGS_VERSION = 10;
+    private static final int TEST_MAPPINGS_PRIOR_VERSION = 5;
+    private static final int TEST_MAPPINGS_NONEXISTENT_VERSION = 2;
+
+    private static final String MAPPINGS_FORMAT_STRING = """
         {
           "_doc": {
             "_meta": {
               "version": "7.4.0",
-              "%s": 1
+              "%s": %d
             }
           }
         }
-        """, SystemIndexDescriptor.VERSION_META_KEY);
+        """;
+
+    private static final String MAPPINGS = Strings.format(
+        MAPPINGS_FORMAT_STRING,
+        SystemIndexDescriptor.VERSION_META_KEY,
+        TEST_MAPPINGS_VERSION
+    );
 
     /**
      * Tests the various validation rules that are applied when creating a new system index descriptor.
@@ -261,7 +272,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setAliasName(".system")
             .setType(Type.INTERNAL_MANAGED)
             .setSettings(Settings.EMPTY)
-            .setMappings(MAPPINGS)
+            .setMappings(Strings.format(MAPPINGS_FORMAT_STRING, VERSION_META_KEY, TEST_MAPPINGS_PRIOR_VERSION))
             .setVersionMetaKey("version")
             .setOrigin("system")
             .setMinimumNodeVersion(Version.V_7_0_0)
@@ -282,7 +293,11 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
         assertSame(descriptor, compat);
 
+        compat = descriptor.getDescriptorCompatibleWith(descriptor.getMappingsVersion());
+        assertSame(descriptor, compat);
+
         assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
+        assertNull(descriptor.getDescriptorCompatibleWith(new SystemIndexDescriptor.MappingsVersion(TEST_MAPPINGS_NONEXISTENT_VERSION, 1)));
 
         compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
         assertSame(descriptor, compat);
@@ -291,8 +306,20 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         compat = descriptor.getDescriptorCompatibleWith(priorToMin);
         assertSame(prior, compat);
 
+        SystemIndexDescriptor.MappingsVersion priorToMinMappingsVersion = new SystemIndexDescriptor.MappingsVersion(
+            TEST_MAPPINGS_PRIOR_VERSION,
+            1
+        );
+        compat = descriptor.getDescriptorCompatibleWith(priorToMinMappingsVersion);
+        assertSame(prior, compat);
+
         compat = descriptor.getDescriptorCompatibleWith(
             VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin)
+        );
+        assertSame(prior, compat);
+
+        compat = descriptor.getDescriptorCompatibleWith(
+            new SystemIndexDescriptor.MappingsVersion(randomIntBetween(TEST_MAPPINGS_PRIOR_VERSION, TEST_MAPPINGS_VERSION - 1), 1)
         );
         assertSame(prior, compat);
     }
@@ -368,7 +395,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
     // test mapping versions can't be negative
     public void testNegativeMappingsVersion() {
         int negativeVersion = randomIntBetween(Integer.MIN_VALUE, -1);
-        String mappings = String.format(Locale.ROOT, """
+        String mappings = Strings.format("""
             {
               "_doc": {
                 "_meta": {
@@ -415,20 +442,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             }
             """;
 
-        String mappings1 = String.format(
-            Locale.ROOT,
-            mappingFormatString,
-            "8.9.0",
-            SystemIndexDescriptor.VERSION_META_KEY,
-            randomIntBetween(1, 10)
-        );
-        String mappings2 = String.format(
-            Locale.ROOT,
-            mappingFormatString,
-            "8.10.0",
-            SystemIndexDescriptor.VERSION_META_KEY,
-            randomIntBetween(11, 20)
-        );
+        String mappings1 = Strings.format(mappingFormatString, "8.9.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(1, 10));
+        String mappings2 = Strings.format(mappingFormatString, "8.10.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(11, 20));
 
         SystemIndexDescriptor descriptor1 = priorSystemIndexDescriptorBuilder().setMappings(mappings1).build();
         SystemIndexDescriptor descriptor2 = priorSystemIndexDescriptorBuilder().setMappings(mappings2).build();

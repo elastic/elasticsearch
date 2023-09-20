@@ -18,14 +18,16 @@ public interface VersionExtension {
     /**
      * Returns the {@link TransportVersion} that Elasticsearch should use.
      * <p>
-     * This must be at least equal to the latest version found in {@link TransportVersion} V_* constants.
+     * This must be at least as high as the given fallback.
+     * @param fallback The latest transport version from server
      */
-    TransportVersion getCurrentTransportVersion();
+    TransportVersion getCurrentTransportVersion(TransportVersion fallback);
 
     /**
      * Returns the {@link IndexVersion} that Elasticsearch should use.
      * <p>
-     * This must be at least equal to the latest version found in {@link IndexVersion} V_* constants.
+     * This must be at least as high as the given fallback.
+     * @param fallback The latest index version from server
      */
-    IndexVersion getCurrentIndexVersion();
+    IndexVersion getCurrentIndexVersion(IndexVersion fallback);
 }

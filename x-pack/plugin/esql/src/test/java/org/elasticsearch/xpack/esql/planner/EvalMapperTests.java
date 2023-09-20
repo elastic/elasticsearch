@@ -103,8 +103,8 @@ public class EvalMapperTests extends ESTestCase {
             DOUBLE1,
             literal,
             new Length(Source.EMPTY, literal),
-            new DateFormat(Source.EMPTY, DATE, datePattern, TEST_CONFIG),
-            new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
+            new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
+            new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
             new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {

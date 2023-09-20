@@ -47,7 +47,6 @@ import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,7 +58,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -394,7 +392,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
                 AtomicInteger state = new AtomicInteger(0);
-                RunnableFuture<C> task = new FutureTask<>((SearchWorkerTask<C>) () -> {
+                RunnableFuture<C> task = new FutureTask<>(() -> {
                     if (state.compareAndSet(0, 1)) {
                         // A slice throws exception or times out: cancel all the tasks, to prevent slices that haven't started yet from
                         // starting and performing needless computation.
@@ -477,10 +475,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             return collectorManager.reduce(collectedCollectors);
         }
-    }
-
-    private interface SearchWorkerTask<V> extends Callable<V> {
-
     }
 
     @Override

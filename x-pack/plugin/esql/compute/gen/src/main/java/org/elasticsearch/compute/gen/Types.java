@@ -12,10 +12,11 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Types used by the code generator.

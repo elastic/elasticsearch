@@ -163,7 +163,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                         assertThat(oStatus.sliceIndex(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.sliceMin(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.sliceMax(), greaterThanOrEqualTo(oStatus.sliceMin()));
-                        if (oStatus.sliceMin() != 0 && oStatus.sliceMin() != 0) {
+                        if (oStatus.sliceMin() != 0 && oStatus.sliceMax() != 0) {
                             assertThat(
                                 oStatus.current(),
                                 either(both(greaterThanOrEqualTo(oStatus.sliceMin())).and(lessThanOrEqualTo(oStatus.sliceMax()))).or(

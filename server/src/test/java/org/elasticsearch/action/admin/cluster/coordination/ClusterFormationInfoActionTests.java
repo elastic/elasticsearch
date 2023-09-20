@@ -165,8 +165,6 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = getClusterFormationState();
         when(coordinator.getClusterFormationState()).thenReturn(clusterFormationState);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ClusterFormationInfoAction.TransportAction action = new ClusterFormationInfoAction.TransportAction(

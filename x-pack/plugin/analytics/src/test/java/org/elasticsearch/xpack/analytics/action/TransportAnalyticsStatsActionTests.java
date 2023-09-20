@@ -14,9 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,7 +40,6 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +47,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-        @BeforeClass
+    @BeforeClass
     public static void beforeClass() {
         // TransportNodesAction, the super class of TransportNodeDeprecationCheckAction, must use the thread pool to fetch a
         // thread other than EsExecutors.DIRECT_EXECUTOR_SERVICE. So we need a real thread pool.

@@ -1265,10 +1265,12 @@ public class CCSDuelIT extends ESRestTestCase {
 
     private static void assertMultiClusterSearchResponse(SearchResponse searchResponse) {
         assertEquals(2, searchResponse.getClusters().getTotal());
-        assertEquals(2, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+        // for bwc checks we expect that SUCCESSFUL + PARTIAL to be equal to 2
+        int bwcSuccessful = searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL);
+        bwcSuccessful += searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
+        assertEquals(2, bwcSuccessful);
         assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
         assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-        assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
         assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
         assertThat(searchResponse.getTotalShards(), greaterThan(1));
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(1));

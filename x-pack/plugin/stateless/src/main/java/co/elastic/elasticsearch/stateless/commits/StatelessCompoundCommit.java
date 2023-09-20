@@ -108,8 +108,13 @@ public record StatelessCompoundCommit(
             + translogRecoveryStartFile
             + ", nodeEphemeralId='"
             + nodeEphemeralId
-            + '\''
+            + "', commitFiles="
+            + commitFiles
             + '}';
+    }
+
+    public String toShortDescription() {
+        return '[' + blobNameFromGeneration(generation) + "][" + primaryTerm + "][" + generation + ']';
     }
 
     @Override

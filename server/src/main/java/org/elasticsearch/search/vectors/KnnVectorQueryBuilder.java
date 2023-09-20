@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -257,6 +258,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             try {
                 context.nestedScope().nextLevel(mapper);
+                if (filterQuery != null) {
+                    filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+                }
                 return queryVector != null
                     ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter)
                     : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery, vectorSimilarity, parentFilter);

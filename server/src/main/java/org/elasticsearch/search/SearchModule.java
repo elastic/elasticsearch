@@ -52,7 +52,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
-import org.elasticsearch.index.query.ReverseNestedQueryBuilder;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.SpanContainingQueryBuilder;
@@ -1133,9 +1132,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");
         }));
-        registerQuery(
-            new QuerySpec<>(ReverseNestedQueryBuilder.NAME, ReverseNestedQueryBuilder::new, ReverseNestedQueryBuilder::fromXContent)
-        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

@@ -707,6 +707,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
@@ -797,6 +798,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
         when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));

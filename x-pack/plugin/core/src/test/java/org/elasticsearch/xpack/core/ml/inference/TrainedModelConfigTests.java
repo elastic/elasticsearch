@@ -191,7 +191,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig()
+            ModelPackageConfigTests.randomModulePackageConfig(),
+            randomAlphaOfLength(100)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -241,7 +242,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig()
+            ModelPackageConfigTests.randomModulePackageConfig(),
+            randomAlphaOfLength(100)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);

@@ -24,6 +24,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.apm.settings.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;

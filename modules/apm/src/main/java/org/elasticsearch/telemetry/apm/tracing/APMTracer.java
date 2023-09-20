@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.tracing;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -43,10 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
@@ -98,7 +98,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.enabled = APM_ENABLED_SETTING.get(settings);
     }
 
-    void setEnabled(boolean enabled) {
+    public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
             this.services = createApmServices();
@@ -107,17 +107,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
     }
 
-    void setIncludeNames(List<String> includeNames) {
+    public void setIncludeNames(List<String> includeNames) {
         this.includeNames = includeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }
 
-    void setExcludeNames(List<String> excludeNames) {
+    public void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
     }
 
-    void setLabelFilters(List<String> labelFilters) {
+    public void setLabelFilters(List<String> labelFilters) {
         this.labelFilters = labelFilters;
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
     }

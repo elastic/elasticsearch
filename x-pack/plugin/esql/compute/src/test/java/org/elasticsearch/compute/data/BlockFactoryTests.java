@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -23,6 +26,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.BitSet;
+import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -34,14 +39,30 @@ import static org.mockito.Mockito.when;
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
 public class BlockFactoryTests extends ESTestCase {
 
-    final CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
-    final BigArrays bigArrays = bigArrays();
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final CircuitBreaker breaker;
+    final BigArrays bigArrays;
+    final BlockFactory blockFactory;
 
-    BigArrays bigArrays() {
+    static BigArrays bigArrays(CircuitBreaker breaker) {
         var breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
+    }
+
+    @ParametersFactory
+    public static List<Object[]> params() {
+        List<Supplier<BlockFactory>> l = List.of(() -> {
+            CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
+            BigArrays bigArrays = bigArrays(breaker);
+            return BlockFactory.getInstance(breaker, bigArrays);
+        }, BlockFactory::getGlobalInstance);
+        return l.stream().map(s -> new Object[] { s }).toList();
+    }
+
+    public BlockFactoryTests(@Name("blockFactorySupplier") Supplier<BlockFactory> blockFactorySupplier) {
+        this.blockFactory = blockFactorySupplier.get();
+        this.breaker = blockFactory.breaker();
+        this.bigArrays = blockFactory.bigArrays();
     }
 
     @Before

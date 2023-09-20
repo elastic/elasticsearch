@@ -222,6 +222,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     protected RootObjectMapper.Builder getRootObjectMapperBuilder(XContentBuilder mapping) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         Map<String, Object> mappingAsMap = MappingParser.convertToMap(new CompressedXContent(BytesReference.bytes(mapping)));

@@ -346,14 +346,14 @@ public class IndexDirectory extends ByteSizeDirectory {
                 throw new FileNotFoundException(name);
             }
             if (removeOnce.compareAndSet(false, true)) {
-                logger.trace("{} local file is marked as deleted", name);
+                logger.trace("{} {} local file is marked as deleted", cacheDirectory.getShardId(), name);
                 decRef();
             }
         }
 
         public void markAsUploaded() {
             if (removeOnce.compareAndSet(false, true)) {
-                logger.trace("{} local file is marked as uploaded", name);
+                logger.trace("{} {} local file is marked as uploaded", cacheDirectory.getShardId(), name);
                 decRef();
             }
         }

@@ -88,7 +88,6 @@ import co.elastic.elasticsearch.stateless.xpack.DummyWatcherInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyWatcherUsageTransportAction;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -653,10 +652,18 @@ public class Stateless extends Plugin
                     Set<BlobFile> unreferencedFiles = null;
                     StatelessCompoundCommit latestCommit = null;
                     final long primaryTerm = indexShard.getOperationPrimaryTerm();
-                    if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
-                        logger.debug("Skipping checking for existing commit for empty store recovery of [{}]", shardId);
+                    final var recoverySource = indexShard.recoveryState().getRecoverySource();
+                    if (recoverySource == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+                        logger.info(
+                            () -> format(
+                                "%s bootstrapping [%s] shard on primary term [%d] with empty commit (%s)",
+                                shardId,
+                                indexShard.routingEntry().role(),
+                                primaryTerm,
+                                recoverySource
+                            )
+                        );
                     } else {
-                        logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
                         if (indexingShard) {
                             Tuple<StatelessCompoundCommit, Set<BlobFile>> state = ObjectStoreService.readIndexingShardState(
                                 blobStore.blobContainer(shardBasePath),
@@ -669,20 +676,25 @@ public class Stateless extends Plugin
                         }
 
                         if (latestCommit != null) {
-                            logger.debug("Found usable commit [{}] at term [{}]", latestCommit, primaryTerm);
+                            logger.info(
+                                "{} bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
+                                shardId,
+                                indexShard.routingEntry().role(),
+                                primaryTerm,
+                                latestCommit.toShortDescription(),
+                                recoverySource
+                            );
+                        } else {
+                            logger.info(
+                                "{} bootstrapping [{}] shard on primary term [{}] with empty commit from object store ({})",
+                                shardId,
+                                indexShard.routingEntry().role(),
+                                primaryTerm,
+                                recoverySource
+                            );
                         }
                     }
                     final StatelessCompoundCommit commit = latestCommit;
-                    logger.debug(() -> {
-                        var segments = commit == null
-                            ? Optional.empty()
-                            : commit.commitFiles().keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
-                        if (segments.isPresent()) {
-                            return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
-                        } else {
-                            return format("[%s] bootstrapping shard from object store using empty commit", shardId);
-                        }
-                    });
                     if (indexShard.routingEntry().isSearchable()) {
                         if (commit == null) {
                             // TODO: can this happen? Do we need this?
@@ -699,7 +711,8 @@ public class Stateless extends Plugin
                                 ActionListener.completeWith(listener, () -> {
                                     try {
                                         logger.debug(
-                                            "indexing shard's response to registering commit {} for recovery is {}",
+                                            "{} indexing shard's response to registering commit {} for recovery is {}",
+                                            shardId,
                                             commitToRegister,
                                             commitToUse
                                         );
@@ -721,7 +734,10 @@ public class Stateless extends Plugin
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.debug("error while registering commit " + commitToRegister + " for recovery", e);
+                                logger.debug(
+                                    () -> format("%s error while registering commit %s for recovery", shardId, commitToRegister),
+                                    e
+                                );
                                 store.decRef();
                                 listener.onFailure(e);
                             }

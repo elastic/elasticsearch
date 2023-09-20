@@ -60,7 +60,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -320,9 +319,10 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         this.objectStore.start();
         this.permits.release(UPLOAD_PERMITS);
         logger.info(
-            "started object store service with type [{}], bucket [{}], client [{}]",
+            "using object store type [{}], bucket [{}], base path [{}], client [{}]",
             TYPE_SETTING.get(settings),
             BUCKET_SETTING.get(settings),
+            objectStore.basePath().buildAsString(),
             CLIENT_SETTING.get(settings)
         );
     }
@@ -483,8 +483,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         StatelessCompoundCommit latestCommit = null;
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
-            latestCommit = ObjectStoreService.readNewestCommit(container.v2(), container.v2().listBlobs());
+            final var blobContainer = container.v2();
+
+            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs();
+            logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
+
+            latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
             if (latestCommit != null) {
+                logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit);
                 break;
             }
         }
@@ -497,25 +503,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         StatelessCompoundCommit latestCommit = null;
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
-            Map<String, BlobMetadata> allBlobs = container.v2().listBlobs();
+            final long blobContainerPrimaryTerm = container.v1();
+            final var blobContainer = container.v2();
+
+            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs();
+            logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
+
             if (latestCommit == null) {
-                latestCommit = ObjectStoreService.readNewestCommit(container.v2(), allBlobs);
+                latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
                 if (latestCommit != null) {
+                    logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit);
                     allBlobs.entrySet()
                         .stream()
-                        .map(entry -> new BlobFile(container.v1(), entry.getKey(), entry.getValue().length()))
+                        .map(entry -> new BlobFile(blobContainerPrimaryTerm, entry.getKey(), entry.getValue().length()))
                         .forEach(f -> unreferencedBlobs.put(f.blobName(), f));
                     BlobFile removed = unreferencedBlobs.remove(StatelessCompoundCommit.blobNameFromGeneration(latestCommit.generation()));
                     assert removed != null;
+
                 }
             } else {
                 allBlobs.values()
                     .stream()
-                    .map(metadata -> new BlobFile(container.v1(), metadata.name(), metadata.length()))
+                    .map(metadata -> new BlobFile(blobContainerPrimaryTerm, metadata.name(), metadata.length()))
                     .forEach(f -> unreferencedBlobs.put(f.blobName(), f));
             }
         }
-        return new Tuple<>(latestCommit, new HashSet<>(unreferencedBlobs.values()));
+        final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs.values());
+        logger.trace(() -> format("found unreferenced blobs in [%s]: %s", shardContainer.path().buildAsString(), finalUnreferencedBlobs));
+        return new Tuple<>(latestCommit, finalUnreferencedBlobs);
     }
 
     public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {

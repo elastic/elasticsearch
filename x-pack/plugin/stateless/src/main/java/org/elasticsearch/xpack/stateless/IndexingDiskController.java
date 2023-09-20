@@ -284,14 +284,14 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
                     }
                     estimatedFlushedBytes += largest.totalSizeInBytes();
                     if (throttled.contains(largest.shard) == false) {
-                        logger.info("now throttling indexing for shard [{}]: available disk space reached the limit", shardId);
+                        logger.info("now throttling indexing for shard {}: available disk space reached the limit", shardId);
                         throttled.add(largest.shard);
                         largest.shard.activateThrottling();
                     }
                 }
             } else {
                 for (IndexShard shard : throttled) {
-                    logger.info("stop throttling indexing for shard [{}]", shard.shardId());
+                    logger.info("stop throttling indexing for shard {}", shard.shardId());
                     shard.deactivateThrottling();
                 }
                 throttled.clear();
@@ -343,7 +343,7 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
             long indexBufferRAMBytesUsed = shard.getIndexBufferRAMBytesUsed();
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    "shard [{}] is using [{}] bytes on disk and [{}] bytes in heap",
+                    "shard {} is using [{}] bytes on disk and [{}] bytes in heap",
                     shard.shardId(),
                     directorySizeInBytes,
                     indexBufferRAMBytesUsed

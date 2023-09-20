@@ -120,6 +120,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -340,7 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchService::validateKeepAlives
             );
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, threadPool.executor(Names.SEARCH));
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -1572,6 +1573,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     class Reaper implements Runnable {
         @Override
         public void run() {
+            assert Transports.assertNotTransportThread("closing contexts may do IO, e.g. deleting dangling files")
+                && ThreadPool.assertNotScheduleThread("closing contexts may do IO, e.g. deleting dangling files");
             for (ReaderContext context : activeReaders.values()) {
                 if (context.isExpired()) {
                     logger.debug("freeing search context [{}]", context.id());

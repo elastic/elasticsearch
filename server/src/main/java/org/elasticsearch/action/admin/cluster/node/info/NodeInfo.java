@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -41,6 +42,7 @@ public class NodeInfo extends BaseNodeResponse {
 
     private final Version version;
     private final TransportVersion transportVersion;
+    private final IndexVersion indexVersion;
     private final Build build;
 
     @Nullable
@@ -63,6 +65,11 @@ public class NodeInfo extends BaseNodeResponse {
             transportVersion = TransportVersion.readVersion(in);
         } else {
             transportVersion = TransportVersion.fromId(version.id);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
+            indexVersion = IndexVersion.readVersion(in);
+        } else {
+            indexVersion = IndexVersion.fromId(version.id);
         }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
@@ -94,6 +101,7 @@ public class NodeInfo extends BaseNodeResponse {
     public NodeInfo(
         Version version,
         TransportVersion transportVersion,
+        IndexVersion indexVersion,
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
@@ -112,6 +120,7 @@ public class NodeInfo extends BaseNodeResponse {
         super(node);
         this.version = version;
         this.transportVersion = transportVersion;
+        this.indexVersion = indexVersion;
         this.build = build;
         this.settings = settings;
         addInfoIfNonNull(OsInfo.class, os);
@@ -147,6 +156,13 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public TransportVersion getTransportVersion() {
         return transportVersion;
+    }
+
+    /**
+     * The most recent index version that can be used by this node
+     */
+    public IndexVersion getIndexVersion() {
+        return indexVersion;
     }
 
     /**
@@ -199,6 +215,9 @@ public class NodeInfo extends BaseNodeResponse {
         Version.writeVersion(version, out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
+            IndexVersion.writeVersion(indexVersion, out);
         }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {

@@ -474,7 +474,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             false
         );
         SearchResponse.Cluster swapped = clusters.setCluster(localCluster.getClusterAlias(), updated);
-        assertNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + updated, swapped);
 
         SearchResponse.Cluster cluster0 = clusters.getCluster("cluster_0");
         updated = new SearchResponse.Cluster(
@@ -491,7 +491,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             false
         );
         swapped = clusters.setCluster(cluster0.getClusterAlias(), updated);
-        assertNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + updated, swapped);
 
         SearchResponse.Cluster cluster1 = clusters.getCluster("cluster_1");
         ShardSearchFailure failure1 = new ShardSearchFailure(
@@ -516,7 +516,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             false
         );
         swapped = clusters.setCluster(cluster1.getClusterAlias(), updated);
-        assertNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + updated, swapped);
 
         SearchResponse.Cluster cluster2 = clusters.getCluster("cluster_2");
         updated = new SearchResponse.Cluster(
@@ -533,7 +533,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             true
         );
         swapped = clusters.setCluster(cluster2.getClusterAlias(), updated);
-        assertNull("Set cluster failed for cluster " + updated, swapped);
+        assertNotNull("Set cluster failed for cluster " + updated, swapped);
 
         SearchResponse searchResponse = new SearchResponse(sections, null, 10, 9, 1, took, new ShardSearchFailure[0], clusters);
 
@@ -835,7 +835,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 partial--;
             }
             SearchResponse.Cluster swapped = clusters.setCluster(localAlias, updated);
-            assertNull("Set cluster failed for cluster " + updated, swapped);
+            assertNotNull("Set cluster failed for cluster " + updated, swapped);
         }
 
         int numClusters = successful + skipped + partial;
@@ -891,7 +891,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 partial--;
             }
             SearchResponse.Cluster swapped = clusters.setCluster(clusterAlias, updated);
-            assertNull("Set cluster failed for cluster " + updated, swapped);
+            assertNotNull("Set cluster failed for cluster " + updated, swapped);
         }
         return clusters;
     }

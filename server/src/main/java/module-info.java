@@ -363,7 +363,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
@@ -379,6 +378,7 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.telemetry.tracing;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

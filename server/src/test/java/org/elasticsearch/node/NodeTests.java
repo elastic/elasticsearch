@@ -102,7 +102,7 @@ public class NodeTests extends ESTestCase {
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         };
 

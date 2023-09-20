@@ -92,7 +92,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         });
     }

@@ -137,7 +137,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         }, new BootstrapCheck() {
             @Override
@@ -147,7 +147,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         });
 
@@ -323,7 +323,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 assertThat(e.getMessage(), containsString("memory locking requested for elasticsearch process but memory is not locked"));
                 assertThat(
                     e.getMessage(),
-                    containsString("; for more information see " + "[https://www.elastic.co/guide/en/elasticsearch/reference/")
+                    containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/")
                 );
             } else {
                 // nothing should happen
@@ -716,7 +716,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
             @Override
             public ReferenceDocs referenceDocs() {
-                return null;
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
             }
         };
 

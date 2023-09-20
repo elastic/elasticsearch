@@ -87,14 +87,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "short" -> randomShort();
             case "integer" -> randomInt();
             case "unsigned_long", "long" -> randomLong();
-            case "date_period" -> Period.ofDays(randomInt(10));
+            case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case "datetime" -> randomMillisUpToYear9999();
             case "double", "scaled_float" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
+            case "time_duration" -> Duration.ofNanos(randomLongBetween(-604800000000000L, 604800000000000L));
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> new Version(randomIdentifier()).toBytesRef();
             case "null" -> null;

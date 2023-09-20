@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -16,12 +15,13 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
- * Extracts values into a {@link BytesRefBuilder}.
+ * Extracts values into a {@link BreakingBytesRefBuilder}.
  */
 interface ValueExtractor {
-    void writeValue(BytesRefBuilder values, int position);
+    void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,7 +89,8 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         if (Objects.nonNull(allocationDecision)) {
             builder.startObject(NODE_ALLOCATION_DECISION_KEY);
             {
-                allocationDecision.toXContent(builder, params);
+                // This field might be huge, TODO add chunking support here
+                ChunkedToXContent.wrapAsToXContent(allocationDecision).toXContent(builder, params);
             }
             builder.endObject();
         }

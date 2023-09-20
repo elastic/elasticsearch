@@ -523,7 +523,7 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, registry);
         return new MetadataRolloverService(
             testThreadPool,
             createIndexService,

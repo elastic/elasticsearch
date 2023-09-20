@@ -82,6 +82,12 @@ public enum ChunkedToXContentHelper {
         return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
+    /**
+     * Creates an Iterator of a single ToXContent object that serializes all the given 'contents' ToXContent objects into a single chunk.
+     *
+     * @param contents ToXContent objects supporting toXContent() calls.
+     * @return Iterator of a single ToXContent object serializing all the ToXContent "contents".
+     */
     public static Iterator<ToXContent> singleChunk(ToXContent... contents) {
         return Iterators.single((builder, params) -> {
             for (ToXContent content : contents) {

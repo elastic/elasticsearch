@@ -563,8 +563,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
-            this.successful = in.readVInt();
-            this.skipped = in.readVInt();
+            int successful = in.readVInt();
+            int skipped = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
@@ -578,13 +578,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 this.clusterInfo = Collections.emptyMap();
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED)) {
+                this.successful = successful;
+                this.skipped = skipped;
                 this.running = in.readVInt();
                 this.partial = in.readVInt();
                 this.failed = in.readVInt();
             } else {
-                this.running = 0;
-                this.partial = 0;
-                this.failed = 0;
+                this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
+                this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
+                this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
+                this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
+                this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
             }
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;

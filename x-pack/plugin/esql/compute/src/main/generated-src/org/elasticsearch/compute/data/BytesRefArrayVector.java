@@ -85,6 +85,7 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public void close() {
+        blockFactory.adjustBreaker(-BASE_RAM_BYTES_USED, true);
         Releasables.closeExpectNoException(values);
     }
 }

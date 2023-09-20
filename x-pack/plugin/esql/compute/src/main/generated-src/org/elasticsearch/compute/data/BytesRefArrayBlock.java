@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 import java.util.stream.IntStream;
@@ -110,6 +111,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+        blockFactory.adjustBreaker(-(ramBytesUsed() - values.ramBytesUsed()), true);
+        Releasables.closeExpectNoException(values);
     }
 }

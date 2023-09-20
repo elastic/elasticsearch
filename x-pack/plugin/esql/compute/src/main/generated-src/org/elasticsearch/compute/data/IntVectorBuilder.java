@@ -59,7 +59,6 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
             vector = new IntArrayVector(values, valueCount, blockFactory);
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
         return vector;
     }

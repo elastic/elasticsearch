@@ -110,6 +110,7 @@ $endif$
     @Override
     public void close() {
 $if(BytesRef)$
+        blockFactory.adjustBreaker(-BASE_RAM_BYTES_USED, true);
         Releasables.closeExpectNoException(values);
 $else$
         super.close();

@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
@@ -131,6 +132,11 @@ $endif$
 
     @Override
     public void close() {
+    $if(BytesRef)$
+        blockFactory.adjustBreaker(-(ramBytesUsed() - values.ramBytesUsed()), true);
+        Releasables.closeExpectNoException(values);
+    $else$
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    $endif$
     }
 }

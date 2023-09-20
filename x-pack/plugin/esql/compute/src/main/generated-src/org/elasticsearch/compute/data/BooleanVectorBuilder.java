@@ -59,7 +59,6 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
             vector = new BooleanArrayVector(values, valueCount, blockFactory);
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
         return vector;
     }

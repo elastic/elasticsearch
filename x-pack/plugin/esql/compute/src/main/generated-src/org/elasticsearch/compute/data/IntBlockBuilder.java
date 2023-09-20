@@ -193,7 +193,6 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             }
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
         return block;
     }

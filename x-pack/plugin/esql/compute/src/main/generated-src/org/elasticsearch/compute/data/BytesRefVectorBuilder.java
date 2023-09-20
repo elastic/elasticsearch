@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block build of BytesRefBlocks.
@@ -55,12 +56,13 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     public BytesRefVector build() {
         BytesRefVector vector;
         if (valueCount == 1) {
-            vector = new ConstantBytesRefVector(values.get(0, new BytesRef()), 1, blockFactory);
+            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            Releasables.closeExpectNoException(values);
         } else {
+            estimatedBytes = values.ramBytesUsed();
             vector = new BytesRefArrayVector(values, valueCount, blockFactory);
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
         return vector;
     }

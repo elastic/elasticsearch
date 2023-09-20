@@ -59,7 +59,6 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
             vector = new DoubleArrayVector(values, valueCount, blockFactory);
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
         return vector;
     }

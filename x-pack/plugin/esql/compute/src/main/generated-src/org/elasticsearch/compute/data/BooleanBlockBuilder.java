@@ -193,7 +193,6 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
             }
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
         return block;
     }

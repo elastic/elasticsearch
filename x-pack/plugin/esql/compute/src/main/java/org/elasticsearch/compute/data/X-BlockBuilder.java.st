@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import java.util.Arrays;
@@ -249,8 +250,10 @@ $endif$
         $Type$Block block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
-            block = new ConstantBytesRefVector(values.get(0, new BytesRef()), 1, blockFactory).asBlock();
+            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            Releasables.closeExpectNoException(values);
         } else {
+            estimatedBytes += values.ramBytesUsed();
 $else$
             block = new Constant$Type$Vector(values[0], 1, blockFactory).asBlock();
         } else {
@@ -265,7 +268,6 @@ $endif$
             }
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
         return block;
     }

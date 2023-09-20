@@ -59,7 +59,6 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
             vector = new LongArrayVector(values, valueCount, blockFactory);
         }
         // update the breaker with the actual bytes used.
-        // TODO: verify that this can also give back
         blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
         return vector;
     }

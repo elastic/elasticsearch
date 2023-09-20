@@ -76,6 +76,11 @@ public class BlockFactory {
         return breaker;
     }
 
+    // For testing
+    public BigArrays bigArrays() {
+        return bigArrays;
+    }
+
     /**
      * Adjust the circuit breaker with the given delta, if the delta is
      * negative, or checkBreaker is false, the breaker will be adjusted
@@ -238,7 +243,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
         return b;
     }
 
@@ -248,11 +253,13 @@ public class BlockFactory {
 
     public BytesRefVector newBytesRefArrayVector(BytesRefArray values, int positionCount) {
         var b = new BytesRefArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
         return b;
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        return new ConstantBytesRefVector(value, positions, this).asBlock();
+        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
+        adjustBreaker(b.ramBytesUsed(), true);
+        return b;
     }
 }

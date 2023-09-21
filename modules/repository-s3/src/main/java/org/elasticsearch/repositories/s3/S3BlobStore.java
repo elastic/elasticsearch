@@ -109,6 +109,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.getCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
         this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -116,6 +117,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.listCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
         this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -123,6 +125,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
                 stats.putCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -130,6 +133,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
         this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -137,6 +141,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
                 stats.deleteCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
         this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -144,6 +149,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
                 stats.abortCount.addAndGet(getRequestCount(request));
+                logRequestMetrics(request);
             }
         };
     }
@@ -177,6 +183,16 @@ class S3BlobStore implements BlobStore {
             return 0L;
         }
         return requestCount.longValue();
+    }
+
+    private void logRequestMetrics(Request<?> request) {
+        logger.debug(
+            "[{} {}] recorded counters {} and submeasurements {}",
+            request.getHttpMethod(),
+            request.getEndpoint(),
+            request.getAWSRequestMetrics().getTimingInfo().getAllCounters(),
+            request.getAWSRequestMetrics().getTimingInfo().getSubMeasurementsByName()
+        );
     }
 
     @Override

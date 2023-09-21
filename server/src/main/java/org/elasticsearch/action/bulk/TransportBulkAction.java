@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -141,7 +142,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider
     ) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;

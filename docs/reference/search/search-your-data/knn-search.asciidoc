@@ -584,12 +584,12 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
             "value": 2,
             "relation": "eq"
         },
-        "max_score": 1,
+        "max_score": 1.0,
         "hits": [
             {
                 "_index": "passage_vectors",
                 "_id": "1",
-                "_score": 1,
+                "_score": 1.0,
                 "fields": {
                     "creation_time": [
                         "2019-05-04T00:00:00.000Z"
@@ -616,7 +616,7 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
     }
 }
 ----
-// TESTRESPONSE[s/"took" : 4/"took" : "$body.took"/]
+// TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
 What if you wanted to filter by some top-level document metadata? You can do this by adding `filter` to your
 `knn` clause.
@@ -679,12 +679,12 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
             "value": 1,
             "relation": "eq"
         },
-        "max_score": 1,
+        "max_score": 1.0,
         "hits": [
             {
                 "_index": "passage_vectors",
                 "_id": "1",
-                "_score": 1,
+                "_score": 1.0,
                 "fields": {
                     "creation_time": [
                         "2019-05-04T00:00:00.000Z"
@@ -698,7 +698,7 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
     }
 }
 ----
-// TESTRESPONSE[s/"took" : 4/"took" : "$body.took"/]
+// TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
 Additionally, if you wanted to extract the nearest passage for a matched document, you can supply <<inner-hits, inner_hits>>
 to the `knn` clause.
@@ -752,12 +752,12 @@ Now the result will contain the nearest found paragraph when searching.
             "value": 2,
             "relation": "eq"
         },
-        "max_score": 1,
+        "max_score": 1.0,
         "hits": [
             {
                 "_index": "passage_vectors",
                 "_id": "1",
-                "_score": 1,
+                "_score": 1.0,
                 "fields": {
                     "creation_time": [
                         "2019-05-04T00:00:00.000Z"
@@ -773,7 +773,7 @@ Now the result will contain the nearest found paragraph when searching.
                                 "value": 1,
                                 "relation": "eq"
                             },
-                            "max_score": 1,
+                            "max_score": 1.0,
                             "hits": [
                                 {
                                     "_index": "passage_vectors",
@@ -782,7 +782,7 @@ Now the result will contain the nearest found paragraph when searching.
                                         "field": "paragraph",
                                         "offset": 0
                                     },
-                                    "_score": 1,
+                                    "_score": 1.0,
                                     "fields": {
                                         "paragraph": [
                                             {
@@ -799,7 +799,7 @@ Now the result will contain the nearest found paragraph when searching.
                 }
             },
             {
-                "_index": "test",
+                "_index": "passage_vectors",
                 "_id": "2",
                 "_score": 0.9997144,
                 "fields": {
@@ -846,7 +846,7 @@ Now the result will contain the nearest found paragraph when searching.
     }
 }
 ----
-// TESTRESPONSE[s/"took" : 4/"took" : "$body.took"/]
+// TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
 
 [discrete]

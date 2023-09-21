@@ -744,26 +744,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
     }
 
-    public void testNestedVectorsCannotBeIndexed() {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(
-                fieldMapping(
-                    b -> b.field("type", "nested")
-                        .startObject("properties")
-                        .startObject("vector")
-                        .field("type", "dense_vector")
-                        .field("dims", 4)
-                        .field("index", true)
-                        .field("similarity", "dot_product")
-                        .endObject()
-                        .endObject()
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("[dense_vector] fields cannot be indexed if they're within [nested] mappings"));
-    }
-
     public void testByteVectorIndexBoundaries() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(

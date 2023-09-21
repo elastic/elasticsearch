@@ -136,7 +136,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        httpClient = new HttpClient(settings);
+        httpClient = new HttpClient(settings, threadPool);
         ModelRegistry modelRegistry = new ModelRegistry(client);
         // TODO we'll need to initialize the crypto and http client probably
         ServiceRegistry serviceRegistry = new ServiceRegistry(

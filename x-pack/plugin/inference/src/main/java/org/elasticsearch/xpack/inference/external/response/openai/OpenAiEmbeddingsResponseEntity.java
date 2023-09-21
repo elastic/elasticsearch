@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.http.HttpResponse;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public record OpenAiEmbeddingsResponseEntity(Embedding[] embeddings) implements 
      * </pre>
      * <a href="https://platform.openai.com/docs/api-reference/embeddings/create">See here for more details</a>
      */
-    public static OpenAiEmbeddingsResponseEntity fromResponse(ObjectMapper mapper, HttpResponse response) throws IOException {
+    public static OpenAiEmbeddingsResponseEntity fromResponse(ObjectMapper mapper, HttpResult response) throws IOException {
         JsonNode node = mapper.readTree(response.body());
         JsonNode dataNode = node.require().required("data");
 

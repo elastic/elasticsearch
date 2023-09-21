@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
 
@@ -30,8 +31,28 @@ public class HttpSettings {
         Setting.Property.NodeScope
     );
 
+    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_SLEEP_TIME = TimeValue.timeValueSeconds(10);
+
+    public static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_SLEEP_TIME_SETTING = Setting.timeSetting(
+        "xpack.inference.http.connection_eviction_sleep_time",
+        DEFAULT_CONNECTION_EVICTION_THREAD_SLEEP_TIME,
+        Setting.Property.NodeScope
+    );
+
+    private static final TimeValue DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = DEFAULT_CONNECTION_EVICTION_THREAD_SLEEP_TIME;
+    public static final Setting<TimeValue> CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = Setting.timeSetting(
+        "xpack.inference.http.connection_eviction_max_idle_time",
+        DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING,
+        Setting.Property.NodeScope
+    );
+
     public static List<? extends Setting<?>> getSettings() {
-        return List.of(MAX_HTTP_RESPONSE_SIZE, MAX_CONNECTIONS);
+        return List.of(
+            MAX_HTTP_RESPONSE_SIZE,
+            MAX_CONNECTIONS,
+            CONNECTION_EVICTION_THREAD_SLEEP_TIME_SETTING,
+            CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING
+        );
     }
 
     private HttpSettings() {}

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 
 public class OpenAiEmbeddingsService implements InferenceService {
@@ -97,7 +96,8 @@ public class OpenAiEmbeddingsService implements InferenceService {
         var taskSettings = openAiModel.getTaskSettings().overrideWith(parsedRequestTaskSettings);
 
         OpenAiEmbeddingsAction action = getOpenAiEmbeddingsAction(openAiModel.getServiceSettings(), taskSettings, input);
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> action.execute(listener));
+        action.execute(listener);
+        // threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> action.execute(listener));
     }
 
     private OpenAiEmbeddingsAction getOpenAiEmbeddingsAction(

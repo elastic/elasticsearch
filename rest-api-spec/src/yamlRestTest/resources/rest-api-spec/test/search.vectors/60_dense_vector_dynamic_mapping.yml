@@ -457,7 +457,7 @@ setup:
         index: test-nested-index
 
   - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: dense_vector }
-  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.dimes: 132 }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.dims: 132 }
   - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.index: true }
   - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.similarity: cosine }
 

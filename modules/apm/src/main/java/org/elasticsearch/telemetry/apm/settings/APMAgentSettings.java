@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing.apm;
+package org.elasticsearch.telemetry.apm.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -31,7 +32,7 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
  * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
  * The methods could all be static, however they are not in order to make unit testing easier.
  */
-class APMAgentSettings {
+public class APMAgentSettings {
 
     private static final Logger LOGGER = LogManager.getLogger(APMAgentSettings.class);
 
@@ -41,7 +42,7 @@ class APMAgentSettings {
      */
     static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
 
-    void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
+    public void addClusterSettingsListeners(ClusterService clusterService, APMTracer apmTracer) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
@@ -59,7 +60,7 @@ class APMAgentSettings {
      * Copies APM settings from the provided settings object into the corresponding system properties.
      * @param settings the settings to apply
      */
-    void syncAgentSystemProperties(Settings settings) {
+    public void syncAgentSystemProperties(Settings settings) {
         this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
 
         // Apply default values for some system properties. Although we configure
@@ -81,7 +82,7 @@ class APMAgentSettings {
      * @param value the value to set, or <code>null</code>
      */
     @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
-    void setAgentSetting(String key, String value) {
+    public void setAgentSetting(String key, String value) {
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             if (value == null || value.isEmpty()) {
@@ -107,7 +108,7 @@ class APMAgentSettings {
         "recording"
     );
 
-    static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         APM_SETTING_PREFIX + "agent.",
         (qualifiedKey) -> {
             final String[] parts = qualifiedKey.split("\\.");
@@ -122,19 +123,19 @@ class APMAgentSettings {
         }
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         APM_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
+    public static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         APM_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
@@ -154,14 +155,17 @@ class APMAgentSettings {
         NodeScope
     );
 
-    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,
         NodeScope
     );
 
-    static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "secret_token", null);
+    public static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
+        APM_SETTING_PREFIX + "secret_token",
+        null
+    );
 
-    static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "api_key", null);
+    public static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "api_key", null);
 }

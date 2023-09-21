@@ -23,7 +23,6 @@ $endif$
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 
 $if(BytesRef)$
-
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize) {

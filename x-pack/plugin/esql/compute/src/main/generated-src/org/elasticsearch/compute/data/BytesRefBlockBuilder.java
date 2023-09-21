@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.BytesRefArray;
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
-
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize) {

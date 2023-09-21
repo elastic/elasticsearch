@@ -10,11 +10,6 @@ package org.elasticsearch.xpack.profiling;
 import java.util.List;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
-    @Override
-    protected boolean useOnlyAllEvents() {
-        return randomBoolean();
-    }
-
     public void testGetStackTracesUnfiltered() throws Exception {
         GetStackTracesRequest request = new GetStackTracesRequest(1, null);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();

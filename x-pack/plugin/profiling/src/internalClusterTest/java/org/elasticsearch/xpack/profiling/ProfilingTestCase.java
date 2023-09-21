@@ -84,7 +84,16 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
      *
      * @return <code>true</code> iff this test should rely on only "profiling-events-all" being present.
      */
-    protected abstract boolean useOnlyAllEvents();
+    protected boolean useOnlyAllEvents() {
+        return randomBoolean();
+    }
+
+    /**
+     * @return <code>true</code> iff this test relies that data (and the corresponding indices / data streams) are present for this test.
+     */
+    protected boolean requiresDataSetup() {
+        return true;
+    }
 
     protected void waitForIndices() throws Exception {
         assertBusy(() -> {
@@ -110,6 +119,9 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     @Before
     public void setupData() throws Exception {
+        if (requiresDataSetup() == false) {
+            return;
+        }
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();

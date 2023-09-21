@@ -158,39 +158,39 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testCreateKnnQueryMaxDims() {
-        {   // float type with 2048 dims
-            DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
+        {   // float type with 4096 dims
+            DenseVectorFieldType fieldWith4096dims = new DenseVectorFieldType(
                 "f",
                 IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                2048,
+                4096,
                 true,
                 VectorSimilarity.COSINE,
                 Collections.emptyMap()
             );
-            float[] queryVector = new float[2048];
-            for (int i = 0; i < 2048; i++) {
+            float[] queryVector = new float[4096];
+            for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
+            Query query = fieldWith4096dims.createKnnQuery(queryVector, 10, null, null);
             assertThat(query, instanceOf(KnnFloatVectorQuery.class));
         }
 
-        {   // byte type with 2048 dims
-            DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
+        {   // byte type with 4096 dims
+            DenseVectorFieldType fieldWith4096dims = new DenseVectorFieldType(
                 "f",
                 IndexVersion.current(),
                 DenseVectorFieldMapper.ElementType.BYTE,
-                2048,
+                4096,
                 true,
                 VectorSimilarity.COSINE,
                 Collections.emptyMap()
             );
-            byte[] queryVector = new byte[2048];
-            for (int i = 0; i < 2048; i++) {
+            byte[] queryVector = new byte[4096];
+            for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomByte();
             }
-            Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
+            Query query = fieldWith4096dims.createKnnQuery(queryVector, 10, null, null);
             assertThat(query, instanceOf(KnnByteVectorQuery.class));
         }
     }

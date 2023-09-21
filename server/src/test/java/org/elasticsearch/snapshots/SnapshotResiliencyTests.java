@@ -178,9 +178,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportService;
@@ -1829,6 +1829,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,
                     indicesService,
+                    clusterService,
                     recoverySettings,
                     PeerOnlyRecoveryPlannerService.INSTANCE
                 );

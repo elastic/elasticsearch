@@ -142,6 +142,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
                 .build()
         );
     }

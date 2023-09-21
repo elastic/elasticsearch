@@ -15,6 +15,7 @@ import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -22,8 +23,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -99,13 +100,16 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
     public void testThreadContextPreservation() {
         final var resources = new Releasable[1];
         try {
-            final var workerRequestHeaderName = "worker-request-header";
-            final var workerResponseHeaderName = "worker-response-header";
+
             final var workerResponseHeaderValueCounter = new AtomicInteger();
-            final ArrayList<Integer> allSeenResponseHeaderValues = new ArrayList<>();
+            final Queue<Integer> allSeenResponseHeaderValues = ConcurrentCollections.newQueue();
+            final Queue<Integer> allSeenThreadHeaderValues = ConcurrentCollections.newQueue();
             final var threads = between(1, 5);
             final var future = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(future)) {
+                final var workerRequestHeaderName = "worker-request-header";
+                final var workerResponseHeaderName = "worker-response-header";
+                final var threadHeaderName = "test-header";
                 final var threadContext = new ThreadContext(Settings.EMPTY);
                 final var deduplicator = new SingleResultDeduplicator<Void>(threadContext, l -> {
                     threadContext.putHeader(workerRequestHeaderName, randomAlphaOfLength(5));
@@ -113,6 +117,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                         workerResponseHeaderName,
                         String.valueOf(workerResponseHeaderValueCounter.getAndIncrement())
                     );
+                    allSeenThreadHeaderValues.add(Integer.valueOf(threadContext.getHeader(threadHeaderName)));
                     l.onResponse(null);
                 });
                 final var executor = EsExecutors.newFixed(
@@ -125,14 +130,13 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                 );
                 resources[0] = () -> ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
                 final var barrier = new CyclicBarrier(threads);
-                final var headerName = "test-header";
                 for (int i = 0; i < threads; i++) {
                     try (var ignored = threadContext.stashContext()) {
-                        final var headerValue = randomAlphaOfLength(10);
-                        threadContext.putHeader(headerName, headerValue);
+                        final var threadHeaderValue = String.valueOf(i);
+                        threadContext.putHeader(threadHeaderName, threadHeaderValue);
                         executor.execute(ActionRunnable.wrap(listeners.<Void>acquire(v -> {
                             // original request header before the work execution should be preserved
-                            assertEquals(headerValue, threadContext.getHeader(headerName));
+                            assertEquals(threadHeaderValue, threadContext.getHeader(threadHeaderName));
                             // request header used by the work execution should *not* be preserved
                             assertThat(threadContext.getHeaders(), not(hasKey(workerRequestHeaderName)));
                             // response header should be preserved which is from a single execution of the work
@@ -153,6 +157,8 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                 Set.copyOf(allSeenResponseHeaderValues),
                 equalTo(IntStream.range(0, workerResponseHeaderValueCounter.get()).boxed().collect(Collectors.toUnmodifiableSet()))
             );
+            // The following proves each work execution will see a different thread's context in that execution batch
+            assertThat(Set.copyOf(allSeenThreadHeaderValues), hasSize(workerResponseHeaderValueCounter.get()));
         } finally {
             Releasables.closeExpectNoException(resources);
         }

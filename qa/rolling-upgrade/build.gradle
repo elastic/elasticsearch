@@ -17,11 +17,6 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
-test {
-  // CI doesn't like it when there's multiple clusters running at once
-  maxParallelForks = 1
-}
-
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   /*
    * The goal here is to:

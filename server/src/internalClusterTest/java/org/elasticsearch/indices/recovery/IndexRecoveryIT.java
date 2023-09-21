@@ -1627,7 +1627,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
     }
 
-    public void testWaitForClusterState() throws Exception {
+    public void testWaitForClusterStateToBeAppliedOnSourceNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final var primaryNode = internalCluster().startDataOnlyNode();
         String indexName = "test-index";

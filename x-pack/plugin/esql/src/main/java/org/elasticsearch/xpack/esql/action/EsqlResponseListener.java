@@ -139,16 +139,16 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
     /**
      * Log the execution time and query when handling an ES|QL response.
      */
-    public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+    public ActionListener<EsqlQueryResponse> wrapWithLogging(String queryId) {
         return ActionListener.wrap(r -> {
             onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info("Successfully executed ESQL query in [{}]ms: [{}]", stopWatch.stop().getMillis(), esqlQuery);
+            LOGGER.info("Finished execution of ESQL query with ID [{}] in [{}]ms: [{}]", queryId, stopWatch.stop().getMillis(), esqlQuery);
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
             onFailure(ex);
-            LOGGER.info("Failed executing ESQL query in [{}]ms: [{}]", timeMillis, esqlQuery);
+            LOGGER.info("Failed execution of ESQL query with ID in [{}]ms: [{}]", queryId, timeMillis, esqlQuery);
         });
     }
 }

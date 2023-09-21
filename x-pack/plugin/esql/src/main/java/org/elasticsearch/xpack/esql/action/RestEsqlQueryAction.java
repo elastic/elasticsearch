@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -23,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 public class RestEsqlQueryAction extends BaseRestHandler {
+    private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     @Override
     public String getName() {
@@ -44,13 +48,17 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = EsqlQueryRequest.fromXContent(parser);
         }
+        // Create some kind of query id so that we can correlate the beginning and the end of a query in the logs.
+        String queryId = UUIDs.base64UUID();
+
+        LOGGER.info("Beginning execution of ESQL query with ID [{}]: [{}]", queryId, esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(
                 EsqlQueryAction.INSTANCE,
                 esqlRequest,
-                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
+                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging(queryId)
             );
         };
     }

@@ -1674,9 +1674,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         refCounted.decRef();
                     }
                 } else {
-                    final var listener = new SubscribableListener<Void>();
-                    listener.onResponse(null);
-                    return listener;
+                    return SubscribableListener.newSucceeded(null);
                 }
             }
 

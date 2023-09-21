@@ -555,16 +555,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
-        List<String> definedSignature = ShowFunctions.signature(definition);
+        List<String> args = ShowFunctions.signature(definition).argNames();
         StringBuilder header = new StringBuilder();
-        for (String arg : definedSignature) {
+        for (String arg : args) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
-            if (sig.getKey().size() != definedSignature.size()) {
+            if (sig.getKey().size() != args.size()) {
                 continue;
             }
             StringBuilder b = new StringBuilder();

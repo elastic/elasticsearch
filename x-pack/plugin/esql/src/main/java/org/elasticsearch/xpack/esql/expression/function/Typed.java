@@ -13,10 +13,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Names functions and function parameters.
+ * Describes function return types and function parameter types.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.PARAMETER, ElementType.CONSTRUCTOR })
-public @interface Named {
+public @interface Typed {
     String value();
 }

@@ -48,7 +48,7 @@ public class RailRoadDiagram {
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
         boolean first = true;
-        List<String> args = ShowFunctions.signature(definition);
+        List<String> args = ShowFunctions.signature(definition).argNames();
         for (String arg : args) {
             if (arg.endsWith("...")) {
                 expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));

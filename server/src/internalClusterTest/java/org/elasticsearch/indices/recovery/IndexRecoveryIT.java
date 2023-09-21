@@ -1735,6 +1735,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     // has started
                     clusterStateSyncListeners.delayUntilRecoveryStart(primaryProceedListener);
                 } else {
+                    // this is some other cluster state update, so we must let it proceed now
                     primaryProceedListener.onResponse(null);
                 }
             };

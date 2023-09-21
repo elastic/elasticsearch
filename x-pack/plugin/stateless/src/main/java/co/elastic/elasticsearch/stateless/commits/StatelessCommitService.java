@@ -28,12 +28,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,6 +58,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1197,18 +1200,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * @param commit the commit to register
      * @param shardId the shard id to register for
      * @param nodeId the nodeId using the commit
-     * @param clusterStateVersion the cluster state version already applied on this node, but possibly not handled in this object yet.
+     * @param state the cluster state already applied on this node, but possibly not handled in this object yet.
      * @param listener notified when available.
      */
     public void registerCommitForUnpromotableRecovery(
         PrimaryTermAndGeneration commit,
         ShardId shardId,
         String nodeId,
-        long clusterStateVersion,
+        ClusterState state,
         ActionListener<PrimaryTermAndGeneration> listener
     ) {
         // todo: assert clusterStateVersion <= clusterService.state().version();
-        waitForClusterStateProcessed(clusterStateVersion, () -> {
+        waitForClusterStateProcessed(state.version(), () -> {
             ActionListener.completeWith(listener, () -> {
 
                 var shardCommitsState = getSafe(shardsCommitsStates, shardId);
@@ -1234,15 +1237,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (compoundCommit == null) {
                         throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
                     }
-                    // TODO: If the search shard has seen a newer commit (w/ newer term) that wants to register and recover from, the stale
-                    // indexing shard could reply with a commit from the last term. If this is possible, we should explicitly check against
-                    // this and fail the registration request.
+                    if (compoundCommit.primaryTermAndGeneration.compareTo(commit) < 0
+                        && state.getMinTransportVersion().onOrAfter(TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED)) {
+                        throw new RecoveryCommitTooNewException(
+                            shardId,
+                            Strings.format(
+                                "requested commit to register (%s) is newer than the newest known local commit (%s)",
+                                commit,
+                                compoundCommit
+                            )
+                        );
+                    }
                 }
                 compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, compoundCommit);
                 var proposed = compoundCommit.primaryTermAndGeneration;
                 assert proposed.compareTo(commit) >= 0
                     : Strings.format(
-                        "Proposed commit ({}) for unpromotable recovery must be newer that the requested one ({})",
+                        "Proposed commit (%s) for unpromotable recovery must be newer that the requested one (%s)",
                         proposed,
                         commit
                     );

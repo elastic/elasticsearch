@@ -8,8 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.Request;
@@ -27,33 +25,24 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
-
-    private final int desiredNodesVersion;
-
-    public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
-        desiredNodesVersion = Objects.requireNonNullElse(upgradeNode, -1) + 2;
-    }
-
+public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
     private enum ProcessorsPrecision {
         DOUBLE,
         FLOAT
     }
 
     public void testUpgradeDesiredNodes() throws Exception {
-        assumeTrue("Desired nodes was introduced in 8.1", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
+        assumeTrue("Desired nodes was introduced in 8.1", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
 
-        if (getOldClusterVersion().onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
+        if (UPGRADE_FROM_VERSION.onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
             assertUpgradedNodesCanReadDesiredNodes();
-        } else if (getOldClusterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        } else if (UPGRADE_FROM_VERSION.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent();
         } else {
             assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions();
@@ -61,7 +50,13 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     private void assertUpgradedNodesCanReadDesiredNodes() throws Exception {
-        if (isMixedCluster() || isUpgradedCluster()) {
+        final int desiredNodesVersion = switch (CLUSTER_TYPE) {
+            case OLD -> 1;
+            case MIXED -> FIRST_MIXED_ROUND ? 2 : 3;
+            case UPGRADED -> 4;
+        };
+
+        if (CLUSTER_TYPE != ClusterType.OLD) {
             final Map<String, Object> desiredNodes = getLatestDesiredNodes();
             final String historyId = extractValue(desiredNodes, "history_id");
             final int version = extractValue(desiredNodes, "version");
@@ -88,7 +83,13 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
             )
             .toList();
 
-        if (isMixedCluster() || isUpgradedCluster()) {
+        final int desiredNodesVersion = switch (CLUSTER_TYPE) {
+            case OLD -> 1;
+            case MIXED -> FIRST_MIXED_ROUND ? 2 : 3;
+            case UPGRADED -> 4;
+        };
+
+        if (CLUSTER_TYPE != ClusterType.OLD) {
             updateDesiredNodes(desiredNodes, desiredNodesVersion - 1);
         }
         for (int i = 0; i < 2; i++) {
@@ -99,25 +100,28 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
         final int latestDesiredNodesVersion = extractValue(latestDesiredNodes, "version");
         assertThat(latestDesiredNodesVersion, is(equalTo(desiredNodesVersion)));
 
-        if (isUpgradedCluster()) {
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertAllDesiredNodesAreActualized();
         }
     }
 
     private void assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions() throws Exception {
-        if (isOldCluster()) {
-            addClusterNodesToDesiredNodesWithIntegerProcessors(1);
-        } else if (isMixedCluster()) {
-            // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
-            final var responseException = expectThrows(
-                ResponseException.class,
-                () -> addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(desiredNodesVersion, ProcessorsPrecision.FLOAT)
-            );
-            final var statusCode = responseException.getResponse().getStatusLine().getStatusCode();
-            assertThat(statusCode, is(equalTo(400)));
-        } else {
-            assertAllDesiredNodesAreActualized();
-            addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(4, ProcessorsPrecision.FLOAT);
+        switch (CLUSTER_TYPE) {
+            case OLD -> addClusterNodesToDesiredNodesWithIntegerProcessors(1);
+            case MIXED -> {
+                int version = FIRST_MIXED_ROUND ? 2 : 3;
+                // Processor ranges or float processors are forbidden during upgrades: 8.2 -> 8.3 clusters
+                final var responseException = expectThrows(
+                    ResponseException.class,
+                    () -> addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(version, ProcessorsPrecision.FLOAT)
+                );
+                final var statusCode = responseException.getResponse().getStatusLine().getStatusCode();
+                assertThat(statusCode, is(equalTo(400)));
+            }
+            case UPGRADED -> {
+                assertAllDesiredNodesAreActualized();
+                addClusterNodesToDesiredNodesWithProcessorsOrProcessorRanges(4, ProcessorsPrecision.FLOAT);
+            }
         }
 
         getLatestDesiredNodes();

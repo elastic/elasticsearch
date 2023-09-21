@@ -8,8 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.index.IndexVersion;
@@ -23,17 +21,13 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
-
-    public SystemIndicesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
-    }
+public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSystemIndicesUpgrades() throws Exception {
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
-        if (isOldCluster()) {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
@@ -105,7 +99,7 @@ public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase 
                 }));
                 assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
             }
-        } else if (isUpgradedCluster()) {
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
                 Map<String, Object> indices = new JsonMapView(entityAsMap(client().performRequest(clusterStateRequest))).get(

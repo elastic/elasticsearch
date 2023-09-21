@@ -451,7 +451,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void recoverReplica(IndexShard replica) throws IOException {
-            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener));
+            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener));
         }
 
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)

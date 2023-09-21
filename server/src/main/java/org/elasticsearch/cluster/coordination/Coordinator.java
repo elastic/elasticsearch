@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -175,6 +174,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final LagDetector lagDetector;
     private final ClusterFormationFailureHelper clusterFormationFailureHelper;
     private final JoinReasonService joinReasonService;
+    private final CompatibilityVersions compatibilityVersions;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -317,6 +317,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.peerFinderListeners = new CopyOnWriteArrayList<>();
         this.peerFinderListeners.add(clusterBootstrapService);
         this.leaderHeartbeatService = leaderHeartbeatService;
+        this.compatibilityVersions = compatibilityVersions;
     }
 
     /**
@@ -1064,7 +1065,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
-                .putTransportVersion(getLocalNode().getId(), TransportVersion.current())
+                .putCompatibilityVersions(getLocalNode().getId(), compatibilityVersions)
                 .metadata(metadata)
                 .build();
             applierState = initialState;

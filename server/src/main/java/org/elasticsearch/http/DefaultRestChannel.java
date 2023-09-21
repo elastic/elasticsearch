@@ -27,8 +27,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tracing.SpanId;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;

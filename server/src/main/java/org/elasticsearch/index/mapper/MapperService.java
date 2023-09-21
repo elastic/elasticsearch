@@ -128,7 +128,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
     private volatile DocumentMapper mapper;
 
@@ -186,7 +185,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         this.documentParser = new DocumentParser(
             parserConfiguration,
             this.mappingParserContextSupplier.get(),

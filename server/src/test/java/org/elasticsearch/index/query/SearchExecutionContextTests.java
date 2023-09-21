@@ -294,7 +294,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList(), 1);
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -385,7 +385,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(mapping);
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, 1);
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
 

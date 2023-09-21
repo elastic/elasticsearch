@@ -296,7 +296,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             synchronized (this) {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
-                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                this.mapper = newDocumentMapper(
+                    incomingMapping,
+                    MergeReason.MAPPING_RECOVERY,
+                    incomingMappingSource,
+                    newIndexMetadata.getMappingVersion()
+                );
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -517,7 +522,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
-        DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+        DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent(), 1);
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return newMapper;
         }
@@ -526,8 +531,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return newMapper;
     }
 
-    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
+    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource, long mappingVersion) {
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated, mappingVersion);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }

@@ -118,7 +118,7 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             dynamicUpdate,
-            context.getTotalFieldsCountBeforeUpdate()
+            context.mappingLookup().getMappingVersion()
         ) {
             @Override
             public String documentDescription() {

@@ -426,9 +426,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper.Result updateResult
     ) {
         Engine.Result r = exceptionToResult(e, primary, isDelete, version, result.getId());
-        long currentFieldsCount = primary.mapperService().mappingLookup().getTotalFieldsCount();
-        boolean fieldsAddedConcurrently = currentFieldsCount > result.getTotalFieldsCountBeforeUpdate();
-        if (fieldsAddedConcurrently && context.isMappingUpdateRetry() == false) {
+        long currentMappingVersion = primary.mapperService().documentMapper().mappers().getMappingVersion();
+        boolean mappingWasConcurrentlyUpdated = currentMappingVersion > result.getMappingVersionBeforeUpdate();
+        if (mappingWasConcurrentlyUpdated && context.isMappingUpdateRetry() == false) {
             // retry mapping updates once if the number of fields has been updated concurrently
             // as the errors may be a result of this concurrent update
             // for example, when adding a dynamic field under the premise that the field limit has not been reached, yet

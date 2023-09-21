@@ -36,7 +36,7 @@ public class ParsedDocument {
     private BytesReference source;
     private XContentType xContentType;
     private Mapping dynamicMappingsUpdate;
-    private final long totalFieldsCountBeforeUpdate;
+    private final long mappingVersionBeforeUpdate;
 
     /**
      * Create a no-op tombstone document
@@ -109,7 +109,7 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        long totalFieldsCountBeforeUpdate
+        long mappingVersionBeforeUpdate
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -118,7 +118,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.totalFieldsCountBeforeUpdate = totalFieldsCountBeforeUpdate;
+        this.mappingVersionBeforeUpdate = mappingVersionBeforeUpdate;
         this.xContentType = xContentType;
     }
 
@@ -171,8 +171,8 @@ public class ParsedDocument {
         return dynamicMappingsUpdate;
     }
 
-    public long getTotalFieldsCountBeforeUpdate() {
-        return totalFieldsCountBeforeUpdate;
+    public long getMappingVersionBeforeUpdate() {
+        return mappingVersionBeforeUpdate;
     }
 
     public void addDynamicMappingsUpdate(Mapping update) {

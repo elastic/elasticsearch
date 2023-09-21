@@ -43,9 +43,9 @@ class S3RetryingInputStream extends InputStream {
 
     static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
+    private final OperationPurpose purpose;
     private final S3BlobStore blobStore;
     private final String blobKey;
-    private final OperationPurpose purpose;
     private final long start;
     private final long end;
     private final List<IOException> failures;
@@ -59,21 +59,21 @@ class S3RetryingInputStream extends InputStream {
     private boolean closed;
     private boolean eof;
 
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) throws IOException {
-        this(blobStore, blobKey, purpose, 0, Long.MAX_VALUE - 1);
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
+        this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
     }
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, OperationPurpose purpose, long start, long end) throws IOException {
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.purpose = purpose;
         this.blobStore = blobStore;
         this.blobKey = blobKey;
-        this.purpose = purpose;
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
         this.start = start;
         this.end = end;

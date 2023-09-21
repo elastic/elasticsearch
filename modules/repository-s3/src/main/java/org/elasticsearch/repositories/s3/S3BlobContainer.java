@@ -99,7 +99,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-        return new S3RetryingInputStream(blobStore, buildKey(blobName), purpose);
+        return new S3RetryingInputStream(purpose, blobStore, buildKey(blobName));
     }
 
     @Override
@@ -113,7 +113,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (length == 0) {
             return new ByteArrayInputStream(new byte[0]);
         } else {
-            return new S3RetryingInputStream(blobStore, buildKey(blobName), purpose, position, Math.addExact(position, length - 1));
+            return new S3RetryingInputStream(purpose, blobStore, buildKey(blobName), position, Math.addExact(position, length - 1));
         }
     }
 

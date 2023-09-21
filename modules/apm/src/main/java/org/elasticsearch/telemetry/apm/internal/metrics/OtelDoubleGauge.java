@@ -8,39 +8,39 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.telemetry.MetricName;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 
 import java.util.Map;
+import java.util.function.Function;
 
-public class OtelDoubleGauge<T> implements DoubleGauge {
-    private final LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge;
+public class OtelDoubleGauge<T> extends SwitchableInstrument<ObservableDoubleMeasurement> implements DoubleGauge {
     private final MetricName name;
     private final String description;
     private final T unit;
 
     private OtelDoubleGauge(
-        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge,
+        Function<Meter, ObservableDoubleMeasurement> instrumentProducer,
+        Meter meter,
         MetricName name,
         String description,
         T unit
     ) {
-        this.gauge = gauge;
+        super(instrumentProducer, meter);
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleGauge<T> build(
-        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> lazyGauge,
-        MetricName name,
-        String description,
-        T unit
-    ) {
-        return new OtelDoubleGauge<>(lazyGauge, name, description, unit);
+    public static <T> OtelDoubleGauge<T> build(Meter meter, MetricName name, String description, T unit) {
+        return new OtelDoubleGauge<>((m) -> createInstrument(meter, name, description, unit), meter, name, description, unit);
+    }
+
+    private static <T> ObservableDoubleMeasurement createInstrument(Meter meter, MetricName name, String description, T unit) {
+        return meter.gaugeBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).buildObserver();
     }
 
     @Override
@@ -50,11 +50,11 @@ public class OtelDoubleGauge<T> implements DoubleGauge {
 
     @Override
     public void record(double value) {
-        gauge.getOrCompute().record(value);
+        getInstrument().record(value);
     }
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        gauge.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+        getInstrument().record(value, OtelHelper.fromMap(attributes));
     }
 }

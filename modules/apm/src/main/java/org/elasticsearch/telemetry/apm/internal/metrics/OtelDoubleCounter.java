@@ -8,34 +8,44 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.DoubleCounter;
+import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
+import org.elasticsearch.telemetry.metric.DoubleCounter;
 
 import java.util.Map;
+import java.util.function.Function;
 
-public class OtelDoubleCounter<T> implements org.elasticsearch.telemetry.metric.DoubleCounter {
-    private final LazyInitializable<DoubleCounter, RuntimeException> counter;
+public class OtelDoubleCounter<T> extends SwitchableInstrument<io.opentelemetry.api.metrics.DoubleCounter> implements DoubleCounter {
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelDoubleCounter(LazyInitializable<DoubleCounter, RuntimeException> lazyCounter, MetricName name, String description, T unit) {
-        this.counter = lazyCounter;
+    private OtelDoubleCounter(
+        Function<Meter, io.opentelemetry.api.metrics.DoubleCounter> producer,
+        Meter meter,
+        MetricName name,
+        String description,
+        T unit
+    ) {
+        super(producer, meter);
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleCounter<T> build(
-        LazyInitializable<DoubleCounter, RuntimeException> lazyCounter,
+    public static <T> OtelDoubleCounter<T> build(Meter meter, MetricName name, String description, T unit) {
+        return new OtelDoubleCounter<>((m) -> createInstrument(m, name, description, unit), meter, name, description, unit);
+    }
+
+    private static <T> io.opentelemetry.api.metrics.DoubleCounter createInstrument(
+        Meter meter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleCounter<>(lazyCounter, name, description, unit);
+        return meter.counterBuilder(name.getRawName()).ofDoubles().setDescription(description).setUnit(unit.toString()).build();
     }
 
     @Override
@@ -45,19 +55,19 @@ public class OtelDoubleCounter<T> implements org.elasticsearch.telemetry.metric.
 
     @Override
     public void increment() {
-        counter.getOrCompute().add(1d);
+        getInstrument().add(1d);
     }
 
     @Override
     public void incrementBy(double inc) {
         assert inc >= 0;
-        counter.getOrCompute().add(inc);
+        getInstrument().add(inc);
     }
 
     @Override
     public void incrementBy(double inc, Map<String, Object> attributes) {
         assert inc >= 0;
-        counter.getOrCompute().add(inc, OtelHelper.fromMap(attributes));
+        getInstrument().add(inc, OtelHelper.fromMap(attributes));
     }
 
     @Override

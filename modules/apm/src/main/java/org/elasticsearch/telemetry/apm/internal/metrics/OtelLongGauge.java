@@ -8,6 +8,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
 import org.elasticsearch.common.util.LazyInitializable;
@@ -15,7 +16,7 @@ import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.LongGauge {
+public class OtelLongGauge<T> extends SwitchableInstrument<ObservableLongMeasurement> implements org.elasticsearch.telemetry.metric.LongGauge {
     private final LazyInitializable<ObservableLongMeasurement, RuntimeException> gauge;
     private final MetricName name;
     private final String description;
@@ -27,6 +28,8 @@ public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.Long
         String description,
         T unit
     ) {
+        super(null, null);
+
         this.gauge = gauge;
         this.name = name;
         this.description = description;
@@ -35,6 +38,7 @@ public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.Long
 
     public static <T> OtelLongGauge<T> build(
         LazyInitializable<ObservableLongMeasurement, RuntimeException> lazyGauge,
+        Meter meter,
         MetricName name,
         String description,
         T unit

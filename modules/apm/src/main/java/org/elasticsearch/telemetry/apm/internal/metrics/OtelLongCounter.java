@@ -10,19 +10,22 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.LongCounter;
 
+import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongCounter<T> implements org.elasticsearch.telemetry.metric.LongCounter {
+public class OtelLongCounter<T> extends SwitchableInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
     private final LazyInitializable<LongCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelLongCounter(LazyInitializable<LongCounter, RuntimeException> lazyCounter, MetricName name, String description, T unit) {
+    private OtelLongCounter(LazyInitializable<LongCounter, RuntimeException> lazyCounter, MetricName name, String description, T unit, Meter meter) {
+        super(null, null);
         this.counter = lazyCounter;
         this.name = name;
         this.description = description;
@@ -31,11 +34,12 @@ public class OtelLongCounter<T> implements org.elasticsearch.telemetry.metric.Lo
 
     public static <T> OtelLongCounter<T> build(
         LazyInitializable<LongCounter, RuntimeException> lazyCounter,
+        Meter meter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelLongCounter<>(lazyCounter, name, description, unit);
+        return new OtelLongCounter<>(lazyCounter, name, description, unit, meter);
     }
 
     @Override

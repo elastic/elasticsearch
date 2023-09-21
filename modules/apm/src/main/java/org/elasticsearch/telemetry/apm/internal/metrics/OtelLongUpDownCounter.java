@@ -10,13 +10,15 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.LongUpDownCounter;
 
+import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.metric.LongUpDownCounter {
+public class OtelLongUpDownCounter<T> extends SwitchableInstrument<LongUpDownCounter> implements org.elasticsearch.telemetry.metric.LongUpDownCounter {
     private final LazyInitializable<LongUpDownCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
@@ -28,6 +30,8 @@ public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.met
         String description,
         T unit
     ) {
+        super(null, null);
+
         this.counter = lazyCounter;
         this.name = name;
         this.description = description;
@@ -36,6 +40,7 @@ public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.met
 
     public static <T> OtelLongUpDownCounter<T> build(
         LazyInitializable<LongUpDownCounter, RuntimeException> lazyCounter,
+        Meter meter,
         MetricName name,
         String description,
         T unit

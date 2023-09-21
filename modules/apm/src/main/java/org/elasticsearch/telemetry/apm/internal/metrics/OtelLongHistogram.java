@@ -8,13 +8,15 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.LongHistogram {
+public class OtelLongHistogram<T> extends SwitchableInstrument<io.opentelemetry.api.metrics.LongHistogram> implements org.elasticsearch.telemetry.metric.LongHistogram {
     private final LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram;
     private final MetricName name;
     private final String description;
@@ -26,6 +28,8 @@ public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.
         String description,
         T unit
     ) {
+        super(null, null);
+
         this.histogram = histogram;
         this.name = name;
         this.description = description;
@@ -34,6 +38,7 @@ public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.
 
     public static <T> OtelLongHistogram<T> build(
         LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> lazyHistogram,
+        Meter meter,
         MetricName name,
         String description,
         T unit

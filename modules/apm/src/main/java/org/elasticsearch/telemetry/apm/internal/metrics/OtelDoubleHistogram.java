@@ -8,38 +8,47 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 
 import java.util.Map;
+import java.util.function.Function;
 
-public class OtelDoubleHistogram<T> implements DoubleHistogram {
-    private final LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram;
+public class OtelDoubleHistogram<T> extends SwitchableInstrument<io.opentelemetry.api.metrics.DoubleHistogram> implements DoubleHistogram {
     private final MetricName name;
     private final String description;
     private final T unit;
 
     public OtelDoubleHistogram(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram,
+        Function<Meter, io.opentelemetry.api.metrics.DoubleHistogram> instrumentProducer,
+        Meter meter,
         MetricName name,
         String description,
         T unit
     ) {
-        this.histogram = histogram;
+        super(instrumentProducer, meter);
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
     public static <T> OtelDoubleHistogram<T> build(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> lazyHistogram,
+        Meter meter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleHistogram<>(lazyHistogram, name, description, unit);
+        return new OtelDoubleHistogram<>(
+            (m) -> createInstrument(m, name, description, unit)
+            , meter, name, description, unit);
+    }
+
+    private static <T> io.opentelemetry.api.metrics.DoubleHistogram createInstrument(Meter meter, MetricName name, String description, T unit) {
+        return meter.histogramBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build();
     }
 
     @Override
@@ -49,12 +58,12 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
 
     @Override
     public void record(double value) {
-        histogram.getOrCompute().record(value);
+        getInstrument().record(value);
     }
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+        getInstrument().record(value, OtelHelper.fromMap(attributes));
     }
 
     @Override

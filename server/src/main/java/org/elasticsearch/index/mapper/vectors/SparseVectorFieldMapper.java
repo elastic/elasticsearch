@@ -57,7 +57,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[]{meta};
+            return new Parameter<?>[] { meta };
         }
 
         @Override

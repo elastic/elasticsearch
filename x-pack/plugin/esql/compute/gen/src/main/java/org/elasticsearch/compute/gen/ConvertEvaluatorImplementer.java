@@ -27,6 +27,7 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -166,6 +167,9 @@ public class ConvertEvaluatorImplementer {
                 }
                 builder.endControlFlow();
                 builder.addStatement("nullsMask.set(p)");
+                if (resultType.equals(BYTES_REF)) {
+                    builder.addStatement("values.append($T.NULL_VALUE)", BYTES_REF_BLOCK);
+                }
             }
             builder.endControlFlow();
         }

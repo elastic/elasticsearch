@@ -336,7 +336,47 @@ public class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]").build())
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("illegal data type [byte]"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("EVAL does not support type [byte] in expression [?]")
+        );
+    }
+
+    public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
+        List<String> datePeriodOverflowExpressions = List.of(
+            "2147483647 day + 1 day",
+            "306783378 week + 1 week",
+            "2147483647 year + 1 year"
+        );
+        // We cannot easily force an overflow using just milliseconds, since these are divided by 1000 and then the resulting seconds are
+        // stored in a long. But combining with seconds works.
+        List<String> timeDurationOverflowExpressions = List.of(
+            "9223372036854775807 second + 1000 millisecond",
+            "9223372036854775807 second + 1 second",
+            "153722867280912930 minute + 1 minute",
+            "2562047788015215 hour + 1 hour"
+        );
+
+        for (String overflowExp : datePeriodOverflowExpressions) {
+            assertDateMathOverflow(overflowExp, "integer overflow");
+        }
+        for (String overflowExp : timeDurationOverflowExpressions) {
+            assertDateMathOverflow(overflowExp, "long overflow");
+        }
+    }
+
+    private static void assertDateMathOverflow(String overflowExpression, String expectedOverflowMessage) throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + overflowExpression + ")").build())
+        );
+
+        String responseMessage = EntityUtils.toString(re.getResponse().getEntity());
+        assertThat(responseMessage, containsString("arithmetic exception in expression [" + overflowExpression + "]:"));
+        // The second part of the error message might come after a newline, so we check for it separately.
+        assertThat(responseMessage, containsString("[" + expectedOverflowMessage + "]"));
+
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testErrorMessageForArrayValuesInParams() throws IOException {

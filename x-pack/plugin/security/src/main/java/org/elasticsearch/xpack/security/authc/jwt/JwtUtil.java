@@ -35,6 +35,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -99,12 +100,12 @@ public class JwtUtil {
         final String clientAuthenticationTypeConfigKey,
         final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType,
         final String clientAuthenticationSharedSecretConfigKey,
-        final SecureString clientAuthenticationSharedSecret
+        final RotatableSecret clientAuthenticationSharedSecret
     ) throws SettingsException {
         switch (clientAuthenticationType) {
             case SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
-                if (Strings.hasText(clientAuthenticationSharedSecret) == false) {
+                if (clientAuthenticationSharedSecret.isSet() == false) {
                     throw new SettingsException(
                         "Missing setting for ["
                             + clientAuthenticationSharedSecretConfigKey
@@ -119,7 +120,7 @@ public class JwtUtil {
             case NONE:
             default:
                 // If type is "None", the shared secret value must not be set
-                if (Strings.hasText(clientAuthenticationSharedSecret)) {
+                if (clientAuthenticationSharedSecret.isSet()) {
                     throw new SettingsException(
                         "Setting ["
                             + clientAuthenticationSharedSecretConfigKey
@@ -141,7 +142,7 @@ public class JwtUtil {
 
     public static void validateClientAuthentication(
         final JwtRealmSettings.ClientAuthenticationType type,
-        final SecureString expectedSecret,
+        final RotatableSecret expectedSecret,
         final SecureString actualSecret,
         final String tokenPrincipal
     ) throws Exception {
@@ -149,7 +150,7 @@ public class JwtUtil {
             case SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret is missing.");
-                } else if (expectedSecret.equals(actualSecret) == false) {
+                } else if (expectedSecret.matches(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret did not match.");
                 }
                 LOGGER.trace("Accepted client for token [{}]. Authentication type is [{}] and secret matched.", tokenPrincipal, type);

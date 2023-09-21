@@ -213,9 +213,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -1106,7 +1106,13 @@ public class Node implements Closeable {
                     final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(
-                            new PeerRecoverySourceService(transportService, indicesService, recoverySettings, recoveryPlannerService)
+                            new PeerRecoverySourceService(
+                                transportService,
+                                indicesService,
+                                clusterService,
+                                recoverySettings,
+                                recoveryPlannerService
+                            )
                         );
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(

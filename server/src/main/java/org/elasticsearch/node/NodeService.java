@@ -40,7 +40,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;

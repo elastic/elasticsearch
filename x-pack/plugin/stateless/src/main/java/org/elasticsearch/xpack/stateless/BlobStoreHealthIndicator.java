@@ -71,10 +71,14 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
     );
     // We apply this factor to the poll interval to determine when is a health check stale
     private static final int STALENESS_FACTOR = 2;
+
+    // We extend the timeout and we log a warning on the initial timeout
+    // See https://github.com/elastic/elasticsearch-serverless/issues/931
+    private static final long WARNING_THRESHOLD = TimeValue.timeValueSeconds(5).millis();
     public static final String CHECK_TIMEOUT = "health.blob_storage.check.timeout";
     public static final Setting<TimeValue> CHECK_TIMEOUT_SETTING = Setting.timeSetting(
         CHECK_TIMEOUT,
-        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueSeconds(30),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -132,11 +136,16 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
     }
 
     // default visibility for testing purposes
-    HealthIndicatorResult createHealthIndicatorResult(boolean verbose, HealthCheckResult currentResult, Long lastCheckStarted, long now) {
+    HealthIndicatorResult createHealthIndicatorResult(
+        boolean verbose,
+        HealthCheckResult lastObservedResult,
+        Long lastCheckStarted,
+        long now
+    ) {
         // If there is a check in progress that has been running for longer than the timeout we override the local result with a timed out
         // one. We do not override the lastObservedResult field though to avoid races.
-        if (hasCheckInProgressTimedOut(currentResult, lastCheckStarted, now)) {
-            currentResult = new HealthCheckResult(
+        if (hasCheckInProgressTimedOut(lastObservedResult, lastCheckStarted, now)) {
+            lastObservedResult = new HealthCheckResult(
                 lastCheckStarted,
                 null,
                 new ReadBlobStoreCheckTimeout("The blob store health check currently in progress has timed out.")
@@ -144,11 +153,11 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
         }
         return new HealthIndicatorResult(
             NAME,
-            getStatus(currentResult, now),
-            getSymptom(currentResult, now),
-            getDetails(verbose, currentResult, now),
-            getImpacts(currentResult),
-            getDiagnoses(currentResult, now)
+            getStatus(lastObservedResult, now),
+            getSymptom(lastObservedResult, now),
+            getDetails(verbose, lastObservedResult, now),
+            getImpacts(lastObservedResult),
+            getDiagnoses(lastObservedResult, now)
         );
     }
 
@@ -305,6 +314,13 @@ public class BlobStoreHealthIndicator implements HealthIndicatorService, Closeab
                 public void onResponse(Optional<StatelessElectionStrategy.Lease> lease) {
                     long now = timeSupplier.get();
                     long duration = now - lastCheckStarted;
+                    // See https://github.com/elastic/elasticsearch-serverless/issues/931
+                    if (duration > WARNING_THRESHOLD) {
+                        logger.warn(
+                            "Blob store read duration is higher than the warn threshold, read took {}.",
+                            TimeValue.timeValueMillis(duration).toHumanReadableString(2)
+                        );
+                    }
                     setNewResult(
                         duration <= timeout.millis()
                             ? new HealthCheckResult(lastCheckStarted, now, null)

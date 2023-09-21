@@ -12,12 +12,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -243,23 +241,6 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
                 encoder.decodeOrdinals(in, decoded);
                 assertEquals(in.length(), in.getFilePointer());
                 assertArrayEquals(expected, decoded);
-            }
-        }
-    }
-
-    public static void main(String[] args) throws IOException {
-        ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
-        try (
-            Directory dir = new MMapDirectory(
-                Path.of(
-                    "/Users/felixbarnsteiner/.rally/benchmarks/races/0b842576-8a3a-49c8-8a74-5bfb7f6c8598/rally-node-0/install/elasticsearch-8.11.0-SNAPSHOT/data/indices/QWKdgc2xRm64O8h1ldxMjg/0/index"
-                )
-            )
-        ) {
-            try (IndexInput in = dir.openInput("_2wh_ES87TSDB_0.dvd", IOContext.DEFAULT)) {
-                long[] decoded = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-                encoder.decodeOrdinals(in, decoded);
-                System.out.println(decoded);
             }
         }
     }

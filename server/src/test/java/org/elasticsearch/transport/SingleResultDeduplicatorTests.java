@@ -15,7 +15,6 @@ import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -23,8 +22,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -102,8 +102,9 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
         try {
 
             final var workerResponseHeaderValueCounter = new AtomicInteger();
-            final Queue<Integer> allSeenResponseHeaderValues = ConcurrentCollections.newQueue();
-            final Queue<Integer> allSeenThreadHeaderValues = ConcurrentCollections.newQueue();
+            final List<Integer> allSeenResponseHeaderValues = Collections.synchronizedList(new ArrayList<>());
+            final List<Integer> allSeenThreadHeaderValues = Collections.synchronizedList(new ArrayList<>());
+
             final var threads = between(1, 5);
             final var future = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(future)) {

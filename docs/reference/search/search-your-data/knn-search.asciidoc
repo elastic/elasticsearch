@@ -529,6 +529,7 @@ PUT passage_vectors
     }
 }
 ----
+//TEST[continued]
 
 With the above mapping, we can index multiple passage vectors along with storing the individual passage text.
 

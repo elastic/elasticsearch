@@ -108,7 +108,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        deleteTransform(transformId, true);
+        deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDest));
     }
@@ -134,7 +134,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        deleteTransform(transformId, true);
+        deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDestAlias));
     }
@@ -158,7 +158,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertTrue(indexExists(transformDest));
         assertTrue(aliasExists(transformDestAlias));
 
-        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, true));
+        ResponseException e = expectThrows(ResponseException.class, () -> deleteTransform(transformId, false, true));
         assertThat(
             e.getMessage(),
             containsString(
@@ -180,7 +180,7 @@ public class TransformDeleteIT extends TransformRestTestCase {
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDestAlias));
 
-        deleteTransform(transformId, true);
+        deleteTransform(transformId, false, true);
         assertFalse(indexExists(transformDest));
         assertFalse(aliasExists(transformDestAlias));
     }

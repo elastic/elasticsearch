@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
 test {
+  // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
 }
 

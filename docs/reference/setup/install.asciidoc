@@ -95,7 +95,7 @@ directory. You may remove this directory if using your own JVM.
 === JVM and Java agents
 
 Don't use third-party Java agents that attach to the JVM. These agents
-been observed to reduce {es} performance, or even freeze or crash nodes.
+can reduce {es} performance, including freezing or crashing nodes.
 
 
 include::install/targz.asciidoc[]

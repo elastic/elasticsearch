@@ -50,7 +50,7 @@ public class SpatialStatsTransportActionTests extends ESTestCase {
 
     @Before
     public void setup() {
-        threadPool = new TestThreadPool("SpatialStatsTransportActionTestsg");
+        threadPool = new TestThreadPool("SpatialStatsTransportActionTests");
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);

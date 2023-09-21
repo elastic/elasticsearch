@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tracing;
+package org.elasticsearch.telemetry.tracing;
 
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;

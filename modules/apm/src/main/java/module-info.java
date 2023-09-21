@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.tracing.apm {
+module org.elasticsearch.telemetry.apm {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
@@ -15,5 +15,5 @@ module org.elasticsearch.tracing.apm {
     requires io.opentelemetry.context;
     requires io.opentelemetry.api;
 
-    exports org.elasticsearch.tracing.apm;
+    exports org.elasticsearch.telemetry.apm;
 }

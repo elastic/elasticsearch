@@ -43,10 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses

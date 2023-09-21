@@ -9,6 +9,7 @@
 package org.elasticsearch.telemetry.apm.settings;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.spy;

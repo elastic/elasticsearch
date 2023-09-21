@@ -6,11 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
-
-import org.elasticsearch.common.settings.Settings;
+package org.elasticsearch.telemetry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
-public interface TracerPlugin {
-    Tracer getTracer(Settings settings);
+public interface TelemetryProvider {
+    Tracer getTracer();
+
+    TelemetryProvider NOOP = new TelemetryProvider() {
+
+        @Override
+        public Tracer getTracer() {
+            return Tracer.NOOP;
+        }
+
+    };
 }

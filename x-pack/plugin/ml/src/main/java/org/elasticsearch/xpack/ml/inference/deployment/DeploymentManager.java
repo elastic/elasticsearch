@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -232,52 +231,14 @@ public class DeploymentManager {
     ) {
         ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
             try {
-                verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
+                MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
             } catch (IllegalArgumentException iae) {
-                verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
+                MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
                 throw iae;
             }
         }, failedDeploymentListener::onFailure);
 
         MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
-    }
-
-    static void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures, String requiredArch, String modelId)
-        throws IllegalStateException {
-        if (architectures.size() > 1) {
-            throw new IllegalStateException(
-                format(
-                    "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
-                        + "expected [%s]; "
-                        + "but was [%s]",
-                    modelId,
-                    architectures.toString(),
-                    requiredArch
-                )
-            );
-        }
-    }
-
-    static void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
-        throws IllegalArgumentException {
-        String architecture = null;
-        Iterator<String> architecturesIterator = architectures.iterator();
-        if (architecturesIterator.hasNext()) {
-            architecture = architectures.iterator().next();
-        }
-
-        if (architectures.size() > 1
-            || (Objects.isNull(modelPlatformArchitecture) == false && Objects.equals(architecture, modelPlatformArchitecture) == false)) {
-            throw new IllegalArgumentException(
-                format(
-                    "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "
-                        + "expected [%s]; "
-                        + "but was [%s]",
-                    modelPlatformArchitecture,
-                    architectures.toString()
-                )
-            );
-        }
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

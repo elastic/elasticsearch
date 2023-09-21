@@ -14,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -216,26 +215,6 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             @Override
             public void onFailure(Exception e) {
                 logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
-            }
-        };
-
-        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
-    }
-
-    private void areMLNodesArchitecturesHomogeneous(ActionListener<Boolean> homogeneityListener) {
-        ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
-            @Override
-            public void onResponse(Set<String> architectures) {
-                if (architectures.size() > 1) {
-                    homogeneityListener.onResponse(false);
-                } else {
-                    homogeneityListener.onResponse(true);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                homogeneityListener.onFailure(e);
             }
         };
 
@@ -541,65 +520,73 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String reason,
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
+        ActionListener<Set<String>> homogeneityListener = ActionListener.wrap((mlNodesArchitectures) -> {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
 
-            PlainActionFuture<Boolean> homogeneityListener = new PlainActionFuture<>();
-            areMLNodesArchitecturesHomogeneous(homogeneityListener);
-            Boolean areMLNodesArchitecturesHomogeneous = homogeneityListener.actionGet();
-
-            TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
-            try {
-                rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-
-            submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
-
-                private volatile boolean isUpdated;
-                private volatile boolean isChanged;
-
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-
-                    if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
-                        isUpdated = true;
-                        ClusterState updatedState = update(currentState, rebalancedMetadata);
-                        isChanged = updatedState != currentState;
-
-                        if (areMLNodesArchitecturesHomogeneous == false && modelToAdd.isPresent()) {
-                            setToStopping(
-                                clusterState,
-                                modelToAdd.get().getDeploymentId(),
-                                "Heterogeneous architectures detected among ML nodes"
-                            );
-                        }
-
-                        return updatedState;
-                    }
-                    rebalanceAssignments(currentState, modelToAdd, reason, listener);
-                    return currentState;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+                TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
+                try {
+                    rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
+                } catch (Exception e) {
                     listener.onFailure(e);
+                    return;
                 }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    if (isUpdated) {
-                        if (isChanged) {
-                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                                .execute(() -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason)));
+                submitUnbatchedTask(reason, new ClusterStateUpdateTask() {
+
+                    private volatile boolean isUpdated;
+                    private volatile boolean isChanged;
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+
+                        if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                            isUpdated = true;
+                            ClusterState updatedState = update(currentState, rebalancedMetadata);
+                            isChanged = updatedState != currentState;
+
+                            if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
+                                setToStopping(
+                                    clusterState,
+                                    modelToAdd.get().getDeploymentId(),
+                                    format(
+                                        "ML nodes in this cluster have multiple platform architectures, "
+                                            + "but can only have one for this model ([%s]); "
+                                            + "detected architectures: [%s]",
+                                        modelToAdd.get().getModelId(),
+                                        mlNodesArchitectures.toString()
+                                    )
+                                );
+                            }
+
+                            return updatedState;
                         }
-                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                        rebalanceAssignments(currentState, modelToAdd, reason, listener);
+                        return currentState;
                     }
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        if (isUpdated) {
+                            if (isChanged) {
+                                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                    .execute(
+                                        () -> systemAuditor.info(Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, reason))
+                                    );
+                            }
+                            listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState));
+                        }
+                    }
+                });
             });
-        });
+        }, listener::onFailure);
+
+        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, homogeneityListener);
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {

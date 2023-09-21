@@ -8,8 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -38,17 +36,15 @@ import static org.hamcrest.Matchers.equalTo;
  * In 8.2 we also added the ability to filter fields by type and metadata, with some post-hoc filtering applied on
  * the co-ordinating node if older nodes were included in the system
  */
-public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
-
-    public FieldCapsIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
-    }
-
-    private static boolean oldIndicesCreated;
-    private static boolean newIndicesCreated;
+public class FieldCapsIT extends AbstractRollingTestCase {
+    private static boolean indicesCreated = false;
 
     @Before
     public void setupIndices() throws Exception {
+        if (indicesCreated) {
+            return;
+        }
+        indicesCreated = true;
         final String redMapping = """
              "properties": {
                "red_field": { "type": "keyword" },
@@ -67,7 +63,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                "timestamp": {"type": "date"}
              }
             """;
-        if (isOldCluster() && oldIndicesCreated == false) {
+        if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex("old_red_1", Settings.EMPTY, redMapping);
             createIndex("old_red_2", Settings.EMPTY, redMapping);
             createIndex("old_red_empty", Settings.EMPTY, redMapping);
@@ -82,8 +78,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                 );
                 assertOK(client().performRequest(indexRequest));
             }
-            oldIndicesCreated = true;
-        } else if (isFirstMixedCluster() && newIndicesCreated == false) {
+        } else if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
             createIndex("new_red_1", Settings.EMPTY, redMapping);
             createIndex("new_red_2", Settings.EMPTY, redMapping);
             createIndex("new_red_empty", Settings.EMPTY, redMapping);
@@ -98,7 +93,6 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
                 );
                 assertOK(client().performRequest(indexRequest));
             }
-            newIndicesCreated = true;
         }
     }
 
@@ -155,7 +149,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testNewIndicesOnly() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), null, null, null);
             assertThat(resp.getIndices(), equalTo(new String[] { "new_red_1", "new_red_2", "new_red_empty" }));
@@ -183,7 +177,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testNewIndicesOnlyWithIndexFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         {
             FieldCapabilitiesResponse resp = fieldCaps(List.of("new_red_*"), List.of("*"), indexFilter, null, null);
@@ -209,7 +203,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testAllIndices() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), null, null, null);
         assertThat(
             resp.getIndices(),
@@ -241,7 +235,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testAllIndicesWithIndexFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         final QueryBuilder indexFilter = QueryBuilders.rangeQuery("timestamp").gte("2020-01-01").lte("2020-12-12");
         FieldCapabilitiesResponse resp = fieldCaps(List.of("old_*", "new_*"), List.of("*"), indexFilter, null, null);
         assertThat(
@@ -291,7 +285,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     // because we are testing that the upgraded node will correctly apply filtering
     // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithFieldTypeFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         RestClient restClient = getUpgradedNodeClient();
         FieldCapabilitiesResponse resp = fieldCaps(restClient, List.of("old_*", "new_*"), List.of("*"), null, "keyword", null);
         assertThat(resp.getField("red_field").keySet(), contains("keyword"));
@@ -304,7 +298,7 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     // because we are testing that the upgraded node will correctly apply filtering
     // to responses from older nodes that don't understand the filter parameters
     public void testAllIndicesWithExclusionFilter() throws Exception {
-        assumeFalse("required mixed or upgraded cluster", isOldCluster());
+        assumeFalse("required mixed or upgraded cluster", CLUSTER_TYPE == ClusterType.OLD);
         RestClient client = getUpgradedNodeClient();
         {
             FieldCapabilitiesResponse resp = fieldCaps(client, List.of("old_*", "new_*"), List.of("*"), null, null, null);

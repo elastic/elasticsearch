@@ -23,7 +23,7 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;

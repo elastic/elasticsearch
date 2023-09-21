@@ -36,7 +36,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.Counter;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.Metric;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -384,7 +384,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
-    private final Counter authenticationFailedCounter;
+    private final LongCounter authenticationFailedCounter;
     // package for testing
     volatile EnumSet<AuditLevel> events;
     boolean includeRequestBody;
@@ -401,7 +401,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext, Metric metric) {
-        this.authenticationFailedCounter = metric.registerCounter(
+        this.authenticationFailedCounter = metric.registerLongCounter(
             new MetricName("authenticationFailed"),
             "authenticationFailed",
             new Object()

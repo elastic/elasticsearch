@@ -40,7 +40,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;

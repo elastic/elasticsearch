@@ -43,6 +43,11 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
     }
 
     @Override
+    public MetricName getName() {
+        return name;
+    }
+
+    @Override
     public void record(double value) {
         histogram.getOrCompute().record(value);
     }

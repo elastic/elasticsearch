@@ -42,7 +42,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 

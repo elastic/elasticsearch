@@ -96,7 +96,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;

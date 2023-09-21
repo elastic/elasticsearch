@@ -9,10 +9,11 @@
 package org.elasticsearch.telemetry.metric;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public interface DoubleHistogram {
+public interface DoubleHistogram extends Instrument {
     void record(double value);
 
     void record(double value, Map<String, Object> attributes);
@@ -20,6 +21,11 @@ public interface DoubleHistogram {
     void record(double value, Map<String, Object> attributes, ThreadContext threadContext);
 
     DoubleHistogram NOOP = new DoubleHistogram() {
+        @Override
+        public MetricName getName() {
+            return null;
+        }
+
         @Override
         public void record(double value) {
 

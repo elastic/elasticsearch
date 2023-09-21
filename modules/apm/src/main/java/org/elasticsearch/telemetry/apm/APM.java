@@ -25,6 +25,8 @@ import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.apm.settings.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,7 +40,7 @@ import java.util.function.Supplier;
 
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
- * a {@link org.elasticsearch.telemetry.Tracer} interface, which this module implements via
+ * a {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which this module implements via
  * {@link APMTracer}. We use the OpenTelemetry API to capture "spans", and attach the
  * Elastic APM Java to ship those spans to an APM server. Although it is possible to
  * programmatically attach the agent, the Security Manager permissions required for this

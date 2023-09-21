@@ -8,17 +8,23 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import org.elasticsearch.telemetry.MetricName;
+
 import java.util.Map;
 
 /**
  * Record non-additive double values
  */
-public interface DoubleGauge {
+public interface DoubleGauge extends Instrument {
     void record(double value);
 
     void record(double value, Map<String, Object> attributes);
 
     DoubleGauge NOOP = new DoubleGauge() {
+        @Override
+        public MetricName getName() {
+            return null;
+        }
 
         @Override
         public void record(double value) {

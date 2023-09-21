@@ -318,9 +318,7 @@ class APMJvmOptions {
         }
 
         try (var apmStream = Files.list(apmModule)) {
-            final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-.*.jar")
-            ).toList();
+            final List<Path> paths = apmStream.filter(path -> path.getFileName().toString().matches("elastic-apm-agent-.*.jar")).toList();
 
             if (paths.size() > 1) {
                 throw new UserException(

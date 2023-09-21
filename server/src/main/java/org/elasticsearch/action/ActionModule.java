@@ -274,7 +274,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -458,7 +457,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
@@ -509,7 +508,6 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
     private final RestExtension restExtension;
 
     public ActionModule(
@@ -524,7 +522,7 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         ClusterService clusterService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension
@@ -536,7 +534,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -566,12 +563,24 @@ public class ActionModule extends AbstractModule {
         var customController = getRestServerComponent(
             "REST controller",
             actionPlugins,
-            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer)
+            restPlugin -> restPlugin.getRestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider.getTracer()
+            )
         );
         if (customController != null) {
             restController = customController;
         } else {
-            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+            restController = new RestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider.getTracer()
+            );
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
         this.restExtension = restExtension;

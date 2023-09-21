@@ -1142,6 +1142,7 @@ You cannot specify both `reindex.ssl.certificate_authorities` and
 
 `reindex.ssl.truststore.password`::
 The password to the truststore (`reindex.ssl.truststore.path`).
+deprecated:[7.17.0] Prefer `reindex.ssl.truststore.secure_password` instead.
 This setting cannot be used with `reindex.ssl.truststore.secure_password`.
 
 `reindex.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
@@ -1175,6 +1176,7 @@ You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 `reindex.ssl.key_passphrase`::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`reindex.ssl.key`) if it is encrypted.
+deprecated:[7.17.0] Prefer `reindex.ssl.secure_key_passphrase` instead.
 Cannot be used with `reindex.ssl.secure_key_passphrase`.
 
 `reindex.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
@@ -1194,8 +1196,9 @@ If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults
 to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `reindex.ssl.keystore.password`::
-The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used
-with `reindex.ssl.keystore.secure_password`.
+The password to the keystore (`reindex.ssl.keystore.path`).
+deprecated:[7.17.0] Prefer `reindex.ssl.keystore.secure_password` instead.
+This setting cannot be used with `reindex.ssl.keystore.secure_password`.
 
 `reindex.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`reindex.ssl.keystore.path`).
@@ -1203,8 +1206,9 @@ This setting cannot be used with `reindex.ssl.keystore.password`.
 
 `reindex.ssl.keystore.key_password`::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with
-`reindex.ssl.keystore.secure_key_password`.
+Defaults to the keystore password.
+deprecated:[7.17.0] Prefer `reindex.ssl.keystore.secure_key_password` instead.
+This setting cannot be used with `reindex.ssl.keystore.secure_key_password`.
 
 `reindex.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).

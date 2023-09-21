@@ -82,11 +82,6 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
-    @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
         NestedObjectMapper nestedMapper = context.nestedLookup().getNestedMappers().get(path);

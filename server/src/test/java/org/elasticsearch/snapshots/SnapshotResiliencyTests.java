@@ -178,7 +178,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.telemetry.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -1961,7 +1961,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     allocationService,
                     metadataCreateIndexService,
-                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,

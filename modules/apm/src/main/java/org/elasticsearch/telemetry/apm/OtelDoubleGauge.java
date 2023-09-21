@@ -44,6 +44,11 @@ public class OtelDoubleGauge<T> implements DoubleGauge {
     }
 
     @Override
+    public MetricName getName() {
+        return name;
+    }
+
+    @Override
     public void record(double value) {
         gauge.getOrCompute().record(value);
     }

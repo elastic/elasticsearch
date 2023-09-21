@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -88,7 +89,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertFalse(cae.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
         assertFalse(cae.getShardAllocationDecision().getMoveDecision().isDecisionTaken());
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         String explanation;
         if (shardRoutingState == ShardRoutingState.RELOCATING) {
             explanation = "the shard is in the process of relocating from node [] to node [], wait until " + "relocation has completed";

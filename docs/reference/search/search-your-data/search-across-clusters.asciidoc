@@ -828,7 +828,7 @@ Response:
 
 <1> The search results are marked as partial, since at least one shard search failed.
 <2> The `_shards` section includes shard failure info.
-<3> Clusters that have partial results are marked as "partial". They are
+<3> Clusters that have partial results are still marked as "partial". They are
 marked with status "skipped" (or "failed") only if no data was returned from the search.
 <4> The `partial` status has been applied to the cluster with partial results.
 <5> The failed shard count is shown.

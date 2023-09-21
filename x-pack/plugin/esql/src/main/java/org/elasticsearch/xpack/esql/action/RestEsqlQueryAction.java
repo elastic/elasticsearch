@@ -51,7 +51,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         // Create some kind of query id so that we can correlate the beginning and the end of a query in the logs.
         String queryId = UUIDs.base64UUID();
 
-        LOGGER.info("Beginning execution of ESQL query with ID [{}]: [{}]", queryId, esqlRequest.query());
+        LOGGER.info("Beginning execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]", queryId, esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

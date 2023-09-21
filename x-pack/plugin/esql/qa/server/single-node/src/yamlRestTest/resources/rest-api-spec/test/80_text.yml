@@ -323,9 +323,7 @@ setup:
 ---
 "text with synthetic source":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99183"
-
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test2
@@ -355,6 +353,8 @@ setup:
           - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
 
   - do:
+      allowed_warnings_regex:
+        - "Field \\[job\\] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
@@ -363,8 +363,8 @@ setup:
   - match: { columns.0.type: "text" }
 
   - length: { values: 2 }
-  - match: { values.0.0: "IT Director" }
-  - match: { values.1.0: "Payroll Specialist" }
+  - match: { values.0.0: null } # awaiting a complete fix for https://github.com/elastic/elasticsearch/issues/99183
+  - match: { values.1.0: null } # for now, since we cannot extract text values from synthetic source, we at least avoid to throw exceptions
 
 
 ---

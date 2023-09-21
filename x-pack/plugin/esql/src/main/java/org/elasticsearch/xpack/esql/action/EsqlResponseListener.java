@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
@@ -31,72 +28,37 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
  */
 public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
-    /**
-     * A simple, thread-safe stop watch for timing a single action.
-     * Allows to stop the time for building a response and to log it at a later point.
-     */
-    private static class ThreadSafeStopWatch {
-        /**
-         * Start time of the watch
-         */
-        private final long startTimeNS = System.nanoTime();
-
-        /**
-         * End time of the watch
-         */
-        private long endTimeNS;
-
-        /**
-         * Is the stop watch currently running?
-         */
-        private boolean running = true;
-
-        /**
-         * Starts the {@link ThreadSafeStopWatch} immediately after construction.
-         */
-        ThreadSafeStopWatch() {}
-
-        /**
-         * Stop the stop watch (or do nothing if it was already stopped) and return the elapsed time since starting.
-         * @return the elapsed time since starting the watch
-         */
-        public TimeValue stop() {
-            synchronized (this) {
-                if (running) {
-                    endTimeNS = System.nanoTime();
-                    running = false;
-                }
-
-                return new TimeValue(endTimeNS - startTimeNS, TimeUnit.NANOSECONDS);
-            }
-        }
-    }
-
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
     private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;
     private final MediaType mediaType;
     /**
-     * Keep the initial query for logging purposes.
-     */
-    private final String esqlQuery;
-    /**
      * Stop the time it took to build a response to later log it. Use something thread-safe here because stopping time requires state and
      * {@link EsqlResponseListener} might be used from different threads.
      */
-    private final ThreadSafeStopWatch stopWatch = new ThreadSafeStopWatch();
+    private final ThreadSafeStopWatch responseTimeStopWatch;
 
     /**
-     * To correctly time the execution of a request, a {@link EsqlResponseListener} must be constructed immediately before execution begins.
+     * Create a new listener which will send back a REST response for a single query.
+     * @param channel the REST channel over which to send back the REST response
+     * @param restRequest the initial REST resquest
+     * @param esqlRequest the parsed ESQL request
+     * @param responseTimeStopWatch a stopwatch that was started when we began handling the ESQL request; must be running and will be
+     *                              stopped once the response is built
      */
-    public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
+    public EsqlResponseListener(
+        RestChannel channel,
+        RestRequest restRequest,
+        EsqlQueryRequest esqlRequest,
+        ThreadSafeStopWatch responseTimeStopWatch
+    ) {
         super(channel);
 
         this.channel = channel;
         this.restRequest = restRequest;
-        this.esqlQuery = esqlRequest.query();
         mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
+        this.responseTimeStopWatch = responseTimeStopWatch;
 
         /*
          * Special handling for the "delimiter" parameter which should only be
@@ -130,35 +92,9 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
                 ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
             );
         }
-        long tookNanos = stopWatch.stop().getNanos();
+        long tookNanos = responseTimeStopWatch.stop().getNanos();
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
 
         return restResponse;
-    }
-
-    /**
-     * Log the execution time and query when handling an ES|QL response.
-     */
-    public ActionListener<EsqlQueryResponse> wrapWithLogging(String queryId) {
-        return ActionListener.wrap(r -> {
-            onResponse(r);
-            // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info(
-                "Finished execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]\nExecution time: [{}]ms",
-                queryId,
-                esqlQuery,
-                stopWatch.stop().getMillis()
-            );
-        }, ex -> {
-            // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = stopWatch.stop().getMillis();
-            onFailure(ex);
-            LOGGER.info(
-                "Failed execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]\nExecution time: [{}]ms",
-                queryId,
-                esqlQuery,
-                timeMillis
-            );
-        });
     }
 }

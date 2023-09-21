@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.metrics;
+package org.elasticsearch.telemetry.apm.internal.metrics;
+
+import io.opentelemetry.api.metrics.LongUpDownCounter;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -14,31 +16,31 @@ import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.LongHistogram {
-    private final LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram;
+public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.metric.LongUpDownCounter {
+    private final LazyInitializable<LongUpDownCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    public OtelLongHistogram(
-        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram,
+    private OtelLongUpDownCounter(
+        LazyInitializable<LongUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        this.histogram = histogram;
+        this.counter = lazyCounter;
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelLongHistogram<T> build(
-        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> lazyHistogram,
+    public static <T> OtelLongUpDownCounter<T> build(
+        LazyInitializable<LongUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelLongHistogram<>(lazyHistogram, name, description, unit);
+        return new OtelLongUpDownCounter<>(lazyCounter, name, description, unit);
     }
 
     @Override
@@ -47,17 +49,17 @@ public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.
     }
 
     @Override
-    public void record(long value) {
-        histogram.getOrCompute().record(value);
+    public void add(long inc) {
+        counter.getOrCompute().add(inc);
     }
 
     @Override
-    public void record(long value, Map<String, Object> attributes) {
-        histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+    public void add(long inc, Map<String, Object> attributes) {
+        counter.getOrCompute().add(inc, OtelHelper.fromMap(attributes));
     }
 
     @Override
-    public void record(long value, Map<String, Object> attributes, ThreadContext threadContext) {
+    public void add(long inc, Map<String, Object> attributes, ThreadContext threadContext) {
         throw new UnsupportedOperationException("unimplemented");
     }
 }

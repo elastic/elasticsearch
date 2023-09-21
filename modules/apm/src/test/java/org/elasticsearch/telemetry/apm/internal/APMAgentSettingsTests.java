@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.settings;
+package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

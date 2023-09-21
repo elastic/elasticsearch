@@ -16,5 +16,5 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.api;
 
     exports org.elasticsearch.telemetry.apm;
-    exports org.elasticsearch.telemetry.apm.metrics;
+    exports org.elasticsearch.telemetry.apm.internal.metrics;
 }

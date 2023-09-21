@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.settings;
+package org.elasticsearch.telemetry.apm.internal;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,9 +17,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.telemetry.apm.APMTelemetryProvider;
-import org.elasticsearch.telemetry.apm.metrics.APMMetric;
-import org.elasticsearch.telemetry.apm.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMetric;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -49,10 +48,11 @@ public class APMAgentSettings {
         "true"
     );
 
-    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider telemetryProvider) {
-        APMTracer apmTracer = telemetryProvider.getTracer();
-        APMMetric apmMetric = telemetryProvider.getMetric();
+    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMMetric apmMetric = apmTelemetryProvider.getMetric();
+
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
             apmMetric.setEnabled(enabled);

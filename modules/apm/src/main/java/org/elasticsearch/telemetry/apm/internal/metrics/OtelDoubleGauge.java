@@ -6,40 +6,41 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.metrics;
+package org.elasticsearch.telemetry.apm.internal.metrics;
+
+import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
 
 import java.util.Map;
 
-public class OtelDoubleHistogram<T> implements DoubleHistogram {
-    private final LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram;
+public class OtelDoubleGauge<T> implements DoubleGauge {
+    private final LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    public OtelDoubleHistogram(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> histogram,
+    private OtelDoubleGauge(
+        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge,
         MetricName name,
         String description,
         T unit
     ) {
-        this.histogram = histogram;
+        this.gauge = gauge;
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleHistogram<T> build(
-        LazyInitializable<io.opentelemetry.api.metrics.DoubleHistogram, RuntimeException> lazyHistogram,
+    public static <T> OtelDoubleGauge<T> build(
+        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> lazyGauge,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleHistogram<>(lazyHistogram, name, description, unit);
+        return new OtelDoubleGauge<>(lazyGauge, name, description, unit);
     }
 
     @Override
@@ -49,16 +50,11 @@ public class OtelDoubleHistogram<T> implements DoubleHistogram {
 
     @Override
     public void record(double value) {
-        histogram.getOrCompute().record(value);
+        gauge.getOrCompute().record(value);
     }
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
-    }
-
-    @Override
-    public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
-        throw new UnsupportedOperationException("unimplemented");
+        gauge.getOrCompute().record(value, OtelHelper.fromMap(attributes));
     }
 }

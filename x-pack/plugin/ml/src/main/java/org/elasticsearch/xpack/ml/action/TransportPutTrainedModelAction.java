@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPack
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.deployment.MLPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
@@ -78,6 +80,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -248,10 +251,29 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     configToReturn.getModelId(),
                     modelPackageConfigHolder.get(),
                     request.isWaitForCompletion(),
-                    ActionListener.wrap(
-                        downloadTriggered -> listener.onResponse(new PutTrainedModelAction.Response(configToReturn)),
-                        listener::onFailure
-                    )
+                    ActionListener.wrap((downloadTriggered) -> {
+                        listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                        ActionListener<Set<String>> architecturesListener = new ActionListener<>() {
+                            @Override
+                            public void onResponse(Set<String> nodesArchitectures) {
+                                try {
+                                    MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+                                        nodesArchitectures,
+                                        configToReturn.getPlatformArchitecture()
+                                    );
+                                } catch (Exception e) {
+                                    HeaderWarning.addWarning(e.getMessage());
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                HeaderWarning.addWarning(e.getMessage());
+                            }
+                        };
+
+                        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
+                    }, listener::onFailure)
                 );
             } else {
                 listener.onResponse(new PutTrainedModelAction.Response(configToReturn));

@@ -9,10 +9,7 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.rest.ESRestTestCase;
-
-import static org.hamcrest.Matchers.lessThan;
 
 public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected enum ClusterType {
@@ -34,16 +31,6 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
     protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
-    protected static IndexVersion getOldClusterIndexVersion() {
-        var version = UPGRADE_FROM_VERSION;
-        if (version.equals(org.elasticsearch.Version.CURRENT)) {
-            return IndexVersion.current();
-        } else {
-            assertThat("Index version needs to be added to rolling test parameters", version, lessThan(org.elasticsearch.Version.V_8_11_0));
-            return IndexVersion.fromId(version.id);
-        }
-    }
-
     @Override
     protected final boolean resetFeatureStates() {
         return false;
@@ -51,11 +38,6 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
 
     @Override
     protected final boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected final boolean preserveDataStreamsUponCompletion() {
         return true;
     }
 

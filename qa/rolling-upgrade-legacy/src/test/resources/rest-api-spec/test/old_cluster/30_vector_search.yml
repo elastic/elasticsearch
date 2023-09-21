@@ -11,7 +11,6 @@
               bdv:
                 type: dense_vector
                 dims: 3
-                index: false
               knn:
                 type: dense_vector
                 dims: 3
@@ -126,7 +125,6 @@
               bdv:
                 type: dense_vector
                 element_type: byte
-                index: false
                 dims: 3
               knn:
                 type: dense_vector

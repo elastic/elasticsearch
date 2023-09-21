@@ -6,24 +6,23 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.metrics;
 
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
+import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
 
 import java.util.Map;
 
-public class OtelDoubleGauge<T> implements DoubleGauge {
-    private final LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge;
+public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.LongGauge {
+    private final LazyInitializable<ObservableLongMeasurement, RuntimeException> gauge;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelDoubleGauge(
-        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> gauge,
+    private OtelLongGauge(
+        LazyInitializable<ObservableLongMeasurement, RuntimeException> gauge,
         MetricName name,
         String description,
         T unit
@@ -34,13 +33,13 @@ public class OtelDoubleGauge<T> implements DoubleGauge {
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleGauge<T> build(
-        LazyInitializable<ObservableDoubleMeasurement, RuntimeException> lazyGauge,
+    public static <T> OtelLongGauge<T> build(
+        LazyInitializable<ObservableLongMeasurement, RuntimeException> lazyGauge,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleGauge<>(lazyGauge, name, description, unit);
+        return new OtelLongGauge<>(lazyGauge, name, description, unit);
     }
 
     @Override
@@ -49,12 +48,12 @@ public class OtelDoubleGauge<T> implements DoubleGauge {
     }
 
     @Override
-    public void record(double value) {
+    public void record(long value) {
         gauge.getOrCompute().record(value);
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes) {
+    public void record(long value, Map<String, Object> attributes) {
         gauge.getOrCompute().record(value, OtelHelper.fromMap(attributes));
     }
 }

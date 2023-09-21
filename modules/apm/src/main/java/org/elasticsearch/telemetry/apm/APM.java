@@ -25,15 +25,13 @@ import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.apm.metrics.APMMetric;
 import org.elasticsearch.telemetry.apm.settings.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.lang.invoke.MethodHandles;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;

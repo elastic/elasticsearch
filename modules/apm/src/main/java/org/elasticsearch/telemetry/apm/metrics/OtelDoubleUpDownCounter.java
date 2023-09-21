@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.metrics;
 
-import io.opentelemetry.api.metrics.LongUpDownCounter;
+import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -16,14 +16,14 @@ import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.metric.LongUpDownCounter {
-    private final LazyInitializable<LongUpDownCounter, RuntimeException> counter;
+public class OtelDoubleUpDownCounter<T> implements org.elasticsearch.telemetry.metric.DoubleUpDownCounter {
+    private final LazyInitializable<DoubleUpDownCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelLongUpDownCounter(
-        LazyInitializable<LongUpDownCounter, RuntimeException> lazyCounter,
+    private OtelDoubleUpDownCounter(
+        LazyInitializable<DoubleUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
@@ -34,13 +34,13 @@ public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.met
         this.unit = unit;
     }
 
-    public static <T> OtelLongUpDownCounter<T> build(
-        LazyInitializable<LongUpDownCounter, RuntimeException> lazyCounter,
+    public static <T> OtelDoubleUpDownCounter<T> build(
+        LazyInitializable<DoubleUpDownCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelLongUpDownCounter<>(lazyCounter, name, description, unit);
+        return new OtelDoubleUpDownCounter<>(lazyCounter, name, description, unit);
     }
 
     @Override
@@ -49,17 +49,17 @@ public class OtelLongUpDownCounter<T> implements org.elasticsearch.telemetry.met
     }
 
     @Override
-    public void add(long inc) {
+    public void add(double inc) {
         counter.getOrCompute().add(inc);
     }
 
     @Override
-    public void add(long inc, Map<String, Object> attributes) {
+    public void add(double inc, Map<String, Object> attributes) {
         counter.getOrCompute().add(inc, OtelHelper.fromMap(attributes));
     }
 
     @Override
-    public void add(long inc, Map<String, Object> attributes, ThreadContext threadContext) {
+    public void add(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
         throw new UnsupportedOperationException("unimplemented");
     }
 }

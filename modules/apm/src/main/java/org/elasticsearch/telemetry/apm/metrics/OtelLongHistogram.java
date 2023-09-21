@@ -6,40 +6,39 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
-
-import io.opentelemetry.api.metrics.ObservableLongMeasurement;
+package org.elasticsearch.telemetry.apm.metrics;
 
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.LongGauge {
-    private final LazyInitializable<ObservableLongMeasurement, RuntimeException> gauge;
+public class OtelLongHistogram<T> implements org.elasticsearch.telemetry.metric.LongHistogram {
+    private final LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelLongGauge(
-        LazyInitializable<ObservableLongMeasurement, RuntimeException> gauge,
+    public OtelLongHistogram(
+        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> histogram,
         MetricName name,
         String description,
         T unit
     ) {
-        this.gauge = gauge;
+        this.histogram = histogram;
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelLongGauge<T> build(
-        LazyInitializable<ObservableLongMeasurement, RuntimeException> lazyGauge,
+    public static <T> OtelLongHistogram<T> build(
+        LazyInitializable<io.opentelemetry.api.metrics.LongHistogram, RuntimeException> lazyHistogram,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelLongGauge<>(lazyGauge, name, description, unit);
+        return new OtelLongHistogram<>(lazyHistogram, name, description, unit);
     }
 
     @Override
@@ -49,11 +48,16 @@ public class OtelLongGauge<T> implements org.elasticsearch.telemetry.metric.Long
 
     @Override
     public void record(long value) {
-        gauge.getOrCompute().record(value);
+        histogram.getOrCompute().record(value);
     }
 
     @Override
     public void record(long value, Map<String, Object> attributes) {
-        gauge.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+        histogram.getOrCompute().record(value, OtelHelper.fromMap(attributes));
+    }
+
+    @Override
+    public void record(long value, Map<String, Object> attributes, ThreadContext threadContext) {
+        throw new UnsupportedOperationException("unimplemented");
     }
 }

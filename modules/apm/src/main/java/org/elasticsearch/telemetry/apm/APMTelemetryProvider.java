@@ -10,6 +10,7 @@ package org.elasticsearch.telemetry.apm;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.apm.metrics.APMMetric;
 import org.elasticsearch.telemetry.apm.tracing.APMTracer;
 
 public class APMTelemetryProvider implements TelemetryProvider {

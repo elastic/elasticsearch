@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.telemetry.apm.tracing.APMTracer;
+import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

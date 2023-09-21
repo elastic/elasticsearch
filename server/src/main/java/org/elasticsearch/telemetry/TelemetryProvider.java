@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.telemetry;
+
 import org.elasticsearch.telemetry.tracing.Tracer;
 
 public interface TelemetryProvider {

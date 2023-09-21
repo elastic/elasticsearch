@@ -1,6 +1,0 @@
-pr: 99775
-summary: support exists query for `sparse_vector` fields
-area: Mapping
-type: enhancement
-issues:
-  - 99319

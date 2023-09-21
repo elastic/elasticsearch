@@ -81,7 +81,8 @@ public class ExistsIT extends ESIntegTestCase {
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
-        @SuppressWarnings({"rawtypes", "unchecked"}) final Map<String, Object>[] sources = new Map[]{
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        final Map<String, Object>[] sources = new Map[]{
             // simple property
             singletonMap("foo", "bar"),
             // object fields

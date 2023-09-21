@@ -224,4 +224,9 @@ module org.elasticsearch.xcore {
 
     uses org.elasticsearch.xpack.core.ml.MlConfigVersionExtension;
     uses org.elasticsearch.xpack.core.transform.TransformConfigVersionExtension;
+
+    provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
+        with
+            org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
 }

@@ -151,9 +151,11 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
      */
 
     public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_99, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
+    // V_11 is used in ELSER v2 package configs
+    public static final MlConfigVersion V_11 = registerMlConfigVersion(11_00_00_99, "79CB2950-57C7-11EE-AE5D-0800200C9A66");
 
     private static class CurrentHolder {
-        private static final MlConfigVersion CURRENT = findCurrent(V_10);
+        private static final MlConfigVersion CURRENT = findCurrent(V_11);
 
         // finds the pluggable current version, or uses the given fallback
         private static MlConfigVersion findCurrent(MlConfigVersion fallback) {

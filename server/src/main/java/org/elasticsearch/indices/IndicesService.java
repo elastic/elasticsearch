@@ -879,7 +879,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(
+    public void createShard(
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -888,7 +888,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        long clusterStateVersion
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -911,8 +912,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
             );
-        }, this);
-        return indexShard;
+        }, this, clusterStateVersion);
     }
 
     @Override

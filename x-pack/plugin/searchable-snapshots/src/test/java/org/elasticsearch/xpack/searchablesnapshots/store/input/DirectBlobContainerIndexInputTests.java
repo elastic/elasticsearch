@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -75,10 +76,10 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(OperationPurpose.SNAPSHOT, anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
-            String name = (String) invocationOnMock.getArguments()[0];
-            long position = (long) invocationOnMock.getArguments()[1];
-            long length = (long) invocationOnMock.getArguments()[2];
+        when(blobContainer.readBlob(any(OperationPurpose.class), anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
+            String name = (String) invocationOnMock.getArguments()[1];
+            long position = (long) invocationOnMock.getArguments()[2];
+            long length = (long) invocationOnMock.getArguments()[3];
             assertThat(
                 "Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
                 position + length,

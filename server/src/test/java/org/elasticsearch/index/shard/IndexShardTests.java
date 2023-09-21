@@ -2856,31 +2856,37 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxSeenAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxSeenAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, r) -> {
-                        assertFalse(replica.isSyncNeeded());
-                        l.onResponse(r);
-                    })
-                );
-            }
-        }, true, true);
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxSeenAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxSeenAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, r) -> {
+                            assertFalse(replica.isSyncNeeded());
+                            l.onResponse(r);
+                        })
+                    );
+                }
+            },
+            true,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -2980,32 +2986,38 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, checkpoint) -> {
-                        l.onResponse(checkpoint);
-                        // Shard should now be active since we did recover:
-                        assertTrue(replica.isActive());
-                    })
-                );
-            }
-        }, false, true);
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, checkpoint) -> {
+                            l.onResponse(checkpoint);
+                            // Shard should now be active since we did recover:
+                            assertTrue(replica.isActive());
+                        })
+                    );
+                }
+            },
+            false,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -3033,48 +3045,54 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            // we're only checking that listeners are called when the engine is open, before there is no point
-            @Override
-            public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(totalTranslogOps, listener.delegateFailureAndWrap((l, r) -> {
-                    assertListenerCalled.accept(replica);
-                    l.onResponse(r);
-                }));
-            }
-
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, r) -> {
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                // we're only checking that listeners are called when the engine is open, before there is no point
+                @Override
+                public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(totalTranslogOps, listener.delegateFailureAndWrap((l, r) -> {
                         assertListenerCalled.accept(replica);
                         l.onResponse(r);
-                    })
-                );
-            }
+                    }));
+                }
 
-            @Override
-            public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
-                super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener.delegateFailureAndWrap((l, r) -> {
-                    assertListenerCalled.accept(replica);
-                    l.onResponse(r);
-                }));
-            }
-        }, false, true);
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, r) -> {
+                            assertListenerCalled.accept(replica);
+                            l.onResponse(r);
+                        })
+                    );
+                }
+
+                @Override
+                public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
+                    super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener.delegateFailureAndWrap((l, r) -> {
+                        assertListenerCalled.accept(replica);
+                        l.onResponse(r);
+                    }));
+                }
+            },
+            false,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -4740,7 +4758,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assert false : "Unexpected failure";
             }
         };
-        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override
             public void indexTranslogOperations(
                 List<Translog.Operation> operations,

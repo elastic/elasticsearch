@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -29,7 +29,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
     private final InstrumentRegistrar<DoubleCounter> doubleCounters = new InstrumentRegistrar<>();
@@ -183,21 +183,6 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
             var meter = openTelemetry.getMeter("elasticsearch");
 
             this.services.set(new APMServices(meter, openTelemetry));
-
-            Meter myMeter = GlobalOpenTelemetry.getMeter("my_meter");
-            var counter = myMeter.counterBuilder("my_counter").build();
-
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        counter.add(42);
-                        Thread.sleep(2000);
-                    } catch (Exception e) {
-
-                    }
-                }
-            }).start();
 
             return null;
         });

@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.DoubleCounter;
+import io.opentelemetry.api.metrics.LongCounter;
 
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -16,26 +16,26 @@ import org.elasticsearch.telemetry.MetricName;
 
 import java.util.Map;
 
-public class OtelDoubleCounter<T> implements org.elasticsearch.telemetry.metric.DoubleCounter {
-    private final LazyInitializable<DoubleCounter, RuntimeException> counter;
+public class OtelLongCounter<T> implements org.elasticsearch.telemetry.metric.LongCounter {
+    private final LazyInitializable<LongCounter, RuntimeException> counter;
     private final MetricName name;
     private final String description;
     private final T unit;
 
-    private OtelDoubleCounter(LazyInitializable<DoubleCounter, RuntimeException> lazyCounter, MetricName name, String description, T unit) {
+    private OtelLongCounter(LazyInitializable<LongCounter, RuntimeException> lazyCounter, MetricName name, String description, T unit) {
         this.counter = lazyCounter;
         this.name = name;
         this.description = description;
         this.unit = unit;
     }
 
-    public static <T> OtelDoubleCounter<T> build(
-        LazyInitializable<DoubleCounter, RuntimeException> lazyCounter,
+    public static <T> OtelLongCounter<T> build(
+        LazyInitializable<LongCounter, RuntimeException> lazyCounter,
         MetricName name,
         String description,
         T unit
     ) {
-        return new OtelDoubleCounter<>(lazyCounter, name, description, unit);
+        return new OtelLongCounter<>(lazyCounter, name, description, unit);
     }
 
     @Override
@@ -45,17 +45,17 @@ public class OtelDoubleCounter<T> implements org.elasticsearch.telemetry.metric.
 
     @Override
     public void increment() {
-        counter.getOrCompute().add(1d);
+        counter.getOrCompute().add(1L);
     }
 
     @Override
-    public void incrementBy(double inc) {
+    public void incrementBy(long inc) {
         assert inc >= 0;
         counter.getOrCompute().add(inc);
     }
 
     @Override
-    public void incrementBy(double inc, Map<String, Object> attributes) {
+    public void incrementBy(long inc, Map<String, Object> attributes) {
         assert inc >= 0;
         counter.getOrCompute().add(inc, OtelHelper.fromMap(attributes));
     }

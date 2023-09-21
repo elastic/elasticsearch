@@ -249,7 +249,6 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         CountDownLatch shardTaskLatch = new CountDownLatch(1);
         for (SearchShardBlockingPlugin plugin : searchShardBlockingPlugins) {
             plugin.setRunOnNewReaderContext((ReaderContext c) -> {
-                System.out.println("blah");
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {

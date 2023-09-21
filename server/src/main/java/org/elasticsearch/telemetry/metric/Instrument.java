@@ -8,8 +8,6 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.telemetry.MetricName;
-
 public interface Instrument {
-    MetricName getName();
+    String getName();
 }

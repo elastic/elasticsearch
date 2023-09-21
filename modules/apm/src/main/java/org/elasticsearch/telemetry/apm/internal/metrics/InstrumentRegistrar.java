@@ -17,7 +17,7 @@ import java.util.Map;
 public class InstrumentRegistrar<T extends Instrument> {
     private final Map<MetricName, T> registered = ConcurrentCollections.newConcurrentMap();
 
-    void register(T instrument) {
+    T register(T instrument) {
         registered.compute(instrument.getName(), (k, v) -> {
             if (v != null) {
                 throw new IllegalStateException(
@@ -27,6 +27,7 @@ public class InstrumentRegistrar<T extends Instrument> {
 
             return instrument;
         });
+        return instrument;
     }
 
     T get(MetricName name) {

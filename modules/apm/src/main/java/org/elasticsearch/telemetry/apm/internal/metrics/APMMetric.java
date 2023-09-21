@@ -14,7 +14,6 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.telemetry.MetricName;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
@@ -76,102 +75,42 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public <T> DoubleCounter registerDoubleCounter(MetricName name, String description, T unit) {
-        var lazyCounter = new LazyInitializable<>(
-            () -> services.get().meter.counterBuilder(name.getRawName())
-                .ofDoubles()
-                .setDescription(description)
-                .setUnit(unit.toString())
-                .build()
-        );
-        var counter = OtelDoubleCounter.build(lazyCounter, name, description, unit);
-        doubleCounters.register(counter);
-        return counter;
+        return doubleCounters.register(new DoubleCounterAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> DoubleUpDownCounter registerDoubleUpDownCounter(MetricName name, String description, T unit) {
-        var lazyCounter = new LazyInitializable<>(
-            () -> services.get().meter.upDownCounterBuilder(name.getRawName())
-                .ofDoubles()
-                .setDescription(description)
-                .setUnit(unit.toString())
-                .build()
-        );
-        var counter = OtelDoubleUpDownCounter.build(lazyCounter, name, description, unit);
-        doubleUpDownCounters.register(counter);
-        return counter;
+        return doubleUpDownCounters.register(new DoubleUpDownCounterAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
-        var lazyGauge = new LazyInitializable<>(
-            () -> services.get().meter.gaugeBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).buildObserver()
-        );
-
-        var gauge = OtelDoubleGauge.build(lazyGauge, name, description, unit);
-        doubleGauges.register(gauge);
-        return gauge;
+        return doubleGauges.register(new DoubleGaugeAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
-        var lazyHistogram = new LazyInitializable<>(
-            () -> services.get().meter.histogramBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build()
-        );
-
-        var histogram = OtelDoubleHistogram.build(lazyHistogram, name, description, unit);
-        doubleHistograms.register(histogram);
-        return histogram;
+        return doubleHistograms.register(new DoubleHistogramAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> LongCounter registerLongCounter(MetricName name, String description, T unit) {
-        var lazyCounter = new LazyInitializable<>(
-            () -> services.get().meter.counterBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build()
-        );
-        var counter = OtelLongCounter.build(lazyCounter, name, description, unit);
-        longCounters.register(counter);
-        return counter;
+        return longCounters.register(new LongCounterAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> LongUpDownCounter registerLongUpDownCounter(MetricName name, String description, T unit) {
-        var lazyCounter = new LazyInitializable<>(
-            () -> services.get().meter.upDownCounterBuilder(name.getRawName()).setDescription(description).setUnit(unit.toString()).build()
-        );
-        var counter = OtelLongUpDownCounter.build(lazyCounter, name, description, unit);
-        longUpDownCounters.register(counter);
-        return counter;
+        return longUpDownCounters.register(new LongUpDownCounterAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> LongGauge registerLongGauge(MetricName name, String description, T unit) {
-        var lazyGauge = new LazyInitializable<>(
-            () -> services.get().meter.gaugeBuilder(name.getRawName())
-                .ofLongs()
-                .setDescription(description)
-                .setUnit(unit.toString())
-                .buildObserver()
-        );
-
-        var gauge = OtelLongGauge.build(lazyGauge, name, description, unit);
-        longGauges.register(gauge);
-        return gauge;
+        return longGauges.register(new LongGaugeAdapter<>(name, description, unit));
     }
 
     @Override
     public <T> LongHistogram registerLongHistogram(MetricName name, String description, T unit) {
-        var lazyHistogram = new LazyInitializable<>(
-            () -> services.get().meter.histogramBuilder(name.getRawName())
-                .ofLongs()
-                .setDescription(description)
-                .setUnit(unit.toString())
-                .build()
-        );
-
-        var histogram = OtelLongHistogram.build(lazyHistogram, name, description, unit);
-        longHistograms.register(histogram);
-        return histogram;
+        return longHistograms.register(new LongHistogramAdapter<>(name, description, unit));
     }
 
     void createApmServices() {

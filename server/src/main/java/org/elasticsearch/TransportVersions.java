@@ -142,6 +142,7 @@ public class TransportVersions {
     public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
     public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
     public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
+    public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -217,7 +218,7 @@ public class TransportVersions {
         IDS = null;
     }
 
-    static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 

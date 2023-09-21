@@ -59,9 +59,6 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool("TransportDeleteExpiredDataActionTests thread pool");
-        // TransportService transportService = mock(TransportService.class);
-        // when(transportService.getThreadPool()).thenReturn(threadPool);
-
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         auditor = mock(AnomalyDetectionAuditor.class);

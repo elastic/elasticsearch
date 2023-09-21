@@ -71,7 +71,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
         this.executor = threadPool.executor(executorName);
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
-        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.responseExecutor, inactiveInterval);
+        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.executor, inactiveInterval);
     }
 
     public void registerTransportHandler(TransportService transportService) {

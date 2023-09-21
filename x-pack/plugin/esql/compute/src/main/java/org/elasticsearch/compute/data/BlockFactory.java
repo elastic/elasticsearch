@@ -46,8 +46,6 @@ public class BlockFactory {
 
     private final BigArrays bigArrays;
 
-    private final boolean checkBreaker = true;
-
     private BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this.breaker = breaker;
         this.bigArrays = bigArrays;
@@ -82,35 +80,27 @@ public class BlockFactory {
     }
 
     /**
-     * Adjust the circuit breaker with the given delta, if the delta is
-     * negative, or checkBreaker is false, the breaker will be adjusted
-     * without tripping.  If the data was already created before calling
-     * this method, and the breaker trips, we add the delta without breaking
-     * to account for the created data.  If the data has not been created yet,
-     * we do not add the delta to the breaker if it trips.
+     * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
+     * be adjusted without tripping.  If the data was already created before calling this method,
+     * and the breaker trips, we add the delta without breaking to account for the created data.
+     * If the data has not been created yet, we do not add the delta to the breaker if it trips.
      */
     void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
-        if (checkBreaker) {
-            // checking breaker means potentially tripping, but it doesn't
-            // have to if the delta is negative
-            if (delta > 0) {
-                try {
-                    breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
-                } catch (CircuitBreakingException e) {
-                    if (isDataAlreadyCreated) {
-                        // since we've already created the data, we need to
-                        // add it so closing the stream re-adjusts properly
-                        breaker.addWithoutBreaking(delta);
-                    }
-                    // re-throw the original exception
-                    throw e;
+        // checking breaker means potentially tripping, but it doesn't
+        // have to if the delta is negative
+        if (delta > 0) {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
+            } catch (CircuitBreakingException e) {
+                if (isDataAlreadyCreated) {
+                    // since we've already created the data, we need to
+                    // add it so closing the stream re-adjusts properly
+                    breaker.addWithoutBreaking(delta);
                 }
-            } else {
-                breaker.addWithoutBreaking(delta);
+                // re-throw the original exception
+                throw e;
             }
         } else {
-            // even if we are not checking the breaker, we need to adjust
-            // its' totals, so add without breaking
             breaker.addWithoutBreaking(delta);
         }
     }

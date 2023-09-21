@@ -10,7 +10,6 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Ignore;
 import org.mockito.stubbing.Answer;
 
 import java.time.Instant;
@@ -28,7 +27,7 @@ public class RotatableSecretTests extends ESTestCase {
     private final SecureString secret2 = new SecureString(randomAlphaOfLength(10));
     private final SecureString secret3 = new SecureString(randomAlphaOfLength(10));
 
-    @Ignore("https://github.com/elastic/elasticsearch/issues/99759")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99759")
     public void testBasicRotation() throws Exception {
         // initial state
         RotatableSecret rotatableSecret = new RotatableSecret(secret1);

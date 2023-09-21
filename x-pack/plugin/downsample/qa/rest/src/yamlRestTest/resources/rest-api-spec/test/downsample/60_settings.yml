@@ -25,7 +25,6 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               default_pipeline: "pipeline"
               final_pipeline: "pipeline"

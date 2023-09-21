@@ -183,6 +183,7 @@ import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -212,9 +213,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -814,7 +815,8 @@ public class Node implements Closeable {
                 systemIndices,
                 tracer,
                 clusterService,
-                reservedStateHandlers
+                reservedStateHandlers,
+                pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
             );
             modules.add(actionModule);
 
@@ -914,7 +916,6 @@ public class Node implements Closeable {
                 repositoryService,
                 clusterModule.getAllocationService(),
                 metadataCreateIndexService,
-                clusterModule.getMetadataDeleteIndexService(),
                 indexMetadataVerifier,
                 shardLimitValidator,
                 systemIndices,

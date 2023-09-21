@@ -33,7 +33,9 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         // 1. TestClustersPlugin not cc compatible due to listener registration
         // 2. RestIntegTestTask not cc compatible due to
         configurationCacheCompatible = false
+        buildApiRestrictionsDisabled = true
     }
+
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
         subProject(":distribution:bwc:maintenance") << """

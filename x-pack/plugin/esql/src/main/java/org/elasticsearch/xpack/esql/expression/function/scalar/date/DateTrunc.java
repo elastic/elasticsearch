@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -18,17 +18,13 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
@@ -46,7 +42,12 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = argumentTypesAreSwapped();
+        TypeResolution resolution = argumentTypesAreSwapped(
+            left().dataType(),
+            right().dataType(),
+            EsqlDataTypes::isTemporalAmount,
+            sourceText()
+        );
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -57,14 +58,6 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         }
 
         return isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration");
-    }
-
-    // TODO: drop check once 8.11 is released
-    private TypeResolution argumentTypesAreSwapped() {
-        if (DataTypes.isDateTime(left().dataType()) && isTemporalAmount(right().dataType())) {
-            return new TypeResolution(format(null, "function definition has been updated, please swap arguments in [{}]", sourceText()));
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
@@ -152,10 +145,8 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(timestampField());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEvaluator = toEvaluator.apply(timestampField());
         Expression interval = interval();
         if (interval.foldable() == false) {
             throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "].");
@@ -174,10 +165,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         return evaluator(fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
     }
 
-    public static Supplier<EvalOperator.ExpressionEvaluator> evaluator(
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator,
-        Rounding.Prepared rounding
-    ) {
-        return () -> new DateTruncEvaluator(fieldEvaluator.get(), rounding);
+    public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
+        return dvrCtx -> new DateTruncEvaluator(fieldEvaluator.get(dvrCtx), rounding, dvrCtx);
     }
 }

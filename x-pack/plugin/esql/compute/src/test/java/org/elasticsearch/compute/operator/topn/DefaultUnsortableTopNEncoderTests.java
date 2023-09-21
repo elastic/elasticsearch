@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,10 +39,10 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
     }
 
     private void testVInt(int v, int expectedBytes) {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
         assertThat(builder.length(), equalTo(expectedBytes));
-        BytesRef bytes = builder.toBytesRef();
+        BytesRef bytes = builder.bytesRefView();
         assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(bytes), equalTo(v));
         assertThat(bytes.length, equalTo(0));
     }

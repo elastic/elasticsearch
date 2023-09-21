@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,6 +79,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                 new NodeInfo(
                     Version.CURRENT,
                     TransportVersion.current(),
+                    IndexVersion.current(),
                     null,
                     node,
                     null,
@@ -147,6 +149,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                 new NodeInfo(
                     Version.CURRENT,
                     TransportVersion.current(),
+                    IndexVersion.current(),
                     null,
                     node,
                     null,

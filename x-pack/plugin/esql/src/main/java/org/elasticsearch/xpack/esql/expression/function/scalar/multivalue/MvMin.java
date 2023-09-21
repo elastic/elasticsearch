@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -36,14 +36,14 @@ public class MvMin extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> () -> new MvMinBooleanEvaluator(fieldEval.get());
-            case BYTES_REF -> () -> new MvMinBytesRefEvaluator(fieldEval.get());
-            case DOUBLE -> () -> new MvMinDoubleEvaluator(fieldEval.get());
-            case INT -> () -> new MvMinIntEvaluator(fieldEval.get());
-            case LONG -> () -> new MvMinLongEvaluator(fieldEval.get());
-            case NULL -> () -> EvalOperator.CONSTANT_NULL;
+            case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case DOUBLE -> dvrCtx -> new MvMinDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case INT -> dvrCtx -> new MvMinIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case LONG -> dvrCtx -> new MvMinLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

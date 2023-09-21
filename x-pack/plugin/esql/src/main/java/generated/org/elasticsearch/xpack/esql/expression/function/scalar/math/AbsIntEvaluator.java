@@ -10,6 +10,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -19,8 +20,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
-  public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
+  private final DriverContext driverContext;
+
+  public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal, DriverContext driverContext) {
     this.fieldVal = fieldVal;
+    this.driverContext = driverContext;
   }
 
   @Override

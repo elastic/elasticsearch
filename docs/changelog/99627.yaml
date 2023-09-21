@@ -1,0 +1,5 @@
+pr: 99627
+summary: Fix thread context in `getRepositoryData`
+area: Snapshot/Restore
+type: bug
+issues: []

@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -426,8 +427,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper.Result updateResult
     ) {
         Engine.Result r = exceptionToResult(e, primary, isDelete, version, result.getId());
-        long currentMappingVersion = primary.mapperService().documentMapper().mappers().getMappingVersion();
-        boolean mappingWasConcurrentlyUpdated = currentMappingVersion > result.getMappingVersionBeforeUpdate();
+        DocumentMapper documentMapper = primary.mapperService().documentMapper();
+        boolean mappingWasConcurrentlyUpdated = false;
+        if (documentMapper != null) {
+            long currentMappingVersion = documentMapper.mappers().getMappingVersion();
+            mappingWasConcurrentlyUpdated = currentMappingVersion > result.getMappingVersionBeforeUpdate();
+        }
         if (mappingWasConcurrentlyUpdated && context.isMappingUpdateRetry() == false) {
             // retry mapping updates once if the number of fields has been updated concurrently
             // as the errors may be a result of this concurrent update

@@ -77,17 +77,6 @@ public interface ClusterCoordinationPlugin {
     }
 
     interface PersistedClusterStateServiceFactory {
-
-        @Deprecated(forRemoval = true)
-        default PersistedClusterStateService newPersistedClusterStateService(
-            NodeEnvironment nodeEnvironment,
-            NamedXContentRegistry xContentRegistry,
-            ClusterSettings clusterSettings,
-            ThreadPool threadPool
-        ) {
-            throw new AssertionError("Should not be called!");
-        }
-
         PersistedClusterStateService newPersistedClusterStateService(
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,

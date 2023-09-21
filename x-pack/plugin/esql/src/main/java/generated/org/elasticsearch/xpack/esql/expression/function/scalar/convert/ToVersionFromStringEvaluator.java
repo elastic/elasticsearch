@@ -58,6 +58,7 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

@@ -163,8 +163,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
             if (versionExtension == null) {
                 return fallback;
             }
-            var version = versionExtension.getCurrentMlConfigVersion();
-
+            var version = versionExtension.getCurrentMlConfigVersion(fallback);
             assert version.onOrAfter(fallback);
             return version;
         }

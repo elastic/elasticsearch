@@ -159,8 +159,7 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
             if (versionExtension == null) {
                 return fallback;
             }
-            var version = versionExtension.getCurrentTransformConfigVersion();
-
+            var version = versionExtension.getCurrentTransformConfigVersion(fallback);
             assert version.onOrAfter(fallback);
             return version;
         }

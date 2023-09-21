@@ -18,6 +18,6 @@ public class MlConfigVersionComponent implements ComponentVersionNumber {
 
     @Override
     public VersionId<?> versionNumber() {
-        return MlConfigVersion.CURRENT;
+        return MlConfigVersion.current();
     }
 }

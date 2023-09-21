@@ -12,7 +12,8 @@ public interface MlConfigVersionExtension {
      * Returns the {@link MlConfigVersion} that Elasticsearch should use.
      * <p>
      * This must be at least equal to the latest version found in {@link MlConfigVersion} V_* constants.
+     * @param fallback   The latest version from server
      */
-    MlConfigVersion getCurrentMlConfigVersion();
+    MlConfigVersion getCurrentMlConfigVersion(MlConfigVersion fallback);
 
 }

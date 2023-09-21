@@ -12,6 +12,7 @@ public interface TransformConfigVersionExtension {
      * Returns the {@link TransformConfigVersion} that Elasticsearch should use.
      * <p>
      * This must be at least equal to the latest version found in {@link TransformConfigVersion} V_* constants.
+     * @param fallback   The latest version from server
      */
-    TransformConfigVersion getCurrentTransformConfigVersion();
+    TransformConfigVersion getCurrentTransformConfigVersion(TransformConfigVersion fallback);
 }

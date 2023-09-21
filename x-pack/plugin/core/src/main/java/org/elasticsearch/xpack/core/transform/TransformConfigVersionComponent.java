@@ -18,6 +18,6 @@ public class TransformConfigVersionComponent implements ComponentVersionNumber {
 
     @Override
     public VersionId<?> versionNumber() {
-        return TransformConfigVersion.CURRENT;
+        return TransformConfigVersion.current();
     }
 }

@@ -481,6 +481,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (modelPackageConfig != null) {
             builder.field(MODEL_PACKAGE.getPreferredName(), modelPackageConfig);
         }
+        if (platformArchitecture != null) {
+            builder.field(PLATFORM_ARCHITECTURE.getPreferredName(), platformArchitecture);
+        }
 
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
@@ -530,9 +533,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
             builder.field("fully_defined", fullDefinition);
-        }
-        if (platformArchitecture != null) {
-            builder.field(PLATFORM_ARCHITECTURE.getPreferredName(), platformArchitecture);
         }
         builder.endObject();
         return builder;

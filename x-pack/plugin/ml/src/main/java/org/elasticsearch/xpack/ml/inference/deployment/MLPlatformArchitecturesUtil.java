@@ -19,9 +19,12 @@ import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.util.List;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -31,7 +34,7 @@ public class MLPlatformArchitecturesUtil {
 
         ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = ActionListener.wrap(nodesInfoResponse -> {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                architecturesListener.onResponse(Set.copyOf(extractMLNodesOsArchitectures(nodesInfoResponse)));
+                architecturesListener.onResponse(extractMLNodesOsArchitectures(nodesInfoResponse));
             });
         }, architecturesListener::onFailure);
 
@@ -40,7 +43,7 @@ public class MLPlatformArchitecturesUtil {
         executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, nodesInfoResponseActionListener);
     }
 
-    private static List<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
+    private static Set<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
         return nodesInfoResponse.getNodes()
             .stream()
             .filter(node -> node.getNode().hasRole(DiscoveryNodeRole.ML_ROLE.roleName()))
@@ -48,10 +51,48 @@ public class MLPlatformArchitecturesUtil {
                 OsInfo osInfo = node.getInfo(OsInfo.class);
                 return Platforms.platformName(osInfo.getName(), osInfo.getArch());
             })
-            .toList();
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     private static NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins(Client client) {
-        return client.admin().cluster().prepareNodesInfo().clear().setOs(true).setPlugins(true);
+        return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
+    }
+
+    public static void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures, String requiredArch, String modelId)
+        throws IllegalStateException {
+        if (architectures.size() > 1) {
+            throw new IllegalStateException(
+                format(
+                    "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
+                        + "expected [%s]; "
+                        + "but was [%s]",
+                    modelId,
+                    architectures.toString(),
+                    requiredArch
+                )
+            );
+        }
+    }
+
+    public static void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
+        throws IllegalArgumentException {
+        String architecture = null;
+        Iterator<String> architecturesIterator = architectures.iterator();
+        if (architecturesIterator.hasNext()) {
+            architecture = architectures.iterator().next();
+            if (architectures.size() > 1
+                || (Objects.isNull(modelPlatformArchitecture) == false
+                    && Objects.equals(architecture, modelPlatformArchitecture) == false)) {
+                throw new IllegalArgumentException(
+                    format(
+                        "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "
+                            + "expected [%s]; "
+                            + "but was [%s]",
+                        modelPlatformArchitecture,
+                        architectures.toString()
+                    )
+                );
+            }
+        }
     }
 }

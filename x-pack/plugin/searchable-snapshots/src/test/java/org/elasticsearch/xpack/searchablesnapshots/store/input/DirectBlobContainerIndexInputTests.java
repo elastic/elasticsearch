@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -74,7 +75,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
+        when(blobContainer.readBlob(OperationPurpose.SNAPSHOT, anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
             String name = (String) invocationOnMock.getArguments()[0];
             long position = (long) invocationOnMock.getArguments()[1];
             long length = (long) invocationOnMock.getArguments()[2];

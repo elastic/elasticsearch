@@ -25,13 +25,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -104,7 +103,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
-    RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
+    RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
         return statsCollectors.getMetricCollector(operation, purpose);
     }
 
@@ -176,12 +175,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(blobNames, Purpose.GENERIC);
-    }
-
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames, @Nullable Purpose purpose) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -214,7 +208,7 @@ class S3BlobStore implements BlobStore {
         AmazonS3Reference clientReference,
         List<String> partition,
         AtomicReference<Exception> aex,
-        Purpose purpose
+        OperationPurpose purpose
     ) {
         try {
             clientReference.client().deleteObjects(bulkDelete(this, partition, purpose));
@@ -236,7 +230,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, Purpose purpose) {
+    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, OperationPurpose purpose) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
             .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
@@ -327,9 +321,9 @@ class S3BlobStore implements BlobStore {
             ).collect(Collectors.toConcurrentMap(ops -> ops.value, this::buildMetricCollector));
         }
 
-        RequestMetricCollector getMetricCollector(Operation operation, Purpose purpose) {
+        RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
             final String key;
-            if (purpose == Purpose.GENERIC) {
+            if (purpose == OperationPurpose.SNAPSHOT) {
                 key = operation.value;
             } else {
                 key = operation.value + "/" + purpose.getValue();

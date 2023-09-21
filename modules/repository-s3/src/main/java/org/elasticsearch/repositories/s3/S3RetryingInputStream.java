@@ -18,7 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.blobstore.BlobPath.Purpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 
@@ -45,7 +45,7 @@ class S3RetryingInputStream extends InputStream {
 
     private final S3BlobStore blobStore;
     private final String blobKey;
-    private final Purpose purpose;
+    private final OperationPurpose purpose;
     private final long start;
     private final long end;
     private final List<IOException> failures;
@@ -59,12 +59,12 @@ class S3RetryingInputStream extends InputStream {
     private boolean closed;
     private boolean eof;
 
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, Purpose purpose) throws IOException {
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) throws IOException {
         this(blobStore, blobKey, purpose, 0, Long.MAX_VALUE - 1);
     }
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, Purpose purpose, long start, long end) throws IOException {
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, OperationPurpose purpose, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }

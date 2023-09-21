@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -27,23 +26,5 @@ public class BlobPathTests extends ESTestCase {
 
         path = path.add("d/");
         assertThat(path.buildAsString(), is("a/b/c/d/"));
-    }
-
-    public void testPurpose() {
-        // default purpose
-        BlobPath path = BlobPath.EMPTY;
-        assertThat(path.purpose(), is(Purpose.GENERIC));
-
-        // purpose is propagated
-        path = path.add("a");
-        assertThat(path.purpose(), is(Purpose.GENERIC));
-
-        // purpose can be updated
-        final Purpose newPurpose = randomFrom(Purpose.values());
-        path = path.add("b").purpose(newPurpose);
-        if (randomBoolean()) {
-            path = path.add("c");
-        }
-        assertThat(path.purpose(), is(newPurpose));
     }
 }

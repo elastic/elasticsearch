@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPath.Purpose;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -213,18 +213,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final BlobStore blobStore = repository.blobStore();
-        final Purpose purpose = randomValueOtherThan(Purpose.GENERIC, () -> randomFrom(Purpose.values()));
-        final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10)).purpose(purpose);
-        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
-
         final Map<String, Long> initialStats = blobStore.stats();
 
+        final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
         final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
-        blobContainer.writeBlob("test.txt", whatToWrite, true);
-        try (InputStream is = blobContainer.readBlob("test.txt")) {
+        blobContainer.writeBlob(purpose, "test.txt", whatToWrite, true);
+        try (InputStream is = blobContainer.readBlob(purpose, "test.txt")) {
             is.readAllBytes();
         }
-        blobContainer.delete();
+        blobContainer.delete(purpose);
 
         final Map<String, Long> newStats = blobStore.stats();
         final Map<String, Long> netNewStats = newStats.entrySet().stream().filter(entry -> {
@@ -289,7 +288,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         f,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlobAtomic(BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), serialized, true)
+                            .writeBlobAtomic(
+                                OperationPurpose.SNAPSHOT,
+                                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
+                                serialized,
+                                true
+                            )
                     )
                 )
         );

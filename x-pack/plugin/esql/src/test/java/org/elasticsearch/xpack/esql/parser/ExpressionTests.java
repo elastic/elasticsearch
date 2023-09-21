@@ -410,7 +410,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testUnknownNumericQualifier() {
-        assertParsingException(() -> whereExpression("1 decade"), "Unexpected numeric qualifier 'decade'");
+        assertParsingException(() -> whereExpression("1 decade"), "Unexpected time interval qualifier: 'decade'");
     }
 
     public void testQualifiedDecimalLiteral() {

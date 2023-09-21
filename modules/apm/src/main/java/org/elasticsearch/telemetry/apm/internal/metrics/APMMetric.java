@@ -31,14 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
-    private final InstrumentRegistrar<DoubleCounterAdapter<?>> doubleCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleUpDownCounterAdapter<?>> doubleUpDownCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleGaugeAdapter<?>> doubleGauges = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleHistogramAdapter<?>> doubleHistograms = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongCounterAdapter<?>> longCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongUpDownCounterAdapter<?>> longUpDownCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongGaugeAdapter<?>> longGauges = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongHistogramAdapter<?>> longHistograms = new InstrumentRegistrar<>();
+    private final Instruments instruments = new Instruments();
     private volatile boolean enabled;
     private AtomicReference<APMServices> services = new AtomicReference<>();
 
@@ -75,42 +68,42 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public <T> DoubleCounter registerDoubleCounter(MetricName name, String description, T unit) {
-        return doubleCounters.register(new DoubleCounterAdapter<>(name, description, unit));
+        return instruments.registerDoubleCounter(name, description, unit);
     }
 
     @Override
     public <T> DoubleUpDownCounter registerDoubleUpDownCounter(MetricName name, String description, T unit) {
-        return doubleUpDownCounters.register(new DoubleUpDownCounterAdapter<>(name, description, unit));
+        return instruments.registerDoubleUpDownCounter(name, description, unit);
     }
 
     @Override
     public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
-        return doubleGauges.register(new DoubleGaugeAdapter<>(name, description, unit));
+        return instruments.registerDoubleGauge(name, description, unit);
     }
 
     @Override
     public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
-        return doubleHistograms.register(new DoubleHistogramAdapter<>(name, description, unit));
+        return instruments.registerDoubleHistogram(name, description, unit);
     }
 
     @Override
     public <T> LongCounter registerLongCounter(MetricName name, String description, T unit) {
-        return longCounters.register(new LongCounterAdapter<>(name, description, unit));
+        return instruments.registerLongCounter(name, description, unit);
     }
 
     @Override
     public <T> LongUpDownCounter registerLongUpDownCounter(MetricName name, String description, T unit) {
-        return longUpDownCounters.register(new LongUpDownCounterAdapter<>(name, description, unit));
+        return instruments.registerLongUpDownCounter(name, description, unit);
     }
 
     @Override
     public <T> LongGauge registerLongGauge(MetricName name, String description, T unit) {
-        return longGauges.register(new LongGaugeAdapter<>(name, description, unit));
+        return instruments.registerLongGauge(name, description, unit);
     }
 
     @Override
     public <T> LongHistogram registerLongHistogram(MetricName name, String description, T unit) {
-        return longHistograms.register(new LongHistogramAdapter<>(name, description, unit));
+        return instruments.registerLongHistogram(name, description, unit);
     }
 
     void createApmServices() {
@@ -122,13 +115,19 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
             var meter = openTelemetry.getMeter("elasticsearch");
 
             this.services.set(new APMServices(meter, openTelemetry));
+            instruments.setProvider(meter);
 
             return null;
         });
     }
 
     private void destroyApmServices() {
+        instruments.setProvider(null);
         this.services.set(null);
+    }
+
+    private void updateProvider(Meter meter) {
+
     }
 
 }

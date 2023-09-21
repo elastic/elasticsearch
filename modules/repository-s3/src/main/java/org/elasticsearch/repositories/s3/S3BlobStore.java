@@ -31,7 +31,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -344,30 +343,31 @@ class S3BlobStore implements BlobStore {
             return new IgnoreNoResponseMetricsCollector() {
                 @Override
                 public void collectMetrics(Request<?> request) {
-                    if (Assertions.ENABLED) {
-                        // assertions based on operation
-                        switch (operation) {
-                            case GET_OBJECT, LIST_OBJECTS -> {
-                                assert request.getHttpMethod().name().equals("GET");
-                            }
-                            case PUT_OBJECT -> {
-                                assert request.getHttpMethod().name().equals("PUT");
-                            }
-                            case PUT_MULTIPART_OBJECT -> {
-                                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                            }
-                            case DELETE_OBJECTS -> {
-                                assert request.getHttpMethod().name().equals("POST");
-                            }
-                            case ABORT_MULTIPART_OBJECT -> {
-                                assert request.getHttpMethod().name().equals("DELETE");
-                            }
-                            default -> throw new AssertionError("unknown operation category " + operation);
-                        }
-                    }
+                    assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
                     counter.addAndGet(getRequestCount(request));
                 }
             };
+        }
+
+        private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
+            switch (operation) {
+                case GET_OBJECT, LIST_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("GET");
+                }
+                case PUT_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT");
+                }
+                case PUT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
+                }
+                case DELETE_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("POST");
+                }
+                case ABORT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("DELETE");
+                }
+                default -> throw new AssertionError("unknown operation [" + operation + "]");
+            }
         }
     }
 }

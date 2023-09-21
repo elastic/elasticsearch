@@ -145,9 +145,9 @@ public class NodeService implements Closeable {
             .collect(Collectors.toUnmodifiableMap(ComponentVersionNumber::componentId, cvn -> cvn.versionNumber().id()));
 
         if (Assertions.ENABLED) {
-            var hasUpperCase = Pattern.compile("[a-z_]+").asMatchPredicate();
+            var isSnakeCase = Pattern.compile("[a-z_]+").asMatchPredicate();
             for (String key : versions.keySet()) {
-                assert hasUpperCase.test(key) : "Version component " + key + " should use snake_case";
+                assert isSnakeCase.test(key) : "Version component " + key + " should use snake_case";
             }
         }
         return versions;

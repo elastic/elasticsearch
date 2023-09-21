@@ -61,10 +61,10 @@ public final class SingleResultDeduplicator<T> {
                 return;
             }
         }
-        doExecute(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), threadContext.newStoredContext());
+        doExecute(threadContext.newStoredContext(), ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
     }
 
-    private void doExecute(ActionListener<T> listener, ThreadContext.StoredContext storedContext) {
+    private void doExecute(ThreadContext.StoredContext originalContext, ActionListener<T> listener) {
         final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
             final List<ActionListener<T>> listeners;
             synchronized (this) {
@@ -86,8 +86,8 @@ public final class SingleResultDeduplicator<T> {
                 // Restore the parent's original threadContext before proceed with the child execution.
                 // This ensures all executions, parent or child, always begin execution with the identical threadContext.
                 // This identical threadContext is the context of the first listener gets executed.
-                storedContext.restore();
-                doExecute(new ActionListener<>() {
+                originalContext.restore();
+                doExecute(originalContext, new ActionListener<>() {
                     @Override
                     public void onResponse(T response) {
                         ActionListener.onResponse(listeners, response);
@@ -97,7 +97,7 @@ public final class SingleResultDeduplicator<T> {
                     public void onFailure(Exception e) {
                         ActionListener.onFailure(listeners, e);
                     }
-                }, storedContext);
+                });
             }
 
         });

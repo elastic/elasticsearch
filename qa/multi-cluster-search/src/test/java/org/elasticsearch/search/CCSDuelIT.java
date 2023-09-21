@@ -1265,7 +1265,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
     private static void assertMultiClusterSearchResponse(SearchResponse searchResponse) {
         assertEquals(2, searchResponse.getClusters().getTotal());
-        // for bwc checks we expect that SUCCESSFUL + PARTIAL to be equal to 2
+        // for bwc checks we expect SUCCESSFUL + PARTIAL to be equal to 2
         int bwcSuccessful = searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL);
         bwcSuccessful += searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
         assertEquals(2, bwcSuccessful);

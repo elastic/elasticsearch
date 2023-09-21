@@ -623,8 +623,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
-            out.writeVInt(successful);
-            out.writeVInt(skipped);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED)) {
+                // bwc prior to version 'SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED'
+                // successful = successful + partial and skipped = skipped + failed
+                out.writeVInt(successful + partial);
+                out.writeVInt(skipped + failed);
+            } else {
+                out.writeVInt(successful);
+                out.writeVInt(skipped);
+            }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();

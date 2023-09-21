@@ -18,6 +18,10 @@ testArtifacts {
   registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
 }
 
+test {
+  maxParallelForks = 1
+}
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

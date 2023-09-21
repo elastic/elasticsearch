@@ -132,10 +132,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.nodes().getSmallestNonClientNodeVersion()
+                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
             );
             if (descriptor == null) {
-                final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
+                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;

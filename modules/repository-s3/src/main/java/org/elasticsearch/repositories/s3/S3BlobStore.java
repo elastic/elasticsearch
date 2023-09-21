@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -336,9 +337,7 @@ class S3BlobStore implements BlobStore {
         }
 
         Map<String, Long> statsMap() {
-            return collectors.entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().counter.get()));
+            return Maps.transformValues(collectors, v -> v.counter.get());
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {

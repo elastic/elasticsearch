@@ -50,10 +50,12 @@ class APMJvmOptions {
         // by the agent. Don't disable writing to a log file, as the agent will then
         // require extra Security Manager permissions when it tries to do something
         // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
-
+        "log_file", "/Users/przemyslawgomulka/workspace/pgomulka/apm.log",
+        "log_level", "debug",
         // ES does not use auto-instrumentation.
-        "instrument", "false"
+        "instrument", "false",
+        "experimental", "true",
+        "enable_experimental_instrumentations", "true"
         );
 
     /**
@@ -82,7 +84,7 @@ class APMJvmOptions {
         // is doing, leave this value alone.
         "log_level", "error",
         "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "120s",
+        "metrics_interval", "5s",
         "breakdown_metrics", "false",
         "central_config", "false"
         );
@@ -316,9 +318,7 @@ class APMJvmOptions {
         }
 
         try (var apmStream = Files.list(apmModule)) {
-            final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
-            ).toList();
+            final List<Path> paths = apmStream.filter(path -> path.getFileName().toString().matches("elastic-apm-agent-.*.jar")).toList();
 
             if (paths.size() > 1) {
                 throw new UserException(

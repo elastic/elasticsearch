@@ -53,7 +53,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLogAppender;
@@ -202,6 +202,8 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
+        TelemetryProvider telemetryProvider = mock(TelemetryProvider.class);
+        when(telemetryProvider.getMetric()).thenReturn(null);
         return security.createComponents(
             client,
             threadPool,
@@ -211,7 +213,8 @@ public class SecurityTests extends ESTestCase {
             xContentRegistry(),
             env,
             nodeMetadata,
-            TestIndexNameExpressionResolver.newInstance(threadContext)
+            TestIndexNameExpressionResolver.newInstance(threadContext),
+            telemetryProvider
         );
     }
 
@@ -774,7 +777,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                Tracer.NOOP,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll()

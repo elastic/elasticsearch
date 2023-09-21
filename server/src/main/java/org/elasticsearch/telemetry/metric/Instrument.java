@@ -6,11 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.MetricName;
 
-public interface TracerPlugin {
-    Tracer getTracer(Settings settings);
+public interface Instrument {
+    MetricName getName();
 }

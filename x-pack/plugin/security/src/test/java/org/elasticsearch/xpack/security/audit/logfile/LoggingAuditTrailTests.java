@@ -38,6 +38,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.Metric;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -353,7 +354,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             );
         }
         logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, Metric.NOOP);
         apiKeyService = new ApiKeyService(
             settings,
             Clock.systemUTC(),
@@ -2708,7 +2709,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     public void testRequestsWithoutIndices() throws Exception {
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "_all").build();
-        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, Metric.NOOP);
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(
             PRINCIPAL_ROLES_FIELD_NAME,
             new String[] { randomAlphaOfLengthBetween(1, 6) }
@@ -2796,7 +2797,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         this.settings = settings;
         // either create a new audit trail or update the settings on the existing one
         if (randomBoolean()) {
-            this.auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+            this.auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext, Metric.NOOP);
         } else {
             this.clusterService.getClusterSettings().applySettings(settings);
         }

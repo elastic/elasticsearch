@@ -35,6 +35,9 @@ import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.MetricName;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.Metric;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
@@ -381,6 +384,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
+    private final LongCounter authenticationFailedCounter;
     // package for testing
     volatile EnumSet<AuditLevel> events;
     boolean includeRequestBody;
@@ -392,11 +396,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return NAME;
     }
 
-    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
+    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool, Metric metric) {
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext(), metric);
     }
 
-    LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
+    LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext, Metric metric) {
+        this.authenticationFailedCounter = metric.registerLongCounter(
+            new MetricName("authenticationFailed"),
+            "authenticationFailed",
+            new Object()
+        );
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
@@ -532,6 +541,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
+            authenticationFailedCounter.increment();
+
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -552,6 +563,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, HttpPreRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+            authenticationFailedCounter.increment();
+
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)
@@ -564,7 +577,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
+
         if (events.contains(AUTHENTICATION_FAILED)) {
+            authenticationFailedCounter.increment();
+
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -587,7 +603,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, HttpPreRequest request) {
+
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
+            authenticationFailedCounter.increment();
+
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .withRestUriAndMethod(request)
@@ -600,7 +619,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
+
         if (events.contains(AUTHENTICATION_FAILED)) {
+            authenticationFailedCounter.increment();
+
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
@@ -619,9 +641,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {
+
         if (events.contains(AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
+            authenticationFailedCounter.increment();
+
             final LogEntryBuilder logEntryBuilder = new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
@@ -645,6 +670,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest transportRequest
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
+            authenticationFailedCounter.increment();
+
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
@@ -669,6 +696,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         if (events.contains(REALM_AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
+            authenticationFailedCounter.increment();
+
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
                 .with(REALM_FIELD_NAME, realm)

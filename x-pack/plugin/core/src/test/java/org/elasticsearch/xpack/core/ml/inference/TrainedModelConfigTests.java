@@ -104,7 +104,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(inferenceConfigs))
             .setTags(tags)
-            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance());
+            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance())
+            .setPlatformArchitecture(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Before
@@ -192,7 +193,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
             ModelPackageConfigTests.randomModulePackageConfig(),
-            randomAlphaOfLength(100)
+            randomAlphaOfLength(10)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -243,7 +244,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
             ModelPackageConfigTests.randomModulePackageConfig(),
-            randomAlphaOfLength(100)
+            randomAlphaOfLength(10)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);

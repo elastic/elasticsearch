@@ -170,6 +170,21 @@ public class TransformDeleteIT extends TransformRestTestCase {
         );
     }
 
+    public void testDeleteDestinationIndexIsNoOpWhenNoDestinationIndexExists() throws Exception {
+        String transformId = "transform-5";
+        String transformDest = transformId + "_idx";
+        String transformDestAlias = transformId + "_alias";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest, transformDestAlias);
+
+        createTransform(transformId, transformDest, transformDestAlias);
+        assertFalse(indexExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
+
+        deleteTransform(transformId, true);
+        assertFalse(indexExists(transformDest));
+        assertFalse(aliasExists(transformDestAlias));
+    }
+
     private void createTransform(String transformId, String destIndex, String destAlias) throws IOException {
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",

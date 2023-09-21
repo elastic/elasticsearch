@@ -64,7 +64,7 @@ $endif$
 
     @Override
     protected int elementSize() {
-        return $if(BytesRef)$-1$else$$if(boolean)$Byte$elseif(int)$Integer$elseif(long)$Long$else$Double$endif$.BYTES$endif$;
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
     }
 
     @Override

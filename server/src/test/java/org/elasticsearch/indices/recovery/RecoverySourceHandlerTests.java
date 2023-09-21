@@ -232,7 +232,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         IOUtils.close(reader, store, multiFileWriter, targetStore);
     }
 
-    public StartRecoveryRequest getStartRecoveryRequest() throws IOException {
+    public StartRecoveryRequest getStartRecoveryRequest() {
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -245,6 +245,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             null,
             DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
             DiscoveryNodeUtils.builder("b").roles(emptySet()).build(),
+            0L,
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

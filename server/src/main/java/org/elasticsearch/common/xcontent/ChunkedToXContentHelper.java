@@ -30,6 +30,10 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(((builder, params) -> builder.endObject()));
     }
 
+    public static Iterator<ToXContent> startArray() {
+        return Iterators.single(((builder, params) -> builder.startArray()));
+    }
+
     public static Iterator<ToXContent> startArray(String name) {
         return Iterators.single(((builder, params) -> builder.startArray(name)));
     }

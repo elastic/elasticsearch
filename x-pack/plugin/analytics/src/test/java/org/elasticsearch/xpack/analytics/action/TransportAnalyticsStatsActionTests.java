@@ -51,7 +51,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     public static void beforeClass() {
         // TransportNodesAction, the super class of TransportNodeDeprecationCheckAction, must use the thread pool to fetch a
         // thread other than EsExecutors.DIRECT_EXECUTOR_SERVICE. So we need a real thread pool.
-        threadPool = new TestThreadPool("TransportNodeDeprecationCheckActionTests");
+        threadPool = new TestThreadPool("TransportAnalyticsStatsActionTests");
     }
 
     @AfterClass

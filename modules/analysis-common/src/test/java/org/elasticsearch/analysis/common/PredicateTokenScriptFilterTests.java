@@ -29,7 +29,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,7 +68,22 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         };
         Client client = new MockClient(Settings.EMPTY, null);
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(client, null, null, null, scriptService, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
+        plugin.createComponents(
+            client,
+            null,
+            null,
+            null,
+            scriptService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TelemetryProvider.NOOP,
+            null,
+            null
+        );
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),

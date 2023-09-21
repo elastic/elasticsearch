@@ -26,8 +26,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,15 +47,13 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    @BeforeClass
-    public static void beforeClass() {
-        // TransportNodesAction, the super class of TransportNodeDeprecationCheckAction, must use the thread pool to fetch a
-        // thread other than EsExecutors.DIRECT_EXECUTOR_SERVICE. So we need a real thread pool.
+    @Before
+    public void setup() {
         threadPool = new TestThreadPool("TransportAnalyticsStatsActionTests");
     }
 
-    @AfterClass
-    public static void afterClass() {
+    @After
+    public void cleanup() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
     }

@@ -26,9 +26,9 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Assert;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.List;
@@ -43,15 +43,13 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
 
-    @BeforeClass
-    public static void beforeClass() {
-        // TransportNodesAction, the super class of TransportNodeDeprecationCheckAction, must use the thread pool to fetch a
-        // thread other than EsExecutors.DIRECT_EXECUTOR_SERVICE. So we need a real thread pool.
+    @Before
+    public void setup() {
         threadPool = new TestThreadPool("TransportNodeDeprecationCheckActionTests");
     }
 
-    @AfterClass
-    public static void afterClass() {
+    @After
+    public void cleanup() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
     }

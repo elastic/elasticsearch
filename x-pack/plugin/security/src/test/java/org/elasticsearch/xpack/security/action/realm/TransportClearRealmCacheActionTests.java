@@ -24,9 +24,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
@@ -48,21 +47,10 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
     private TestCachingRealm nativeRealm;
     private TestCachingRealm fileRealm;
 
-    @BeforeClass
-    public static void beforeClass() {
-        // TransportNodesAction, the super class of TransportNodeDeprecationCheckAction, must use the thread pool to fetch a
-        // thread other than EsExecutors.DIRECT_EXECUTOR_SERVICE. So we need a real thread pool.
-        threadPool = new TestThreadPool("TransportClearRealmCacheActionTests");
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
-    }
-
     @Before
     public void setup() {
+        threadPool = new TestThreadPool("TransportClearRealmCacheActionTests");
+
         authenticationService = mock(AuthenticationService.class);
         nativeRealm = mockRealm("native");
         fileRealm = mockRealm("file");
@@ -78,6 +66,12 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
             realms,
             authenticationService
         );
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testSingleUserCacheCleanupForAllRealms() {

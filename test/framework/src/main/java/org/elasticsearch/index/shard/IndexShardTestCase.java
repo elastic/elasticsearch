@@ -751,7 +751,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         recoverReplica(
             replica,
             primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener),
             true,
             startReplica
         );

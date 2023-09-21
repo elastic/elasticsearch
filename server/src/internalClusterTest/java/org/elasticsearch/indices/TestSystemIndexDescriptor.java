@@ -37,6 +37,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
         .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
         .build();
+    private static final int NEW_MAPPINGS_VERSION = 1;
+    private static final int OLD_MAPPINGS_VERSION = 0;
 
     TestSystemIndexDescriptor() {
         super(
@@ -90,6 +92,11 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         return useNewMappings.get() ? getNewMappings() : getOldMappings();
     }
 
+    @Override
+    public MappingsVersion getMappingsVersion() {
+        return useNewMappings.get() ? new MappingsVersion(NEW_MAPPINGS_VERSION, 0) : new MappingsVersion(OLD_MAPPINGS_VERSION, 0);
+    }
+
     public static String getOldMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
@@ -97,7 +104,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 0);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, OLD_MAPPINGS_VERSION);
                 builder.field("version", Version.CURRENT.previousMajor().toString());
                 builder.endObject();
 
@@ -124,7 +131,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, NEW_MAPPINGS_VERSION);
                 builder.field("version", Version.CURRENT.toString());
                 builder.endObject();
 

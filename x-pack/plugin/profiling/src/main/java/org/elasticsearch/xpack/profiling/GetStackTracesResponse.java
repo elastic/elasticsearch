@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -34,8 +33,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
-    private final Instant startTime;
-    private final Instant endTime;
 
     public GetStackTracesResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
@@ -62,8 +59,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
-        this.startTime = in.readInstant();
-        this.endTime = in.readInstant();
     }
 
     public GetStackTracesResponse(
@@ -72,9 +67,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        double samplingRate,
-        Instant startTime,
-        Instant endTime
+        double samplingRate
     ) {
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
@@ -82,8 +75,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
         this.samplingRate = samplingRate;
-        this.startTime = startTime;
-        this.endTime = endTime;
     }
 
     @Override
@@ -124,8 +115,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         out.writeInt(totalFrames);
         out.writeDouble(samplingRate);
-        out.writeInstant(startTime);
-        out.writeInstant(endTime);
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -150,14 +139,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
 
     public double getSamplingRate() {
         return samplingRate;
-    }
-
-    public Instant getStartTime() {
-        return startTime;
-    }
-
-    public Instant getEndTime() {
-        return endTime;
     }
 
     @Override
@@ -197,13 +178,11 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             && Objects.equals(stackTraces, response.stackTraces)
             && Objects.equals(stackFrames, response.stackFrames)
             && Objects.equals(executables, response.executables)
-            && Objects.equals(stackTraceEvents, response.stackTraceEvents)
-            && Objects.equals(startTime, response.startTime)
-            && Objects.equals(endTime, response.endTime);
+            && Objects.equals(stackTraceEvents, response.stackTraceEvents);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate, startTime, endTime);
+        return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
     }
 }

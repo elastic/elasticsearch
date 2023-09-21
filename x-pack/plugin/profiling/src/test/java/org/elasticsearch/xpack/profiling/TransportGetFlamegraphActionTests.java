@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -49,14 +48,11 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
             Map.of("2buqP1GpF-TXYmL4USW8gA", 1),
             9,
-            1.0d,
-            Instant.ofEpochSecond(1694419200),
-            Instant.ofEpochSecond(1694419201)
+            1.0d
         );
         GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
         assertNotNull(response);
         assertEquals(10, response.getSize());
-        assertEquals(1.0d, response.getTotalSeconds(), 0.001d);
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(List.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1), response.getCountInclusive());
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 1), response.getCountExclusive());

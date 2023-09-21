@@ -23,7 +23,6 @@ import java.util.Map;
 public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXContentObject {
     private final int size;
     private final double samplingRate;
-    private final double totalSeconds;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
     private final List<Integer> frameTypes;
@@ -40,7 +39,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     public GetFlamegraphResponse(StreamInput in) throws IOException {
         this.size = in.readInt();
         this.samplingRate = in.readDouble();
-        this.totalSeconds = in.readDouble();
         this.edges = in.readCollectionAsList(i -> i.readMap(StreamInput::readInt));
         this.fileIds = in.readCollectionAsList(StreamInput::readString);
         this.frameTypes = in.readCollectionAsList(StreamInput::readInt);
@@ -58,7 +56,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     public GetFlamegraphResponse(
         int size,
         double samplingRate,
-        double totalSeconds,
         List<Map<String, Integer>> edges,
         List<String> fileIds,
         List<Integer> frameTypes,
@@ -74,7 +71,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     ) {
         this.size = size;
         this.samplingRate = samplingRate;
-        this.totalSeconds = totalSeconds;
         this.edges = edges;
         this.fileIds = fileIds;
         this.frameTypes = frameTypes;
@@ -93,7 +89,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(this.size);
         out.writeDouble(this.samplingRate);
-        out.writeDouble(this.totalSeconds);
         out.writeCollection(this.edges, (o, v) -> o.writeMap(v, StreamOutput::writeString, StreamOutput::writeInt));
         out.writeCollection(this.fileIds, StreamOutput::writeString);
         out.writeCollection(this.frameTypes, StreamOutput::writeInt);
@@ -114,10 +109,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
 
     public double getSamplingRate() {
         return samplingRate;
-    }
-
-    public double getTotalSeconds() {
-        return totalSeconds;
     }
 
     public List<Integer> getCountInclusive() {
@@ -156,7 +147,6 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("CountExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
             Iterators.single((b, p) -> b.field("Size", size)),
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
-            Iterators.single((b, p) -> b.field("TotalSeconds", totalSeconds)),
             ChunkedToXContentHelper.endObject()
         );
     }

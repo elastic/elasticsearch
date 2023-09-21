@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,14 +73,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     }
 
     static GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
-        // TODO: Are full seconds good enough? (they probably are)
-        long totalSeconds = 0;
-        if (response.getStartTime() != null && response.getEndTime() != null) {
-            Duration observedDuration = Duration.between(response.getStartTime(), response.getEndTime());
-            totalSeconds = (observedDuration.getNano() > 0) ? observedDuration.getSeconds() + 1 : observedDuration.getSeconds();
-        }
-
-        FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate(), totalSeconds);
+        FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate());
         if (response.getTotalFrames() == 0) {
             return builder.build();
         }
@@ -182,9 +174,8 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         private final List<Integer> countInclusive;
         private final List<Integer> countExclusive;
         private final double samplingRate;
-        private final double totalSeconds;
 
-        FlamegraphBuilder(int frames, double samplingRate, double totalSeconds) {
+        FlamegraphBuilder(int frames, double samplingRate) {
             // as the number of frames does not account for inline frames we slightly overprovision.
             int capacity = (int) (frames * 1.1d);
             this.edges = new ArrayList<>(capacity);
@@ -205,7 +196,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 this.setCurrentNode(nodeId);
             }
             this.samplingRate = samplingRate;
-            this.totalSeconds = totalSeconds;
         }
 
         // returns the new node's id
@@ -268,7 +258,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             return new GetFlamegraphResponse(
                 size,
                 samplingRate,
-                totalSeconds,
                 edges,
                 fileIds,
                 frameTypes,

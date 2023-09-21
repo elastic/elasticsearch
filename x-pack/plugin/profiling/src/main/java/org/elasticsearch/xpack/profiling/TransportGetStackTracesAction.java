@@ -518,16 +518,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         }
 
         public GetStackTracesResponse build() {
-            return new GetStackTracesResponse(
-                stackTraces,
-                stackFrames,
-                executables,
-                stackTraceEvents,
-                totalFrames,
-                samplingRate,
-                start,
-                end
-            );
+            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
         }
     }
 }

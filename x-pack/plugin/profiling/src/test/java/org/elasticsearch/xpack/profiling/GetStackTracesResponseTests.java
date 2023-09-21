@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -45,16 +44,7 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
         Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
 
-        return new GetStackTracesResponse(
-            stackTraces,
-            stackFrames,
-            executables,
-            stackTraceEvents,
-            totalFrames,
-            1.0,
-            Instant.ofEpochMilli(randomLongBetween(100L, 1000L)),
-            Instant.ofEpochMilli(randomLongBetween(1001L, 2000L))
-        );
+        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0);
     }
 
     @Override

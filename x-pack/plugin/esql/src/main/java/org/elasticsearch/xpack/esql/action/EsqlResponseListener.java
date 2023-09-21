@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -28,7 +26,6 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
  */
 public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
-    private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
     private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;

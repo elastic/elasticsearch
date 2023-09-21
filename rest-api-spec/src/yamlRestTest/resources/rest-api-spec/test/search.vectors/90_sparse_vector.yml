@@ -71,6 +71,26 @@
   - match: { result: "created" }
 
   - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "doing nothing will result in nothing"
+          ml:
+            tokens: {}
+
+  - match: { result: "created" }
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "no ml tokens here"
+
+  - match: { result: "created" }
+
+  - do:
       indices.refresh: { }
 
   - do:
@@ -135,3 +155,19 @@
                 type: text
               ml.tokens:
                 type: sparse_vector
+
+---
+"Test exists query on mapped sparse_vector field - ignoring empty ones":
+  - skip:
+      version: " - 7.99.99, 8.11.0 - "
+      reason: "sparse_vector field type not supported in 8.x until 8.11.0"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: sparse_vector
+
+  - match: {hits.total: 2}

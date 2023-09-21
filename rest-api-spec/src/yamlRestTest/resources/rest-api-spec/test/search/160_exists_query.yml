@@ -45,8 +45,6 @@ setup:
                       type: keyword
                 text:
                   type: text
-                sparse_vector:
-                  type: sparse_vector
 
   - do:
       headers:
@@ -72,7 +70,6 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
-            sparse_vector: {"1": 1}
 
   - do:
       headers:
@@ -97,7 +94,6 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
-            sparse_vector: {}
 
   - do:
       headers:
@@ -188,8 +184,6 @@ setup:
                       doc_values: false
                 text:
                   type: text
-                sparse_vector:
-                  type: sparse_vector
 
   - do:
       headers:
@@ -215,7 +209,6 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
-            sparse_vector: {"1": 1}
 
   - do:
       headers:
@@ -240,7 +233,6 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
-            sparse_vector: {}
 
   - do:
       headers:
@@ -330,8 +322,6 @@ setup:
                       type: keyword
                 text:
                   type: text
-                sparse_vector:
-                  type: sparse_vector
 
   - do:
       indices.refresh:
@@ -1041,19 +1031,6 @@ setup:
   - match: {hits.total: 0}
 
 ---
-"Test exists query on sparse_vector field in empty index":
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test-empty
-        body:
-          query:
-            exists:
-              field: sparse_vector
-
-  - match: {hits.total: 0}
-
----
 "Test exists query on mapped binary field with no doc values":
   - do:
       search:
@@ -1261,19 +1238,6 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
-
----
-"Test exists query on mapped sparse_vector field with no doc values":
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test-no-dv
-        body:
-          query:
-            exists:
-              field: sparse_vector
-
-  - match: {hits.total: 1}
 
 ---
 "Test exists query on text field with empty values":

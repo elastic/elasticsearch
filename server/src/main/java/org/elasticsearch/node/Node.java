@@ -1108,7 +1108,13 @@ public class Node implements Closeable {
                     final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(
-                            new PeerRecoverySourceService(transportService, indicesService, recoverySettings, recoveryPlannerService)
+                            new PeerRecoverySourceService(
+                                transportService,
+                                indicesService,
+                                clusterService,
+                                recoverySettings,
+                                recoveryPlannerService
+                            )
                         );
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(

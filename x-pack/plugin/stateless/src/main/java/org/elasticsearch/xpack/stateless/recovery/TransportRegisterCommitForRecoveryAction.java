@@ -118,7 +118,7 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
             commit,
             shardId,
             request.getNodeId(),
-            state.version(),
+            state,
             listener.map(RegisterCommitResponse::new)
         );
     }

@@ -562,6 +562,7 @@ POST passage_vectors/_search
     }
 }
 ----
+//TEST[continued]
 
 Note below that even though we have 4 total vectors, we still return two documents. kNN search over nested dense_vectors
 will always diversify the top results over the top-level document. Meaning, `"k"` top-level documents will be returned,
@@ -658,6 +659,7 @@ POST passage_vectors/_search
     }
 }
 ----
+//TEST[continued]
 
 Now we have filtered based on the top level `"creation_time"` and only one document falls within that range.
 
@@ -730,6 +732,7 @@ POST passage_vectors/_search
     }
 }
 ----
+//TEST[continued]
 
 Now the result will contain the nearest found paragraph when searching.
 

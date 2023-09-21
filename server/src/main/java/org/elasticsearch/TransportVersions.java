@@ -143,6 +143,7 @@ public class TransportVersions {
     public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
     public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
     public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
+    public static final TransportVersion SEARCH_RESPONSE_CLUSTERS_COUNTERS_CHANGE = def(8_503_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

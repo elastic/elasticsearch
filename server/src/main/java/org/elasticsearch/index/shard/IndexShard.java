@@ -839,8 +839,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, ThreadPool.Names.SAME); // Wait on SAME (current thread) because this execution is wrapped by
-                                                              // CancellableThreads and we want to be able to safely interrupt it
+            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
+                                                                            // CancellableThreads and we want to be able to interrupt it
         }
     }
 
@@ -3419,7 +3419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, ThreadPool.Names.GENERIC);
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;

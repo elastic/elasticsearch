@@ -179,7 +179,7 @@ public abstract class TransportReplicationAction<
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
-        this.executor = executor;
+        this.executor = threadPool.executor(executor);
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";

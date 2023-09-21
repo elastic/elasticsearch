@@ -793,7 +793,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             delegatedListener.onFailure(e);
                         }
                     }),
-                    threadPool.executor(ThreadPool.Names.WRITE)
+                    replica.getThreadPool().executor(ThreadPool.Names.WRITE)
                 );
             }
 

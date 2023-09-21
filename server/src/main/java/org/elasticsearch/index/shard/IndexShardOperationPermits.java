@@ -78,13 +78,18 @@ final class IndexShardOperationPermits implements Closeable {
      * @param timeUnit   the time unit of the {@code timeout} argument
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit, String executor) {
+    public void blockOperations(
+        final ActionListener<Releasable> onAcquired,
+        final long timeout,
+        final TimeUnit timeUnit,
+        final Executor executor
+    ) {
         delayOperations();
         waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
     }
 
-    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, String executor) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, Executor executor) {
+        executor.execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
 

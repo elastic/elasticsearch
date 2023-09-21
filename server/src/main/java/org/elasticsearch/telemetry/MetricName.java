@@ -11,6 +11,8 @@ package org.elasticsearch.telemetry;
 import java.util.Objects;
 
 public class MetricName {
+    public static final MetricName EMPTY = new MetricName("EMPTY");
+
     private final String rawName;
 
     public MetricName(String rawName) {

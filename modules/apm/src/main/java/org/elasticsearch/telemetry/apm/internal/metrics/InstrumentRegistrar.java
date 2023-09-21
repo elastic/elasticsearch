@@ -10,18 +10,17 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.telemetry.MetricName;
-import org.elasticsearch.telemetry.metric.Instrument;
 
 import java.util.Map;
 
-public class InstrumentRegistrar<T extends Instrument> {
+public class InstrumentRegistrar<T extends AbstractInstrument<?, ?>> {
     private final Map<MetricName, T> registered = ConcurrentCollections.newConcurrentMap();
 
     T register(T instrument) {
-        registered.compute(instrument.getName(), (k, v) -> {
+        registered.compute(instrument.getMetricName(), (k, v) -> {
             if (v != null) {
                 throw new IllegalStateException(
-                    instrument.getClass().getSimpleName() + "[" + instrument.getName().getRawName() + "] already registered"
+                    instrument.getClass().getSimpleName() + "[" + instrument.getName() + "] already registered"
                 );
             }
 

@@ -22,8 +22,8 @@ public interface LongHistogram extends Instrument {
 
     LongHistogram NOOP = new LongHistogram() {
         @Override
-        public MetricName getName() {
-            return null;
+        public String getName() {
+            return MetricName.EMPTY.getRawName();
         }
 
         @Override

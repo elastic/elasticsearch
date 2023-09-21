@@ -29,6 +29,10 @@ public abstract class AbstractInstrument<T, I> implements Instrument {
         this.unit = Objects.requireNonNull(unit);
     }
 
+    public MetricName getMetricName() {
+        return name;
+    }
+
     @Override
     public String getName() {
         return name.getRawName();

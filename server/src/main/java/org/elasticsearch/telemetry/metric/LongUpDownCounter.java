@@ -22,8 +22,8 @@ public interface LongUpDownCounter extends Instrument {
 
     LongUpDownCounter NOOP = new LongUpDownCounter() {
         @Override
-        public MetricName getName() {
-            return null;
+        public String getName() {
+            return MetricName.EMPTY.getRawName();
         }
 
         @Override

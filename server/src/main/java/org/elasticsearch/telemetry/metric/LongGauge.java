@@ -22,8 +22,8 @@ public interface LongGauge extends Instrument {
 
     LongGauge NOOP = new LongGauge() {
         @Override
-        public MetricName getName() {
-            return null;
+        public String getName() {
+            return MetricName.EMPTY.getRawName();
         }
 
         @Override

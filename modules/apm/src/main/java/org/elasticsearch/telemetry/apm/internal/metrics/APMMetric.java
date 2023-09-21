@@ -31,14 +31,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
-    private final InstrumentRegistrar<DoubleCounter> doubleCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleUpDownCounter> doubleUpDownCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleGauge> doubleGauges = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<DoubleHistogram> doubleHistograms = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongCounter> longCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongUpDownCounter> longUpDownCounters = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongGauge> longGauges = new InstrumentRegistrar<>();
-    private final InstrumentRegistrar<LongHistogram> longHistograms = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<DoubleCounterAdapter<?>> doubleCounters = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<DoubleUpDownCounterAdapter<?>> doubleUpDownCounters = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<DoubleGaugeAdapter<?>> doubleGauges = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<DoubleHistogramAdapter<?>> doubleHistograms = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<LongCounterAdapter<?>> longCounters = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<LongUpDownCounterAdapter<?>> longUpDownCounters = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<LongGaugeAdapter<?>> longGauges = new InstrumentRegistrar<>();
+    private final InstrumentRegistrar<LongHistogramAdapter<?>> longHistograms = new InstrumentRegistrar<>();
     private volatile boolean enabled;
     private AtomicReference<APMServices> services = new AtomicReference<>();
 

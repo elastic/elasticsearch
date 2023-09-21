@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -193,11 +194,19 @@ final class IndexShardOperationPermits implements Closeable {
      * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
      */
-    public void acquire(final ActionListener<Releasable> onAcquired, final Executor executorOnDelay, final boolean forceExecution) {
+    public void acquire(
+        final ActionListener<Releasable> onAcquired,
+        @Nullable final Executor executorOnDelay,
+        final boolean forceExecution
+    ) {
         innerAcquire(ActionListener.assertOnce(onAcquired), executorOnDelay, forceExecution);
     }
 
-    private void innerAcquire(final ActionListener<Releasable> onAcquired, final Executor executorOnDelay, final boolean forceExecution) {
+    private void innerAcquire(
+        final ActionListener<Releasable> onAcquired,
+        @Nullable final Executor executorOnDelay,
+        final boolean forceExecution
+    ) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;

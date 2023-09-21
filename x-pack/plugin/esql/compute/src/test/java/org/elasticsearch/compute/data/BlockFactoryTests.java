@@ -71,6 +71,27 @@ public class BlockFactoryTests extends ESTestCase {
         assertThat(breaker.getUsed(), is(0L));
     }
 
+    public void testPreAdjusters() {
+        for (int i = 0; i < 1000; i++) {
+            int positions = randomIntBetween(1, 16384);
+            long preAdjustBytes = blockFactory.preAdjustBreakerForBoolean(positions);
+            assertThat(preAdjustBytes, is((long) positions));
+            blockFactory.adjustBreaker(-preAdjustBytes, true);
+
+            preAdjustBytes = blockFactory.preAdjustBreakerForInt(positions);
+            assertThat(preAdjustBytes, is((long) positions * 4));
+            blockFactory.adjustBreaker(-preAdjustBytes, true);
+
+            preAdjustBytes = blockFactory.preAdjustBreakerForLong(positions);
+            assertThat(preAdjustBytes, is((long) positions * 8));
+            blockFactory.adjustBreaker(-preAdjustBytes, true);
+
+            preAdjustBytes = blockFactory.preAdjustBreakerForDouble(positions);
+            assertThat(preAdjustBytes, is((long) positions * 8));
+            blockFactory.adjustBreaker(-preAdjustBytes, true);
+        }
+    }
+
     public void testIntBlockBuilderWithPossiblyLargeEstimateEmpty() {
         var builder = blockFactory.newIntBlockBuilder(randomIntBetween(0, 2048));
         assertThat(breaker.getUsed(), greaterThan(0L));

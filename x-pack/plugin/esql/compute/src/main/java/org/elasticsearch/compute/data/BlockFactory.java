@@ -105,6 +105,31 @@ public class BlockFactory {
         }
     }
 
+    /** Pre-adjusts the breaker for the given position count and element type. Returns the pre-adjusted amount. */
+    public long preAdjustBreakerForBoolean(int positionCount) {
+        long bytes = (long) positionCount * Byte.BYTES;
+        adjustBreaker(bytes, false);
+        return bytes;
+    }
+
+    public long preAdjustBreakerForInt(int positionCount) {
+        long bytes = (long) positionCount * Integer.BYTES;
+        adjustBreaker(bytes, false);
+        return bytes;
+    }
+
+    public long preAdjustBreakerForLong(int positionCount) {
+        long bytes = (long) positionCount * Long.BYTES;
+        adjustBreaker(bytes, false);
+        return bytes;
+    }
+
+    public long preAdjustBreakerForDouble(int positionCount) {
+        long bytes = (long) positionCount * Double.BYTES;
+        adjustBreaker(bytes, false);
+        return bytes;
+    }
+
     public BooleanBlock.Builder newBooleanBlockBuilder(int estimatedSize) {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
@@ -126,8 +151,12 @@ public class BlockFactory {
     }
 
     public BooleanVector newBooleanArrayVector(boolean[] values, int positionCount) {
+        return newBooleanArrayVector(values, positionCount, 0L);
+    }
+
+    public BooleanVector newBooleanArrayVector(boolean[] values, int positionCount, long preAdjustedBytes) {
         var b = new BooleanArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 
@@ -151,9 +180,28 @@ public class BlockFactory {
         return new IntVectorBuilder(estimatedSize, this);
     }
 
+    /**
+     * Creates a new Vector with the given values and positionCount. Equivalent to:
+     *   newIntArrayVector(values, positionCount, 0L); // with zero pre-adjusted bytes
+     */
     public IntVector newIntArrayVector(int[] values, int positionCount) {
+        return newIntArrayVector(values, positionCount, 0L);
+    }
+
+    /**
+     * Creates a new Vector with the given values and positionCount, where the caller has already
+     * pre-adjusted a number of bytes with the factory's breaker.
+     *
+     * long preAdjustedBytes = blockFactory.preAdjustBreakerForInt(positionCount);
+     * int[] values = new int[positionCount];
+     * for (int i = 0; i &lt; positionCount; i++) {
+     *   values[i] = doWhateverStuff
+     * }
+     * var vector = blockFactory.newIntArrayVector(values, positionCount, preAdjustedBytes);
+     */
+    public IntVector newIntArrayVector(int[] values, int positionCount, long preAdjustedBytes) {
         var b = new IntArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 
@@ -178,8 +226,12 @@ public class BlockFactory {
     }
 
     public LongVector newLongArrayVector(long[] values, int positionCount) {
+        return newLongArrayVector(values, positionCount, 0L);
+    }
+
+    public LongVector newLongArrayVector(long[] values, int positionCount, long preAdjustedBytes) {
         var b = new LongArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 
@@ -210,8 +262,12 @@ public class BlockFactory {
     }
 
     public DoubleVector newDoubleArrayVector(double[] values, int positionCount) {
+        return newDoubleArrayVector(values, positionCount, 0L);
+    }
+
+    public DoubleVector newDoubleArrayVector(double[] values, int positionCount, long preAdjustedBytes) {
         var b = new DoubleArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
         return b;
     }
 

@@ -44,6 +44,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1542,7 +1544,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(registerCommitRequestsSent.get(), equalTo(1));
     }
 
-    public void testSearchShardRecoveryRegistrationRetryOnShardNotFound() {
+    public void testSearchShardRecoveryRegistrationRetry() {
         var indexNode = startIndexNode();
         startSearchNode();
         final var indexName = randomIdentifier();
@@ -1570,7 +1572,12 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             receivedRegistration.incrementAndGet();
             if (failed.get() < toFailCount) {
                 failed.incrementAndGet();
-                channel.sendResponse(new ShardNotFoundException(shardId, "can't register"));
+                channel.sendResponse(
+                    randomFrom(
+                        new ShardNotFoundException(shardId, "cannot register"),
+                        new RecoveryCommitTooNewException(shardId, "cannot register")
+                    )
+                );
             } else {
                 handler.messageReceived(request, channel, task);
             }
@@ -1583,5 +1590,74 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         assertThat(failed.get(), equalTo(toFailCount));
         assertThat(receivedRegistration.get(), greaterThan(toFailCount));
+    }
+
+    // If during a relocation, a commit registration is triggered right after the last pre-handoff flush,
+    // the registration request would reach the old indexing shard with the newer commit written as a result
+    // of the relocation by the new indexing shard. However, the old indexing shard is not aware of this new
+    // commit. Here, we make sure in that case, the search shard's registration fails on the old indexing shard
+    // and the search shard resends the request to the new indexing shard.
+    public void testUnpromotableRecoveryCommitRegistrationDuringRelocation() {
+        var indexNodeA = startIndexNode();
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS))
+                // To ensure we hit registration retries not allocation retries
+                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .build()
+        );
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 50));
+        refresh(indexName);
+        var indexNodeB = startIndexNode();
+
+        var nodeAReceivedRegistration = new CountDownLatch(1);
+        var indexNodeATransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodeA);
+        indexNodeATransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+            logger.info("--> NodeA received commit registration with request {}", request);
+            nodeAReceivedRegistration.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+        var nodeBReceivedRegistration = new CountDownLatch(1);
+        var indexNodeBTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodeB);
+        indexNodeBTransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+            logger.info("--> NodeB received commit registration with request {}", request);
+            nodeBReceivedRegistration.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+        // Ensure the search shard starts recovering after the new indexing shard (on node B) has done a post-handoff commit
+        // but before the new indexing shard being started so that the registration goes to the old indexing shard.
+        var continueNodeBSendingShardStarted = new CountDownLatch(1);
+        var nodeBSendingShardStarted = new CountDownLatch(1);
+        indexNodeBTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(ShardStateAction.SHARD_STARTED_ACTION_NAME)) {
+                logger.info("--> blocking NodeB sending shard started request {} to master", request);
+                nodeBSendingShardStarted.countDown();
+                safeAwait(continueNodeBSendingShardStarted);
+                logger.info("--> NodeB sent shard started request {} to master", request);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        // initiate a relocation
+        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+        logger.info("--> waiting for nodeB sending SHARD_STARTED ");
+        safeAwait(nodeBSendingShardStarted);
+        // start search shard, You should see the last commit but the registration should go to the old indexing shard
+        indicesAdmin().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .execute();
+        logger.info("--> waiting for NodeA to receive commit registration");
+        safeAwait(nodeAReceivedRegistration);
+        continueNodeBSendingShardStarted.countDown();
+        // the registration should be resent to the new indexing shard
+        try {
+            nodeBReceivedRegistration.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        }
+        ensureGreen(indexName);
     }
 }

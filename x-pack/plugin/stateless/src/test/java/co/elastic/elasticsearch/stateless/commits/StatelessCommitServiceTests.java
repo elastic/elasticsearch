@@ -1170,7 +1170,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration()),
                 shardId,
                 state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
-                state.version(),
+                state,
                 registerFuture
             );
             if (clusterChangedFirst == false) {
@@ -1306,13 +1306,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     safeAwait(barrier);
                     for (long i = 0; i < 10 || indexingRoundsCompleted.get() < 10; ++i) {
                         respond(latestCommit.get().generation());
-                        long clusterStateVersion = changeClusterState(searchState);
+                        var clusterState = changeClusterState(searchState);
                         PlainActionFuture<PrimaryTermAndGeneration> future = new PlainActionFuture<>();
                         commitService.registerCommitForUnpromotableRecovery(
                             latestCommit.get(),
                             shardId,
                             searchState.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId(),
-                            clusterStateVersion,
+                            clusterState,
                             future
                         );
                         PrimaryTermAndGeneration recoveryCommit;
@@ -1342,12 +1342,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     }
                 }
 
-                private long changeClusterState(ClusterState state) {
+                private ClusterState changeClusterState(ClusterState state) {
                     ClusterState previous = stateRef.get();
                     ClusterState next = ClusterState.builder(state).version(previous.getVersion() + 1).build();
                     stateRef.set(next);
                     commitService.clusterChanged(new ClusterChangedEvent("test search thread", next, previous));
-                    return next.version();
+                    return next;
                 }
             }, "searcher");
             indexer.start();

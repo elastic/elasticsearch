@@ -121,21 +121,6 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
             this.services.set(new APMServices(meter, openTelemetry));
 
-            Meter myMeter = GlobalOpenTelemetry.getMeter("my_meter");
-            LongCounter counter = myMeter.counterBuilder("my_counter").build();
-
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        counter.add(42);
-                        Thread.sleep(2000);
-                    }catch (Exception e){
-
-                    }
-                }
-            }).start();
-
             return null;
         });
     }

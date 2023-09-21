@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Described;
 import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Optional;
 import org.elasticsearch.xpack.esql.expression.function.Typed;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -47,7 +48,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     @Typed("date")
     public DateParse(
         Source source,
-        @Named("datePattern") @Typed("keyword") @Described("(Optional) A valid date pattern") Expression first,
+        @Named("datePattern") @Typed("keyword") @Described("A valid date pattern") @Optional Expression first,
         @Named("dateString") @Typed("keyword") @Described("A string representing a date") Expression second
     ) {
         super(source, second != null ? List.of(first, second) : List.of(first));

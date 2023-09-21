@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.expression.function.Described;
 import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Optional;
 import org.elasticsearch.xpack.esql.expression.function.Typed;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -29,22 +30,39 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 public class ShowFunctions extends LeafPlan {
 
     private final List<Attribute> attributes;
 
-    public record ArgSignature(String name, String type, String description) {}
+    public record ArgSignature(String name, String type, String description, boolean optional) {}
 
-    public record FunctionSignature(String name, List<ArgSignature> args, String returnType, String description) {
+    public record FunctionSignature(String name, List<ArgSignature> args, String returnType, String description, boolean variadic) {
         public String fullSignature() {
-            return returnType
-                + " "
-                + name
-                + "("
-                + args.stream().map(x -> x.name() + ":" + x.type()).collect(Collectors.joining(", "))
-                + ")";
+            StringBuilder builder = new StringBuilder();
+            builder.append(returnType);
+            builder.append(" ");
+            builder.append(name);
+            builder.append("(");
+            for (int i = 0; i < args.size(); i++) {
+                ArgSignature arg = args.get(i);
+                if (i > 0) {
+                    builder.append(", ");
+                }
+                if (arg.optional()) {
+                    builder.append("?");
+                }
+                builder.append(arg.name());
+                if (i == args.size() - 1 && variadic) {
+                    builder.append("...");
+                }
+                builder.append(":");
+                builder.append(arg.type());
+            }
+            builder.append(")");
+            return builder.toString();
         }
 
         public List<String> argNames() {
@@ -59,6 +77,9 @@ public class ShowFunctions extends LeafPlan {
         attributes = new ArrayList<>();
         for (var name : List.of("name", "synopsis", "argNames", "argTypes", "argDescriptions", "returnType", "description")) {
             attributes.add(new ReferenceAttribute(Source.EMPTY, name, KEYWORD));
+        }
+        for (var name : List.of("optionalArgs", "variadic")) {
+            attributes.add(new ReferenceAttribute(Source.EMPTY, name, BOOLEAN));
         }
     }
 
@@ -79,13 +100,15 @@ public class ShowFunctions extends LeafPlan {
             row.add(getCollect(signature, ArgSignature::description));
             row.add(signature.returnType);
             row.add(signature.description);
+            row.add(getCollect(signature, ArgSignature::optional));
+            row.add(signature.variadic);
             rows.add(row);
         }
         rows.sort(Comparator.comparing(x -> ((BytesRef) x.get(0))));
         return rows;
     }
 
-    private Object getCollect(FunctionSignature signature, Function<ArgSignature, String> x) {
+    private Object getCollect(FunctionSignature signature, Function<ArgSignature, ?> x) {
         if (signature.args.size() == 0) {
             return null;
         }
@@ -101,23 +124,24 @@ public class ShowFunctions extends LeafPlan {
     public static FunctionSignature signature(FunctionDefinition def) {
         var constructors = def.clazz().getConstructors();
         if (constructors.length == 0) {
-            return new FunctionSignature(def.name(), List.of(), null, null);
+            return new FunctionSignature(def.name(), List.of(), null, null, false);
         }
         Constructor<?> constructor = constructors[0];
         Described functionDescAnn = constructor.getAnnotation(Described.class);
-        String funcitonDescription = functionDescAnn == null ? "" : functionDescAnn.value();
+        String functionDescription = functionDescAnn == null ? "" : functionDescAnn.value();
         Typed returnTypeAnn = constructor.getAnnotation(Typed.class);
         String returnType = returnTypeAnn == null ? "?" : returnTypeAnn.value();
         var params = constructor.getParameters(); // no multiple c'tors supported
 
         List<ArgSignature> args = new ArrayList<>(params.length);
+        boolean variadic = false;
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 Named namedAnn = params[i].getAnnotation(Named.class);
                 String name = namedAnn == null ? params[i].getName() : namedAnn.value();
 
                 if (List.class.isAssignableFrom(params[i].getType())) {
-                    name = name + "...";
+                    variadic = true;
                 }
 
                 Typed typedAnn = params[i].getAnnotation(Typed.class);
@@ -126,10 +150,12 @@ public class ShowFunctions extends LeafPlan {
                 Described describedAnn = params[i].getAnnotation(Described.class);
                 String desc = describedAnn == null ? "" : describedAnn.value();
 
-                args.add(new ArgSignature(name, type, desc));
+                boolean optional = params[i].getAnnotation(Optional.class) != null;
+
+                args.add(new ArgSignature(name, type, desc, optional));
             }
         }
-        return new FunctionSignature(def.name(), args, returnType, funcitonDescription);
+        return new FunctionSignature(def.name(), args, returnType, functionDescription, variadic);
     }
 
     private static BytesRef asBytesRefOrNull(String string) {

@@ -92,7 +92,7 @@ directory. You may remove this directory if using your own JVM.
 
 [discrete]
 [[jvm-agents]]
-=== JVM and Java Agents
+=== JVM and Java agents
 
 Do not use third-party Java agents that attach to the JVM. Such software has
 been observed to reduce {es} performance, or even freeze or crash nodes.

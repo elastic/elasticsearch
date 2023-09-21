@@ -262,4 +262,10 @@ public class BlockFactory {
         adjustBreaker(b.ramBytesUsed(), true);
         return b;
     }
+
+    public Block newConstantNullBlock(int positions) {
+        var b = new ConstantNullBlock(positions, this);
+        adjustBreaker(b.ramBytesUsed(), true);
+        return b;
+    }
 }

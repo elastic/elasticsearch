@@ -123,11 +123,11 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      */
     // Eventually, this should use the GLOBAL breaking instance
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions, BlockFactory.getNonBreakingInstance());
+        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
     static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return new ConstantNullBlock(positions, blockFactory);
+        return blockFactory.newConstantNullBlock(positions);
     }
 
     interface Builder {

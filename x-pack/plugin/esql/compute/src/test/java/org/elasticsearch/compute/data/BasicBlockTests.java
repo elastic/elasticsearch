@@ -552,6 +552,18 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    public void testConstantNullBlock() {
+        for (int i = 0; i < 100; i++) {
+            assertThat(breaker.getUsed(), is(0L));
+            int positionCount = randomIntBetween(1, 16 * 1024);
+            Block block = Block.constantNullBlock(positionCount, blockFactory);
+            assertThat(positionCount, is(block.getPositionCount()));
+            assertThat(block.getPositionCount(), is(positionCount));
+            assertThat(block.isNull(randomPosition(positionCount)), is(true));
+            releaseAndAssertBreaker(block);
+        }
+    }
+
     public void testSingleValueSparseInt() {
         int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;

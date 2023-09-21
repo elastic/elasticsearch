@@ -45,7 +45,9 @@ public final class SingleResultDeduplicator<T> {
 
     /**
      * Execute the action for the given {@code listener}.
-     * @param listener listener to resolve with execution result
+     * @param listener listener to resolve with execution result. The listener always has its threadContext preserved, i.e.
+     *                 when the listener is invoked, it will see its original threadContext plus any response headers generated
+     *                 by performing the {@code executeAction}.
      */
     public void execute(ActionListener<T> listener) {
         synchronized (this) {
@@ -59,10 +61,10 @@ public final class SingleResultDeduplicator<T> {
                 return;
             }
         }
-        doExecute(listener);
+        doExecute(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), threadContext.newStoredContext());
     }
 
-    private void doExecute(ActionListener<T> listener) {
+    private void doExecute(ActionListener<T> listener, ThreadContext.StoredContext storedContext) {
         final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
             final List<ActionListener<T>> listeners;
             synchronized (this) {
@@ -77,17 +79,27 @@ public final class SingleResultDeduplicator<T> {
                     waitingListeners = new ArrayList<>();
                 }
             }
-            doExecute(new ActionListener<>() {
-                @Override
-                public void onResponse(T response) {
-                    ActionListener.onResponse(listeners, response);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    ActionListener.onFailure(listeners, e);
-                }
-            });
+            // Create a child threadContext so that the parent context remains unchanged when the child execution returns.
+            // This ensures the parent listener does not see response headers from the child execution.
+            try (var ignore = threadContext.newRestorableContext(false).get()) {
+                // Restore the parent's original threadContext before proceed with the child execution.
+                // This ensures all executions, parent or child, always begin execution with the identical threadContext.
+                // This identical threadContext is the context of the first listener gets executed.
+                storedContext.restore();
+                doExecute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(T response) {
+                        ActionListener.onResponse(listeners, response);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        ActionListener.onFailure(listeners, e);
+                    }
+                }, storedContext);
+            }
+
         });
         ActionListener.run(wrappedListener, executeAction::accept);
     }

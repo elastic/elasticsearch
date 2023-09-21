@@ -22,8 +22,19 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class SingleResultDeduplicatorTests extends ESTestCase {
 
@@ -88,11 +99,22 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
     public void testThreadContextPreservation() {
         final var resources = new Releasable[1];
         try {
+            final var workerRequestHeaderName = "worker-request-header";
+            final var workerResponseHeaderName = "worker-response-header";
+            final var workerResponseHeaderValueCounter = new AtomicInteger();
+            final ArrayList<Integer> allSeenResponseHeaderValues = new ArrayList<>();
+            final var threads = between(1, 5);
             final var future = new PlainActionFuture<Void>();
             try (var listeners = new RefCountingListener(future)) {
                 final var threadContext = new ThreadContext(Settings.EMPTY);
-                final var deduplicator = new SingleResultDeduplicator<Void>(threadContext, l -> l.onResponse(null));
-                final var threads = between(1, 5);
+                final var deduplicator = new SingleResultDeduplicator<Void>(threadContext, l -> {
+                    threadContext.putHeader(workerRequestHeaderName, randomAlphaOfLength(5));
+                    threadContext.addResponseHeader(
+                        workerResponseHeaderName,
+                        String.valueOf(workerResponseHeaderValueCounter.getAndIncrement())
+                    );
+                    l.onResponse(null);
+                });
                 final var executor = EsExecutors.newFixed(
                     "test",
                     threads,
@@ -108,19 +130,29 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     try (var ignored = threadContext.stashContext()) {
                         final var headerValue = randomAlphaOfLength(10);
                         threadContext.putHeader(headerName, headerValue);
-                        executor.execute(
-                            ActionRunnable.wrap(
-                                listeners.<Void>acquire(v -> assertEquals(headerValue, threadContext.getHeader(headerName))),
-                                listener -> {
-                                    safeAwait(barrier);
-                                    deduplicator.execute(listener);
-                                }
-                            )
-                        );
+                        executor.execute(ActionRunnable.wrap(listeners.<Void>acquire(v -> {
+                            // original request header before the work execution should be preserved
+                            assertEquals(headerValue, threadContext.getHeader(headerName));
+                            // request header used by the work execution should *not* be preserved
+                            assertThat(threadContext.getHeaders(), not(hasKey(workerRequestHeaderName)));
+                            // response header should be preserved which is from a single execution of the work
+                            final List<String> responseHeader = threadContext.getResponseHeaders().get(workerResponseHeaderName);
+                            assertThat(responseHeader, hasSize(1));
+                            allSeenResponseHeaderValues.add(Integer.valueOf(responseHeader.get(0)));
+                        }), listener -> {
+                            safeAwait(barrier);
+                            deduplicator.execute(listener);
+                        }));
                     }
                 }
             }
             future.actionGet(10, TimeUnit.SECONDS);
+            assertThat(allSeenResponseHeaderValues, hasSize(threads));
+            // The total number of observed response header values consistent with how many times it is generated
+            assertThat(
+                Set.copyOf(allSeenResponseHeaderValues),
+                equalTo(IntStream.range(0, workerResponseHeaderValueCounter.get()).boxed().collect(Collectors.toUnmodifiableSet()))
+            );
         } finally {
             Releasables.closeExpectNoException(resources);
         }

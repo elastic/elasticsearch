@@ -47,18 +47,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
     private TransportWatcherStatsAction action;
 
     @Before
-    public void setup() {
-        threadPool = new TestThreadPool("TransportWatcherStatsActionTests");
-    }
-
-    @After
-    public void cleanup() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
-    }
-
-    @Before
     public void setupTransportAction() {
+        threadPool = new TestThreadPool("TransportWatcherStatsActionTests");
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
@@ -103,6 +93,12 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             executionService,
             triggerService
         );
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testWatcherStats() throws Exception {

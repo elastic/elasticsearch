@@ -140,10 +140,10 @@ public class NodeService implements Closeable {
         );
     }
 
-    private static Map<String, Integer> findComponentVersions() {
-        var versions = ServiceLoader.load(ComponentVersionNumber.class)
+    private Map<String, Integer> findComponentVersions() {
+        var versions = pluginService.loadServiceProviders(ComponentVersionNumber.class)
             .stream()
-            .collect(Collectors.toUnmodifiableMap(cvn -> cvn.get().componentId(), cvn -> cvn.get().versionNumber().id()));
+            .collect(Collectors.toUnmodifiableMap(ComponentVersionNumber::componentId, cvn -> cvn.versionNumber().id()));
 
         if (Assertions.ENABLED) {
             var hasUpperCase = Pattern.compile("\\p{Upper}").asPredicate();

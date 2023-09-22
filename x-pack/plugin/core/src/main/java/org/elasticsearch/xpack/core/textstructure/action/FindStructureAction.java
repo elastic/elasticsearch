@@ -60,10 +60,6 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             textStructure.writeTo(out);
         }
 
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             textStructure.toXContent(builder, params);

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -85,10 +84,6 @@ public class GetScriptContextResponse extends ActionResponse implements ToXConte
         for (ScriptContextInfo context : contexts.values()) {
             context.writeTo(out);
         }
-    }
-
-    public RestStatus status() {
-        return RestStatus.OK;
     }
 
     @Override

@@ -20,6 +20,7 @@ import java.util.function.Function;
  * A REST based action listener that requires the response to implement {@link ToXContentObject} and automatically
  * builds an XContent based response.
  */
+// TODO make this final
 public class RestToXContentListener<Response extends ToXContentObject> extends RestBuilderListener<Response> {
 
     protected final Function<Response, RestStatus> statusFunction;

@@ -38,10 +38,6 @@ public class GetScriptLanguageResponse extends ActionResponse implements ToXCont
         info.writeTo(out);
     }
 
-    public RestStatus status() {
-        return RestStatus.OK;
-    }
-
     public static GetScriptLanguageResponse fromXContent(XContentParser parser) throws IOException {
         return new GetScriptLanguageResponse(ScriptLanguagesInfo.fromXContent(parser));
     }

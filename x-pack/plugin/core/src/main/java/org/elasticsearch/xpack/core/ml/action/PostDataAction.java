@@ -62,10 +62,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             return dataCounts;
         }
 
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

@@ -134,6 +134,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeZLong(ingestTookInMillis);
     }
 
+    // TODO remove this
     public RestStatus status() {
         return RestStatus.OK;
     }

@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -51,7 +52,7 @@ public class RestPostDataAction extends BaseRestHandler {
         return channel -> client.execute(
             PostDataAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, PostDataAction.Response::status)
+            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
         );
     }
 

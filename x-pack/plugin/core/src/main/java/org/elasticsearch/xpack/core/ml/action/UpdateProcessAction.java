@@ -56,10 +56,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
             return isUpdated;
         }
 
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

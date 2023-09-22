@@ -1,0 +1,5 @@
+pr: 99801
+summary: Feature/allow numeric field exact searches to use docvalues
+area: Search
+type: enhancement
+issues: []

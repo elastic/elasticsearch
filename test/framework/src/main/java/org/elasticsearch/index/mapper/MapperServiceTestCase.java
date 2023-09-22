@@ -652,7 +652,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
-            null,
+            MapperServiceTestCase.this::compileScript,
             parserConfig(),
             writableRegistry(),
             null,

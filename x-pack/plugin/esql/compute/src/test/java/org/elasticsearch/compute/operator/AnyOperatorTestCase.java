@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -95,6 +96,6 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected final DriverContext driverContext() {
-        return new DriverContext(nonBreakingBigArrays());
+        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 }

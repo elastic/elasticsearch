@@ -228,12 +228,18 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
+    public void startRecovery(
+        final IndexShard indexShard,
+        final DiscoveryNode sourceNode,
+        final long clusterStateVersion,
+        final RecoveryListener listener
+    ) {
         final Releasable snapshotFileDownloadsPermit = tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(
             indexShard,
             sourceNode,
+            clusterStateVersion,
             snapshotFilesProvider,
             listener,
             recoverySettings.activityTimeout(),
@@ -319,7 +325,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         recoveryId,
                         indexShard.shardId(),
                         transportService.getLocalNode(),
-                        indexShard.routingEntry().allocationId().getId()
+                        indexShard.routingEntry().allocationId().getId(),
+                        recoveryTarget.clusterStateVersion()
                     ),
                     new ActionListener<>() {
                         @Override
@@ -455,6 +462,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),
             recoveryTarget.sourceNode(),
             localNode,
+            recoveryTarget.clusterStateVersion(),
             metadataSnapshot,
             recoveryTarget.state().getPrimary(),
             recoveryTarget.recoveryId(),

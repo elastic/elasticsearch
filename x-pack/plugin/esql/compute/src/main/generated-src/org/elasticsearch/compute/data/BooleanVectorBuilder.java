@@ -17,7 +17,10 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
 
     private boolean[] values;
 
-    BooleanVectorBuilder(int estimatedSize) {
+    BooleanVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new boolean[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Byte.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
 
     @Override
     public BooleanVector build() {
+        BooleanVector vector;
         if (valueCount == 1) {
-            return new ConstantBooleanVector(values[0], 1);
+            vector = new ConstantBooleanVector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = new BooleanArrayVector(values, valueCount, blockFactory);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new BooleanArrayVector(values, valueCount);
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

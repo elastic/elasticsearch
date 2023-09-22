@@ -32,20 +32,41 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ParentIT extends AbstractParentChildTestCase {
 
-    public void testSimpleParentAgg() throws Exception {
+    public void testSimpleParentAgg() {
         final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+            .setSize(0)
             .setQuery(matchQuery("randomized", true))
-            .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
+            .addAggregation(parent("to_article", "comment"));
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
 
+        assertSearchResponse(searchResponse);
         long articlesWithComment = articleToControl.values()
             .stream()
             .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
             .count();
-
         Parent parentAgg = searchResponse.getAggregations().get("to_article");
+        assertThat(
+            "Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
+            parentAgg.getDocCount(),
+            equalTo(articlesWithComment)
+        );
+    }
+
+
+    public void testSimpleParentAggWithSubAgg() {
+            final SearchRequestBuilder searchRequest = client().prepareSearch("test")
+                .setSize(10000)
+                .setQuery(matchQuery("randomized", true))
+                .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
+            SearchResponse searchResponse = searchRequest.get();
+            assertSearchResponse(searchResponse);
+
+            long articlesWithComment = articleToControl.values()
+                .stream()
+                .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
+                .count();
+
+            Parent parentAgg = searchResponse.getAggregations().get("to_article");
         assertThat(
             "Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
             parentAgg.getDocCount(),

@@ -234,8 +234,13 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
                     if (mode == AggregateExec.Mode.PARTIAL) {
                         aggMode = AggregatorMode.INITIAL;
-                        // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        sourceAttr = List.of(Expressions.attribute(aggregateFunction.field()));
+                        if (aggregateFunction.field() instanceof NamedExpression aggField) {
+                            sourceAttr = List.of(aggField.toAttribute());
+                        } else {
+                            throw new EsqlIllegalArgumentException(
+                                "aggregations only support named expressions like aliases or index fields"
+                            );
+                        }
                     } else if (mode == AggregateExec.Mode.FINAL) {
                         aggMode = AggregatorMode.FINAL;
                         if (grouping) {

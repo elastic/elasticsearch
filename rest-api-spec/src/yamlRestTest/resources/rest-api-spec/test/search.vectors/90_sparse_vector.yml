@@ -124,7 +124,7 @@
         body:
           query:
             exists:
-              field: sparse_vector
+              field: ml.tokens
   - match: { hits.total: 2 }
 
 ---

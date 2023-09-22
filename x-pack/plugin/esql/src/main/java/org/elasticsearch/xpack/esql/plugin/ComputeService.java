@@ -255,7 +255,9 @@ public class ComputeService {
             plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
 
-            LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+            }
             drivers = localExecutionPlan.createDrivers(context.sessionId);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");

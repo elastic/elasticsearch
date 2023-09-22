@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
@@ -117,6 +118,12 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         @Override
         public final String toString() {
             return name() + "Evaluator[field=" + fieldEvaluator + "]";
+        }
+
+        @Override
+        public void close() {
+            // TODO toString allocates - we should probably check breakers there too
+            Releasables.closeExpectNoException(fieldEvaluator);
         }
     }
 }

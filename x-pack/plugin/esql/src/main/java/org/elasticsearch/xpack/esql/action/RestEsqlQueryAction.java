@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,10 +51,8 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = EsqlQueryRequest.fromXContent(parser);
         }
-        // Create some kind of query id so that we can correlate the beginning and the end of a query in the logs.
-        String queryId = UUIDs.base64UUID();
 
-        LOGGER.info("Beginning execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]", queryId, esqlRequest.query());
+        LOGGER.info("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
@@ -64,7 +61,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 esqlRequest,
                 wrapWithLogging(
                     new EsqlResponseListener(channel, request, esqlRequest, responseTimeStopWatch),
-                    queryId,
                     esqlRequest.query(),
                     responseTimeStopWatch
                 )
@@ -77,7 +73,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
      */
     private static ActionListener<EsqlQueryResponse> wrapWithLogging(
         ActionListener<EsqlQueryResponse> listener,
-        String queryId,
         String esqlQuery,
         ThreadSafeStopWatch responseTimeStopWatch
     ) {
@@ -85,8 +80,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             listener.onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
             LOGGER.info(
-                "Finished execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]\nExecution time: [{}]ms",
-                queryId,
+                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
                 esqlQuery,
                 responseTimeStopWatch.stop().getMillis()
             );
@@ -94,12 +88,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = responseTimeStopWatch.stop().getMillis();
             listener.onFailure(ex);
-            LOGGER.info(
-                "Failed execution of ESQL query.\nQuery ID: [{}]\nQuery string: [{}]\nExecution time: [{}]ms",
-                queryId,
-                esqlQuery,
-                timeMillis
-            );
+            LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
         });
     }
 

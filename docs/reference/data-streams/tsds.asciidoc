@@ -56,7 +56,7 @@ documents, the document `_id` is a hash of the document's dimensions and
 * A TSDS uses <<synthetic-source,synthetic `_source`>>, and as a result is
 subject to a number of <<synthetic-source-restrictions,restrictions>>.
 
-Note: a time_series index can have fields that are neither dimmensions nor metrics.
+NOTE: A time series index can contain fields other than dimensions or metrics.
 
 [discrete]
 [[time-series]]

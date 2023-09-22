@@ -83,7 +83,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, ThreadPool.Names.SAME);
+        super(
+            FieldCapabilitiesAction.NAME,
+            transportService,
+            actionFilters,
+            FieldCapabilitiesRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+        );
         this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;

@@ -248,7 +248,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> MlConfigVersion.fromVersion(remoteClusterService.getConnection(cn).getVersion())
+                                (cn) -> MlConfigVersion.fromVersion(remoteClusterService.getConnection(cn).getNode().getVersion())
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }

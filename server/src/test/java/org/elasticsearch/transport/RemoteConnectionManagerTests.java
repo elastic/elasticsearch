@@ -81,8 +81,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         // Test round robin
         Set<Version> versions = new HashSet<>();
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
 
@@ -90,8 +90,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         remoteConnectionManager.getConnection(node1).close();
 
         versions.clear();
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
+        versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
 
         assertThat(versions, hasItems(Version.CURRENT.minimumCompatibilityVersion()));
         assertEquals(1, versions.size());
@@ -154,11 +154,6 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
-        }
-
-        @Override
-        public Version getVersion() {
-            return node.getVersion();
         }
 
         @Override

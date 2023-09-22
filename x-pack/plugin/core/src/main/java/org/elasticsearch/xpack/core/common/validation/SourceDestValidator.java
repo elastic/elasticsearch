@@ -224,7 +224,7 @@ public final class SourceDestValidator {
 
         // convenience method to make testing easier
         public Version getRemoteClusterVersion(String cluster) {
-            return remoteClusterService.getConnection(cluster).getVersion();
+            return remoteClusterService.getConnection(cluster).getNode().getVersion();
         }
 
         private void resolveLocalAndRemoteSource() {

@@ -52,21 +52,20 @@ public class ParentIT extends AbstractParentChildTestCase {
         );
     }
 
-
     public void testSimpleParentAggWithSubAgg() {
-            final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-                .setSize(10000)
-                .setQuery(matchQuery("randomized", true))
-                .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
-            SearchResponse searchResponse = searchRequest.get();
-            assertSearchResponse(searchResponse);
+        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
+            .setSize(10000)
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
+        SearchResponse searchResponse = searchRequest.get();
+        assertSearchResponse(searchResponse);
 
-            long articlesWithComment = articleToControl.values()
-                .stream()
-                .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
-                .count();
+        long articlesWithComment = articleToControl.values()
+            .stream()
+            .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
+            .count();
 
-            Parent parentAgg = searchResponse.getAggregations().get("to_article");
+        Parent parentAgg = searchResponse.getAggregations().get("to_article");
         assertThat(
             "Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
             parentAgg.getDocCount(),

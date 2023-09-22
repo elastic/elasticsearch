@@ -854,7 +854,7 @@ public class AnalyzerTests extends ESTestCase {
         \_Limit[10000[INTEGER]]
           \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
-    public void testImplicitMaxLimitAfterLimitAndNonBreakers() {
+    public void testImplicitMaxLimitAfterLimitAndNonLimit() {
         for (int i = -1; i <= 1; i++) {
             var plan = analyze("from test | limit " + (MAX_LIMIT + i) + " | eval s = salary * 10 | where s > 0");
             var limit = as(plan, Limit.class);
@@ -866,27 +866,19 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testImplicitDefaultLimitAfterBreaker() {
+    public void testImplicitDefaultLimitAfterLimitAndBreaker() {
         for (var breaker : List.of("stats c = count(salary) by last_name", "sort salary")) {
             var plan = analyze("from test | limit 100000 | " + breaker);
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
         }
     }
 
     public void testImplicitDefaultLimitAfterBreakerAndNonBreakers() {
         for (var breaker : List.of("stats c = count(salary) by last_name", "eval c = salary | sort c")) {
-            var plan = analyze("from test | limit 100000 | " + breaker + " | eval cc = c * 10 | where cc > 0");
+            var plan = analyze("from test | " + breaker + " | eval cc = c * 10 | where cc > 0");
             var limit = as(plan, Limit.class);
             assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
-        }
-    }
-
-    public void testImplicitMaxLimitAfterBreakerAndLimit() {
-        for (var breaker : List.of("stats c = count(salary) by last_name", "sort salary")) {
-            var plan = analyze("from test | " + breaker + " | limit 1000000");
-            var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
         }
     }
 

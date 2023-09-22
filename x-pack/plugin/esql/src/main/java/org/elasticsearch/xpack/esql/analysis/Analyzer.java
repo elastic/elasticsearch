@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -615,11 +613,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            List<LogicalPlan> breakers = logicalPlan.collectFirstChildren(PlannerUtils::isPipelineBreaker);
-            LogicalPlan first;
-            // checking for TopN is more correct, though superfluous at this stage, since TopN will only be produced past analysis
-            var limit = breakers.isEmpty() == false && ((first = breakers.get(0)) instanceof Limit || first instanceof TopN)
-                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap that to the max
+            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            var limit = limits.isEmpty() == false
+                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap result entries to the max
                 : context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
             return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }

@@ -131,7 +131,7 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
 
             return restResponse;
         } finally {
-            esqlResponse.close();
+            esqlResponse.close();  // NOCOMMIT this ain't right. We need RestResponse to own the esqlResponse and close when done
         }
     }
 

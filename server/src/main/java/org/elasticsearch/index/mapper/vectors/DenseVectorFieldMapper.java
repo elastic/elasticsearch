@@ -78,7 +78,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
 
     public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;

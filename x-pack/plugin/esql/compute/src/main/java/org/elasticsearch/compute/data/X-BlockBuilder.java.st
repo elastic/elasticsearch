@@ -23,8 +23,6 @@ $endif$
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 
 $if(BytesRef)$
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize) {
@@ -96,7 +94,7 @@ $endif$
 $if(BytesRef)$
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 $endif$
 

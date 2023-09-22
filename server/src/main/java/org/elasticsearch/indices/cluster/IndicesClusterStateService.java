@@ -645,7 +645,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 this::updateGlobalCheckpointForShard,
                 retentionLeaseSyncer,
                 originalState.nodes().getLocalNode(),
-                sourceNode
+                sourceNode,
+                originalState.version()
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1090,10 +1091,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
-         * @return a new shard
+         * @param clusterStateVersion    the cluster state version in which the shard was created
          * @throws IOException if an I/O exception occurs when creating the shard
          */
-        T createShard(
+        void createShard(
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -1102,7 +1103,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             GlobalCheckpointSyncer globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
-            @Nullable DiscoveryNode sourceNode
+            @Nullable DiscoveryNode sourceNode,
+            long clusterStateVersion
         ) throws IOException;
 
         /**

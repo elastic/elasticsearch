@@ -15,6 +15,8 @@
                    type: text
                 ml.tokens:
                    type: sparse_vector
+                embeddings:
+                  type: sparse_vector
 
   - match: { acknowledged: true }
 
@@ -86,7 +88,9 @@
         index: test
         id: "4"
         body:
-          text: "no ml tokens here"
+          text: "other embeddings available only"
+          embeddings:
+            aardvark: 0.5
 
   - match: { result: "created" }
 
@@ -126,6 +130,16 @@
             exists:
               field: ml.tokens
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: embeddings
+  - match: { hits.total: 1 }
 
 ---
 "Sparse vector in 7.x":

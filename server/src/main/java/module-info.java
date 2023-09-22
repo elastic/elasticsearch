@@ -382,8 +382,8 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering;
-    exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
+    exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry.metric;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
@@ -401,6 +401,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
+    uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

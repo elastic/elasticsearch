@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Collections;
@@ -42,13 +43,21 @@ public class DriverContext {
 
     private final BigArrays bigArrays;
 
-    public DriverContext(BigArrays bigArrays) {
+    private final BlockFactory blockFactory;
+
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
         Objects.requireNonNull(bigArrays);
+        Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
     }
 
     public BigArrays bigArrays() {
         return bigArrays;
+    }
+
+    public BlockFactory blockFactory() {
+        return blockFactory;
     }
 
     /** A snapshot of the driver context. */

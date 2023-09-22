@@ -22,7 +22,11 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     private final int[] values;
 
     public IntArrayVector(int[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -78,8 +82,4 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

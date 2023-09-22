@@ -166,7 +166,6 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).forEach(blockBuilder::appendInt);
                 block = blockBuilder.build();
             } else {
-                new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
                 block = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
             }
 

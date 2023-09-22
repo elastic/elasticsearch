@@ -20,7 +20,11 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     private final int value;
 
     public ConstantIntVector(int value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -69,5 +73,10 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

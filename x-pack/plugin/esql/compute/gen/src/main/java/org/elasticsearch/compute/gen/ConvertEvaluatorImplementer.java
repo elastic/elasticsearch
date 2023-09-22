@@ -27,6 +27,7 @@ import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -40,6 +41,7 @@ public class ConvertEvaluatorImplementer {
 
     private final TypeElement declarationType;
     private final ExecutableElement processFunction;
+    private final String extraName;
     private final ClassName implementation;
     private final TypeName argumentType;
     private final TypeName resultType;
@@ -50,6 +52,7 @@ public class ConvertEvaluatorImplementer {
         if (processFunction.getParameters().size() != 1) {
             throw new IllegalArgumentException("processing function should have exactly one parameter");
         }
+        this.extraName = extraName;
         this.argumentType = TypeName.get(processFunction.getParameters().get(0).asType());
         this.resultType = TypeName.get(processFunction.getReturnType());
 
@@ -96,7 +99,7 @@ public class ConvertEvaluatorImplementer {
     private MethodSpec name() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("name").addModifiers(Modifier.PUBLIC);
         builder.addAnnotation(Override.class).returns(String.class);
-        builder.addStatement("return $S", declarationType.getSimpleName());
+        builder.addStatement("return $S", declarationType.getSimpleName() + extraName);
         return builder.build();
     }
 
@@ -164,6 +167,9 @@ public class ConvertEvaluatorImplementer {
                 }
                 builder.endControlFlow();
                 builder.addStatement("nullsMask.set(p)");
+                if (resultType.equals(BYTES_REF)) {
+                    builder.addStatement("values.append($T.NULL_VALUE)", BYTES_REF_BLOCK);
+                }
             }
             builder.endControlFlow();
         }

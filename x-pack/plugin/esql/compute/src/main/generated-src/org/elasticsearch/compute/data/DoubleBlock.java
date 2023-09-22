@@ -158,12 +158,24 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newDoubleBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static DoubleBlock newConstantBlockWith(double value, int positions) {
-        return new ConstantDoubleVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static DoubleBlock newConstantBlockWith(double value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantDoubleBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {

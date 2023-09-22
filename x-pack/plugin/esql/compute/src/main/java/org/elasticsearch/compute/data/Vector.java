@@ -8,11 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * A dense Vector of single values.
  */
-public interface Vector extends Accountable {
+public interface Vector extends Accountable, Releasable {
 
     /**
      * {@return Returns a Block view over this vector.}
@@ -45,6 +46,9 @@ public interface Vector extends Accountable {
      * {@return true iff this vector is a constant vector - returns the same constant value for every position}
      */
     boolean isConstant();
+
+    /** The block factory associated with this vector. */
+    BlockFactory blockFactory();
 
     interface Builder {
         /**

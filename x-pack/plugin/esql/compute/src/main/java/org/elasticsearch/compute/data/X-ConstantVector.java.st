@@ -23,7 +23,11 @@ public final class Constant$Type$Vector extends AbstractVector implements $Type$
     private final $type$ value;
 
     public Constant$Type$Vector($type$ value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -76,5 +80,10 @@ $endif$
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

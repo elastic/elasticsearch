@@ -24,7 +24,18 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     private final long[] values;
 
     public LongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering);
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    }
+
+    public LongArrayBlock(
+        long[] values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.values = values;
     }
 
@@ -58,7 +69,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
             return new LongArrayVector(values, end).asBlock();
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new LongArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+        return new LongArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(long[] values, int[] firstValueIndexes, BitSet nullsMask) {
@@ -94,5 +105,10 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
             + ", values="
             + Arrays.toString(values)
             + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

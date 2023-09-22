@@ -194,7 +194,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
-        return List.of(new GenericNamedWriteableSpec(CartesianBoundingBox.class.getSimpleName(), CartesianBoundingBox::new));
+        return List.of(new GenericNamedWriteableSpec("CartesianBoundingBox", CartesianBoundingBox::new));
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

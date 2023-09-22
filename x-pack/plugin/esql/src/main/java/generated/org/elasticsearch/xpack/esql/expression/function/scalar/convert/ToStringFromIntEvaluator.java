@@ -32,7 +32,7 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromInt";
   }
 
   @Override
@@ -58,6 +58,7 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

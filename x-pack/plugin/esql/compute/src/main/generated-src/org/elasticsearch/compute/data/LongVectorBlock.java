@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a LongVector.
@@ -15,12 +15,10 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class LongVectorBlock extends AbstractVectorBlock implements LongBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongVectorBlock.class);
-
     private final LongVector vector;
 
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -51,7 +49,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -70,5 +68,10 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

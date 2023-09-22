@@ -56,6 +56,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         .build();
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
     private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
@@ -65,6 +66,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
+        transportService = mock(TransportService.class);
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext());
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -91,7 +93,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             clusterService
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService
         );
@@ -137,7 +139,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             clusterService
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService
         );

@@ -508,7 +508,7 @@ from employees | stats c = count(*) by gender | sort gender;
 c:l | gender:s
 33  | F 
 57  | M
-10  | null
+#10  | null
 ;
 
 countAllAndOtherStatGrouped
@@ -517,7 +517,7 @@ from employees | stats c = count(*), min = min(emp_no) by gender | sort gender;
 c:l | min:i    | gender:s
 33  | 10002    | F 
 57  | 10001    | M
-10  | 10010    | null
+#10  | 10010    | null
 ;
 
 countAllWithEval
@@ -526,5 +526,5 @@ from employees | stats min = min(salary) by gender | eval x = min + 1 | stats c 
 c:l | gender:s
 1   | F 
 1   | M
-1   | null
+#1   | null
 ;

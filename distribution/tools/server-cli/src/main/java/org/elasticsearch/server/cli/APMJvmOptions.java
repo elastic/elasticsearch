@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * This class is responsible for working out if APM tracing is configured and if so, preparing
+ * This class is responsible for working out if APM telemetry is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
  * APM doesn't need to be enabled, as that can be toggled at runtime, but some configuration e.g.
  * server URL and secret key can only be provided when Elasticsearch starts.
@@ -128,7 +128,7 @@ class APMJvmOptions {
     );
 
     /**
-     * This method works out if APM tracing is enabled, and if so, prepares a temporary config file
+     * This method works out if APM telemetry is enabled, and if so, prepares a temporary config file
      * for the APM Java agent and CLI options to the JVM to configure APM. The config file is temporary
      * because it will be deleted once Elasticsearch starts.
      *

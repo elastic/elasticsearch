@@ -60,8 +60,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private static final Logger LOGGER = LogManager.getLogger(ExchangeService.class);
 
     private final ThreadPool threadPool;
-    private final String requestExecutorName;
-    private final Executor responseExecutor;
+    private final Executor executor;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> sources = ConcurrentCollections.newConcurrentMap();
@@ -70,22 +69,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName) {
         this.threadPool = threadPool;
-        this.requestExecutorName = executorName;
-        this.responseExecutor = threadPool.executor(executorName);
+        this.executor = threadPool.executor(executorName);
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
-        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.responseExecutor, inactiveInterval);
+        this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.executor, inactiveInterval);
     }
 
     public void registerTransportHandler(TransportService transportService) {
-        transportService.registerRequestHandler(
-            EXCHANGE_ACTION_NAME,
-            threadPool.executor(requestExecutorName),
-            ExchangeRequest::new,
-            new ExchangeTransportAction()
-        );
+        transportService.registerRequestHandler(EXCHANGE_ACTION_NAME, this.executor, ExchangeRequest::new, new ExchangeTransportAction());
         transportService.registerRequestHandler(
             OPEN_EXCHANGE_ACTION_NAME,
-            threadPool.executor(requestExecutorName),
+            this.executor,
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
@@ -257,7 +250,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param remoteNode       the node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, DiscoveryNode remoteNode) {
-        return new TransportRemoteSink(transportService, remoteNode, parentTask, exchangeId, responseExecutor);
+        return new TransportRemoteSink(transportService, remoteNode, parentTask, exchangeId, executor);
     }
 
     record TransportRemoteSink(

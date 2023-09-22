@@ -104,7 +104,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public final Object fold() {
+    public Object fold() {
         return EvaluatorMapper.super.fold();
     }
 

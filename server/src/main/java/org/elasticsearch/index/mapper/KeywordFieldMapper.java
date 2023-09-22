@@ -232,6 +232,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public boolean dimension() {
+            return dimension.getValue();
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
@@ -366,7 +370,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = scriptValues;
-            this.isDimension = builder.dimension.getValue();
+            this.isDimension = builder.dimension();
             this.isSyntheticSource = isSyntheticSource;
         }
 

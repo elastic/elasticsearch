@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -212,13 +213,13 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep *
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
     public void testNoProjection() {
         assertProjection("""
             from test
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
         assertProjectionTypes(
             """
                 from test
@@ -231,6 +232,7 @@ public class AnalyzerTests extends ESTestCase {
             DataTypes.KEYWORD,
             DataTypes.INTEGER,
             DataTypes.KEYWORD,
+            DataTypes.LONG,
             DataTypes.INTEGER
         );
     }
@@ -239,7 +241,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | keep first_name, *, last_name
-            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary", "last_name");
+            """, "first_name", "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "last_name");
     }
 
     public void testProjectThenDropName() {
@@ -271,21 +273,21 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectDropNoStarPattern() {
         assertProjection("""
             from test
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "salary");
+            """, "_meta_field", "emp_no", "gender", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection("""
             from test
             | keep *name, *, emp_no
-            """, "first_name", "last_name", "_meta_field", "gender", "job", "job.raw", "languages", "salary", "emp_no");
+            """, "first_name", "last_name", "_meta_field", "gender", "job", "job.raw", "languages", "long_noidx", "salary", "emp_no");
     }
 
     public void testProjectDropPatternAndKeepOthers() {
@@ -422,7 +424,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | drop *ala*
-            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name");
+            """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx");
     }
 
     public void testDropUnsupportedPattern() {
@@ -490,7 +492,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection("""
             from test
             | rename emp_no as e, first_name as e
-            """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "salary");
+            """, "_meta_field", "e", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
     public void testRenameUnsupportedField() {
@@ -915,36 +917,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateFormatWithNumericFormat() {
         verifyUnsupported("""
             from test
-            | eval date_format(date, 1)
-            """, "second argument of [date_format(date, 1)] must be [string], found value [1] type [integer]");
+            | eval date_format(1, date)
+            """, "first argument of [date_format(1, date)] must be [string], found value [1] type [integer]");
     }
 
     public void testDateFormatWithDateFormat() {
         verifyUnsupported("""
             from test
             | eval date_format(date, date)
-            """, "second argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
+            """, "first argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
     }
 
     public void testDateParseOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_parse(int, keyword)
-            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
+            | eval date_parse(keyword, int)
+            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
     }
 
     public void testDateParseOnDate() {
         verifyUnsupported("""
             from test
-            | eval date_parse(date, keyword)
-            """, "first argument of [date_parse(date, keyword)] must be [string], found value [date] type [datetime]");
+            | eval date_parse(keyword, date)
+            """, "second argument of [date_parse(keyword, date)] must be [string], found value [date] type [datetime]");
     }
 
     public void testDateParseOnIntPattern() {
         verifyUnsupported("""
             from test
-            | eval date_parse(keyword, int)
-            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
+            | eval date_parse(int, keyword)
+            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
     }
 
     public void testDateTruncOnInt() {
@@ -973,6 +975,20 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval date_trunc(1, date)
             """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+    }
+
+    public void testDateExtractWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_extract(date, "year")
+            """, "function definition has been updated, please swap arguments in [date_extract(date, \"year\")]");
+    }
+
+    public void testDateFormatWithSwappedArguments() {
+        verifyUnsupported("""
+            from test
+            | eval date_format(date, "yyyy-MM-dd")
+            """, "function definition has been updated, please swap arguments in [date_format(date, \"yyyy-MM-dd\")]");
     }
 
     public void testDateTruncWithSwappedArguments() {
@@ -1252,6 +1268,24 @@ public class AnalyzerTests extends ESTestCase {
             | keep first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unknown column [id]"));
+    }
+
+    public void testChainedEvalFieldsUse() {
+        var query = "from test | eval x0 = pow(salary, 1), x1 = pow(x0, 2), x2 = pow(x1, 3)";
+        int additionalEvals = randomIntBetween(0, 5);
+        for (int i = 0, j = 3; i < additionalEvals; i++, j++) {
+            query += ", x" + j + " = pow(x" + (j - 1) + ", " + i + ")";
+        }
+        assertProjection(query + " | keep x*", IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new));
+    }
+
+    public void testMissingAttributeException_InChainedEval() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, x1), x4 = concat(x3, x5)
+            | keep x*
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

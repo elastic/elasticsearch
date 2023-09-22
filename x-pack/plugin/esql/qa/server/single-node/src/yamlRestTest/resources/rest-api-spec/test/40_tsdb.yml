@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
           index: test
@@ -84,6 +86,8 @@ load everything:
 ---
 load a document:
   - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
@@ -93,8 +97,8 @@ load a document:
   - match: {values.0.0: "2021-04-28T18:50:23.142Z"}
   - match: {values.0.1: "10.10.55.3"}
   - match: {values.0.2: "dog"}
-  - match: {values.0.3: "<unsupported>"}
-  - match: {values.0.4: "<unsupported>"}
+  - match: {values.0.3: null }
+  - match: {values.0.4: null }
   - match: {values.0.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
   - match: {values.0.6: "pod"}
 

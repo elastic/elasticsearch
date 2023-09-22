@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.internal.VersionExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -152,19 +154,17 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
 
     private static class CurrentHolder {
-        // The below line is different from the main branch, which causes merge conflicts when new index versions get added. This will get
-        // addressed when the latest index version gets computed dynamically based on the registered index versions.
-        private static final IndexVersion CURRENT = findCurrent(UPGRADE_TO_LUCENE_9_8);
+        private static final IndexVersion CURRENT = findCurrent();
 
         // finds the pluggable current version, or uses the given fallback
-        private static IndexVersion findCurrent(IndexVersion fallback) {
-            var versionExtension = VersionExtension.load();
+        private static IndexVersion findCurrent() {
+            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
             if (versionExtension == null) {
-                return fallback;
+                return LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentIndexVersion();
+            var version = versionExtension.getCurrentIndexVersion(LATEST_DEFINED);
 
-            assert version.onOrAfter(fallback);
+            assert version.onOrAfter(LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)
                 : "IndexVersion must be upgraded to ["
                 + Version.LATEST
@@ -177,7 +177,12 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
+    private static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersion.class);
+
+    static final IndexVersion LATEST_DEFINED;
     static {
+        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
+
         // see comment on IDS field
         // now we're registered the index versions, we can clear the map
         IDS = null;
@@ -220,12 +225,6 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
         }
 
         return Collections.unmodifiableNavigableMap(builder);
-    }
-
-    private static final NavigableMap<Integer, IndexVersion> VERSION_IDS;
-
-    static {
-        VERSION_IDS = getAllVersionIds(IndexVersion.class);
     }
 
     static Collection<IndexVersion> getAllVersions() {

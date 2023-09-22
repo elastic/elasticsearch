@@ -117,7 +117,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
                     if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
-                        builder.putTransportVersion(e.getKey(), e.getValue());
+                        builder.putCompatibilityVersions(e.getKey(), e.getValue(), Map.of()); // unknown mappings versions
                         modified = true;
                     }
                 }

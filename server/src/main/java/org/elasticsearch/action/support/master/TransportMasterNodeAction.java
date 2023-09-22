@@ -67,6 +67,33 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected final Executor executor;
 
+    /**
+     * Temporary for serverless compatibility. TODO remove.
+     */
+    protected TransportMasterNodeAction(
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Response> response,
+        String executor
+    ) {
+        this(
+            actionName,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            response,
+            threadPool.executor(executor)
+        );
+    }
+
     protected TransportMasterNodeAction(
         String actionName,
         TransportService transportService,

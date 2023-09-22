@@ -56,15 +56,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         Writeable.Reader<Request> requestReader,
         String executor
     ) {
-        this(
-            actionName,
-            clusterService,
-            transportService,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            transportService.getThreadPool().executor(executor)
-        );
+        this(actionName, clusterService, transportService, shardStateAction, actionFilters, requestReader, transportService.getThreadPool().executor(executor));
     }
 
     protected TransportBroadcastUnpromotableAction(

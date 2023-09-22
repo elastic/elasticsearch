@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
 
@@ -182,9 +181,13 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
                         // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
                         // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
-                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false, false));
-                    extractPath(routingPaths, mapper);
+                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext);
+                    // same logic as in #extractPath
+                    if (mapper instanceof KeywordFieldMapper.Builder kwBuilder) {
+                        if (kwBuilder.dimension()) {
+                            routingPaths.add(kwBuilder.name());
+                        }
+                    }
                 }
             }
             return routingPaths;

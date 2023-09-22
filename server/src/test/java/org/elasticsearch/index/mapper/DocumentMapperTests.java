@@ -278,7 +278,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
+        merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, updatedMapper.mappingParserContext());
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));

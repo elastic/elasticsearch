@@ -57,7 +57,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
         Map<String, List<Mapper.Builder>> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        Mapper mapper = dynamicMappers.get(fieldname).get(0).build(MapperBuilderContext.root(false, false));
+        Mapper mapper = dynamicMappers.get(fieldname).get(0).build(MapperBuilderContext.root(false, false, null));
         assertEquals(fieldname, mapper.name());
         assertEquals(expectedType, mapper.typeName());
     }

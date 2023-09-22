@@ -1057,8 +1057,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             IndexSettings indexSettings = createIndexSettings();
-            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext(indexSettings));
-            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.root(false, false));
+            var parserContext = new MockParserContext(indexSettings);
+            Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, parserContext);
+            FieldMapper mapper = (FieldMapper) builder.build(MapperBuilderContext.root(false, false, parserContext));
 
             MappedFieldType fieldType = mapper.fieldType();
 
@@ -1236,8 +1237,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         iw.addDocument(doc);
     }
 
-    private static class MockParserContext extends MappingParserContext {
-        MockParserContext(IndexSettings indexSettings) {
+    public static class MockParserContext extends MappingParserContext {
+        public MockParserContext(IndexSettings indexSettings) {
             super(
                 null,
                 null,

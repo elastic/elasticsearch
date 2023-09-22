@@ -127,6 +127,10 @@ public final class DocumentParser {
         };
     }
 
+    public MappingParserContext mappingParserContext() {
+        return mappingParserContext;
+    }
+
     private static void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
 
         try {
@@ -245,7 +249,7 @@ public final class DocumentParser {
         return new DocumentParsingException(context.parser().getTokenLocation(), "failed to parse: " + e.getMessage(), e);
     }
 
-    static Mapping createDynamicUpdate(DocumentParserContext context) {
+    private Mapping createDynamicUpdate(DocumentParserContext context) {
         if (context.getDynamicMappers().isEmpty() && context.getDynamicRuntimeFields().isEmpty()) {
             return null;
         }
@@ -255,7 +259,9 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
+        RootObjectMapper root = rootBuilder.build(
+            MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false, mappingParserContext)
+        );
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 

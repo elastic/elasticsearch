@@ -221,7 +221,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 false,
                 IndexVersion.current()
-            ).build(MapperBuilderContext.root(false, false));
+            ).build(MapperBuilderContext.root(false, false, null));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
@@ -235,7 +235,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false, false)),
+                root.build(MapperBuilderContext.root(false, false, null)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );

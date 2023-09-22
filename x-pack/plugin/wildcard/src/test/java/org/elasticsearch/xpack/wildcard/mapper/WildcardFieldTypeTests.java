@@ -19,21 +19,21 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new WildcardFieldMapper.Builder("field", IndexVersion.current()).build(
-            MapperBuilderContext.root(false, false)
+            MapperBuilderContext.root(false, false, null)
         ).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(mapper, true));
 
         MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field", IndexVersion.current()).ignoreAbove(4)
-            .build(MapperBuilderContext.root(false, false))
+            .build(MapperBuilderContext.root(false, false, null))
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
         MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field", IndexVersion.current()).nullValue("NULL")
-            .build(MapperBuilderContext.root(false, false))
+            .build(MapperBuilderContext.root(false, false, null))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }

@@ -35,9 +35,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -222,7 +226,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(
-            MapperBuilderContext.root(false, false)
+            MapperBuilderContext.root(false, false, null)
         ).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(mapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(mapper, 42L));
@@ -232,24 +236,39 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
 
         MappedFieldType ignoreAboveMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).ignoreAbove(4)
-            .build(MapperBuilderContext.root(false, false))
+            .build(MapperBuilderContext.root(false, false, null))
             .fieldType();
         assertEquals(List.of(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(List.of("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(List.of("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder(
-            "field",
-            createIndexAnalyzers(),
-            ScriptCompiler.NONE,
-            IndexVersion.current()
-        ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
+        var settings = indexSettings(IndexVersion.current(), 1, 0).build();
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).normalizer("lowercase")
+            .build(
+                MapperBuilderContext.root(
+                    false,
+                    false,
+                    new MappingParserContext(
+                        null,
+                        null,
+                        null,
+                        IndexVersion.current(),
+                        TransportVersion::current,
+                        null,
+                        ScriptCompiler.NONE,
+                        createIndexAnalyzers(),
+                        new IndexSettings(IndexMetadata.builder("idx").settings(settings).build(), Settings.EMPTY),
+                        null
+                    )
+                )
+            )
+            .fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "value"));
 
         MappedFieldType nullValueMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).nullValue("NULL")
-            .build(MapperBuilderContext.root(false, false))
+            .build(MapperBuilderContext.root(false, false, null))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
     }

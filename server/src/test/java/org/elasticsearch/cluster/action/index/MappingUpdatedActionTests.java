@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,11 +24,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -146,7 +150,21 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false, false)
+            MapperBuilderContext.root(
+                false,
+                false,
+                new AggregatorTestCase.MockParserContext(
+                    new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    )
+                )
+            )
         );
         Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 

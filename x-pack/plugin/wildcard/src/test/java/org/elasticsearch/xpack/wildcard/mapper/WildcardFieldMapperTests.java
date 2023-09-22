@@ -123,16 +123,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
+        wildcardFieldType = builder.build(MapperBuilderContext.root(false, false, null));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.V_7_9_0);
-        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false, false));
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false, false, null));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
             IndexVersion.current()
         );
-        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false, null));
 
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);

@@ -63,7 +63,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
-                MapperBuilderContext.root(false, false)
+                MapperBuilderContext.root(false, false, null)
             );
             MappedFieldType.FielddataOperation fielddataOperation = MappedFieldType.FielddataOperation.SEARCH;
 

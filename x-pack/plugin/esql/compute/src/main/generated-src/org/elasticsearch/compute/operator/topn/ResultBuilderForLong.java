@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 
 class ResultBuilderForLong implements ResultBuilder {
@@ -20,10 +21,10 @@ class ResultBuilderForLong implements ResultBuilder {
      */
     private long key;
 
-    ResultBuilderForLong(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForLong(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = LongBlock.newBlockBuilder(initialSize);
+        this.builder = LongBlock.newBlockBuilder(initialSize, blockFactory);
     }
 
     @Override

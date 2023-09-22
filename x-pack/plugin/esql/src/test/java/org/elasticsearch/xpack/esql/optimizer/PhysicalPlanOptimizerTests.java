@@ -76,13 +76,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -90,6 +88,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
@@ -129,16 +128,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public static List<Object[]> readScriptSpec() {
         return settings().stream().map(t -> {
             var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] {
-                t.v1(),
-                new EsqlConfiguration(
-                    DateUtils.UTC,
-                    Locale.US,
-                    null,
-                    null,
-                    new QueryPragmas(settings),
-                    EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings)
-                ) };
+            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
         }).toList();
     }
 
@@ -1853,7 +1843,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), EvalExec.class);
         var limit = as(eval.child(), LimitExec.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
-        assertThat(limit.limit().fold(), equalTo(10000));
+        assertThat(limit.limit().fold(), equalTo(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)));
         var aggFinal = as(limit.child(), AggregateExec.class);
         assertThat(aggFinal.getMode(), equalTo(AggregateExec.Mode.FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);

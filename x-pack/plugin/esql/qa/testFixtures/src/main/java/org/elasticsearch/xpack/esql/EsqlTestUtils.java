@@ -81,16 +81,21 @@ public final class EsqlTestUtils {
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
-    public static final EsqlConfiguration TEST_CFG = new EsqlConfiguration(
-        DateUtils.UTC,
-        Locale.US,
-        null,
-        null,
-        new QueryPragmas(Settings.EMPTY),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
-    );
+    public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     private EsqlTestUtils() {}
+
+    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+        return new EsqlConfiguration(
+            DateUtils.UTC,
+            Locale.US,
+            null,
+            null,
+            pragmas,
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+        );
+    }
 
     public static Literal L(Object value) {
         return of(value);

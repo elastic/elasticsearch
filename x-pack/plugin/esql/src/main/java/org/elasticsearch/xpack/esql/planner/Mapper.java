@@ -99,7 +99,7 @@ public class Mapper {
             var child = map(ua.child());
             PhysicalPlan plan = null;
             // in case of a fragment, push to it any current streaming operator
-            if (child instanceof FragmentExec && isPipelineBreaker(p) == false) {
+            if (child instanceof FragmentExec && PlannerUtils.isPipelineBreaker(p) == false) {
                 plan = new FragmentExec(p);
             } else {
                 plan = map(ua, child);
@@ -108,10 +108,6 @@ public class Mapper {
         }
 
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
-    }
-
-    private static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
     private PhysicalPlan map(UnaryPlan p, PhysicalPlan child) {

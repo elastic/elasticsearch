@@ -74,7 +74,6 @@ final class BytesRefLongBlockHash extends BlockHash {
         } else {
             new AddBlock(block1, block2, addInput).add();
         }
-        Releasables.closeExpectNoException(block1, block2);
     }
 
     public IntVector add(BytesRefVector vector1, LongVector vector2) {

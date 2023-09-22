@@ -107,6 +107,15 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
         }
 
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            // No support for exists queries prior to this version
+            if (context.getIndexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
+                throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
+            }
+            return super.existsQuery(context);
+        }
+
         private static String indexedValueForSearch(Object value) {
             if (value instanceof BytesRef) {
                 return ((BytesRef) value).utf8ToString();
@@ -156,7 +165,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         String feature = null;
-        float value = 0;
+        boolean wroteField = false;
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
@@ -172,13 +181,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
                     final String key = name() + "." + feature;
-                    value = context.parser().floatValue(true);
+                    float value = context.parser().floatValue(true);
                     if (context.doc().getByKey(key) != null) {
                         throw new IllegalArgumentException(
                             "[sparse_vector] fields do not support indexing multiple values for the same feature ["
                                 + key
                                 + "] in the same document"
                         );
+                    }
+                    if (wroteField == false) {
+                        wroteField = true;
                     }
                     context.doc().addWithKey(key, new FeatureField(name(), feature, value));
                 } else {

@@ -71,7 +71,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
                 actionFilters,
                 resolver,
                 PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;

@@ -20,7 +20,11 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
     private final double value;
 
     public ConstantDoubleVector(double value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -73,6 +77,6 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public void close() {
-        // no-op
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

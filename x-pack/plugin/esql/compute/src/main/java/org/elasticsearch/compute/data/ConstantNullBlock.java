@@ -22,8 +22,13 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
 
+    // Eventually, this should use the GLOBAL breaking instance
     ConstantNullBlock(int positionCount) {
-        super(positionCount);
+        this(positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
     }
 
     @Override
@@ -121,7 +126,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public void close() {
-        // no-op
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {

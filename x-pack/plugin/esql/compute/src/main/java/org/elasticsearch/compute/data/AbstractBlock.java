@@ -21,12 +21,15 @@ abstract class AbstractBlock implements Block {
     @Nullable
     protected final BitSet nullsMask;
 
+    protected final BlockFactory blockFactory;
+
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractBlock(int positionCount) {
+    protected AbstractBlock(int positionCount, BlockFactory blockFactory) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
         this.firstValueIndexes = null;
         this.nullsMask = null;
     }
@@ -34,9 +37,10 @@ abstract class AbstractBlock implements Block {
     /**
      * @param positionCount the number of values in this block
      */
-    protected AbstractBlock(int positionCount, @Nullable int[] firstValueIndexes, @Nullable BitSet nullsMask) {
+    protected AbstractBlock(int positionCount, @Nullable int[] firstValueIndexes, @Nullable BitSet nullsMask, BlockFactory blockFactory) {
         assert positionCount >= 0;
         this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
         this.firstValueIndexes = firstValueIndexes;
         this.nullsMask = nullsMask == null || nullsMask.isEmpty() ? null : nullsMask;
         assert (firstValueIndexes == null && this.nullsMask == null) == false;
@@ -84,5 +88,10 @@ abstract class AbstractBlock implements Block {
     @Override
     public boolean areAllValuesNull() {
         return nullValuesCount() == getPositionCount();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
     }
 }

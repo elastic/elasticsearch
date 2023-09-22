@@ -50,7 +50,7 @@ tasks.named('stringTemplates').configure {
   var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
   var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Boolean.BYTES")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {

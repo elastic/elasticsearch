@@ -18,6 +18,4 @@ set JOB_BRANCH=%BUILDKITE_BRANCH%
 set GRADLE_BUILD_CACHE_USERNAME=vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache
 set GRADLE_BUILD_CACHE_PASSWORD=vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache
 
-bash.exe .buildkite\scripts\util\init-annotations.sh
-
 exit /b 0

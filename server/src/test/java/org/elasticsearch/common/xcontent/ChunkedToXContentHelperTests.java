@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.util.Iterator;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkedToXContentHelperTests extends ESTestCase {
@@ -38,7 +39,7 @@ public class ChunkedToXContentHelperTests extends ESTestCase {
 
         var expectedContent = Strings.toString(outerXContent);
 
-        ChunkedToXContent innerChunkedContent = params -> Iterators.concat(
+        ChunkedToXContentObject innerChunkedContent = params -> Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             ChunkedToXContentHelper.field("field1", 10),
             ChunkedToXContentHelper.field("field2", "aaa"),
@@ -47,7 +48,7 @@ public class ChunkedToXContentHelperTests extends ESTestCase {
 
         ChunkedToXContent outerChunkedContent = params -> Iterators.concat(
             ChunkedToXContentHelper.field("field3", 10),
-            ChunkedToXContentHelper.field("field4", innerChunkedContent)
+            ChunkedToXContentHelper.field("field4", innerChunkedContent, EMPTY_PARAMS)
         );
 
         assertThat(Strings.toString(outerChunkedContent), equalTo(expectedContent));
@@ -73,7 +74,7 @@ public class ChunkedToXContentHelperTests extends ESTestCase {
 
         IntFunction<Iterator<ToXContent>> value = v -> Iterators.single(((builder, p) -> builder.value(v)));
 
-        ChunkedToXContent innerChunkedContent = params -> Iterators.concat(
+        ChunkedToXContentObject innerChunkedContent = params -> Iterators.concat(
             ChunkedToXContentHelper.startArray(),
             value.apply(10),
             value.apply(20),
@@ -82,7 +83,34 @@ public class ChunkedToXContentHelperTests extends ESTestCase {
 
         ChunkedToXContent outerChunkedContent = params -> Iterators.concat(
             ChunkedToXContentHelper.field("field3", 10),
-            ChunkedToXContentHelper.field("field4", innerChunkedContent)
+            ChunkedToXContentHelper.field("field4", innerChunkedContent, EMPTY_PARAMS)
+        );
+
+        assertThat(Strings.toString(outerChunkedContent), equalTo(expectedContent));
+    }
+
+    public void testFieldWithInnerChunkedField() {
+
+        ToXContent innerXContent = (builder, p) -> {
+            builder.value(10);
+            return builder;
+        };
+
+        ToXContent outerXContent = (builder, p) -> {
+            builder.field("field3", 10);
+            builder.field("field4", innerXContent);
+            return builder;
+        };
+
+        var expectedContent = Strings.toString(outerXContent);
+
+        IntFunction<Iterator<ToXContent>> value = v -> Iterators.single(((builder, p) -> builder.value(v)));
+
+        ChunkedToXContentObject innerChunkedContent = params -> Iterators.single((builder, p) -> builder.value(10));
+
+        ChunkedToXContent outerChunkedContent = params -> Iterators.concat(
+            ChunkedToXContentHelper.field("field3", 10),
+            ChunkedToXContentHelper.field("field4", innerChunkedContent, EMPTY_PARAMS)
         );
 
         assertThat(Strings.toString(outerChunkedContent), equalTo(expectedContent));

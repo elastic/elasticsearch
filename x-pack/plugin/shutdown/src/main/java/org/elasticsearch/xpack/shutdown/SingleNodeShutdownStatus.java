@@ -133,19 +133,23 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
             );
             builder.field(STATUS.getPreferredName(), overallStatus());
             return builder;
-        }), ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus), singleChunk((builder, p) -> {
-            builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
-            builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
-            if (metadata.getTargetNodeName() != null) {
-                builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
-            }
-            if (metadata.getGracePeriod() != null) {
-                builder.timeField(
-                    SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
-                    metadata.getGracePeriod().getStringRep()
-                );
-            }
-            return builder;
-        }), endObject());
+        }),
+            ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus, params),
+            singleChunk((builder, p) -> {
+                builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
+                builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
+                if (metadata.getTargetNodeName() != null) {
+                    builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
+                }
+                if (metadata.getGracePeriod() != null) {
+                    builder.timeField(
+                        SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
+                        metadata.getGracePeriod().getStringRep()
+                    );
+                }
+                return builder;
+            }),
+            endObject()
+        );
     }
 }

@@ -32,6 +32,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -396,8 +398,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
+            SourceLoader loader = newSourceLoader(false);
             SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
-                throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode");
+                int[] docs = new int[] { doc };
+                LeafStoredFieldLoader leafStoredFieldLoader = (loader.requiredStoredFields().isEmpty())
+                    ? StoredFieldLoader.empty().getLoader(ctx, docs)
+                    : StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(ctx, docs);
+                return loader.leaf((ctx == null) ? null : ctx.reader(), docs).source(leafStoredFieldLoader, doc);
             } : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }

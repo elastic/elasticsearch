@@ -12,6 +12,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -388,18 +389,22 @@ public class SearchExecutionContextTests extends ESTestCase {
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
+        assertTrue(sec.isSourceSynthetic());
 
-        // Attempting to access synthetic source via this context should throw an error
+        MemoryIndex mi = new MemoryIndex();
+        mi.addField(new StringField("unloaded", "value", Field.Store.YES), null);
+        LeafReaderContext leafReaderContext = mi.createSearcher().getIndexReader().leaves().get(0);
+
         SearchLookup searchLookup = sec.lookup();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> searchLookup.getSource(null, 0));
-        assertThat(e.getMessage(), equalTo("Cannot access source from scripts in synthetic mode"));
+        assertNotNull(searchLookup.getSource(null, 0));
+        assertNotNull(searchLookup.getSource(leafReaderContext, 0));
 
         // Setting the source provider explicitly then gives us a new SearchLookup that can use source
-        Source source = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        sec.setLookupProviders((ctx, doc) -> source, LeafFieldLookupProvider.fromStoredFields());
+        Source source1 = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
+        sec.setLookupProviders((ctx, doc) -> source1, LeafFieldLookupProvider.fromStoredFields());
         SearchLookup searchLookup1 = sec.lookup();
         assertNotSame(searchLookup, searchLookup1);
-        assertSame(source, searchLookup1.getSource(null, 0));
+        assertSame(source1, searchLookup1.getSource(null, 0));
 
     }
 

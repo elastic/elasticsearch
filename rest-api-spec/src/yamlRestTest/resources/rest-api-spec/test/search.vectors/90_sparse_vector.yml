@@ -176,7 +176,7 @@
 ---
 "Sparse vector in 8.x":
   - skip:
-      version: "8.11.0 - "
+      version: " - 7.99.99, 8.11.0 - "
       reason: "sparse_vector field type not supported in 8.x until 8.11.0"
   - do:
       catch: /The \[sparse_vector\] field type .* supported/

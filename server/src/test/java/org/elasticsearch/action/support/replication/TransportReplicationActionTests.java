@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -1504,7 +1505,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 forceExecute
             );

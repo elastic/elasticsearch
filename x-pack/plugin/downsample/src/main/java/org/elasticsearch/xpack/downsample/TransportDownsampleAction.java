@@ -736,7 +736,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
          * We should note that there is a risk of losing a node during the downsample process. In this
          * case downsample will fail.
          */
-        int numberOfReplicas = settings.getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS, 0);
+        int numberOfReplicas = settings.getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())

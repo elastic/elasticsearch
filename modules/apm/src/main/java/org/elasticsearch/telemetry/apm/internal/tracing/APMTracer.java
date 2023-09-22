@@ -150,7 +150,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -424,6 +423,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
+    // TODO(stu): remove
+    APMServices getServices() {
+        return services;
+    }
+
     private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
@@ -452,4 +456,5 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
 }

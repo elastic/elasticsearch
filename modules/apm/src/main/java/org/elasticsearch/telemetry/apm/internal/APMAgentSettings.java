@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMetric;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.security.AccessController;
@@ -40,14 +41,21 @@ public class APMAgentSettings {
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
      * config file, as then their values could not be overridden dynamically via system properties.
      */
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
+    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
+        "transaction_sample_rate",
+        "0.2",
+        "enable_experimental_instrumentations",
+        "true"
+    );
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMMetric apmMetric = apmTelemetryProvider.getMetric();
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
+            apmMetric.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));

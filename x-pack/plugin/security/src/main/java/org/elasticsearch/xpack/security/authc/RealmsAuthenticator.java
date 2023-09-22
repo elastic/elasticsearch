@@ -104,7 +104,7 @@ class RealmsAuthenticator implements Authenticator {
                 }
             }
         } catch (Exception e) {
-            logger.warn("An exception occurred while attempting to find authentication credentials", e);
+            logger.debug("An exception occurred while attempting to find authentication credentials", e);
             throw context.getRequest().exceptionProcessingRequest(e, null);
         }
         if (context.getUnlicensedRealms().isEmpty() == false) {
@@ -167,7 +167,7 @@ class RealmsAuthenticator implements Authenticator {
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             final var resultException = result.getException();
                             if (resultException != null) {
-                                logger.info(
+                                logger.debug(
                                     () -> format(
                                         "Authentication of [%s] was terminated by realm [%s] - %s",
                                         authenticationToken.principal(),
@@ -178,7 +178,7 @@ class RealmsAuthenticator implements Authenticator {
                                 );
                                 userListener.onFailure(resultException);
                             } else {
-                                logger.info(
+                                logger.debug(
                                     "Authentication of [{}] was terminated by realm [{}] - {}",
                                     authenticationToken.principal(),
                                     realm.name(),
@@ -194,7 +194,7 @@ class RealmsAuthenticator implements Authenticator {
                         }
                     }
                 }, (ex) -> {
-                    logger.warn(
+                    logger.debug(
                         () -> format(
                             "An error occurred while attempting to authenticate [%s] against realm [%s]",
                             authenticationToken.principal(),
@@ -259,7 +259,7 @@ class RealmsAuthenticator implements Authenticator {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
             final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
-            logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
+            logger.debug("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
         });
         if (context.getUnlicensedRealms().isEmpty() == false) {
             logger.warn(

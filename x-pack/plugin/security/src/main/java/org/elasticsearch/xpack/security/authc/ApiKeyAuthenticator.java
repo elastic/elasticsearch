@@ -65,12 +65,12 @@ class ApiKeyAuthenticator implements Authenticator {
             } else {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
-                        logger.warn(
+                        logger.debug(
                             () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
                             authResult.getException()
                         );
                     } else {
-                        logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                        logger.debug("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
                 listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));

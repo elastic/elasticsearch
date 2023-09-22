@@ -108,7 +108,7 @@ public class IndexVersionTests extends ESTestCase {
                 );
 
                 Matcher matcher;
-                if ("UPGRADE_TO_LUCENE_9_8".equals(field.getName())) {
+                if ("UPGRADE_TO_LUCENE_9_9".equals(field.getName())) {
                     // OK
                 } else if ((matcher = historicalVersion.matcher(field.getName())).matches()) {
                     // old-style version constant

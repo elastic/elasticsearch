@@ -10,10 +10,12 @@ grant {
     permission java.lang.RuntimePermission "accessSystemModules";
     permission java.lang.RuntimePermission "createClassLoader";
     permission java.lang.RuntimePermission "getClassLoader";
-    permission java.util.PropertyPermission "elastic.apm.*", "write";
+    permission java.util.PropertyPermission "*", "read,write";
+
 };
 
 grant codeBase "${codebase.elastic-apm-agent}" {
+
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.lang.RuntimePermission "setContextClassLoader";
     permission java.lang.RuntimePermission "setFactory";

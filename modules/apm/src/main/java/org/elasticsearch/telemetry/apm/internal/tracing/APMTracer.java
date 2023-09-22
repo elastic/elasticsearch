@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.tracing;
+package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -43,10 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.settings.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
@@ -150,7 +150,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -424,6 +423,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
+    // TODO(stu): remove
+    APMServices getServices() {
+        return services;
+    }
+
     private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
@@ -452,4 +456,5 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
 }

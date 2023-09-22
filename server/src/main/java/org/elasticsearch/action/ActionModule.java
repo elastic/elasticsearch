@@ -457,7 +457,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 
@@ -522,7 +522,7 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         ClusterService clusterService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension
@@ -563,12 +563,24 @@ public class ActionModule extends AbstractModule {
         var customController = getRestServerComponent(
             "REST controller",
             actionPlugins,
-            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer)
+            restPlugin -> restPlugin.getRestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider.getTracer()
+            )
         );
         if (customController != null) {
             restController = customController;
         } else {
-            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+            restController = new RestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider.getTracer()
+            );
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
         this.restExtension = restExtension;

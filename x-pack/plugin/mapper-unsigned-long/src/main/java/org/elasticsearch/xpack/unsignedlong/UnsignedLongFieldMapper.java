@@ -269,19 +269,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            long lowerValue = Long.MAX_VALUE;
-            long upperValue = Long.MIN_VALUE;
             for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
-                    long currentValue = unsignedToSortableSignedLong(longValue);
-                    lvalues[upTo++] = currentValue;
-                    if (currentValue > upperValue) {
-                        upperValue = currentValue;
-                    }
-                    if (currentValue < lowerValue) {
-                        lowerValue = currentValue;
-                    }
+                    lvalues[upTo++] = unsignedToSortableSignedLong(longValue);
                 }
             }
             if (upTo == 0) {
@@ -292,11 +283,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             Query query = LongPoint.newSetQuery(name(), lvalues);
             if (super.hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), lowerValue, upperValue);
+                Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery(name(), lvalues);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
-                if (context.indexSortedOnField(name())) {
-                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), lowerValue, upperValue, query);
-                }
             }
             return query;
         }

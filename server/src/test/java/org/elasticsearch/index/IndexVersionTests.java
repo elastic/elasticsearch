@@ -203,7 +203,7 @@ public class IndexVersionTests extends ESTestCase {
         IndexVersion currentVersion = IndexVersion.current();
         int intermediateVersionId = previousVersion.id() + randomInt(currentVersion.id() - previousVersion.id() - 1);
         IndexVersion intermediateVersion = IndexVersion.fromId(intermediateVersionId);
-        assertFalse(IndexVersionUtils.allReleasedVersions().contains(intermediateVersion));
+assertThat(IndexVersionUtils.allReleasedVersions(), not(hasItem(intermediateVersion)));
         // the version is not known, we make an assumption the Lucene version stays the same as the previous version
         assertThat(intermediateVersion.luceneVersion(), equalTo(previousVersion.luceneVersion()));
 

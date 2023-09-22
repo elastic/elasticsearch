@@ -14,7 +14,7 @@
           index_patterns: [events-*]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: {}
 
   - do:
@@ -88,7 +88,7 @@
           index_patterns: [ log-* ]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: { }
 
   - do:
@@ -168,7 +168,7 @@
           index_patterns: [ log-* ]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: { }
 
   - do:
@@ -210,7 +210,7 @@
           index_patterns: [ log-* ]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: { }
 
   - do:

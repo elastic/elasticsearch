@@ -10,7 +10,7 @@ setup:
           index_patterns: [simple-data-stream1]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: {}
 
   - do:
@@ -42,6 +42,10 @@ setup:
       indices.create_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:
@@ -570,13 +574,17 @@ setup:
             managed: true
           template:
             settings:
-              number_of_replicas: 0
+              number_of_replicas: 1
           data_stream: {}
 
   - do:
       indices.create_data_stream:
         name: logs-foobar
   - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:

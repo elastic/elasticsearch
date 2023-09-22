@@ -22,7 +22,7 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     private final BytesRefVector vector;
 
     FilterBytesRefVector(BytesRefVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
     }
 
@@ -89,6 +89,11 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
             }
             sb.append(getBytesRef(i, new BytesRef()));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

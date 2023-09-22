@@ -22,7 +22,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -77,7 +77,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {
@@ -96,7 +96,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 namedWriteableRegistry,
                 expressionResolver,
                 repositoriesServiceSupplier,
-                tracer,
+                telemetryProvider,
                 allocationService,
                 indicesService
             );

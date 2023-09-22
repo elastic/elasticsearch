@@ -17,7 +17,10 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
 
     private long[] values;
 
-    LongVectorBuilder(int estimatedSize) {
+    LongVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new long[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Long.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
 
     @Override
     public LongVector build() {
+        LongVector vector;
         if (valueCount == 1) {
-            return new ConstantLongVector(values[0], 1);
+            vector = new ConstantLongVector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = new LongArrayVector(values, valueCount, blockFactory);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new LongArrayVector(values, valueCount);
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

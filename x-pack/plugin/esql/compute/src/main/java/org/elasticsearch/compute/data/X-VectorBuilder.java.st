@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import java.util.Arrays;
@@ -25,18 +26,22 @@ final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$V
 $if(BytesRef)$
     private BytesRefArray values;
 
-    BytesRefVectorBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
 $else$
     private $type$[] values;
 
-    $Type$VectorBuilder(int estimatedSize) {
+    $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new $type$[Math.max(estimatedSize, 2)];
     }
 $endif$
@@ -51,6 +56,11 @@ $else$
 $endif$
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
     }
 
     @Override
@@ -73,17 +83,24 @@ $endif$
 
     @Override
     public $Type$Vector build() {
+        $Type$Vector vector;
         if (valueCount == 1) {
 $if(BytesRef)$
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
-        }
+            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            Releasables.closeExpectNoException(values);
+        } else {
+            estimatedBytes = values.ramBytesUsed();
 $else$
-            return new Constant$Type$Vector(values[0], 1);
-        }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
+            vector = new Constant$Type$Vector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
 $endif$
-        return new $Type$ArrayVector(values, valueCount);
+            vector = new $Type$ArrayVector(values, valueCount, blockFactory);
+        }
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

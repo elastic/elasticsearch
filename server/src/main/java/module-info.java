@@ -399,6 +399,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
+    uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

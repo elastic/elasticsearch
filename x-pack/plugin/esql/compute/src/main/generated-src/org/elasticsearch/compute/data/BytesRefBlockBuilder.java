@@ -17,8 +17,6 @@ import org.elasticsearch.common.util.BytesRefArray;
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
     BytesRefBlockBuilder(int estimatedSize) {
@@ -69,7 +67,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 
     /**

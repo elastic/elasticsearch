@@ -158,7 +158,7 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
     }
 
     /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, this should use the GLOBAL breaking instance
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
         return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
@@ -168,7 +168,7 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
     }
 
     /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, this should use the GLOBAL breaking instance
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static BooleanBlock newConstantBlockWith(boolean value, int positions) {
         return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }

@@ -143,7 +143,7 @@ $endif$
     }
 
     /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, this should use the GLOBAL breaking instance
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }

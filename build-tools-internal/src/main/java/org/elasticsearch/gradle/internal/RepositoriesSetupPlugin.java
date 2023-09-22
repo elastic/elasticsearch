@@ -59,5 +59,12 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
                 exclusiveRepo.forRepositories(luceneRepo);
             });
         }
+        // TODO: Temporary for Lucene RC builds. REMOVE
+        MavenArtifactRepository luceneRCRepo = repos.maven(repo -> {
+            repo.setName("lucene-rc");
+            repo.setUrl(
+                "https://dist.apache.org/repos/dist/dev/lucene/lucene-9.8.0-RC1-rev-d914b3722bd5b8ef31ccf7e8ddc638a87fd648db/lucene/maven"
+            );
+        });
     }
 }

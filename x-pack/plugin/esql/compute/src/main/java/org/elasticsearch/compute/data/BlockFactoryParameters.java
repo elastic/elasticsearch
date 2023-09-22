@@ -10,6 +10,11 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 
+/**
+ * Allows to inject instances of a breaker and bigArrays into the Global block factory.
+ * The Global factory is somewhat temporary, therefore this interface and its ServiceLoader
+ * machinery can be removed once the Global factory is removed.
+ */
 public interface BlockFactoryParameters {
 
     CircuitBreaker breaker();

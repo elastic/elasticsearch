@@ -54,7 +54,7 @@ import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -349,7 +349,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {
@@ -365,7 +365,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
                 namedWriteableRegistry,
                 indexNameExpressionResolver,
                 repositoriesServiceSupplier,
-                tracer,
+                telemetryProvider,
                 allocationService,
                 indicesService
             );

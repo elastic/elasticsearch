@@ -66,6 +66,11 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("version", nodeInfo.getVersion());
             builder.field("transport_version", nodeInfo.getTransportVersion().id());
             builder.field("index_version", nodeInfo.getIndexVersion().id());
+            builder.startObject("component_versions");
+            for (var cv : nodeInfo.getComponentVersions().entrySet()) {
+                builder.field(cv.getKey(), cv.getValue());
+            }
+            builder.endObject();
             builder.field("build_flavor", nodeInfo.getBuild().flavor());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
             builder.field("build_hash", nodeInfo.getBuild().hash());

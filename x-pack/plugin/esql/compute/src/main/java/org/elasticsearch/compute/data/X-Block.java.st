@@ -23,6 +23,10 @@ import java.io.IOException;
  */
 public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
 
+$if(BytesRef)$
+    BytesRef NULL_VALUE = new BytesRef();
+
+$endif$
     /**
      * Retrieves the $type$ value stored at the given value index.
      *

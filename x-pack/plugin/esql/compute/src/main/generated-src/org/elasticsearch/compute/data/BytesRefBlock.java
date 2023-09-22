@@ -20,6 +20,8 @@ import java.io.IOException;
  */
 public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
 
+    BytesRef NULL_VALUE = new BytesRef();
+
     /**
      * Retrieves the BytesRef value stored at the given value index.
      *

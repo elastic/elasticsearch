@@ -13,11 +13,6 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
-test {
-  // CI doesn't like it when there's multiple clusters running at once
-  maxParallelForks = 1
-}
-
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

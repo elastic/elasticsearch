@@ -135,7 +135,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();
 
-        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 

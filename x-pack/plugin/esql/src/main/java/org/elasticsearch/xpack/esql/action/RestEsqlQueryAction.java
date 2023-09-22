@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.logging.LogManager;
@@ -44,9 +43,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // Measure response time beginning with now; also use this for logging.
-        ThreadSafeStopWatch responseTimeStopWatch = new ThreadSafeStopWatch();
-
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             esqlRequest = EsqlQueryRequest.fromXContent(parser);
@@ -59,37 +55,9 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             cancellableClient.execute(
                 EsqlQueryAction.INSTANCE,
                 esqlRequest,
-                wrapWithLogging(
-                    new EsqlResponseListener(channel, request, esqlRequest, responseTimeStopWatch),
-                    esqlRequest.query(),
-                    responseTimeStopWatch
-                )
+                new EsqlResponseListener(channel, request, esqlRequest).wrapWithLogging()
             );
         };
-    }
-
-    /**
-     * Log the execution time and query when handling an ESQL response.
-     */
-    private static ActionListener<EsqlQueryResponse> wrapWithLogging(
-        ActionListener<EsqlQueryResponse> listener,
-        String esqlQuery,
-        ThreadSafeStopWatch responseTimeStopWatch
-    ) {
-        return ActionListener.wrap(r -> {
-            listener.onResponse(r);
-            // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info(
-                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
-                esqlQuery,
-                responseTimeStopWatch.stop().getMillis()
-            );
-        }, ex -> {
-            // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = responseTimeStopWatch.stop().getMillis();
-            listener.onFailure(ex);
-            LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
-        });
     }
 
     @Override

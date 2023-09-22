@@ -33,7 +33,6 @@ abstract class AbstractVectorBuilder {
             return;
         }
         int newSize = calculateNewArraySize(valuesLength);
-        // TODO: bytes ref
         adjustBreaker((long) (newSize - valuesLength) * elementSize());
         growValuesArray(newSize);
     }

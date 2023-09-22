@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
@@ -311,7 +312,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     public void testLongTerm() throws IOException {
         String longTerm = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format("""
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format(Locale.getDefault(), """
             { "terms" : { "foo" : [ "q", "%s" ] } }""", longTerm)));
         assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
     }

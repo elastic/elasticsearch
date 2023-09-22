@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -232,7 +233,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     public void testLongTerm() throws IOException {
         String longTerm = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format("""
+        Exception e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format(Locale.ROOT, """
             { "term" : { "foo" : "%s" } }""", longTerm)));
         assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
     }

@@ -41,7 +41,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLette
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.elasticsearch.upgrades.UpgradeWithOldIndexSettingsIT.updateIndexSettingsPermittingSlowlogDeprecationWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -746,5 +745,24 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
+    }
+
+    /*
+     * Copied from UpgradeWithOldIndexSettingsIT in the new format
+     */
+    private static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_17_9)) {
+            // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
+            // Below warnings are set (and leaking) from an index in this test case
+            request.setOptions(expectVersionSpecificWarnings(v -> {
+                v.compatible(
+                    "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                );
+            }));
+        }
+        client().performRequest(request);
     }
 }

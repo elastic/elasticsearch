@@ -82,8 +82,4 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 
-    @Override
-    public void close() {
-        super.close();
-    }
 }

@@ -82,8 +82,4 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 
-    @Override
-    public void close() {
-        super.close();
-    }
 }

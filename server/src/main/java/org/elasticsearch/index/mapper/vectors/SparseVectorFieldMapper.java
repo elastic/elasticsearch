@@ -189,7 +189,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     );
                 }
             }
-            if (value > 0) context.addToFieldNames(fieldType().name());
+            if (wroteField) {
+                context.addToFieldNames(fieldType().name());
+            }
         } finally {
             context.path().setWithinLeafObject(false);
         }

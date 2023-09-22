@@ -27,8 +27,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -84,7 +84,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
         versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
 
-        assertThat(versions, hasItems(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
+        assertThat(versions, containsInAnyOrder(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
 
         // Test that the connection is cleared from the round robin list when it is closed
         remoteConnectionManager.getConnection(node1).close();
@@ -93,8 +93,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
         versions.add(remoteConnectionManager.getConnection(node4).getNode().getVersion());
 
-        assertThat(versions, hasItems(Version.CURRENT.minimumCompatibilityVersion()));
-        assertEquals(1, versions.size());
+        assertThat(versions, containsInAnyOrder(Version.CURRENT.minimumCompatibilityVersion()));
     }
 
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {

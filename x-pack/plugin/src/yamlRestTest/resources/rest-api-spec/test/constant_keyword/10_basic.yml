@@ -418,8 +418,8 @@ setup:
 ---
 Cardinality agg:
   - skip:
-      version: " - 7.6.99"
-      reason: "constant_keyword was added in 7.7"
+      version: " - 7.6.99, 8.9.00 - 8.10.99"
+      reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
 
   - do:
       indices.create:

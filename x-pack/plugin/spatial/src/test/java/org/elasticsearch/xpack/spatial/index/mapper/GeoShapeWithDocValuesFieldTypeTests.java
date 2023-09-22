@@ -44,7 +44,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             geoFormatterFactory
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false, null)).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
@@ -99,13 +99,14 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
         );
 
+        boolean isSourceSynthetic = randomBoolean();
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
             false,
             false,
             geoFormatterFactory
-        ).setStored(true).build(MapperBuilderContext.root(randomBoolean(), false)).fieldType();
+        ).setStored(true).build(MapperBuilderContext.root(isSourceSynthetic, false, null)).fieldType();
 
         ByteOrder byteOrder = randomBoolean() ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN;
 
@@ -149,7 +150,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             geoFormatterFactory
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false, null)).fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);
         int y = randomIntBetween(0, (1 << z) - 1);
@@ -261,7 +262,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             geoFormatterFactory
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false, null)).fieldType();
 
         assertEquals(List.of(jsonValue), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktValue), fetchSourceValue(mapper, sourceValue, "wkt"));
@@ -277,7 +278,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             geoFormatterFactory
-        ).setStored(true).build(MapperBuilderContext.root(false, false)).fieldType();
+        ).setStored(true).build(MapperBuilderContext.root(false, false, null)).fieldType();
 
         Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(false), false, wktValue);
 
@@ -297,7 +298,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             geoFormatterFactory
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        ).build(MapperBuilderContext.root(false, false, null)).fieldType();
 
         final int extent = randomIntBetween(256, 4096);
         List<?> mvtExpected = fetchSourceValue(mapper, mvtEquivalentAsWKT, "mvt(0/0/0@" + extent + ")");

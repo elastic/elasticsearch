@@ -300,7 +300,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         int i = fieldTypes.length;
         result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-            .build(MapperBuilderContext.root(false, false))
+            .build(MapperBuilderContext.root(false, false, null))
             .fieldType();
         result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
         assert i == result.length;

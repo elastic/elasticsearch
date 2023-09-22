@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -156,7 +157,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
+                return builder.build(MapperBuilderContext.root(false, false, new AggregatorTestCase.MockParserContext(indexSettings)))
+                    .fieldType();
             }
         };
 
@@ -218,7 +220,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
-                return builder.build(MapperBuilderContext.root(false, false)).fieldType();
+                return builder.build(MapperBuilderContext.root(false, false, new AggregatorTestCase.MockParserContext(idxSettings)))
+                    .fieldType();
             }
         };
 

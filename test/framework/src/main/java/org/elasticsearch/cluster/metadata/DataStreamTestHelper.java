@@ -478,7 +478,7 @@ public final class DataStreamTestHelper {
             ScriptCompiler.NONE,
             false,
             IndexVersion.current()
-        ).build(MapperBuilderContext.root(false, true));
+        ).build(MapperBuilderContext.root(false, true, null));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
@@ -500,7 +500,7 @@ public final class DataStreamTestHelper {
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false, true)),
+                root.build(MapperBuilderContext.root(false, true, null)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -556,7 +556,7 @@ public final class DataStreamTestHelper {
             MapperService mapperService = mock(MapperService.class);
 
             RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-                MapperBuilderContext.root(false, false)
+                MapperBuilderContext.root(false, false, null)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);

@@ -560,7 +560,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (currentMapper == null) {
             newMapping = incomingMapping;
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, currentMapper.mappingParserContext());
         }
         return newMapping;
     }

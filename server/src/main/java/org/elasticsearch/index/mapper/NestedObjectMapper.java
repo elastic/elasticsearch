@@ -61,7 +61,11 @@ public class NestedObjectMapper extends ObjectMapper {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
             }
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(context.buildFullName(name), parentIncludedInRoot);
+            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
+                context.buildFullName(name),
+                parentIncludedInRoot,
+                context.mappingParserContext()
+            );
             return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(nestedContext), this);
         }
     }
@@ -99,14 +103,14 @@ public class NestedObjectMapper extends ObjectMapper {
 
         final boolean parentIncludedInRoot;
 
-        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path, false, false);
+        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot, MappingParserContext context) {
+            super(path, false, false, context);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 
         @Override
         public MapperBuilderContext createChildContext(String name) {
-            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot);
+            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot, mappingParserContext());
         }
     }
 
@@ -223,7 +227,11 @@ public class NestedObjectMapper extends ObjectMapper {
         if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
             parentIncludedInRoot |= this.includeInParent.value();
         }
-        return new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot);
+        return new NestedMapperBuilderContext(
+            mapperBuilderContext.buildFullName(name),
+            parentIncludedInRoot,
+            mapperBuilderContext.mappingParserContext()
+        );
     }
 
     @Override

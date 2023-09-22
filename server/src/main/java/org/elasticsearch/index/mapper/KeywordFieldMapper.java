@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -180,14 +178,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
         private final Parameter<Boolean> dimension;
 
-        private final IndexAnalyzers indexAnalyzers;
-        private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
+        public Builder(String name, IndexVersion indexCreatedVersion) {
             super(name);
-            this.indexAnalyzers = indexAnalyzers;
-            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.normalizer = Parameter.stringParam(
                 "normalizer",
@@ -213,10 +207,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             }).precludesParameters(normalizer, ignoreAbove);
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion) {
-            this(name, null, ScriptCompiler.NONE, indexCreatedVersion);
-        }
-
         public Builder ignoreAbove(int ignoreAbove) {
             this.ignoreAbove.setValue(ignoreAbove);
             return this;
@@ -240,18 +230,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         public Builder dimension(boolean dimension) {
             this.dimension.setValue(dimension);
             return this;
-        }
-
-        private FieldValues<String> scriptValues() {
-            if (script.get() == null) {
-                return null;
-            }
-            StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
-            return scriptFactory == null
-                ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
-                    .newInstance(ctx)
-                    .runForDoc(doc, consumer);
         }
 
         @Override
@@ -280,6 +258,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
             if (normalizerName != null) {
+                var indexAnalyzers = context.mappingParserContext().getIndexAnalyzers();
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
@@ -299,6 +278,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
+            final FieldValues<String> scriptValues;
+            if (script.get() == null) {
+                scriptValues = null;
+            } else {
+                StringFieldScript.Factory scriptFactory = context.mappingParserContext()
+                    .scriptCompiler()
+                    .compile(script.get(), StringFieldScript.CONTEXT);
+                scriptValues = scriptFactory == null
+                    ? null
+                    : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                        .newInstance(ctx)
+                        .runForDoc(doc, consumer);
+            }
             return new KeywordFieldType(
                 context.buildFullName(name),
                 fieldType,
@@ -306,7 +298,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 searchAnalyzer,
                 quoteAnalyzer,
                 this,
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                scriptValues
             );
         }
 
@@ -336,7 +329,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
+        (n, c) -> new Builder(n, c.indexVersionCreated()),
         MINIMUM_COMPATIBILITY_VERSION
     );
 
@@ -357,7 +350,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer,
             NamedAnalyzer quoteAnalyzer,
             Builder builder,
-            boolean isSyntheticSource
+            boolean isSyntheticSource,
+            FieldValues<String> scriptValues
         ) {
             super(
                 name,
@@ -371,7 +365,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
-            this.scriptValues = builder.scriptValues();
+            this.scriptValues = scriptValues;
             this.isDimension = builder.dimension.getValue();
             this.isSyntheticSource = isSyntheticSource;
         }
@@ -813,11 +807,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
-    private final ScriptCompiler scriptCompiler;
     private final IndexVersion indexCreatedVersion;
     private final boolean storeIgnored;
-
-    private final IndexAnalyzers indexAnalyzers;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -837,8 +828,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
-        this.indexAnalyzers = builder.indexAnalyzers;
-        this.scriptCompiler = builder.scriptCompiler;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.storeIgnored = storeIgnored;
     }
@@ -958,8 +947,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, indexCreatedVersion).dimension(fieldType().isDimension())
-            .init(this);
+        return new Builder(simpleName(), indexCreatedVersion).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override

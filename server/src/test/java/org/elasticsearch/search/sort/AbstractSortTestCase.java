@@ -39,6 +39,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -194,7 +195,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         NestedLookup nestedLookup = NestedLookup.build(
-            List.of(new NestedObjectMapper.Builder("path", IndexVersion.current()).build(MapperBuilderContext.root(false, false)))
+            List.of(
+                new NestedObjectMapper.Builder("path", IndexVersion.current()).build(
+                    MapperBuilderContext.root(false, false, new AggregatorTestCase.MockParserContext(idxSettings))
+                )
+            )
         );
         return new SearchExecutionContext(
             0,

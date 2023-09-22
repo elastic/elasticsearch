@@ -19,7 +19,8 @@ import java.util.Map;
 public class JoinFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field").build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field").build(MapperBuilderContext.root(false, false, null))
+            .fieldType();
 
         Map<String, String> parentValue = Map.of("relation", "parent");
         assertEquals(List.of(parentValue), fetchSourceValue(fieldType, parentValue));

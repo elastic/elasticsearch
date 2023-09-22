@@ -290,7 +290,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(
-            builder.build(MapperBuilderContext.root(false, false)),
+            builder.build(MapperBuilderContext.root(false, false, null)),
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
@@ -383,7 +383,9 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true, false));
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(
+            MapperBuilderContext.root(true, false, null)
+        );
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 

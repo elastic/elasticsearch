@@ -156,11 +156,11 @@ public class ParsedDocument {
         return dynamicMappingsUpdate;
     }
 
-    public void addDynamicMappingsUpdate(Mapping update) {
+    public void addDynamicMappingsUpdate(Mapping update, MappingParserContext parserContext) {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_UPDATE, parserContext);
         }
     }
 

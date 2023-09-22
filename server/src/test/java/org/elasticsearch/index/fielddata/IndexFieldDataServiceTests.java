@@ -77,7 +77,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getIndicesFieldDataCache(),
             indicesService.getCircuitBreakerService()
         );
-        MapperBuilderContext context = MapperBuilderContext.root(false, false);
+        MapperBuilderContext context = MapperBuilderContext.root(false, false, null);
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", IndexVersion.current()).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
@@ -156,7 +156,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false, null);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();
@@ -223,7 +223,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
 
-        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false, null);
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
             .build(context)
             .fieldType();

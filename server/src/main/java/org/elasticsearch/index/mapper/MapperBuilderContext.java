@@ -18,18 +18,25 @@ public class MapperBuilderContext {
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream);
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MappingParserContext mappingParserContext) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, mappingParserContext);
     }
 
     private final String path;
     private final boolean isSourceSynthetic;
     private final boolean isDataStream;
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream) {
+    private final MappingParserContext mappingParserContext;
+
+    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream, MappingParserContext mappingParserContext) {
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
         this.isDataStream = isDataStream;
+        this.mappingParserContext = mappingParserContext;
+    }
+
+    public MappingParserContext mappingParserContext() {
+        return mappingParserContext;
     }
 
     /**
@@ -38,7 +45,7 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream);
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream, mappingParserContext);
     }
 
     /**

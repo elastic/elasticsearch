@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.is;
 
 public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTestCase {
 
-    public UpgradeWithOldIndexSettingsIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
+    public UpgradeWithOldIndexSettingsIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
     }
 
     private static final String INDEX_NAME = "test_index_old_settings";

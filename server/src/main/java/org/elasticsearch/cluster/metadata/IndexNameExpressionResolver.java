@@ -1560,7 +1560,7 @@ public class IndexNameExpressionResolver {
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
         public static List<String> filterUnavailable(Context context, List<String> expressions) {
-            ensureNoRemoteIndicesInExpressions(expressions);
+            ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
             List<String> result = new ArrayList<>(expressions.size());
             for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
                 validateAliasOrIndex(expression);
@@ -1621,12 +1621,14 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static void ensureNoRemoteIndicesInExpressions(List<String> indexExpressions) {
-            List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
-            if (crossClusterIndices.size() > 0) {
-                throw new IllegalArgumentException(
-                    "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
-                );
+        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
+            if (options.ignoreUnavailable() == false) {
+                List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
+                if (crossClusterIndices.size() > 0) {
+                    throw new IllegalArgumentException(
+                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+                    );
+                }
             }
         }
     }

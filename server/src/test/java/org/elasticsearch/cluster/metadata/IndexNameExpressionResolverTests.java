@@ -3150,7 +3150,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>")
             );
-            assertThat(e.getMessage(), containsString("no such index [datemath-2001-01-01-14]"));
+            assertThat(e.getMessage(), containsString("no such index [datemath-2001-01-01-14"));
+        }
+        {
+            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+                state,
+                options,
+                SystemIndexAccessLevel.NONE
+            );
+            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
+            assertEquals(0, indexNames.length);
         }
     }
 

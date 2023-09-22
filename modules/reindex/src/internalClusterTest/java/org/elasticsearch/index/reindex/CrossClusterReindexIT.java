@@ -66,7 +66,6 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             return transportService.boundAddress().publishAddress().toString();
         }).toList();
 
-        LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
         settings.putNull(remoteClusterSettingPrefix + "proxy_address")
             .put(remoteClusterSettingPrefix + "mode", "sniff")
             .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses))
@@ -162,7 +161,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     public void testReindexFromRemoteThrowOnUnavailableIndex() throws Exception {
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "no-such-source-index-001";
-        final IndexNotFoundException e1 = expectThrows(
+        expectThrows(
             IndexNotFoundException.class,
             () -> new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
                 .destination("desc-index-001")

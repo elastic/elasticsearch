@@ -13,7 +13,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
@@ -60,23 +59,6 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
      */
     public ReindexRequestBuilder setRemoteInfo(RemoteInfo remoteInfo) {
         request().setRemoteInfo(remoteInfo);
-        return this;
-    }
-
-    public ReindexRequestBuilder ignoreUnavailable(boolean ignoreUnavailable) {
-        var oldIdxOps = request().getSearchRequest().indicesOptions();
-        var newIdxOps = IndicesOptions.fromOptions(
-            ignoreUnavailable,
-            oldIdxOps.allowNoIndices(),
-            oldIdxOps.expandWildcardsOpen(),
-            oldIdxOps.expandWildcardsClosed(),
-            oldIdxOps.expandWildcardsHidden(),
-            oldIdxOps.allowAliasesToMultipleIndices(),
-            oldIdxOps.forbidClosedIndices(),
-            oldIdxOps.ignoreAliases(),
-            oldIdxOps.ignoreThrottled()
-        );
-        request().getSearchRequest().indicesOptions(newIdxOps);
         return this;
     }
 }

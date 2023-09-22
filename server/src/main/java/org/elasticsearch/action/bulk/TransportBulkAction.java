@@ -228,7 +228,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    private void doExecuteOnWriteThreadPool(Task task, BulkRequest bulkRequest, long startTime, ActionListener<BulkResponse> listener) {
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, long startTime, ActionListener<BulkResponse> listener) {
         /*
          * This is called on the Transport thread and sometimes on the cluster state applier thread,
          * so we can check the indexing memory pressure *quickly* but we don't want to keep the transport

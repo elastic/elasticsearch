@@ -316,7 +316,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                     .setSource("x", 1)
                     .setTimeout(TimeValue.timeValueMillis(100)) // 100ms, to fail quickly
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .get()
+                    .get(10, TimeUnit.SECONDS)
             ).getMessage(),
             equalTo("blocked by: [SERVICE_UNAVAILABLE/1/state not recovered / initialized];")
         );

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -125,24 +124,23 @@ public class Verifier {
                 agg.aggregates().forEach(e -> {
                     var exp = e instanceof Alias ? ((Alias) e).child() : e;
                     if (exp instanceof AggregateFunction aggFunc) {
-                        aggFunc.arguments().forEach(a -> {
-                            // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute
-                                || a instanceof MetadataAttribute
-                                || a instanceof ReferenceAttribute
-                                || a instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's parameters must be an attribute or literal; found ["
-                                            + a.sourceText()
-                                            + "] of type ["
-                                            + a.nodeName()
-                                            + "]"
-                                    )
-                                );
-                            }
-                        });
+                        Expression field = aggFunc.field();
+
+                        // TODO: allow an expression?
+                        if ((field instanceof FieldAttribute
+                            || field instanceof MetadataAttribute
+                            || field instanceof ReferenceAttribute) == false) {
+                            failures.add(
+                                fail(
+                                    e,
+                                    "aggregate functions can only be applied to fields; found ["
+                                        + field.sourceText()
+                                        + "] of type ["
+                                        + field.nodeName()
+                                        + "]"
+                                )
+                            );
+                        }
                     } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
                         failures.add(
                             fail(

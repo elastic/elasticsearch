@@ -143,6 +143,8 @@ public class TransportVersions {
     public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
     public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
     public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
+    public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
+    public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

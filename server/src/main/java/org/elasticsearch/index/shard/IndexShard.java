@@ -839,8 +839,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, ThreadPool.Names.SAME); // Wait on SAME (current thread) because this execution is wrapped by
-                                                              // CancellableThreads and we want to be able to safely interrupt it
+            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
+                                                                            // CancellableThreads and we want to be able to interrupt it
         }
     }
 
@@ -3361,11 +3361,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * ActionListener will then be called using the provided executor.
      *
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
         acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
     }
 
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, boolean forceExecution) {
+    public void acquirePrimaryOperationPermit(
+        ActionListener<Releasable> onPermitAcquired,
+        Executor executorOnDelay,
+        boolean forceExecution
+    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
         indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
@@ -3415,7 +3419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, ThreadPool.Names.GENERIC);
+            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;
@@ -3424,7 +3428,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Runs the specified runnable under a permit and otherwise calling back the specified failure callback. This method is really a
-     * convenience for {@link #acquirePrimaryOperationPermit(ActionListener, String)} where the listener equates to
+     * convenience for {@link #acquirePrimaryOperationPermit(ActionListener, Executor)} where the listener equates to
      * try-with-resources closing the releasable after executing the runnable on successfully acquiring the permit, an otherwise calling
      * back the failure callback.
      *
@@ -3432,7 +3436,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param onFailure the callback on failure
      * @param executorOnDelay the executor to execute the runnable on if permit acquisition is blocked
      */
-    public void runUnderPrimaryPermit(final Runnable runnable, final Consumer<Exception> onFailure, final String executorOnDelay) {
+    public void runUnderPrimaryPermit(final Runnable runnable, final Consumer<Exception> onFailure, final Executor executorOnDelay) {
         verifyNotClosed();
         assert shardRouting.primary() : "runUnderPrimaryPermit should only be called on primary shard but was " + shardRouting;
         final ActionListener<Releasable> onPermitAcquired = ActionListener.wrap(releasable -> {
@@ -3505,7 +3509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, Executor)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -3522,7 +3526,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes,
         final ActionListener<Releasable> onPermitAcquired,
-        final String executorOnDelay
+        final Executor executorOnDelay
     ) {
         innerAcquireReplicaOperationPermit(
             opPrimaryTerm,
@@ -4138,7 +4142,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
-     * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String)
+     * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, Executor)
      * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {

@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response for *QL search status request
  */

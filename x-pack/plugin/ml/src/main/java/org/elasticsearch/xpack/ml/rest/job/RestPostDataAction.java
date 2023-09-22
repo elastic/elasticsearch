@@ -48,7 +48,11 @@ public class RestPostDataAction extends BaseRestHandler {
         request.setResetEnd(restRequest.param(PostDataAction.Request.RESET_END.getPreferredName(), DEFAULT_RESET_END));
         request.setContent(restRequest.content(), restRequest.getXContentType());
 
-        return channel -> client.execute(PostDataAction.INSTANCE, request, new RestToXContentListener<>(channel, PostDataAction.Response::status));
+        return channel -> client.execute(
+            PostDataAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, PostDataAction.Response::status)
+        );
     }
 
     @Override

@@ -76,7 +76,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         if (searchRequest.source().explain() != null) {
             searchTemplateRequest.setExplain(searchRequest.source().explain());
         }
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestToXContentListener<>(channel, SearchTemplateResponse::status));
+        return channel -> client.execute(
+            SearchTemplateAction.INSTANCE,
+            searchTemplateRequest,
+            new RestToXContentListener<>(channel, SearchTemplateResponse::status)
+        );
     }
 
     @Override

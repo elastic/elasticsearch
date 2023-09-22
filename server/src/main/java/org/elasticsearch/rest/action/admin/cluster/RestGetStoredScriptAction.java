@@ -39,6 +39,8 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
         String id = request.param("id");
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id);
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestToXContentListener<>(channel, GetStoredScriptResponse::status));
+        return channel -> client.admin()
+            .cluster()
+            .getStoredScript(getRequest, new RestToXContentListener<>(channel, GetStoredScriptResponse::status));
     }
 }

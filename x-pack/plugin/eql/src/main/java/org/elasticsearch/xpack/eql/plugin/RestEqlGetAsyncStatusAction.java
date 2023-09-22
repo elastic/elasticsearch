@@ -13,7 +13,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
-import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.util.List;
 

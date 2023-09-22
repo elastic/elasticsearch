@@ -55,10 +55,6 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
             parser
         );
 
-        return channel -> client.execute(
-            UpdateModelSnapshotAction.INSTANCE,
-            updateModelSnapshot,
-            new RestToXContentListener<>(channel)
-        );
+        return channel -> client.execute(UpdateModelSnapshotAction.INSTANCE, updateModelSnapshot, new RestToXContentListener<>(channel));
     }
 }

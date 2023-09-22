@@ -35,7 +35,11 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
         startBasicRequest.timeout(request.paramAsTime("timeout", startBasicRequest.timeout()));
         startBasicRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startBasicRequest.masterNodeTimeout()));
-        return channel -> client.execute(PostStartBasicAction.INSTANCE, startBasicRequest, new RestToXContentListener<>(channel, PostStartBasicResponse::status));
+        return channel -> client.execute(
+            PostStartBasicAction.INSTANCE,
+            startBasicRequest,
+            new RestToXContentListener<>(channel, PostStartBasicResponse::status)
+        );
     }
 
     @Override

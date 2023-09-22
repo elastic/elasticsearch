@@ -36,7 +36,11 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
         });
     }
 
-    public RestToXContentListener(RestChannel channel, Function<Response, RestStatus> statusFunction, Function<Response, String> locationFunction) {
+    public RestToXContentListener(
+        RestChannel channel,
+        Function<Response, RestStatus> statusFunction,
+        Function<Response, String> locationFunction
+    ) {
         super(channel);
         this.statusFunction = statusFunction;
         this.locationFunction = locationFunction;

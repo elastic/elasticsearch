@@ -49,7 +49,11 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         PostAnalyticsEventAction.Request request = buidRequest(restRequest);
-        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED));
+        return channel -> client.execute(
+            PostAnalyticsEventAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
+        );
     }
 
     private InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {

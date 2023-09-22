@@ -21,8 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response of an async search status request.
  */

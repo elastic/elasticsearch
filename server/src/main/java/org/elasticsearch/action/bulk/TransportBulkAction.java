@@ -206,15 +206,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
          * We *could* detect these cases and only fork in then, but that is complex
          * to get right and the fork is fairly low overhead.
          */
-        final ClusterState initialState = clusterService.state();
         final int indexingOps = bulkRequest.numberOfActions();
         final long indexingBytes = bulkRequest.ramBytesUsed();
-        final boolean isOnlySystem = isOnlySystem(bulkRequest, initialState.metadata().getIndicesLookup(), systemIndices);
-        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
+        final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
-        // We should use the releasingListener from here onwards
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(originalListener, releasable::close);
+        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executorName, releasingListener);
+    }
 
+    private void ensureClusterStateThenForkAndExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> releasingListener
+    ) {
+        final ClusterState initialState = clusterService.state();
         final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
         if (blockException != null) {
             if (false == blockException.retryable()) {
@@ -232,12 +239,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
-                        @Override
-                        protected void doRun() {
-                            doInternalExecute(task, bulkRequest, executorName, releasingListener);
-                        }
-                    });
+                    forkAndExecute(task, bulkRequest, executorName, releasingListener);
                 }
 
                 @Override
@@ -251,13 +253,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
         } else {
-            threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
-                @Override
-                protected void doRun() {
-                    doInternalExecute(task, bulkRequest, executorName, releasingListener);
-                }
-            });
+            forkAndExecute(task, bulkRequest, executorName, releasingListener);
         }
+    }
+
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
+        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
+            @Override
+            protected void doRun() {
+                doInternalExecute(task, bulkRequest, executorName, releasingListener);
+            }
+        });
     }
 
     protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {

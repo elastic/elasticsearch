@@ -73,15 +73,14 @@ public abstract class BlendedTermQuery extends Query {
         if (rewritten != this) {
             return rewritten;
         }
-        IndexReader reader = searcher.getIndexReader();
-        IndexReaderContext context = reader.getContext();
         TermStates[] ctx = new TermStates[terms.length];
         int[] docFreqs = new int[ctx.length];
         for (int i = 0; i < terms.length; i++) {
-            ctx[i] = TermStates.build(context, terms[i], true);
+            ctx[i] = TermStates.build(searcher, terms[i], true);
             docFreqs[i] = ctx[i].docFreq();
         }
 
+        final IndexReader reader = searcher.getIndexReader();
         final int maxDoc = reader.maxDoc();
         blend(ctx, maxDoc, reader);
         return topLevelQuery(terms, ctx, docFreqs, maxDoc);

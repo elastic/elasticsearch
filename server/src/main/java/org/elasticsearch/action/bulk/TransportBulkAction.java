@@ -191,7 +191,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        final long startTime = relativeTime();
         final ClusterState initialState = clusterService.state();
         final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
         if (blockException != null) {
@@ -210,7 +209,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    doExecuteOnWriteThreadPool(task, bulkRequest, startTime, listener);
+                    forkAndExecute(task, bulkRequest, listener);
                 }
 
                 @Override
@@ -224,11 +223,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
         } else {
-            doExecuteOnWriteThreadPool(task, bulkRequest, startTime, listener);
+            forkAndExecute(task, bulkRequest, listener);
         }
     }
 
-    private void forkAndExecute(Task task, BulkRequest bulkRequest, long startTime, ActionListener<BulkResponse> listener) {
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
          * This is called on the Transport thread and sometimes on the cluster state applier thread,
          * so we can check the indexing memory pressure *quickly* but we don't want to keep the transport
@@ -253,18 +252,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
-                doInternalExecute(task, bulkRequest, executorName, startTime, releasingListener);
+                doInternalExecute(task, bulkRequest, executorName, releasingListener);
             }
         });
     }
 
-    protected void doInternalExecute(
-        Task task,
-        BulkRequest bulkRequest,
-        String executorName,
-        long startTime,
-        ActionListener<BulkResponse> listener
-    ) {
+    protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
+        final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
@@ -299,7 +293,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, startTime, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
                 }
@@ -802,7 +796,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest original,
         String executorName,
-        long startTime,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
@@ -832,7 +825,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, startTime, actionListener);
+                                doInternalExecute(task, bulkRequest, executorName, actionListener);
                             }
 
                             @Override

@@ -25,8 +25,10 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexVersionTests extends ESTestCase {
@@ -203,7 +205,7 @@ public class IndexVersionTests extends ESTestCase {
         IndexVersion currentVersion = IndexVersion.current();
         int intermediateVersionId = previousVersion.id() + randomInt(currentVersion.id() - previousVersion.id() - 1);
         IndexVersion intermediateVersion = IndexVersion.fromId(intermediateVersionId);
-assertThat(IndexVersionUtils.allReleasedVersions(), not(hasItem(intermediateVersion)));
+        assertThat(IndexVersionUtils.allReleasedVersions(), not(hasItem(intermediateVersion)));
         // the version is not known, we make an assumption the Lucene version stays the same as the previous version
         assertThat(intermediateVersion.luceneVersion(), equalTo(previousVersion.luceneVersion()));
 

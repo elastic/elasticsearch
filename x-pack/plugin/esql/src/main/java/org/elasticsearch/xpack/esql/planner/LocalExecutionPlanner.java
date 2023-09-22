@@ -33,14 +33,15 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.TopNEncoder;
-import org.elasticsearch.compute.operator.TopNOperator;
-import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,7 +93,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -149,7 +150,10 @@ public class LocalExecutionPlanner {
         PhysicalOperation physicalOperation = plan(node, context);
 
         context.addDriverFactory(
-            new DriverFactory(new DriverSupplier(context.bigArrays, physicalOperation), context.driverParallelism().get())
+            new DriverFactory(
+                new DriverSupplier(context.bigArrays, physicalOperation, configuration.pragmas().statusInterval()),
+                context.driverParallelism().get()
+            )
         );
 
         return new LocalExecutionPlan(context.driverFactories);
@@ -256,6 +260,9 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
+        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+            return ElementType.DOC;
+        }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
@@ -281,7 +288,7 @@ public class LocalExecutionPlanner {
         int index = -1;
         boolean transformRequired = false;
         for (var attribute : attrs) {
-            mappedPosition[++index] = layout.getChannel(attribute.id());
+            mappedPosition[++index] = layout.get(attribute.id()).channel();
             transformRequired |= mappedPosition[index] != index;
         }
         Function<Page, Page> transformer = transformRequired ? p -> {
@@ -314,9 +321,7 @@ public class LocalExecutionPlanner {
         Objects.requireNonNull(exchangeSourceHandler, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
-        for (var attr : exchangeSource.output()) {
-            builder.appendChannel(attr.id());
-        }
+        builder.append(exchangeSource.output());
         // decorate the layout
         var l = builder.build();
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
@@ -327,36 +332,32 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(topNExec.child(), context);
 
+        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes[channel] = toElementType(inverse.get(channel).type());
+            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
+                case "ip" -> TopNEncoder.IP;
+                case "text", "keyword" -> TopNEncoder.UTF8;
+                case "version" -> TopNEncoder.VERSION;
+                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
+            };
+        }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
             int sortByChannel;
             if (order.child() instanceof Attribute a) {
-                sortByChannel = source.layout.getChannel(a.id());
+                sortByChannel = source.layout.get(a.id()).channel();
             } else {
                 throw new EsqlIllegalArgumentException("order by expression must be an attribute");
             }
 
-            TopNEncoder encoder = switch (a.dataType().typeName()) {
-                case "ip": {
-                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
-                }
-                case "text", "keyword": {
-                    yield TopNOperator.BYTESREF_UTF8_ENCODER;
-                }
-                case "version": {
-                    yield TopNOperator.BYTESREF_FIXED_LENGTH_ENCODER;
-                }
-                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long": {
-                    yield TopNOperator.DEFAULT_ENCODER;
-                }
-                default:
-                    throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + a.dataType().typeName());
-            };
             return new TopNOperator.SortOrder(
                 sortByChannel,
                 order.direction().equals(Order.OrderDirection.ASC),
-                order.nullsPosition().equals(Order.NullsPosition.FIRST),
-                encoder
+                order.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
 
@@ -376,17 +377,25 @@ public class LocalExecutionPlanner {
          * That'll be more accurate. And we don't have a path for estimating
          * incoming rows. And we don't need one because we can estimate.
          */
-        return source.with(new TopNOperatorFactory(limit, orders, context.pageSize(2000 + topNExec.estimatedRowSize())), source.layout);
+        return source.with(
+            new TopNOperatorFactory(
+                limit,
+                Arrays.asList(elementTypes),
+                Arrays.asList(encoders),
+                orders,
+                context.pageSize(2000 + topNExec.estimatedRowSize())
+            ),
+            source.layout
+        );
     }
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            Supplier<ExpressionEvaluator> evaluatorSupplier;
-            evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
+            var evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
-            layout.appendChannel(field.toAttribute().id());
+            layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
@@ -395,9 +404,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(dissect.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        for (Attribute attr : dissect.extractedFields()) {
-            layoutBuilder.appendChannel(attr.id());
-        }
+        layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
         String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
 
@@ -417,10 +424,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(grok.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
         List<Attribute> extractedFields = grok.extractedFields();
-        for (Attribute attr : extractedFields) {
-            layoutBuilder.appendChannel(attr.id());
-        }
-
+        layoutBuilder.append(extractedFields);
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
@@ -447,10 +451,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEnrich(EnrichExec enrich, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(enrich.child(), context);
         Layout.Builder layoutBuilder = source.layout.builder();
-        List<NamedExpression> extractedFields = enrich.enrichFields();
-        for (NamedExpression attr : extractedFields) {
-            layoutBuilder.appendChannel(attr.id());
-        }
+        layoutBuilder.append(enrich.enrichFields());
         Layout layout = layoutBuilder.build();
         Set<String> indices = enrich.enrichIndex().concreteIndices();
         if (indices.size() != 1) {
@@ -462,7 +463,7 @@ public class LocalExecutionPlanner {
                 sessionId,
                 parentTask,
                 1, // TODO: Add a concurrent setting for enrich - also support unordered mode
-                source.layout.getChannel(enrich.matchField().id()),
+                source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
                 "match", // TODO: enrich should also resolve the match_type
@@ -473,27 +474,20 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         return EvalMapper.toEvaluator(exp, layout);
     }
 
     private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
         List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
         Layout.Builder layout = new Layout.Builder();
-        var output = row.output();
-        for (Attribute attribute : output) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(row.output());
         return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
-
         Layout.Builder layout = new Layout.Builder();
-        var output = localSourceExec.output();
-        for (Attribute attribute : output) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(localSourceExec.output());
         LocalSourceOperator.BlockSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
@@ -501,16 +495,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planShow(ShowExec showExec) {
         Layout.Builder layout = new Layout.Builder();
-        for (var attribute : showExec.output()) {
-            layout.appendChannel(attribute.id());
-        }
+        layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
 
-        Map<Integer, Set<NameId>> inputChannelToOutputIds = new HashMap<>();
+        Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
         for (NamedExpression ne : project.projections()) {
             NameId inputId;
             if (ne instanceof Alias a) {
@@ -518,19 +510,26 @@ public class LocalExecutionPlanner {
             } else {
                 inputId = ne.id();
             }
-            int inputChannel = source.layout.getChannel(inputId);
-            inputChannelToOutputIds.computeIfAbsent(inputChannel, ignore -> new HashSet<>()).add(ne.id());
+            Layout.ChannelAndType input = source.layout.get(inputId);
+            Layout.ChannelSet channelSet = inputChannelToOutputIds.computeIfAbsent(
+                input.channel(),
+                ignore -> new Layout.ChannelSet(new HashSet<>(), input.type())
+            );
+            if (channelSet.type() != input.type()) {
+                throw new IllegalArgumentException("type mismatch for aliases");
+            }
+            channelSet.nameIds().add(ne.id());
         }
 
         BitSet mask = new BitSet();
         Layout.Builder layout = new Layout.Builder();
 
         for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-            Set<NameId> outputIds = inputChannelToOutputIds.get(inChannel);
+            Layout.ChannelSet outputSet = inputChannelToOutputIds.get(inChannel);
 
-            if (outputIds != null) {
+            if (outputSet != null) {
                 mask.set(inChannel);
-                layout.appendChannel(outputIds);
+                layout.append(outputSet);
             }
         }
 
@@ -555,7 +554,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        return source.with(new MvExpandOperator.Factory(source.layout.getChannel(mvExpandExec.target().id())), source.layout);
+        return source.with(new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel()), source.layout);
     }
 
     /**
@@ -684,21 +683,23 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation) implements Function<String, Driver>, Describable {
-
+    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation, TimeValue statusInterval)
+        implements
+            Function<String, Driver>,
+            Describable {
         @Override
         public Driver apply(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext();
+            var driverContext = new DriverContext(bigArrays);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
                 sink = physicalOperation.sink(driverContext);
                 success = true;
-                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, () -> {});
+                return new Driver(sessionId, driverContext, physicalOperation::describe, source, operators, sink, statusInterval, () -> {});
             } finally {
                 if (false == success) {
                     Releasables.close(source, () -> Releasables.close(operators), sink);

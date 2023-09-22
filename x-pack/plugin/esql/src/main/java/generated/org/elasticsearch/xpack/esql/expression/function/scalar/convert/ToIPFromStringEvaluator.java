@@ -31,7 +31,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
 
   @Override
   public String name() {
-    return "ToIP";
+    return "ToIPFromString";
   }
 
   @Override
@@ -58,6 +58,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

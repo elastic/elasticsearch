@@ -7,11 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant int value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantIntVector extends AbstractVector implements IntVector {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
     private final int value;
 
@@ -46,6 +50,11 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(int.class);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof IntVector that) {
             return IntVector.equals(this, that);
@@ -60,5 +69,10 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        // no-op
     }
 }

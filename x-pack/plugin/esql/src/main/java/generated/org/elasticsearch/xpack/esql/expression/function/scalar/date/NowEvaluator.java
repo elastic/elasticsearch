@@ -9,6 +9,7 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -18,8 +19,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final long now;
 
-  public NowEvaluator(long now) {
+  private final DriverContext driverContext;
+
+  public NowEvaluator(long now, DriverContext driverContext) {
     this.now = now;
+    this.driverContext = driverContext;
   }
 
   @Override

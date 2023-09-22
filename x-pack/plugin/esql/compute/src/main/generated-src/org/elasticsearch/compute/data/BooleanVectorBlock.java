@@ -7,11 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
 /**
  * Block view of a BooleanVector.
  * This class is generated. Do not edit it.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
+
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanVectorBlock.class);
 
     private final BooleanVector vector;
 
@@ -46,6 +51,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BooleanBlock that) {
             return BooleanBlock.equals(this, that);
@@ -61,5 +71,10 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

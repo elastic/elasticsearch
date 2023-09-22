@@ -88,10 +88,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -344,8 +346,10 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
             of(ScalarFunction.class, Pow.class, PlanNamedTypes::writePow, PlanNamedTypes::readPow),
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
+            of(ScalarFunction.class, EndsWith.class, PlanNamedTypes::writeEndsWith, PlanNamedTypes::readEndsWith),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
+            of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             // ArithmeticOperations
@@ -1281,6 +1285,17 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(1));
     }
 
+    static EndsWith readEndsWith(PlanStreamInput in) throws IOException {
+        return new EndsWith(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeEndsWith(PlanStreamOutput out, EndsWith endsWith) throws IOException {
+        List<Expression> fields = endsWith.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
     static Substring readSubstring(PlanStreamInput in) throws IOException {
         return new Substring(Source.EMPTY, in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
     }
@@ -1299,6 +1314,17 @@ public final class PlanNamedTypes {
 
     static void writeLeft(PlanStreamOutput out, Left left) throws IOException {
         List<Expression> fields = left.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
+    static Right readRight(PlanStreamInput in) throws IOException {
+        return new Right(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writeRight(PlanStreamOutput out, Right right) throws IOException {
+        List<Expression> fields = right.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

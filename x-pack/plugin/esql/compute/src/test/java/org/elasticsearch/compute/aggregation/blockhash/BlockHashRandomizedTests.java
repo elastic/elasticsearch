@@ -168,7 +168,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-            : BlockHash.build(specs, bigArrays, emitBatchSize);
+            : BlockHash.build(specs, bigArrays, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

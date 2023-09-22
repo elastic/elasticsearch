@@ -61,7 +61,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.appendChannel(attr.id());
+            layout.append(attr);
             Layout previousLayout = op.layout;
 
             var sources = ValueSources.sources(
@@ -71,7 +71,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 LocalExecutionPlanner.toElementType(attr.dataType())
             );
 
-            int docChannel = previousLayout.getChannel(sourceAttr.id());
+            int docChannel = previousLayout.get(sourceAttr.id()).channel();
 
             op = op.with(
                 new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, docChannel, attr.name()),
@@ -137,9 +137,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             );
         }
         Layout.Builder layout = new Layout.Builder();
-        for (int i = 0; i < esQueryExec.output().size(); i++) {
-            layout.appendChannel(esQueryExec.output().get(i).id());
-        }
+        layout.append(esQueryExec.output());
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
@@ -155,7 +153,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
-        int docChannel = source.layout.getChannel(sourceAttribute.id());
+        int docChannel = source.layout.get(sourceAttribute.id()).channel();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(

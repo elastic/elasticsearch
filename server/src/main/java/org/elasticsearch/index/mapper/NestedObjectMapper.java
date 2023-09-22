@@ -108,7 +108,7 @@ public class NestedObjectMapper extends ObjectMapper {
         final boolean parentIncludedInRoot;
 
         NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path, false);
+            super(path, false, false);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 
@@ -201,7 +201,7 @@ public class NestedObjectMapper extends ObjectMapper {
     @Override
     public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
-            throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
+            MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
         NestedObjectMapper toMerge = (NestedObjectMapper) clone();

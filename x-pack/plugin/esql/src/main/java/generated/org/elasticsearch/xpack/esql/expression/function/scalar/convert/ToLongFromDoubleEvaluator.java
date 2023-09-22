@@ -29,7 +29,7 @@ public final class ToLongFromDoubleEvaluator extends AbstractConvertFunction.Abs
 
   @Override
   public String name() {
-    return "ToLong";
+    return "ToLongFromDouble";
   }
 
   @Override

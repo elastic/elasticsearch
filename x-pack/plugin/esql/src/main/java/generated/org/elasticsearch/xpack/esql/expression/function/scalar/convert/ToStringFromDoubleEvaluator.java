@@ -32,7 +32,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromDouble";
   }
 
   @Override
@@ -58,6 +58,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

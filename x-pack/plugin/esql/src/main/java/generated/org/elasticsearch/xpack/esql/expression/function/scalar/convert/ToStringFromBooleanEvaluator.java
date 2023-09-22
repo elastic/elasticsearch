@@ -32,7 +32,7 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromBoolean";
   }
 
   @Override
@@ -58,6 +58,7 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

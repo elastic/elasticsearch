@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -88,14 +89,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "short" -> randomShort();
             case "integer" -> randomInt();
             case "unsigned_long", "long" -> randomLong();
-            case "date_period" -> Period.ofDays(randomInt(10));
+            case "date_period" -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case "datetime" -> randomMillisUpToYear9999();
             case "double", "scaled_float" -> randomDouble();
             case "float" -> randomFloat();
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case "time_duration" -> Duration.ofMillis(randomNonNegativeLong());
+            case "time_duration" -> Duration.ofNanos(randomLongBetween(-604800000000000L, 604800000000000L));
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> new Version(randomIdentifier()).toBytesRef();
             case "null" -> null;
@@ -334,7 +335,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.evaluatorToString,
                         oc.expectedType,
                         nullValue(),
-                        oc.getExpectedWarnings(),
+                        null,
                         oc.getExpectedTypeError()
                     );
                 }));
@@ -359,7 +360,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 "LiteralsEvaluator[block=null]",
                                 entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
                                 nullValue(),
-                                oc.getExpectedWarnings(),
+                                null,
                                 oc.getExpectedTypeError()
                             );
                         }));
@@ -485,7 +486,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string")
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
     );
 
     private static String expectedType(Set<DataType> validTypes) {
@@ -630,7 +632,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays.withCircuitBreaking());
+        return new DriverContext(bigArrays.withCircuitBreaking(), BlockFactory.getGlobalInstance());
     }
 
     @After

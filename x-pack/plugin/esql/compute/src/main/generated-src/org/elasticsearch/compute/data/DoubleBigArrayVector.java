@@ -22,7 +22,11 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     private final DoubleArray values;
 
     public DoubleBigArrayVector(DoubleArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public DoubleBigArrayVector(DoubleArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 

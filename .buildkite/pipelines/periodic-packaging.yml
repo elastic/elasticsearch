@@ -1616,6 +1616,38 @@ steps:
         env:
           BWC_VERSION: 8.10.1
 
+      - label: "{{matrix.image}} / 8.10.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.10.2
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.2
+
+      - label: "{{matrix.image}} / 8.10.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.10.3
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.3
+
   - group: packaging-tests-windows
     steps:
       - label: "{{matrix.image}} / packaging-tests-windows"

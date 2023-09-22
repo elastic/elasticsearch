@@ -107,7 +107,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
             int positionCount = page.getPositionCount();
             BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
-            BytesRefBuilder work = new BytesRefBuilder();
+            BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
             BytesRef fieldScratch = new BytesRef();
             BytesRef delimScratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
@@ -142,5 +142,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         public final String toString() {
             return "MvConcat[field=" + field + ", delim=" + delim + "]";
         }
+
+        @Override
+        public void close() {}
     }
 }

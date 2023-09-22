@@ -100,6 +100,11 @@ abstract class AbstractFilterBlock implements Block {
         return block.mvOrdering();
     }
 
+    @Override
+    public BlockFactory blockFactory() {
+        return block.blockFactory();
+    }
+
     private int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];

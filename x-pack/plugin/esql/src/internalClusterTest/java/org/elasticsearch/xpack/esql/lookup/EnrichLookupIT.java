@@ -17,6 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -230,7 +231,8 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
     static DriverContext driverContext() {
         return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getGlobalInstance()
         );
     }
 }

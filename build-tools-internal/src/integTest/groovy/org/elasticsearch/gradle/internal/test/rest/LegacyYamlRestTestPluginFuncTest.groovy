@@ -17,6 +17,11 @@ import org.gradle.testkit.runner.TaskOutcome
 @IgnoreIf({ os.isWindows() })
 class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
+    def setup() {
+        buildApiRestrictionsDisabled = true
+    }
+
+
     def "yamlRestTest does nothing when there are no tests"() {
         given:
         // RestIntegTestTask not cc compatible due to

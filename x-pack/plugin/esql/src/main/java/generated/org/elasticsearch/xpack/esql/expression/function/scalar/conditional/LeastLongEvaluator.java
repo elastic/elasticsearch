@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
@@ -85,5 +86,10 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "LeastLongEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
 }

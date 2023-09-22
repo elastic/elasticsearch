@@ -25,10 +25,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper implements Cloneable {
@@ -59,7 +61,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
             throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
-        };
+        }
 
         /**
          * Get the root-level dynamic setting for a Mapping
@@ -77,6 +79,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        private final Set<String> subMapperNames = new HashSet<>(); // keeps track of dynamically added subfields
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
@@ -95,31 +98,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
+            subMapperNames.add(builder.name);
             return this;
         }
 
-        private void add(String name, Mapper mapper) {
-            add(new Mapper.Builder(name) {
-                @Override
-                public Mapper build(MapperBuilderContext context) {
-                    return mapper;
-                }
-            });
+        public Collection<Mapper.Builder> subBuilders() {
+            return mappersBuilders;
         }
 
         /**
-         * Adds a dynamically created {@link Mapper} to this builder.
+         * Adds a dynamically created {@link Mapper.Builder} to this builder.
          *
          * @param name      the name of the Mapper, including object prefixes
          * @param prefix    the object prefix of this mapper
          * @param mapper    the mapper to add
          * @param context   the DocumentParserContext in which the mapper has been built
          */
-        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper.Builder mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == false) {
-                add(name, mapper);
+                add(mapper);
             }
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
@@ -129,22 +128,28 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 int firstDotIndex = name.indexOf(".");
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChild, immediateChildFullName, context);
                 parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
-                add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+        private ObjectMapper.Builder findObjectBuilder(String leafName, String fullName, DocumentParserContext context) {
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
             if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+                ObjectMapper.Builder builder = objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+                add(builder);
+                return builder;
             }
             // has the object mapper been added as a dynamic update already?
-            objectMapper = context.getDynamicObjectMapper(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            ObjectMapper.Builder builder = context.getDynamicObjectMapper(fullName);
+            if (builder != null) {
+                // we re-use builder instances so if the builder has already been
+                // added we don't need to do so again
+                if (subMapperNames.contains(leafName) == false) {
+                    add(builder);
+                }
+                return builder;
             }
             throw new IllegalStateException("Missing intermediate object " + fullName);
         }
@@ -193,6 +198,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
             Explicit<Boolean> subobjects = parseSubobjects(node);
             ObjectMapper.Builder builder = new Builder(name, subobjects);
+            parseObjectFields(node, parserContext, builder);
+            parserContext.decrementMappingObjectDepth();
+            return builder;
+        }
+
+        static void parseObjectFields(Map<String, Object> node, MappingParserContext parserContext, Builder builder) {
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -201,8 +212,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     iterator.remove();
                 }
             }
-            parserContext.decrementMappingObjectDepth();
-            return builder;
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" })

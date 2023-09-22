@@ -327,7 +327,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.evaluatorToString,
                         oc.expectedType,
                         nullValue(),
-                        oc.getExpectedWarnings(),
+                        null,
                         oc.getExpectedTypeError()
                     );
                 }));
@@ -352,7 +352,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 "LiteralsEvaluator[block=null]",
                                 entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
                                 nullValue(),
-                                oc.getExpectedWarnings(),
+                                null,
                                 oc.getExpectedTypeError()
                             );
                         }));
@@ -475,7 +475,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version")
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
     );
 
     private static String expectedType(Set<DataType> validTypes) {

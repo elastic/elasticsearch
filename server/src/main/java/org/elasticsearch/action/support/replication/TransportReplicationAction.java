@@ -139,7 +139,7 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor
+        Executor executor
     ) {
         this(
             settings,
@@ -169,7 +169,7 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
+        Executor executor,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
@@ -179,7 +179,7 @@ public abstract class TransportReplicationAction<
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.shardStateAction = shardStateAction;
-        this.executor = threadPool.executor(executor);
+        this.executor = executor;
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
@@ -197,7 +197,7 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            threadPool.executor(executor),
+            executor,
             forceExecutionOnPrimary,
             true,
             in -> new ConcreteShardRequest<>(requestReader, in),
@@ -207,7 +207,7 @@ public abstract class TransportReplicationAction<
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(
             transportReplicaAction,
-            threadPool.executor(executor),
+            executor,
             true,
             true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),

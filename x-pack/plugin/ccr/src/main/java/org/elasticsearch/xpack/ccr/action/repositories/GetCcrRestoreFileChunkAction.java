@@ -57,7 +57,13 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ActionFilters actionFilters,
             CcrRestoreSourceService restoreSourceService
         ) {
-            super(actionName, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
+            super(
+                actionName,
+                transportService,
+                actionFilters,
+                GetCcrRestoreFileChunkRequest::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            );
             TransportActionProxy.registerProxyAction(transportService, actionName, false, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;

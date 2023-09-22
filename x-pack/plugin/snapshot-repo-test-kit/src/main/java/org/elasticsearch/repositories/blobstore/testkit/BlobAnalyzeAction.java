@@ -167,7 +167,13 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.transportService = transportService;
         }

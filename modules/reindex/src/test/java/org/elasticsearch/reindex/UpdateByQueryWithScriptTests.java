@@ -52,8 +52,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
         TransportService transportService = mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(

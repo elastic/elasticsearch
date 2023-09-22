@@ -1293,7 +1293,7 @@ public class Node implements Closeable {
         final List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
 
         if (telemetryPlugins.size() > 1) {
-            throw new IllegalStateException("A single TracerPlugin was expected but got: " + telemetryPlugins);
+            throw new IllegalStateException("A single TelemetryPlugin was expected but got: " + telemetryPlugins);
         }
 
         return telemetryPlugins.isEmpty() ? TelemetryProvider.NOOP : telemetryPlugins.get(0).getTelemetryProvider(settings);

@@ -13,9 +13,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Defines a function parameter as optional
+ * Describes functions.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
-public @interface Optional {
+@Target(ElementType.CONSTRUCTOR)
+public @interface FunctionInfo {
+    String[] returnType();
+
+    String description() default "";
 }

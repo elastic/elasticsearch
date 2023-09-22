@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -62,7 +62,13 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
             ToStringFromUnsignedLongEvaluator::new
         );
 
-    public ToString(Source source, @Named("v") Expression v) {
+    public ToString(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "integer", "long", "double", "unsigned_long", "boolean", "date", "keyword", "text", "ip", "version" }
+        ) Expression v
+    ) {
         super(source, v);
     }
 

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -34,7 +34,7 @@ public class ToVersion extends AbstractConvertFunction {
             Map.entry(TEXT, ToVersionFromStringEvaluator::new)
         );
 
-    public ToVersion(Source source, @Named("v") Expression v) {
+    public ToVersion(Source source, @Param(name = "v", type = { "keyword", "text" }) Expression v) {
         super(source, v);
     }
 

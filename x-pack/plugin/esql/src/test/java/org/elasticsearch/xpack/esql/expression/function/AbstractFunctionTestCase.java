@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -555,7 +554,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
-        List<String> args = ShowFunctions.signature(definition).argNames();
+        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
         StringBuilder header = new StringBuilder();
         for (String arg : args) {
             header.append(arg).append(" | ");

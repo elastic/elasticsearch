@@ -57,11 +57,6 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             renderRequest.setScript(id);
         }
 
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestChunkedToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getRestStatus(SearchTemplateResponse searchTemplateResponse) {
-                return searchTemplateResponse.status();
-            }
-        });
+        return channel -> client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

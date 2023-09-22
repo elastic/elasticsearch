@@ -1,8 +1,10 @@
 ---
 "Simulate index template without new template in the body":
   - skip:
-      version: " - 7.7.99"
-      reason: "simulate index template API is only in 7.8.0+"
+      #version: " - 7.7.99"
+      #reason: "simulate index template API is only in 7.8.0+"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99779"
       features: ["default_shards"]
 
   - do:

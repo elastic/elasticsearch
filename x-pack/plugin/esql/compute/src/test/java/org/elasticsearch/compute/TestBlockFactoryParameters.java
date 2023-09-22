@@ -8,6 +8,7 @@
 package org.elasticsearch.compute;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -23,8 +24,7 @@ public class TestBlockFactoryParameters implements BlockFactoryParameters {
     final BigArrays bigArrays;
 
     public TestBlockFactoryParameters() {
-        breaker = new CountingCircuitBreaker("ESQL-test-breaker");
-
+        breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
         var breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);

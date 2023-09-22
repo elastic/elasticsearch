@@ -12,10 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.name.Named;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.CountingCircuitBreaker;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class BlockHashTests extends ESTestCase {
 
-    static final CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
+    static final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
     static final BlockFactory blockFactory = BlockFactory.getInstance(breaker, BigArrays.NON_RECYCLING_INSTANCE);
 
     @ParametersFactory

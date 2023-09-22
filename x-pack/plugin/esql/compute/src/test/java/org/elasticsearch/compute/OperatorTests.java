@@ -29,6 +29,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -398,7 +399,8 @@ public class OperatorTests extends MapperServiceTestCase {
      * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
      */
     protected final DriverContext driverContext() {
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(new CountingCircuitBreaker("esql-test"), bigArrays()));
+        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

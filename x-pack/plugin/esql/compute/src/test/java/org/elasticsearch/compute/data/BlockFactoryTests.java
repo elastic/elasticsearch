@@ -13,11 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.CountingCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -36,24 +36,17 @@ import static org.mockito.Mockito.when;
 
 // BlockFactory is used and effectively tested in many other places, but this class contains tests
 // more specific to the factory implementation itself (and not necessarily tested elsewhere).
-// @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
 public class BlockFactoryTests extends ESTestCase {
 
     final CircuitBreaker breaker;
     final BigArrays bigArrays;
     final BlockFactory blockFactory;
 
-    static BigArrays bigArrays(CircuitBreaker breaker) {
-        var breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
-    }
-
     @ParametersFactory
     public static List<Object[]> params() {
         List<Supplier<BlockFactory>> l = List.of(() -> {
-            CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
-            BigArrays bigArrays = bigArrays(breaker);
+            CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
             return BlockFactory.getInstance(breaker, bigArrays);
         }, BlockFactory::getGlobalInstance);
         return l.stream().map(s -> new Object[] { s }).toList();
@@ -557,7 +550,15 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

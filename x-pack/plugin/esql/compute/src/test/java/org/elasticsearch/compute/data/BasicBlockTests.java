@@ -10,11 +10,11 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.CountingCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -41,14 +41,9 @@ import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
 
-    final CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays());
-
-    BigArrays bigArrays() {
-        var breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
-    }
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
 
     @Before
     @After
@@ -60,11 +55,7 @@ public class BasicBlockTests extends ESTestCase {
         testEmpty(blockFactory);
     }
 
-    public void testEmptyNonBreakingFactory() {
-        testEmpty(BlockFactory.getNonBreakingInstance());
-    }
-
-    public void testEmpty(BlockFactory bf) {
+    void testEmpty(BlockFactory bf) {
         assertZeroPositionsAndRelease(bf.newIntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet(), randomOrdering()));
         assertZeroPositionsAndRelease(IntBlock.newBlockBuilder(0, bf).build());
         assertZeroPositionsAndRelease(bf.newIntArrayVector(new int[] {}, 0));
@@ -252,7 +243,7 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> LongBlock.newBlockBuilder(size),
+                    size -> LongBlock.newBlockBuilder(size, blockFactory),
                     (bb, value) -> bb.appendLong(value),
                     position -> (long) position,
                     LongBlock.Builder::build,
@@ -323,7 +314,7 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    size -> DoubleBlock.newBlockBuilder(size),
+                    size -> DoubleBlock.newBlockBuilder(size, blockFactory),
                     (bb, value) -> bb.appendDouble(value),
                     position -> (double) position,
                     DoubleBlock.Builder::build,
@@ -400,7 +391,7 @@ public class BasicBlockTests extends ESTestCase {
         if (positionCount > 1) {
             assertNullValues(
                 positionCount,
-                size -> BytesRefBlock.newBlockBuilder(size),
+                size -> BytesRefBlock.newBlockBuilder(size, blockFactory),
                 (bb, value) -> bb.appendBytesRef(value),
                 position -> values[position],
                 BytesRefBlock.Builder::build,
@@ -510,7 +501,7 @@ public class BasicBlockTests extends ESTestCase {
             if (positionCount > 1) {
                 assertNullValues(
                     positionCount,
-                    BooleanBlock::newBlockBuilder,
+                    size -> BooleanBlock.newBlockBuilder(size, blockFactory),
                     (bb, value) -> bb.appendBoolean(value),
                     position -> position % 10 == 0,
                     BooleanBlock.Builder::build,
@@ -912,6 +903,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data, CircuitBreaker breaker) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
         assertThat(breaker.getUsed(), is(0L));
     }
@@ -922,5 +914,12 @@ public class BasicBlockTests extends ESTestCase {
 
     static Block.MvOrdering randomOrdering() {
         return randomFrom(Block.MvOrdering.values());
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

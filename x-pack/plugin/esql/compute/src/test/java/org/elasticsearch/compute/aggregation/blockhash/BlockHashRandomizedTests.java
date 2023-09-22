@@ -10,14 +10,11 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.CountingCircuitBreaker;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
@@ -39,9 +36,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
-
-    static final CircuitBreaker breaker = new CountingCircuitBreaker("ESQL-test-breaker");
-    static final BlockFactory blockFactory = BlockFactory.getInstance(breaker, BigArrays.NON_RECYCLING_INSTANCE);
 
     @ParametersFactory
     public static List<Object[]> params() {

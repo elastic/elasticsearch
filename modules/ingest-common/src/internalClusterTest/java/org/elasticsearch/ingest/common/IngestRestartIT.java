@@ -7,15 +7,22 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -24,8 +31,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -262,4 +272,95 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(source.get("y"), equalTo(0));
     }
 
+    public void testDefaultPipelineWaitForClusterStateRecovered() throws Exception {
+        internalCluster().startNode();
+
+        final var pipeline = new BytesArray("""
+            {
+              "processors" : [
+                {
+                  "set": {
+                    "field": "value",
+                    "value": 42
+                  }
+                }
+              ]
+            }""");
+        client().admin().cluster().preparePutPipeline("test_pipeline", pipeline, XContentType.JSON).get();
+        client().admin().indices().preparePutTemplate("pipeline_template").setPatterns(Collections.singletonList("*")).setSettings("""
+            {
+              "index" : {
+                 "default_pipeline" : "test_pipeline"
+              }
+            }
+            """, XContentType.JSON).get();
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), "2").build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        // this one should fail
+        assertThat(
+            expectThrows(
+                ClusterBlockException.class,
+                () -> client().prepareIndex("index")
+                    .setId("fails")
+                    .setSource("x", 1)
+                    .setTimeout(TimeValue.timeValueMillis(100)) // 100ms, to fail quickly
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get()
+            ).getMessage(),
+            equalTo("blocked by: [SERVICE_UNAVAILABLE/1/state not recovered / initialized];")
+        );
+
+        final var latch = new CountDownLatch(1);
+        // but this one should pass since it has a longer timeout
+        client().prepareIndex("index")
+            .setId("passes1")
+            .setSource("x", 2)
+            .setTimeout(TimeValue.timeValueSeconds(60)) // wait for second node to start in below
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+                    assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Should not have failed with exception: " + e.getMessage());
+                }
+            });
+
+        // so the cluster state can be recovered
+        internalCluster().startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), "1"));
+        ensureYellow("index");
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        client().prepareIndex("index").setId("passes2").setSource("x", 3).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        client().admin().indices().prepareRefresh("index").get();
+
+        // successfully indexed documents should have the value field set by the pipeline
+        Map<String, Object> source = client().prepareGet("index", "passes1").get().getSource();
+        assertThat(source.get("x"), equalTo(2));
+        assertThat(source.get("value"), equalTo(42));
+
+        source = client().prepareGet("index", "passes2").get().getSource();
+        assertThat(source.get("x"), equalTo(3));
+        assertThat(source.get("value"), equalTo(42));
+
+        // and make sure this failed doc didn't get through
+        source = client().prepareGet("index", "fails").get().getSource();
+        assertNull(source);
+    }
 }

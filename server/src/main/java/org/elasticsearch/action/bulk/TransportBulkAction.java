@@ -191,9 +191,47 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        final long startTime = relativeTime();
+        final ClusterState initialState = clusterService.state();
+        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        if (blockException != null) {
+            if (false == blockException.retryable()) {
+                listener.onFailure(blockException);
+                return;
+            }
+            logger.trace("cluster is blocked, waiting for it to recover", blockException);
+            final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
+                initialState,
+                clusterService,
+                bulkRequest.timeout(),
+                logger,
+                threadPool.getThreadContext()
+            );
+            clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    doExecuteOnWriteThreadPool(task, bulkRequest, startTime, listener);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(blockException);
+                }
+            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
+        } else {
+            doExecuteOnWriteThreadPool(task, bulkRequest, startTime, listener);
+        }
+    }
+
+    private void doExecuteOnWriteThreadPool(Task task, BulkRequest bulkRequest, long startTime, ActionListener<BulkResponse> listener) {
         /*
-         * This is called on the Transport tread so we can check the indexing
-         * memory pressure *quickly* but we don't want to keep the transport
+         * This is called on the Transport thread and sometimes on the cluster state applier thread,
+         * so we can check the indexing memory pressure *quickly* but we don't want to keep the transport
          * thread busy. Then, as soon as we have the indexing pressure in we fork
          * to one of the write thread pools. We do this because juggling the
          * bulk request can get expensive for a few reasons:
@@ -209,19 +247,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final int indexingOps = bulkRequest.numberOfActions();
         final long indexingBytes = bulkRequest.ramBytesUsed();
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
-        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
         threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
-                doInternalExecute(task, bulkRequest, executorName, releasingListener);
+                doInternalExecute(task, bulkRequest, executorName, startTime, releasingListener);
             }
         });
     }
 
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
-        final long startTime = relativeTime();
+    protected void doInternalExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        long startTime,
+        ActionListener<BulkResponse> listener
+    ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
@@ -256,7 +299,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executorName, startTime, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
                 }
@@ -759,6 +802,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Task task,
         BulkRequest original,
         String executorName,
+        long startTime,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
@@ -788,7 +832,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                                doInternalExecute(task, bulkRequest, executorName, startTime, actionListener);
                             }
 
                             @Override

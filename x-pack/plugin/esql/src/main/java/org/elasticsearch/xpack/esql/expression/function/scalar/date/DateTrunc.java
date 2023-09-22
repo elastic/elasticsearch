@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -26,8 +25,6 @@ import java.time.ZoneId;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
@@ -45,7 +42,12 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = argumentTypesAreSwapped();
+        TypeResolution resolution = argumentTypesAreSwapped(
+            left().dataType(),
+            right().dataType(),
+            EsqlDataTypes::isTemporalAmount,
+            sourceText()
+        );
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -56,14 +58,6 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         }
 
         return isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration");
-    }
-
-    // TODO: drop check once 8.11 is released
-    private TypeResolution argumentTypesAreSwapped() {
-        if (DataTypes.isDateTime(left().dataType()) && isTemporalAmount(right().dataType())) {
-            return new TypeResolution(format(null, "function definition has been updated, please swap arguments in [{}]", sourceText()));
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

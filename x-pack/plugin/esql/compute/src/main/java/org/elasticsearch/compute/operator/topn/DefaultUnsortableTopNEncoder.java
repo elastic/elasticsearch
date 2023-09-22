@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -24,7 +24,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     public static final VarHandle DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
     @Override
-    public void encodeLong(long value, BytesRefBuilder bytesRefBuilder) {
+    public void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
         LONG.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
@@ -46,7 +46,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
      * five bytes. Smaller values take fewer bytes. Negative numbers
      * will always use all 5 bytes.
      */
-    public void encodeVInt(int value, BytesRefBuilder bytesRefBuilder) {
+    public void encodeVInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
         while ((value & ~0x7F) != 0) {
             bytesRefBuilder.append(((byte) ((value & 0x7f) | 0x80)));
             value >>>= 7;
@@ -103,7 +103,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public void encodeInt(int value, BytesRefBuilder bytesRefBuilder) {
+    public void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
         INT.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
@@ -121,7 +121,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public void encodeDouble(double value, BytesRefBuilder bytesRefBuilder) {
+    public void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES);
         DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
@@ -139,7 +139,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public void encodeBoolean(boolean value, BytesRefBuilder bytesRefBuilder) {
+    public void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
     }
 
@@ -155,7 +155,7 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder) {
+    public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
         throw new UnsupportedOperationException();
     }
 

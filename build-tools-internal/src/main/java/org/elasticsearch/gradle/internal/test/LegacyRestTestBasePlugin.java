@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.internal.RestrictedBuildApiService;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -22,12 +23,14 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.RestrictedBuildApiService.BUILD_API_RESTRICTIONS_SYS_PROPERTY;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
@@ -52,6 +55,12 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {
+                spec.getParameters().getDisabled().set(Boolean.getBoolean(BUILD_API_RESTRICTIONS_SYS_PROPERTY));
+            });
+        serviceProvider.get().failOnUsageRestriction(getClass(), project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);

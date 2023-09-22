@@ -8,15 +8,15 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
 public abstract class SortableTopNEncoder implements TopNEncoder {
     @Override
-    public final void encodeLong(long value, BytesRefBuilder bytesRefBuilder) {
+    public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
         NumericUtils.longToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
@@ -34,7 +34,7 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeInt(int value, BytesRefBuilder bytesRefBuilder) {
+    public final void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
         NumericUtils.intToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
@@ -52,7 +52,7 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeDouble(double value, BytesRefBuilder bytesRefBuilder) {
+    public final void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
         NumericUtils.longToSortableBytes(NumericUtils.doubleToSortableLong(value), bytesRefBuilder.bytes(), bytesRefBuilder.length());
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
@@ -70,7 +70,7 @@ public abstract class SortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeBoolean(boolean value, BytesRefBuilder bytesRefBuilder) {
+    public final void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
     }
 

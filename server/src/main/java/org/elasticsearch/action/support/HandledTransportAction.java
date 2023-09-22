@@ -10,11 +10,13 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.Executor;
 
 /**
  * A TransportAction that self registers a handler into the transport service
@@ -37,9 +39,22 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Executor executor
     ) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
+    }
+
+    /**
+     * Temporary for serverless compatibility. TODO remove.
+     */
+    protected HandledTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
+        this(actionName, true, transportService, actionFilters, requestReader, transportService.getThreadPool().executor(executor));
     }
 
     protected HandledTransportAction(
@@ -49,7 +64,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader
     ) {
-        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     protected HandledTransportAction(
@@ -58,17 +73,10 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Executor executor
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(
-            actionName,
-            transportService.getThreadPool().executor(executor),
-            false,
-            canTripCircuitBreaker,
-            requestReader,
-            new TransportHandler()
-        );
+        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {

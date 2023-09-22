@@ -122,12 +122,8 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
     }
 
     private void destroyApmServices() {
-        instruments.setProvider(null);
+        // TODO(stu): where do we want this?
+        instruments.setProvider(new LoggingMeterProvider());
         this.services.set(null);
     }
-
-    private void updateProvider(Meter meter) {
-
-    }
-
 }

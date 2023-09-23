@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
@@ -321,33 +322,31 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
      */
     private static class PushStatsToSource extends OptimizerRule<AggregateExec> {
 
-        @SuppressWarnings("unchecked")
         @Override
         protected PhysicalPlan rule(AggregateExec aggregateExec) {
             PhysicalPlan plan = aggregateExec;
             if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-                List<?>[] lists = pushableStats(aggregateExec);
+                var tuple = pushableStats(aggregateExec);
 
                 // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
                 // use the stats since the attributes are larger in size (due to seen)
-                if (lists[1].size() == aggregateExec.aggregates().size()) {
+                if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                     plan = new EsStatsQueryExec(
                         aggregateExec.source(),
                         queryExec.index(),
                         queryExec.query(),
                         queryExec.limit(),
-                        (List<Attribute>) lists[0],
-                        (List<Stat>) lists[1]
+                        tuple.v1(),
+                        tuple.v2()
                     );
                 }
             }
             return plan;
         }
 
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        private List[] pushableStats(AggregateExec aggregate) {
+        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate) {
             AttributeMap<Stat> stats = new AttributeMap<>();
-            var lists = new List[] { new ArrayList<Attribute>(), new ArrayList<Stat>() };
+            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<Attribute>(), new ArrayList<Stat>());
 
             if (aggregate.groupings().isEmpty()) {
                 for (NamedExpression agg : aggregate.aggregates()) {
@@ -370,13 +369,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             singletonList(agg),
                             emptyList()
                         );
-                        lists[0].addAll(intermediateAttributes);
-                        lists[1].add(stat);
+                        tuple.v1().addAll(intermediateAttributes);
+                        tuple.v2().add(stat);
                     }
                 }
             }
 
-            return lists;
+            return tuple;
         }
     }
 

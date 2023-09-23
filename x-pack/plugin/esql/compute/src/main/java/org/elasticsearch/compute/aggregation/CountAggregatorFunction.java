@@ -58,6 +58,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private CountAggregatorFunction(List<Integer> channels, LongState state) {
         this.channels = channels;
         this.state = state;
+        // no channels specified means count-all/count(*)
         this.countAll = channels.isEmpty();
     }
 

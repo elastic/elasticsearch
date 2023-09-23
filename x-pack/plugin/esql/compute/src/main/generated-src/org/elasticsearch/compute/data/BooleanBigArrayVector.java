@@ -22,7 +22,11 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     private final BitArray values;
 
     public BooleanBigArrayVector(BitArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 

@@ -14,34 +14,37 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ProjectOperator extends AbstractPageMappingOperator {
 
-    private final BitSet bs;
+    private final List<Integer> projection;
     private Block[] blocks;
 
-    public record ProjectOperatorFactory(BitSet mask) implements OperatorFactory {
+    public record ProjectOperatorFactory(List<Integer> projection) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ProjectOperator(mask);
+            return new ProjectOperator(projection);
         }
 
         @Override
         public String describe() {
-            return "ProjectOperator[mask = " + mask + "]";
+            return "ProjectOperator[mask = " + projection + "]";
         }
     }
 
     /**
-     * Creates a project that applies the given mask (as a bitset).
+     * Creates a project that applies the given projection, encoded as an integer list where
+     * the ordinal indicates the output order and the value, the backing channel that to be used.
+     * Given the input {a,b,c,d}, project {a,d,a} is encoded as {0,3,0}.
      *
-     * @param mask bitset mask for enabling/disabling blocks / columns inside a Page
+     * @param projection list of blocks to keep and their order.
      */
-    public ProjectOperator(BitSet mask) {
-        this.bs = mask;
+    public ProjectOperator(List<Integer> projection) {
+        this.projection = projection;
     }
 
     @Override
@@ -50,27 +53,35 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             return page;
         }
         if (blocks == null) {
-            blocks = new Block[bs.cardinality()];
+            blocks = new Block[projection.size()];
         }
 
         Arrays.fill(blocks, null);
         int b = 0;
         int positionCount = page.getPositionCount();
+        for (Integer source : projection) {
+            if (source >= page.getBlockCount()) {
+                throw new IllegalArgumentException("Cannot project blocks outside of a Page");
+            }
+            var block = page.getBlock(source);
+            blocks[b++] = block;
+        }
+        // iterate the blocks to see which one isn't used
         List<Releasable> blocksToRelease = new ArrayList<>();
+
+        Set<Integer> offsets = new HashSet<>(projection);
         for (int i = 0; i < page.getBlockCount(); i++) {
-            var block = page.getBlock(i);
-            if (bs.get(i)) {
-                blocks[b++] = block;
-            } else {
-                blocksToRelease.add(block);
+            if (offsets.contains(i) == false) {
+                blocksToRelease.add(page.getBlock(i));
             }
         }
         Releasables.close(blocksToRelease);
+
         return new Page(positionCount, blocks);
     }
 
     @Override
     public String toString() {
-        return "ProjectOperator[mask = " + bs + ']';
+        return "ProjectOperator[mask = " + projection + ']';
     }
 }

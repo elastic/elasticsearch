@@ -90,6 +90,7 @@ public class AggregationOperator implements Operator {
         }
         finished = true;
         int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
+        // TODO: look into allocating the blocks lazily
         Block[] blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
         int offset = 0;
         for (int i = 0; i < aggregators.size(); i++) {
@@ -97,6 +98,11 @@ public class AggregationOperator implements Operator {
             aggregator.evaluate(blocks, offset);
             offset += aggBlockCounts[i];
         }
+        // project the output
+        // Block[] projectedBlocks = new Block[projection.size()];
+        // for (int i = 0; i < projectedBlocks.length; i++) {
+        // projectedBlocks[i] = blocks[projection.get(i)];
+        // }
         output = new Page(blocks);
     }
 

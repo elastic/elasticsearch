@@ -112,7 +112,9 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            startsWith("cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Build.current().version() + "]")
+            startsWith(
+                "cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Build.current().version() + "]"
+            )
         );
     }
 

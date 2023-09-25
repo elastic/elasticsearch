@@ -75,7 +75,8 @@ public class DesiredNodesSettingsValidator {
                     Locale.ROOT,
                     "Illegal node version [%s]. Only [%s] or newer versions are supported",
                     node.version(),
-                    Build.current().version())
+                    Build.current().version()
+                )
             );
         }
 

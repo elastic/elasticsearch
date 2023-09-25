@@ -358,20 +358,20 @@ public class RestEsqlTestCase extends ESRestTestCase {
         );
 
         for (String overflowExp : dateMathOverflowExpressions) {
-            assertDateMathException(overflowExp, "overflow");
+            assertExceptionForDateMath(overflowExp, "overflow");
         }
 
     }
 
     public void testErrorMessageForLiteralDateMathOverflowOnNegation() throws IOException {
-        assertDateMathException("-(-2147483647 year - 1 year)", "overflow");
-        assertDateMathException("-(-9223372036854775807 second - 1 second)", "Exceeds capacity of Duration");
+        assertExceptionForDateMath("-(-2147483647 year - 1 year)", "overflow");
+        assertExceptionForDateMath("-(-9223372036854775807 second - 1 second)", "Exceeds capacity of Duration");
     }
 
-    private static void assertDateMathException(String overflowExpression, String errorSubstring) throws IOException {
+    private static void assertExceptionForDateMath(String dateMathString, String errorSubstring) throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + overflowExpression + ")").build())
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + dateMathString + ")").build())
         );
 
         String responseMessage = EntityUtils.toString(re.getResponse().getEntity());

@@ -8,7 +8,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -69,7 +68,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
         remoteConnectionManager.connectToRemoteClusterNode(node1, validator, PlainActionFuture.newFuture());
 
-        DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address);
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
         remoteConnectionManager.connectToRemoteClusterNode(node2, validator, future2);
         assertTrue(future2.isDone());
@@ -82,8 +81,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         // Test round robin
         Set<String> proxyNodes = new HashSet<>();
-        proxyNodes.add(((ProxyConnection)remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
-        proxyNodes.add(((ProxyConnection)remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
         assertThat(proxyNodes, containsInAnyOrder("node-1", "node-2"));
 
@@ -91,8 +90,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         remoteConnectionManager.getConnection(node1).close();
 
         proxyNodes.clear();
-        proxyNodes.add(((ProxyConnection)remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
-        proxyNodes.add(((ProxyConnection)remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
     }

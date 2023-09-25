@@ -49,7 +49,7 @@ public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHand
         return channel -> client.execute(
             PutSearchApplicationAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, PutSearchApplicationAction.Response::status)
+            new RestToXContentListener<>(channel, PutSearchApplicationAction.Response::status, r -> null)
         );
     }
 }

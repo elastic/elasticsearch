@@ -46,7 +46,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         return channel -> client.execute(
             PutSynonymRuleAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, SynonymUpdateResponse::status)
+            new RestToXContentListener<>(channel, SynonymUpdateResponse::status, r -> null)
         );
     }
 }

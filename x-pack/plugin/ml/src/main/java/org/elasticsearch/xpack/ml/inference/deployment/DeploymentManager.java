@@ -231,7 +231,11 @@ public class DeploymentManager {
     ) {
         ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
             try {
-                MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(architectures, modelPlatformArchitecture);
+                MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+                    architectures,
+                    modelPlatformArchitecture,
+                    modelId
+                );
             } catch (IllegalArgumentException iae) {
                 MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
                 throw iae;

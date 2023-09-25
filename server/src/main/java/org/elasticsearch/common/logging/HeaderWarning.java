@@ -31,28 +31,60 @@ import java.util.stream.Stream;
  * The result will be returned as HTTP response headers.
  */
 public class HeaderWarning {
+
+    private static final String semanticVersionPattern = "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?";
+
+    private static final boolean hasSemanticVersion = Pattern.matches(semanticVersionPattern, Build.current().version());
+
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
      * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
      * hash.
      */
-    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile("299 " + // log level code
-        "Elasticsearch-" + // warn agent
-        "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
-        "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-        // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
-        "\"(?<quotedStringValue>.*)\"( " +
-        // quoted RFC 1123 date format
-        "\"" + // opening quote
-        "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-        "\\d{2} " + // 2-digit day
-        "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-        "\\d{4} " + // 4-digit year
-        "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-        "GMT" + // GMT
-        "\")?",// closing quote (optional, since an older version can still send a warn-date)
-        Pattern.DOTALL
-    ); // in order to parse new line inside the qdText
+    public static final Pattern WARNING_HEADER_PATTERN = hasSemanticVersion
+        ? getPatternWithSemanticVersion()
+        : getPatternWithoutSemanticVersion();
+
+    private static Pattern getPatternWithSemanticVersion() {
+        return
+            Pattern.compile("299 " + // log level code
+                    "Elasticsearch-" + // warn agent
+                    semanticVersionPattern + "-" + // warn agent: semantic version
+                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+                    // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+                    "\"(?<quotedStringValue>.*)\"( " +
+                    // quoted RFC 1123 date format
+                    "\"" + // opening quote
+                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+                    "\\d{2} " + // 2-digit day
+                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+                    "\\d{4} " + // 4-digit year
+                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+                    "GMT" + // GMT
+                    "\")?",// closing quote (optional, since an older version can still send a warn-date)
+                Pattern.DOTALL
+            ); // in order to parse new line inside the qdText
+    }
+
+    private static Pattern getPatternWithoutSemanticVersion() {
+        return
+            Pattern.compile("299 " + // log level code
+                    "Elasticsearch-" + // warn agent
+                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+                    // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+                    "\"(?<quotedStringValue>.*)\"( " +
+                    // quoted RFC 1123 date format
+                    "\"" + // opening quote
+                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+                    "\\d{2} " + // 2-digit day
+                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+                    "\\d{4} " + // 4-digit year
+                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+                    "GMT" + // GMT
+                    "\")?",// closing quote (optional, since an older version can still send a warn-date)
+                Pattern.DOTALL
+            ); // in order to parse new line inside the qdText
+    }
 
     /**
      * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
@@ -86,11 +118,16 @@ public class HeaderWarning {
      */
     private static final String WARNING_PREFIX = String.format(
         Locale.ROOT,
-        "299 Elasticsearch-%s%s-%s",
+        "299 Elasticsearch-%s-%s",
         Build.current().version(),
-        Build.current().isSnapshot() ? "-SNAPSHOT" : "",
         Build.current().hash()
     );
+
+    private static String buildWarningPrefix() {
+        return hasSemanticVersion
+            ? String.format(Locale.ROOT, "299 Elasticsearch-%s-%s", Build.current().version(), Build.current().hash())
+            : String.format(Locale.ROOT, "299 Elasticsearch-%s", Build.current().hash());
+    }
 
     private static BitSet doesNotNeedEncoding;
 

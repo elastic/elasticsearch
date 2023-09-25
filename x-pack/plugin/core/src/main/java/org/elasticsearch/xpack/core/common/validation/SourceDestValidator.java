@@ -70,8 +70,11 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
-    public static final String REMOTE_CLUSTERS_TOO_OLD =
+    public static final String REMOTE_CLUSTERS_TRANSPORT_TOO_OLD =
         "remote clusters are expected to run at least transport version [{0}] (reason: [{1}]),"
+            + " but the following clusters were too old: [{2}]";
+    public static final String REMOTE_CLUSTERS_CONFIG_TOO_OLD =
+        "remote clusters are expected to run at least config version [{0}] (reason: [{1}]),"
             + " but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
@@ -490,7 +493,7 @@ public final class SourceDestValidator {
                 .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (oldRemoteClusterVersions.isEmpty() == false) {
                 context.addValidationError(
-                    REMOTE_CLUSTERS_TOO_OLD,
+                    REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
                     minExpectedVersion,
                     reason,
                     oldRemoteClusterVersions.entrySet()

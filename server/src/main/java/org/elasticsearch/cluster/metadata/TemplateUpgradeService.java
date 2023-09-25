@@ -64,6 +64,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private Map<String, IndexTemplateMetadata> lastTemplateMetadata;
 
+    @SuppressWarnings("this-escape")
     public TemplateUpgradeService(
         Client client,
         ClusterService clusterService,

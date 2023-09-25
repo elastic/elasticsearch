@@ -124,6 +124,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
         encoder(in.readOptionalString());
@@ -474,6 +475,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("this-escape")
         public Field(StreamInput in) throws IOException {
             super(in);
             name = in.readString();

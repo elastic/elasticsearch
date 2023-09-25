@@ -88,6 +88,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     private final TimeValue deleteShardTimeout;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public IndicesStore(
         Settings settings,

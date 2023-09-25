@@ -107,6 +107,7 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
+    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());

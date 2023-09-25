@@ -75,6 +75,7 @@ public class OutlierDetection implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
+    @SuppressWarnings("this-escape")
     public OutlierDetection(String actualField, String predictedProbabilityField, @Nullable List<EvaluationMetric> metrics) {
         this.fields = new EvaluationFields(
             ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),

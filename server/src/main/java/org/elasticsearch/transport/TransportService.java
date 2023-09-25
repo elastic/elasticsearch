@@ -252,6 +252,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    @SuppressWarnings("this-escape")
     public TransportService(
         Settings settings,
         Transport transport,

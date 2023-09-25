@@ -65,6 +65,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final PeriodicRechecker periodicRechecker;
     private final AtomicBoolean reassigningTasks = new AtomicBoolean(false);
 
+    @SuppressWarnings("this-escape")
     public PersistentTasksClusterService(
         Settings settings,
         PersistentTasksExecutorRegistry registry,

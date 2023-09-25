@@ -302,6 +302,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         private TargetType targetType = TargetType.REGRESSION;
         private List<String> classificationLabels;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             nodes = new ArrayList<>();
             // allocate space in the root node and set to a leaf
